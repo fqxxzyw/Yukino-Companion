@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "name": "雪乃 · 逐帧桌宠",
+  "width": 384,
+  "height": 512,
+  "animations": {
+    "idle": {
+      "frames": [
+        "frames/idle-00.png",
+        "frames/idle-01.png",
+        "frames/idle-02.png",
+        "frames/idle-03.png",
+        "frames/idle-04.png",
+        "frames/idle-05.png",
+        "frames/idle-06.png",
+        "frames/idle-07.png"
+      ],
+      "durations": [
+        2400,
+        450,
+        65,
+        95,
+        65,
+        500,
+        500,
+        800
+      ],
+      "loop": true
+    },
+    "talk": {
+      "frames": [
+        "frames/talk-00.png",
+        "frames/talk-01.png",
+        "frames/talk-02.png",
+        "frames/talk-03.png",
+        "frames/talk-04.png",
+        "frames/talk-05.png",
+        "frames/talk-06.png",
+        "frames/talk-07.png"
+      ],
+      "durations": [
+        140,
+        110,
+        120,
+        100,
+        130,
+        110,
+        120,
+        140
+      ],
+      "loop": true
+    },
+    "greet": {
+      "frames": [
+        "frames/greet-00.png",
+        "frames/greet-01.png",
+        "frames/greet-02.png",
+        "frames/greet-03.png",
+        "frames/greet-04.png",
+        "frames/greet-05.png",
+        "frames/greet-06.png",
+        "frames/greet-07.png"
+      ],
+      "durations": [
+        100,
+        110,
+        110,
+        140,
+        350,
+        110,
+        110,
+        160
+      ],
+      "loop": false
+    }
+  }
+}
