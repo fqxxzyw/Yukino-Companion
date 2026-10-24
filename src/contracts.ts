@@ -1,0 +1,3 @@
+export interface AvatarAdapter { load(resource: string): Promise<void>; setState(state: 'idle'|'thinking'|'speaking'): void; setExpression(name:string): void; setLipSync(value:number):void; setOutfit(id:string):Promise<void>; dispose():void }
+export interface SpeechEngine { load(packagePath:string):Promise<void>; synthesize(text:string,signal:AbortSignal):Promise<ArrayBuffer>; cancel():void; unload():Promise<void> }
+export interface LocalModelProvider { load(path:string):Promise<void>; chat(messages:{role:string;content:string}[],signal:AbortSignal):AsyncIterable<string>; unload():Promise<void> }

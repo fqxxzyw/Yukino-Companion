@@ -1,0 +1,2 @@
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('desktop',{load:()=>ipcRenderer.invoke('load'),save:s=>ipcRenderer.invoke('save',s),saveKey:(id,key)=>ipcRenderer.invoke('key',id,key),send:p=>ipcRenderer.invoke('chat',p),stop:()=>ipcRenderer.invoke('stop'),test:p=>ipcRenderer.invoke('test',p),window:a=>ipcRenderer.invoke('window',a),openCommunity:()=>ipcRenderer.invoke('community'),onChunk:f=>{const h=(_,p)=>f(p);ipcRenderer.on('chunk',h);return()=>ipcRenderer.removeListener('chunk',h)}});

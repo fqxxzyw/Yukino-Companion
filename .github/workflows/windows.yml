@@ -1,0 +1,29 @@
+name: Windows EXE first, then tests
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Publish executable before tests
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v0.1.0-framework.${{ github.run_number }}"
+          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.1 · Framework ${{ github.run_number }}" --prerelease --notes "框架预览：UI、聊天 API、自定义颜色；3D、本地模型、音色预留。按要求先发布 EXE，再运行测试。未签名安装包，Windows 实机与真实供应商兼容性仍需验证。"
+      - name: Tests after executable publication
+        run: npm test
