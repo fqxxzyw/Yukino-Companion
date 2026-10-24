@@ -1,0 +1,16 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>雪乃 · 逐帧桌宠</title><style>*{box-sizing:border-box}body{margin:0;font:15px system-ui;color:#314862;background:#edf4fa}main{max-width:1000px;margin:auto;padding:28px;display:grid;grid-template-columns:1fr 290px;gap:28px}section,aside{background:#ffffffa8;border:1px solid white;border-radius:24px;padding:24px}h1{font-size:24px;font-weight:500}p{line-height:1.8;color:#6b7f95}.stage{height:70vh;min-height:400px;display:flex;align-items:center;justify-content:center}.stage button{height:100%;width:100%;border:0;background:none;cursor:pointer}.stage img{height:100%;max-width:100%;object-fit:contain}.controls{display:flex;gap:8px;flex-wrap:wrap}button{font:inherit;border:1px solid #d5e1ee;background:white;color:#385c85;border-radius:12px;padding:10px 16px}button:focus-visible{outline:3px solid #618bc4}label{display:block;margin:22px 0}small{line-height:1.8;color:#8595a8}@media(max-width:700px){main{grid-template-columns:1fr;padding:12px}.stage{height:60vh}}</style>
+<main><section><h1>雪乃 · 在这里陪你</h1><div class="stage"><button id="character" aria-label="点击雪乃打招呼"><img id="image" alt="雪乃全身动漫角色"></button></div></section><aside><h2>逐帧桌宠</h2><p id="status" role="status">正在载入…</p><div class="controls"><button data-state="idle">待机</button><button data-state="talk">说话演示</button><button data-state="greet">打招呼</button><button id="pause">暂停</button></div><label><input id="reduce" type="checkbox"> 减少动态效果</label><label>背景 <input id="bg" type="color" value="#edf4fa"></label><p>点击角色，她会轻轻抬手回应。待机时偶尔眨眼。</p><small>动作来自逐帧 PNG 图片。说话为无声动作演示，未接入语音。减少动态效果时保持静止。</small><p id="error" role="alert"></p></aside></main>
+<script type="module">
+import {loadSprite} from './avatars/yukino-sprite/player.js';
+const $=id=>document.getElementById(id);let p,paused=false;
+const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
+try{p=await loadSprite($('image'),new URL('./avatars/yukino-sprite/',location.href),{onState:s=>$('status').textContent={idle:'安静待机',talk:'说话动作演示 · 无声音',greet:'你好。'}[s]});$('status').textContent='安静待机';buttons.forEach(b=>b.disabled=false);
+const media=matchMedia('(prefers-reduced-motion: reduce)');$('reduce').checked=media.matches;p.setReduced(media.matches);
+$('reduce').onchange=()=>p.setReduced($('reduce').checked);
+media.addEventListener('change',e=>{$('reduce').checked=e.matches;p.setReduced(e.matches);});
+document.querySelectorAll('[data-state]').forEach(b=>b.onclick=()=>p.setState(b.dataset.state));$('character').onclick=()=>p.setState('greet');
+$('pause').onclick=()=>{paused=!paused;p.setPaused(paused);$('pause').textContent=paused?'继续':'暂停';};
+}catch(e){$('error').textContent=e.message;$('status').textContent='载入失败';}
+$('bg').oninput=()=>document.body.style.background=$('bg').value;
+window.addEventListener('pagehide',()=>p?.dispose());
+</script></html>
