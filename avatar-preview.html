@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>雪乃 · 自然动作实验室</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#eef4fa;color:#24374a;font:16px system-ui}main{max-width:1100px;margin:auto;padding:32px;display:grid;grid-template-columns:1fr 300px;gap:28px}h1{font-size:25px}section,aside{background:white;border-radius:20px;padding:24px}#stage{height:70vh;min-height:400px;display:grid;place-items:center;overflow:hidden;background:linear-gradient(#f7fbff,#e6eff8);border-radius:16px}img{max-height:65vh;max-width:95%;object-fit:contain;transform-origin:50% 95%}label{display:block;margin:20px 0}input,select,button{max-width:100%;font:inherit}p,small{line-height:1.7}pre{font-size:12px;white-space:pre-wrap}button{padding:8px 16px}@media(max-width:700px){main{grid-template-columns:1fr;padding:12px}}</style>
+<main><section><h1>雪乃 · 自然动作预览</h1><p>第一阶段：立绘整体动作与模型控制信号</p><div id="stage"><p id="empty">选择全身立绘开始预览</p><img id="avatar" hidden alt="全身角色立绘"></div></section><aside><h2>动作调试</h2><label>载入立绘（仅本机）<input id="file" type="file" accept="image/png,image/jpeg,image/webp"></label><label>状态 <select id="state"><option value="idle">安静待机</option><option value="thinking">思考</option><option value="speaking">说话</option></select></label><label>模拟语音音量 <input id="volume" type="range" min="0" max="1" step="0.01" value="0"></label><label><input id="reduce" type="checkbox"> 减少动态效果</label><button id="pause">暂停</button><p>移动鼠标可测试视线参数。此页只对整张立绘做轻微变换，尚无眼睛、嘴巴和发丝的独立变形，也没有语音合成。</p><small>下方数值用于后续 Live2D 绑定；本页不是成品模型。思考状态暂与待机共用动作。</small><pre id="values" aria-label="实时模型参数"></pre><p id="error" role="alert"></p></aside></main>
+<script type="module">
+import {NaturalMotion} from './src/avatar/natural-motion.mjs';
+const $=id=>document.getElementById(id), motion=new NaturalMotion(); let url, last, paused=false, frame=0;
+$('reduce').checked=matchMedia('(prefers-reduced-motion: reduce)').matches;
+$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!['image/png','image/jpeg','image/webp'].includes(f.type)){ $('error').textContent='请选择 PNG、JPEG 或 WebP 图片';return;}if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);$('avatar').src=url;$('error').textContent='';};
+$('avatar').onload=()=>{$('avatar').hidden=false;$('empty').hidden=true;};
+$('avatar').onerror=()=>{$('error').textContent='图片无法读取，请重新选择';$('avatar').hidden=true;$('empty').hidden=false;};
+$('stage').onpointermove=e=>{const r=$('stage').getBoundingClientRect();motion.setPointer((e.clientX-r.left)/r.width*2-1,(e.clientY-r.top)/r.height*2-1);};
+$('stage').onpointerleave=()=>motion.setPointer(0,0);
+$('state').onchange=()=>motion.setState($('state').value);
+$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'继续':'暂停';last=undefined;};
+document.addEventListener('visibilitychange',()=>{last=undefined;});
+function tick(now){requestAnimationFrame(tick);if(document.hidden||paused){last=undefined;return;}const dt=last===undefined?0:(now-last)/1000;last=now;motion.setLipSync(Number($('volume').value));const p=motion.step(dt,{reducedMotion:$('reduce').checked});$('avatar').style.transform=`translateY(${-p.breath*2}px) rotate(${p.bodyAngle}deg) scaleY(${1+p.breath*0.002})`;if(frame++%6===0)$('values').textContent=JSON.stringify(p,(_,v)=>typeof v==='number'?Number(v.toFixed(3)):v,2);}
+requestAnimationFrame(tick);window.addEventListener('pagehide',()=>{if(url)URL.revokeObjectURL(url);});
+</script></html>
