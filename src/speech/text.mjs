@@ -3,6 +3,11 @@ export function spokenText(raw, final = false) {
   let out = '', i = 0;
   while (i < raw.length) {
     const rest = raw.slice(i);
+    // A trailing ! may become the opening of ![image] in the next chunk.
+    // Do not commit punctuation that could later disappear from spoken text.
+    if (!final && raw[i] === '!' && i + 1 === raw.length) break;
+    // Likewise, keep an unfinished URL scheme out of a length-based segment.
+    if (!final && /^(?:h|ht|htt|http|https|http:|https:|http:\/|https:\/)$/.test(rest)) break;
     if (rest.startsWith('```') || rest.startsWith('~~~')) {
       const fence = rest.slice(0, 3), end = raw.indexOf(fence, i + 3);
       if (end < 0) break;
@@ -40,7 +45,9 @@ export function spokenText(raw, final = false) {
       out += raw.slice(start, end); i = end + 1; continue;
     }
     if (/^https?:\/\//.test(rest)) {
-      const end = rest.search(/[\s<>]/);
+      // Chinese prose commonly follows a URL without a space. Keep its
+      // punctuation/suffix, while allowing ASCII query and fragment syntax.
+      const end = rest.search(/[\s<>，。！？；：、…“”‘’]/u);
       if (end < 0) break;
       i += end; continue;
     }

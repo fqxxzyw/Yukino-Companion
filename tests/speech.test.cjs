@@ -27,6 +27,42 @@ test('long plain text is bounded; empty formatting never generates audio', async
   assert.equal(chunks.join('').length,1000); assert.ok(chunks.every(x=>x.length<=181));
 });
 
+test('URLs preserve adjacent Chinese prose and keep English query/fragment hidden', async()=>{
+  const {SentenceStream,spokenText}=await import('../src/speech/text.mjs');
+  const cases=[
+    ['详情：https://example.com。后面还有一句。','详情：。后面还有一句。'],
+    ['链接 https://example.com/search?q=hello+world&lang=en#part-2 后面继续。','链接 后面继续。'],
+    ['请看 https://example.com/中文路径？看完继续。','请看 ？看完继续。'],
+  ];
+  for(const [raw,expectedText] of cases){
+    assert.equal(spokenText(raw,true),expectedText);
+    const expected=new SentenceStream().push(raw,true);
+    for(let size=1;size<=raw.length;size++){
+      const stream=new SentenceStream(),got=[];
+      for(let i=0;i<raw.length;i+=size)got.push(...stream.push(raw.slice(i,i+size)));
+      got.push(...stream.push('',true));assert.deepEqual(got,expected,`chunk size ${size}: ${raw}`);
+    }
+  }
+});
+
+test('split image markers and URL prefixes cannot consume later spoken characters', async()=>{
+  const {SentenceStream}=await import('../src/speech/text.mjs');
+  const cases=[
+    ['你好![图片](https://example.com/a.png)继续。',['你好继续。']],
+    ['你好! 继续。',['你好!','继续。']],
+    ['第一句![图片](https://example.com/a.png)第二句！再见!',['第一句第二句！','再见!']],
+    ['很'.repeat(180)+'https://example.com/path?q=x#part。继续。',['很'.repeat(180)+'。','继续。']],
+  ];
+  for(const [raw,expected] of cases){
+    assert.deepEqual(new SentenceStream().push(raw,true),expected);
+    for(let size=1;size<=20;size++){
+      const stream=new SentenceStream(),got=[];
+      for(let i=0;i<raw.length;i+=size)got.push(...stream.push(raw.slice(i,i+size)));
+      got.push(...stream.push('',true));assert.deepEqual(got,expected,`chunk size ${size}: ${raw}`);
+    }
+  }
+});
+
 test('session serializes synthesis AND playback; flushes final text once',async()=>{
   const {SpeechSession}=await import('../src/speech/session.mjs');
   const log=[], gate=deferred();
