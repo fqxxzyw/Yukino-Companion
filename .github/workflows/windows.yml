@@ -53,16 +53,26 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --no-audit --no-fund
+        id: node_dependencies
       - run: npm test
       - run: python -m unittest discover -s tests -p '*_test.py'
       - run: python -m pip install pytest
       - run: python -m pytest model-service/tests/test_desktop_worker.py -q
       - run: npm run build
       - run: npm run qa:ui
+        id: main_ui_capture
         timeout-minutes: 5
+      - name: Preserve completed main-window screenshots before companion checks
+        if: ${{ !cancelled() && steps.main_ui_capture.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-main-ui-checks-${{ github.run_number }}
+          path: build/ui-review
+          if-no-files-found: error
       - run: npm run qa:pet
         timeout-minutes: 5
       - name: Compile and test the bootstrap installer with tiny fixtures
+        if: ${{ !cancelled() && steps.node_dependencies.outcome == 'success' }}
         run: |
           choco install nsis --version=3.11 --yes --no-progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

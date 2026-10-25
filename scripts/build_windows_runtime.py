@@ -36,7 +36,7 @@ def inputs_fingerprint():
 
 
 def embedded_smoke(embedded, engine, runtime):
-    """Import both engines from the distributable Python, not the build venv."""
+    """Exercise both engines and lazy voice preprocessing in embedded Python."""
     env = os.environ.copy()
     env.update(PYTHONUTF8='1', NLTK_DATA=str(runtime / 'nltk_data'),
                HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
@@ -45,7 +45,7 @@ def embedded_smoke(embedded, engine, runtime):
               "worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker);"
               "worker.prepare_windows_dlls();"
               "import llama_cpp;"
-              "from GPT_SoVITS.TTS_infer_pack.TTS import TTS;"
+              "from GPT_SoVITS.TTS_infer_pack.TTS import TTS, load_audio_gpu;"
               "import torch, torchaudio, nltk, pyopenjtalk;"
               "assert torch.__version__.startswith('2.5.1');"
               "assert torchaudio.__version__.startswith('2.5.1');"
@@ -53,6 +53,34 @@ def embedded_smoke(embedded, engine, runtime):
               "nltk.data.find('taggers/averaged_perceptron_tagger_eng/');"
               "assert pyopenjtalk.g2p('こんにちは');"
               "print('Embedded engines ready:',torch.__version__,llama_cpp.__version__)")
+    # Importing TTS does not execute its resampy filter loader or Japanese
+    # cleaner. Exercise the same reference-audio path used by set_ref_audio,
+    # including a real sample-rate conversion, before publishing the runtime.
+    source += """
+import tempfile
+from pathlib import Path
+import numpy as np
+import soundfile as sf
+import librosa
+import resampy
+from text.cleaner import clean_text
+assert resampy.__version__ == '0.4.3'
+torch.set_num_threads(2)
+with tempfile.TemporaryDirectory(prefix='yukino-audio-smoke-') as temporary:
+    sample = str(Path(temporary) / 'reference.wav')
+    tone = (0.15 * np.sin(2 * np.pi * 440 * np.arange(3200) / 32000)).astype(np.float32)
+    sf.write(sample, tone, 32000, subtype='PCM_16')
+    audio, sample_rate = load_audio_gpu(sample, 16000, 'cpu', match_librosa=True)
+    assert sample_rate == 16000 and audio.shape == (1, 1600)
+    assert torch.isfinite(audio).all() and audio.abs().max() > 0.01
+    reference, _ = librosa.load(sample, sr=16000, res_type='kaiser_best')
+    assert np.allclose(audio.cpu().numpy()[0], reference, atol=1e-4)
+    default_audio, _ = librosa.load(sample, sr=16000)
+    assert default_audio.shape == (1600,) and np.isfinite(default_audio).all()
+phones, _, normalized = clean_text('こんにちは。今日は何を話しましょうか。', 'ja', 'v1')
+assert phones and normalized and any(phone != 'UNK' for phone in phones)
+print('Embedded reference resampling and Japanese preprocessing ready')
+"""
     run(embedded, '-X', 'utf8', '-c', source, cwd=engine, env=env)
     run(runtime / 'ffmpeg.exe', '-version', env=env, stdout=subprocess.DEVNULL)
 

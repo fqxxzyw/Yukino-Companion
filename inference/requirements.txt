@@ -4,6 +4,8 @@
 numpy<2
 scipy
 librosa==0.10.2
+# Upstream reference resampling lazily reads resampy kaiser_best filters.
+resampy==0.4.3
 soundfile
 numba
 pytorch-lightning>=2.4,<3
