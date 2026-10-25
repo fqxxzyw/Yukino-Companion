@@ -6,7 +6,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 发行采用 **EXE 安装器 + 完整应用分卷 + 独立共享推理环境**。本地对话、翻译、默认音色和参考 WAV 随应用分卷安装；首次引导下载 Python 等公共环境，可跳过。Windows 的真实打包、安装、翻译和合成结果由发布工作流填写，源码完成不等于已验收。3D 模型与动作仍在制作。
 
-[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
+[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 验证记录](docs/VALIDATION_0.4.0.md) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 
 ## 产品与功能状态
 
