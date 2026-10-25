@@ -4,7 +4,9 @@
 
 Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项目。当前源码版本为 **0.4.0**：本地角色模型、远程 API、中文／日文对话、日语 GPT-SoVITS、完整 Q 版桌宠、陪伴时间和浅蓝界面。
 
-发行采用 **EXE 安装器 + 完整应用分卷 + 独立共享推理环境**。主安装包不携带 Python/PyTorch/CUDA 环境；本地对话模型、翻译模型、默认音色、参考 WAV 与桌宠资源随完整应用分卷安装。首次引导可下载公共环境，也可跳过。已有真实 Windows CPU 翻译、语音合成与界面检查记录；完整安装包仍待交付和用户验收，3D 模型与动作仍在制作。
+发行采用 **EXE 安装器 + 完整应用分卷 + 独立共享推理环境**。主安装包不携带 Python/PyTorch/CUDA 环境；本地对话模型、翻译模型、默认音色、参考 WAV 与桌宠资源随完整应用分卷安装。首次引导可下载公共环境，也可跳过。已有真实 Windows CPU 翻译、语音合成与界面检查记录；完整测试安装包已发布，等待用户验收，3D 模型与动作仍在制作。
+
+**[下载 Windows 0.4.0 测试安装器](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Companion-0.4.0-Setup.exe)** · [完整 Release 与独立模型](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13)。安装器约 530 KiB，联网自动获取约 2.54 GB 的三个应用分卷；CPU 公共环境约 681 MB，首次启动另行安装。当前包提供 CPU 下载路径，CUDA 随后续更新提供。附件完整性已验证；发布后完整检查与用户验收状态以 Release 末尾记录为准。
 
 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 验证记录](docs/VALIDATION_0.4.0.md) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 

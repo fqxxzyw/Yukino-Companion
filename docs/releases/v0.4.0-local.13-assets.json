@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "release": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13",
+  "tag": "v0.4.0-local.13",
+  "sourceCommit": "6560be244c1f89e7c2704e05ca71b7b083e77ec3",
+  "workflowRun": 40181796509,
+  "publication": "All required assets uploaded and GitHub SHA-256/lengths verified by the release job.",
+  "temporaryTransferBranch": "Deleted after verified publication; Git objects may remain.",
+  "validation": "Full post-publication validation is separate; consult the Release notes for its live result.",
+  "assets": [
+    {
+      "name": "app-payload.json",
+      "bytes": 1344,
+      "sha256": "0cf10466be3fd0c58e74a087a1272aed1d471dbc27721509902f760c2df31021",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/app-payload.json"
+    },
+    {
+      "name": "model-reuse.json",
+      "bytes": 1409,
+      "sha256": "df2f133c5e612c4717376104a88d54a97c94f7ccbf8f3750b777dc36af5a8c76",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/model-reuse.json"
+    },
+    {
+      "name": "published-assets.json",
+      "bytes": 2265,
+      "sha256": "5015ffa81f6f42c4ffee8a427021e8b664308415fe6a8b2b5464bbae51a5ae97",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/published-assets.json"
+    },
+    {
+      "name": "release-assets.json",
+      "bytes": 920,
+      "sha256": "29332fca09ae757364cf6b7bafb65f21eb5cd1146dbeb1d789a56985e90a0c7c",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/release-assets.json"
+    },
+    {
+      "name": "runtime-catalog-cpu.json",
+      "bytes": 703,
+      "sha256": "81f3ba2946e665d63fc1e03937e4eff1ec714e202b51dc321b8fe5c65a63f29c",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/runtime-catalog-cpu.json"
+    },
+    {
+      "name": "runtime-catalog.json",
+      "bytes": 703,
+      "sha256": "81f3ba2946e665d63fc1e03937e4eff1ec714e202b51dc321b8fe5c65a63f29c",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/runtime-catalog.json"
+    },
+    {
+      "name": "runtime-reuse-cpu.json",
+      "bytes": 1305,
+      "sha256": "163b6d53cd8c4c271658c5ca6a20109f4881efbb982215460adedfa2fc0e2553",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/runtime-reuse-cpu.json"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 521,
+      "sha256": "d7e71e8161f9c5b03795839752990d429b57fa2dd0d06db6c2ca44dbd5dc015c",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/SHA256SUMS.txt"
+    },
+    {
+      "name": "Yukino-Companion-0.4.0-Setup.exe",
+      "bytes": 542289,
+      "sha256": "37120b3193677794cf40bf630b7e798484f6cada1c8061aec8748292f71616fd",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Companion-0.4.0-Setup.exe"
+    },
+    {
+      "name": "Yukino-Companion-0.4.0-windows-x64.zip.part001",
+      "bytes": 943718400,
+      "sha256": "816efac79f4246245fe7f1fee15131015304e7af0e0b813591be608f3463ce29",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Companion-0.4.0-windows-x64.zip.part001"
+    },
+    {
+      "name": "Yukino-Companion-0.4.0-windows-x64.zip.part002",
+      "bytes": 943718400,
+      "sha256": "2260441d9b354f90a536908a8c39c728beb5e0ac7b9473317fa888b6bd75aaf3",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Companion-0.4.0-windows-x64.zip.part002"
+    },
+    {
+      "name": "Yukino-Companion-0.4.0-windows-x64.zip.part003",
+      "bytes": 654033651,
+      "sha256": "70ef20aabbaca8cb7a4b4220f1c3ffa9fad2ffd74fd9af11e48cab6448f326de",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Companion-0.4.0-windows-x64.zip.part003"
+    },
+    {
+      "name": "Yukino-Local-1.5B-Persona-0.4.0.zip",
+      "bytes": 964897463,
+      "sha256": "1348039add1d3a2715cc81946703d4bd48f05fa7246bca0b26ea165da508a425",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Local-1.5B-Persona-0.4.0.zip"
+    },
+    {
+      "name": "Yukino-Persona-LoRA-0.4.0.zip",
+      "bytes": 38114354,
+      "sha256": "fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Persona-LoRA-0.4.0.zip"
+    },
+    {
+      "name": "Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001",
+      "bytes": 681369634,
+      "sha256": "6f8afeef581edfbe46f4d75188090b1e9042877b14b9f06712b06c2526e6411f",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001"
+    }
+  ]
+}
