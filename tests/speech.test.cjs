@@ -97,11 +97,30 @@ test('bad configuration rejected without starting subprocesses',()=>{
 
 function fakeProcess(){const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdin=new PassThrough();child.kills=0;child.kill=()=>{child.kills++};return child;}
 test('worker protocol handles partial UTF-8, per-request IDs and no shell execution',async()=>{
-  const child=fakeProcess();let options;const worker=new WorkerClient({python:'/python',script:'/worker.py',cwd:'/',spawnImpl:(exe,args,opts)=>{options=opts;return child}});
+  const child=fakeProcess();let options,argumentsUsed;const worker=new WorkerClient({python:'/python',script:'/worker.py',cwd:'/',spawnImpl:(exe,args,opts)=>{argumentsUsed=args;options=opts;return child}});
   let request;child.stdin.on('data',b=>{request=JSON.parse(b.toString())});
   const promise=worker.request('load');await wait();assert.equal(options.shell,false);
+  assert.deepEqual(argumentsUsed,['-X','utf8','-u','/worker.py']);
   const bytes=Buffer.from(JSON.stringify({id:request.id,ok:true,result:'中文成功'})+'\n');
   for(const byte of bytes)child.stdout.write(Buffer.from([byte]));assert.equal(await promise,'中文成功');worker.close();assert.equal(child.kills,1);
+});
+
+test('isolated Python ignores encoding environment but worker roundtrips Japanese as UTF-8',async t=>{
+  const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+  const {spawn}=require('node:child_process');
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-utf8-'));
+  let worker,processClosed=false;
+  t.after(async()=>{
+    if(worker&&!processClosed){const closed=new Promise(resolve=>worker.child.once('close',resolve));worker.close();await closed;}
+    await fs.rm(directory,{recursive:true,force:true});
+  });
+  const script=path.join(directory,'worker.py');
+  await fs.writeFile(script,`import json,sys\nfor line in sys.stdin:\n request=json.loads(line)\n print(json.dumps({'id':request['id'],'ok':True,'result':{'text':request['text'],'utf8':sys.flags.utf8_mode,'stdin':sys.stdin.encoding,'stdout':sys.stdout.encoding}},ensure_ascii=False),flush=True)\n`);
+  worker=new WorkerClient({python:process.env.YUKINO_TEST_PYTHON||(process.platform==='win32'?'python':'python3'),script,cwd:directory,
+    spawnImpl:(exe,args,options)=>spawn(exe,['-I',...args],{...options,env:{...options.env,PYTHONUTF8:'0',PYTHONIOENCODING:'ascii'}})});
+  worker.child.once('close',()=>{processClosed=true;});
+  const result=await worker.request('echo',{text:'雪ノ下雪乃です。中文也保留。'},10000);
+  assert.deepEqual(result,{text:'雪ノ下雪乃です。中文也保留。',utf8:1,stdin:'utf-8',stdout:'utf-8'});
 });
 
 test('timeout kills only owned process and rejects waiter',async()=>{

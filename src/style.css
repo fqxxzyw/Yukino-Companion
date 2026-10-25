@@ -169,9 +169,9 @@ input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;d
 .swatches{display:flex;gap:9px;flex-wrap:wrap;margin:21px 0 10px}
 .swatches button{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 13px;font-size:12px}
 .swatches i{width:10px;height:10px;border-radius:50%}
-.primary,.secondary{border:1px solid var(--line);background:var(--surface);color:var(--text);box-shadow:0 1px 2px var(--shadow)}
+.primary,.secondary{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 16px;min-height:40px;border:1px solid transparent;font-size:12px;font-weight:550;border-radius:12px;line-height:1.5;text-align:center}
 .primary{color:var(--on-accent);background:var(--accent-text);box-shadow:0 3px 8px color-mix(in srgb,var(--accent) 13%,transparent)}
-.secondary{border:1px solid var(--line);background:var(--surface);color:var(--text)}
+.secondary{border-color:var(--line);background:var(--surface);color:var(--text);box-shadow:0 1px 2px var(--shadow)}
 .secondary:hover{background:var(--surface-soft)}
 .settings-body>.secondary{margin-top:20px}
 .field{display:flex;flex-direction:column;gap:10px;font-size:12px;font-weight:550;margin:22px 0;color:var(--text);min-width:0}

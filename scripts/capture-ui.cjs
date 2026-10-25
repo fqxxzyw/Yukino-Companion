@@ -43,6 +43,10 @@ async function key(keyCode) {
   window.webContents.sendInputEvent({type:'keyUp',keyCode});
   await settle();
 }
+async function fill(selector,value) {
+  await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});if(!input)throw Error('Missing input');input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await settle();
+}
 async function settingsTab(label) {
   const found=await evaluate(`(()=>{const button=[...document.querySelectorAll('.settings-nav button')].find(el=>el.textContent.trim()===${JSON.stringify(label)});if(!button)return false;button.click();return true;})()`);
   if(!found)throw Error(`Missing settings page: ${label}`);
@@ -50,15 +54,36 @@ async function settingsTab(label) {
 }
 async function capture(name) {
   await settle();
-  const geometry=await evaluate(`(()=>{const app=document.querySelector('.app');return {width:innerWidth,height:innerHeight,appOverflow:app.scrollWidth-app.clientWidth,documentOverflow:document.documentElement.scrollWidth-innerWidth,overlays:[...document.querySelectorAll('[role="dialog"],[role="alertdialog"],[role="listbox"]')].map(element=>{const rect=element.getBoundingClientRect();return {role:element.getAttribute('role'),x:rect.x,y:rect.y,width:rect.width,height:rect.height}}),text:document.body.innerText.slice(0,300)};})()`);
-  if(geometry.appOverflow>2||geometry.documentOverflow>2)throw Error(`Horizontal overflow in ${name}: ${JSON.stringify(geometry)}`);
-  for(const overlay of geometry.overlays)if(overlay.x< -1||overlay.y< -1||overlay.x+overlay.width>geometry.width+1||overlay.y+overlay.height>geometry.height+1)throw Error(`Clipped ${overlay.role} in ${name}: ${JSON.stringify(overlay)}`);
+  const geometry=await evaluate(`(()=>{const app=document.querySelector('.app');
+    const controls=[...document.querySelectorAll('.primary,.secondary')].flatMap(element=>{
+      const rect=element.getBoundingClientRect(),style=getComputedStyle(element);
+      if(!element.getClientRects().length||style.visibility==='hidden'||style.display==='none')return [];
+      let visible={left:Math.max(0,rect.left),right:Math.min(innerWidth,rect.right),top:Math.max(0,rect.top),bottom:Math.min(innerHeight,rect.bottom)};
+      let horizontalClip=false;
+      for(let parent=element.parentElement;parent;parent=parent.parentElement){
+        const parentStyle=getComputedStyle(parent),box=parent.getBoundingClientRect();
+        if(/auto|scroll|hidden|clip/.test(parentStyle.overflowX)){
+          visible.left=Math.max(visible.left,box.left);visible.right=Math.min(visible.right,box.right);
+          if(rect.left<box.left-1||rect.right>box.right+1)horizontalClip=true;
+        }
+        if(/auto|scroll|hidden|clip/.test(parentStyle.overflowY)){visible.top=Math.max(visible.top,box.top);visible.bottom=Math.min(visible.bottom,box.bottom);}
+      }
+      if(visible.right<=visible.left||visible.bottom<=visible.top)return [];
+      const radius=Math.min(...['borderTopLeftRadius','borderTopRightRadius','borderBottomLeftRadius','borderBottomRightRadius'].map(key=>parseFloat(style[key])));
+      return [{label:element.textContent.trim().slice(0,100),tag:element.tagName,disabled:element.matches(':disabled'),height:rect.height,minHeight:parseFloat(style.minHeight)||0,radius,paddingLeft:parseFloat(style.paddingLeft)||0,contentOverflowX:element.scrollWidth-element.clientWidth,contentOverflowY:element.scrollHeight-element.clientHeight,horizontalClip}];
+    });
+    return {width:innerWidth,height:innerHeight,appOverflow:app.scrollWidth-app.clientWidth,documentOverflow:document.documentElement.scrollWidth-innerWidth,controls,overlays:[...document.querySelectorAll('[role="dialog"],[role="alertdialog"],[role="listbox"]')].map(element=>{const rect=element.getBoundingClientRect();return {role:element.getAttribute('role'),x:rect.x,y:rect.y,width:rect.width,height:rect.height}}),text:document.body.innerText.slice(0,300)};})()`);
   const image=await window.webContents.capturePage();
   if(image.isEmpty())throw Error(`Empty Electron capture: ${name}`);
   const png=image.toPNG();
   if(png.length<5000)throw Error(`Suspiciously empty PNG: ${name}`);
   const file=path.join(output,`${name}.png`);await fs.writeFile(file,png);
   report.screenshots.push({name,file:path.basename(file),bytes:png.length,sha256:createHash('sha256').update(png).digest('hex'),...geometry});
+  if(geometry.appOverflow>2||geometry.documentOverflow>2)throw Error(`Horizontal overflow in ${name}: ${JSON.stringify(geometry)}`);
+  for(const overlay of geometry.overlays)if(overlay.x< -1||overlay.y< -1||overlay.x+overlay.width>geometry.width+1||overlay.y+overlay.height>geometry.height+1)throw Error(`Clipped ${overlay.role} in ${name}: ${JSON.stringify(overlay)}`);
+  const invalidControls=geometry.controls.filter(control=>control.height<39.5||control.minHeight<40||control.radius<10||control.paddingLeft<12||control.contentOverflowX>1||control.contentOverflowY>1||control.horizontalClip);
+  report.checks.push({name:`${name}: visible primary and secondary buttons are styled and unclipped`,passed:invalidControls.length===0,count:geometry.controls.length});
+  if(invalidControls.length)throw Error(`Unstyled or clipped controls in ${name}: ${JSON.stringify(invalidControls)}`);
   console.log(`Captured ${name}: ${geometry.width}×${geometry.height}`);
 }
 async function run() {
@@ -93,6 +118,20 @@ async function run() {
   await check('Switch toggles off',`document.querySelector('.settings input[role="switch"]').checked===false`);
   await click('.settings input[role="switch"]');
   await check('Switch toggles on',`document.querySelector('.settings input[role="switch"]').checked===true`);
+  await click('button[aria-label="强调色"]');
+  await waitFor(`Boolean(document.querySelector('.color-panel'))`,'custom color panel');
+  await fill('input[aria-label="强调色 HEX"]','#638a79');
+  await check('Valid HEX changes the theme',`document.querySelector('button[aria-label="强调色"]').textContent.includes('#638A79')&&getComputedStyle(document.querySelector('.app')).getPropertyValue('--accent').trim()==='#638a79'`);
+  await evaluate(`document.querySelector('input[aria-label="强调色色相"]').focus()`);
+  await key('Right');
+  await check('Color slider changes the theme',`document.querySelector('input[aria-label="强调色 HEX"]').value.toLowerCase()!=='#638a79'&&/^#[0-9a-f]{6}$/i.test(document.querySelector('input[aria-label="强调色 HEX"]').value)`);
+  const validHex=await evaluate(`document.querySelector('input[aria-label="强调色 HEX"]').value`);
+  await fill('input[aria-label="强调色 HEX"]','invalid');
+  await evaluate(`document.querySelector('input[aria-label="强调色色相"]').focus()`);await settle();
+  await check('Invalid HEX restores the last valid color',`document.querySelector('input[aria-label="强调色 HEX"]').value===${JSON.stringify(validHex)}`);
+  await fill('input[aria-label="强调色 HEX"]','#477fd1');
+  await capture('04a-color-panel');
+  await click('button[aria-label="强调色"]');
   await settingsTab('形象与展示');
   await capture('05-companion-settings');
   await settingsTab('声音与语音');

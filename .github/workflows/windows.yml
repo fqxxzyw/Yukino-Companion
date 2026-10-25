@@ -83,7 +83,8 @@ jobs:
           $tag = "v0.3.0-glass.${{ github.run_number }}"
           Copy-Item docs/releases/v0.3.0.md build/release-notes.md
           Add-Content build/release-notes.md "`n构建：${{ github.sha }} · 运行环境：$env:RUNTIME_FLAVOR · [验证记录](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})。EXE 已上传，发布后测试结果见此记录。"
-          gh release create $tag release/*.exe release/SHA256SUMS.txt release/release-assets.json branding/app-icon.ico public/yukino-icon.png --target "${{ github.sha }}" --title "Yukino Companion 0.3.0 · 雪蓝玻璃 ${{ github.run_number }}" --prerelease --notes-file build/release-notes.md
+          Add-Content build/release-notes.md "`n界面截图（演示数据）：`n![主界面](https://github.com/${{ github.repository }}/releases/download/$tag/01-home.png)`n![声音设置](https://github.com/${{ github.repository }}/releases/download/$tag/06-voice-settings.png)"
+          gh release create $tag release/*.exe release/SHA256SUMS.txt release/release-assets.json branding/app-icon.ico public/yukino-icon.png build/ui-review/01-home.png build/ui-review/04-appearance-settings.png build/ui-review/06-voice-settings.png --target "${{ github.sha }}" --title "Yukino Companion 0.3.0 · 雪蓝玻璃 ${{ github.run_number }}" --prerelease --notes-file build/release-notes.md
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Post-release tests
@@ -92,7 +93,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s tests -p '*_test.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & release/win-unpacked/resources/python-runtime/python.exe release/win-unpacked/resources/translation/smoke.py --model-dir release/win-unpacked/resources/translation-models/hy-mt2-1.8b-q4 --device cpu --report release/translation-windows-smoke.json
+          & release/win-unpacked/resources/python-runtime/python.exe -X utf8 release/win-unpacked/resources/translation/smoke.py --model-dir release/win-unpacked/resources/translation-models/hy-mt2-1.8b-q4 --device cpu --report release/translation-windows-smoke.json
       - name: Record successful release validation
         env:
           GH_TOKEN: ${{ github.token }}

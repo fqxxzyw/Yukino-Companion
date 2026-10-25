@@ -53,7 +53,7 @@ def embedded_smoke(embedded, engine, runtime):
               "nltk.data.find('taggers/averaged_perceptron_tagger_eng/');"
               "assert pyopenjtalk.g2p('こんにちは');"
               "print('Embedded engines ready:',torch.__version__,llama_cpp.__version__)")
-    run(embedded, '-c', source, cwd=engine, env=env)
+    run(embedded, '-X', 'utf8', '-c', source, cwd=engine, env=env)
     run(runtime / 'ffmpeg.exe', '-version', env=env, stdout=subprocess.DEVNULL)
 
 
@@ -137,9 +137,9 @@ def build(flavor='cpu', source=None, source_only=False):
     ffmpeg = subprocess.check_output([str(python), '-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], text=True).strip()
     shutil.copy2(ffmpeg, runtime / 'ffmpeg.exe')
     for resource in ['averaged_perceptron_tagger', 'averaged_perceptron_tagger_eng', 'cmudict', 'punkt', 'punkt_tab']:
-        run(embedded, '-m', 'nltk.downloader', '-d', runtime / 'nltk_data', resource)
+        run(embedded, '-X', 'utf8', '-m', 'nltk.downloader', '-d', runtime / 'nltk_data', resource)
     # Pre-fetch Japanese pronunciation dictionary inside its own package.
-    run(embedded, '-c', "import pyopenjtalk; print(pyopenjtalk.g2p('こんにちは'))")
+    run(embedded, '-X', 'utf8', '-c', "import pyopenjtalk; print(pyopenjtalk.g2p('こんにちは'))")
     # Freeze the exact platform dependencies for release diagnostics.
     freeze = subprocess.check_output([str(python), '-m', 'pip', 'freeze'], text=True)
     (runtime / 'requirements-resolved.txt').write_text(freeze, encoding='utf-8')
