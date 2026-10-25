@@ -294,6 +294,10 @@ API 请求、密钥和持久化通过 Electron 主进程完成。请构建后运
 **网站和 EXE 是同一个程序吗？**  
 不是。两者独立发布，计划共享公开社区内容；本机私有数据不因此成为社区数据。
 
+## 独立本地文本模型服务
+
+新增 [model-service](model-service/README.md)：Qwen2.5-1.5B-Instruct 的人物知识 LoRA 微调、本地小说检索与兼容聊天接口。推理使用同一套权重，自动优先可用 GPU，并支持 CPU 回退。服务独立安装，尚未内嵌进 EXE；训练范围、验证结果、模型文件安装及语音端衔接见该模块文档。小说数据与权重不公开提交到 Git。
+
 ## 参与项目与资源说明
 
 欢迎通过 [Issues](https://github.com/fqxxzyw/Yukino-Companion/issues) 提交问题、需求和兼容性反馈，通过 Pull Request 改进代码或文档。

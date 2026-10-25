@@ -1,0 +1,30 @@
+{
+  "model": "models/base",
+  "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "mode": "sft",
+  "train_file": "data/sft/train.jsonl",
+  "eval_file": "data/sft/val.jsonl",
+  "output_dir": "outputs/yukino-1.5b-knowledge-v1",
+  "device": "auto",
+  "allow_cpu": true,
+  "cpu_bf16": true,
+  "quantize_4bit": false,
+  "sequence_length": 256,
+  "batch_size": 4,
+  "gradient_accumulation_steps": 1,
+  "epochs": 3,
+  "max_steps": -1,
+  "learning_rate": 5e-05,
+  "rank": 8,
+  "threads": 8,
+  "seed": 42,
+  "max_eval_samples": 64,
+  "probe_questions": [
+    "雪乃的姐姐是谁？",
+    "八幡的妹妹叫什么？",
+    "雪之下雪乃负责哪个社团？",
+    "户冢彩加参加哪种运动的社团？",
+    "平冢静的职业是什么？",
+    "小说明确公布雪乃2035年的职业了吗？"
+  ]
+}

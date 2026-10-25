@@ -1,0 +1,11 @@
+{
+  "backend": "llama-server",
+  "llama_url": "http://127.0.0.1:8081/v1",
+  "index": "data/processed/knowledge.sqlite",
+  "host": "127.0.0.1",
+  "port": 8765,
+  "top_k": 3,
+  "max_new_tokens": 384,
+  "api_key_env": "YUKI_API_KEY",
+  "profile_answers": true
+}
