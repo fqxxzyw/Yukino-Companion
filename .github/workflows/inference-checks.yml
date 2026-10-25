@@ -1,0 +1,38 @@
+name: Inference checks and Windows package
+on:
+  pull_request:
+    paths:
+      - 'electron/**'
+      - 'src/**'
+      - 'inference/**'
+      - 'scripts/**'
+      - 'resources/**'
+      - 'tests/**'
+      - 'package*.json'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: python -m unittest discover -s tests -p '*_test.py'
+      - run: npm run runtime:cpu
+      - run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-inference-Windows-preview
+          path: release/*.exe
+          retention-days: 14
