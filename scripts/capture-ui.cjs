@@ -35,7 +35,7 @@ async function click(selector) {
 }
 async function check(name, source) {
   const passed=Boolean(await evaluate(source));
-  report.checks.push({name,passed});
+  report.checks.push({name,passed,...(!passed?{condition:source}:{})});
   if(!passed)throw Error(`UI check failed: ${name}`);
 }
 async function key(keyCode) {
@@ -44,8 +44,30 @@ async function key(keyCode) {
   await settle();
 }
 async function fill(selector,value) {
-  await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});if(!input)throw Error('Missing input');input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});if(!input)throw Error('Missing input');input.focus();input.select();if(document.activeElement!==input)throw Error('Input did not receive focus');})()`);
+  await window.webContents.insertText(value);
   await settle();
+}
+async function colorState() {
+  return evaluate(`(()=>{const input=document.querySelector('input[aria-label="强调色 HEX"]');return {value:input?.value,invalid:input?.getAttribute('aria-invalid'),focused:document.activeElement===input,documentHasFocus:document.hasFocus(),activeElement:{tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label')},accent:getComputedStyle(document.querySelector('.app')).getPropertyValue('--accent').trim()};})()`);
+}
+async function failureDiagnostics() {
+  if(!window||window.isDestroyed()||window.webContents.isDestroyed())return;
+  try {
+    report.failureState=await evaluate(`(()=>{
+      const describe=element=>element?{tag:element.tagName,label:element.getAttribute('aria-label'),type:element.getAttribute('type'),value:element.value,invalid:element.getAttribute('aria-invalid'),text:element.textContent?.trim().slice(0,100)}:null;
+      const app=document.querySelector('.app'),theme=app?getComputedStyle(app):null;
+      return {documentHasFocus:document.hasFocus(),activeElement:describe(document.activeElement),colorInputs:[...document.querySelectorAll('.color-panel input')].map(describe),accent:theme?.getPropertyValue('--accent').trim(),background:theme?.getPropertyValue('--bg').trim(),settings:document.querySelector('.settings-main h2')?.textContent,text:document.body.innerText.slice(-2200)};
+    })()`);
+    console.error('Failure UI state: '+JSON.stringify(report.failureState));
+  }catch(error){report.diagnosticError=error.message;}
+  try {
+    const image=await window.webContents.capturePage();
+    if(!image.isEmpty()){
+      const png=image.toPNG(),file='99-failure.png';await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,file),png);
+      report.screenshots.push({name:'99-failure',file,bytes:png.length,sha256:createHash('sha256').update(png).digest('hex'),failure:true});
+    }
+  }catch(error){report.failureCaptureError=error.message;}
 }
 async function settingsTab(label) {
   const found=await evaluate(`(()=>{const button=[...document.querySelectorAll('.settings-nav button')].find(el=>el.textContent.trim()===${JSON.stringify(label)});if(!button)return false;button.click();return true;})()`);
@@ -127,7 +149,11 @@ async function run() {
   await check('Color slider changes the theme',`document.querySelector('input[aria-label="强调色 HEX"]').value.toLowerCase()!=='#638a79'&&/^#[0-9a-f]{6}$/i.test(document.querySelector('input[aria-label="强调色 HEX"]').value)`);
   const validHex=await evaluate(`document.querySelector('input[aria-label="强调色 HEX"]').value`);
   await fill('input[aria-label="强调色 HEX"]','invalid');
-  await evaluate(`document.querySelector('input[aria-label="强调色色相"]').focus()`);await settle();
+  report.colorInteraction={expectedHex:validHex,beforeBlur:await colorState()};
+  await check('Invalid HEX remains editable without changing the theme',`document.querySelector('input[aria-label="强调色 HEX"]').value==='invalid'&&document.querySelector('input[aria-label="强调色 HEX"]').getAttribute('aria-invalid')==='true'&&getComputedStyle(document.querySelector('.app')).getPropertyValue('--accent').trim()===${JSON.stringify(validHex)}`);
+  await key('Tab');
+  report.colorInteraction.afterBlur=await colorState();
+  await check('Tab moves focus out of the HEX input',`document.activeElement!==document.querySelector('input[aria-label="强调色 HEX"]')`);
   await check('Invalid HEX restores the last valid color',`document.querySelector('input[aria-label="强调色 HEX"]').value===${JSON.stringify(validHex)}`);
   await fill('input[aria-label="强调色 HEX"]','#477fd1');
   await capture('04a-color-panel');
@@ -185,6 +211,7 @@ run().then(async()=>{
 }).catch(async error=>{
   report.success=false;report.failure=error.stack||error.message;
   console.error(report.failure);
+  await failureDiagnostics();
   await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2)+'\n');
   clearTimeout(watchdog);window?.destroy();app.exit(1);
 });
