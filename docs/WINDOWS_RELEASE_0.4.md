@@ -16,15 +16,17 @@
 
 ## 模型来源与失败条件
 
-模型任务默认读取用户明确授权的临时 `transfer/persona-0.4.0` 提交 `413bc5ccd27afdca98ed790f3291571c7889ffd8`，而非漂移的分支 HEAD。可通过 `transfer_commit` 显式覆盖固定提交，但输入仍必须是同一个归档，缺失或校验不符时明确失败，不生成残缺安装包。本次唯一允许的输入为 `Yukino-Persona-LoRA-0.4.0.zip`，38,114,354 字节、73 个分片，SHA-256 `fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5`。先校验提交、清单和逐片／整包哈希，再调用 `build-release-local-model.py` 核对训练报告、47 步和适配器哈希，固定 Qwen revision 及量化工具生成实际 GGUF。
+首次模型构建读取用户明确授权的临时 `transfer/persona-0.4.0` 提交 `413bc5ccd27afdca98ed790f3291571c7889ffd8`，而非漂移的分支 HEAD。可通过 `transfer_commit` 显式覆盖固定提交，但输入仍必须是同一个归档，缺失或校验不符时明确失败，不生成残缺安装包。本次唯一允许的输入为 `Yukino-Persona-LoRA-0.4.0.zip`，38,114,354 字节、73 个分片，SHA-256 `fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5`。先校验提交、清单和逐片／整包哈希，再调用 `build-release-local-model.py` 核对训练报告、47 步和适配器哈希，固定 Qwen revision 及量化工具生成实际 GGUF。
+
+本轮恢复发布复用 run `40180930434`、commit `6d01876f27ca0c3258a8ff340d055d430cd6395c` 已成功的模型任务。先通过 GitHub API 核对仓库、工作流、提交、成功 job 与唯一未过期 artifact ID，再核验上述固定 LoRA 归档及 GGUF 清单对应的真实文件大小、哈希、训练信息；保留原始两个 ZIP 和来源记录，不重新训练或量化。身份、附件或权重不符即阻断发布。
 
 显式提供 workflow `local_model_url` 或仓库 `YUKINO_LOCAL_MODEL_ARCHIVE_URL` 时，可导入已有的 GGUF ZIP。它必须有 `manifest.json`，包含 `name`、`file`、`bytes`、`sha256`、`training.completed: true`；导入校验真实 GGUF 文件头、大小和哈希。不会用占位权重补齐缺失资源。
 
 模型 job 将真实 LoRA 和 GGUF ZIP 作为独立模型附件交给 Windows 发布任务。主应用、LoRA、GGUF 和公共环境附件全部上传，且 GitHub 报告的大小与 SHA-256 均和本地文件一致后，独立清理任务重新读取临时分支 HEAD；只有仍等于固定传输提交时才删除该分支引用。清理不等待用户验收或后续推理测试；清理失败不会把已完成的发布校验改写为推理失败。
 
-公共运行环境可复用固定 run `40176955172`、commit `924c35fae9b058f75a1a56d4a9abeb98d016c024` 的成功 flavor job。复用前核对仓库、工作流、commit、job、artifact，随后逐卷与整个 ZIP 校验，并比对压缩包内的构建 `inputFingerprint`、GPT-SoVITS revision 和 llama-cpp-python 版本。验证通过后仅将下载 URL 改到新 Release；不从任意 latest 构建获取二进制。来源 job 尚未成功或附件不可用时重新构建，fingerprint 不一致时禁止直接复用。
+公共运行环境可复用固定 run `40180930434`、commit `6d01876f27ca0c3258a8ff340d055d430cd6395c` 的成功 flavor job。复用前核对仓库、工作流、commit、job、artifact，随后逐卷与整个 ZIP 校验，并比对压缩包内的构建 `inputFingerprint`、GPT-SoVITS revision 和 llama-cpp-python 版本。验证通过后仅将下载 URL 改到新 Release；不从任意 latest 构建获取二进制。来源 job 尚未成功或附件不可用时重新构建，fingerprint 不一致时禁止直接复用。
 
-当前 CUDA 构建已增加上游 `GGML_CUDA_NO_VMM=ON`，避免对 NVIDIA 驱动 DLL 的直接链接阻断无显卡机器上的 CPU 回退。这改变了构建指纹，因此本轮 `RUNTIME_REUSE_ENABLED=false`，两个环境都重新构建。Windows 构建用 `dumpbin /DEPENDENTS` 输出实际 DLL 依赖、拒绝残留的 `nvcuda.dll` 直接导入，并继续执行真实 Python 导入；不能把编译生成 wheel 当作运行环境验收通过。
+当前 CUDA 构建已增加上游 `GGML_CUDA_NO_VMM=ON`，避免对 NVIDIA 驱动 DLL 的直接链接阻断无显卡机器上的 CPU 回退。固定来源 run 已包含这项修复；后续仅修改测试夹具，不改变构建指纹，因此可复用该 run 成功且通过完整指纹校验的 CPU 产物。Windows 构建用 `dumpbin /DEPENDENTS` 输出实际 DLL 依赖、拒绝残留的 `nvcuda.dll` 直接导入，并继续执行真实 Python 导入；不能把编译生成 wheel 当作运行环境验收通过。
 
 ## GitHub 单文件限制与安装器
 
@@ -59,7 +61,7 @@ node scripts/verify-release-assets.cjs
 
 ## 工作流与验证
 
-`.github/workflows/windows.yml` 仅在手动确认或 `release/0.4.0-local` 分支 push 时发布。metadata、源码及安装器基础检查、实际模型导入和 CPU 运行环境完成后进入 Windows 打包。CUDA 使用独立任务，失败或耗时不会阻塞 EXE 上传；当前清单没有伪造的 CUDA 分卷，后续小版本携带真实 CUDA 清单后才提供引导安装。安装前基础资源／哈希检查通过即可先上传 EXE、主包分卷、环境分卷、独立 GGUF 模型包和校验清单，并标记待用户验收。
+`.github/workflows/windows.yml` 仅在手动确认或 `release/0.4.0-local` 分支 push 时发布；并发键包含源码 SHA，新提交不取消仍在生成来源产物的旧任务。metadata、源码及安装器基础检查、实际模型导入和 CPU 运行环境完成后进入 Windows 打包。CUDA 使用独立任务，只有手动 `build_cuda=true` 才启动，普通 CPU 测试包不重复编译；其失败或耗时不会阻塞 EXE 上传；当前清单没有伪造的 CUDA 分卷，后续小版本携带真实 CUDA 清单后才提供引导安装。安装前基础资源／哈希检查通过即可先上传 EXE、主包分卷、环境分卷、独立 GGUF 模型包和校验清单，并标记待用户验收。
 
 上传完成后由独立 `validation` 任务下载已发布分卷并执行 `npm test`、Python unittest、模型 worker pytest、`qa:ui`、`qa:pet`、安装器本地分卷安装、运行环境重构、真实本地角色加载／生成、CPU 翻译及 `scripts/smoke_bundled_voice.py --download-core`。任何失败保留 prerelease 并明确标为未通过；通过才更新验证说明。CUDA 只有无 GPU 的构建/导入检查，不写成实际显卡推理验收。
 
