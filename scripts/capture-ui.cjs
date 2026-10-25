@@ -1,6 +1,8 @@
 // Run the actual built desktop renderer under Electron, without user data, API
 // requests, model downloads, or TTS. Example on a Windows CI runner:
 //   npx electron scripts/capture-ui.cjs --output build/ui-review
+// The isolated test window is visible and focused so native input/focus events
+// match the shipped app. Hidden offscreen windows suppress DOM blur events.
 // Linux needs a display server: xvfb-run -a npx electron scripts/capture-ui.cjs
 const {app, BrowserWindow, session} = require('electron');
 const fs = require('node:fs/promises');
@@ -10,7 +12,7 @@ const {createHash} = require('node:crypto');
 const root = path.resolve(__dirname,'..');
 const outputIndex = process.argv.indexOf('--output');
 const output = path.resolve(outputIndex < 0 ? path.join(root,'build/ui-review') : process.argv[outputIndex+1]);
-const report = {purpose:'Production renderer visual QA with isolated synthetic fixtures; no real API, GPU or audio inference',platform:process.platform,electron:process.versions.electron,screenshots:[],checks:[],errors:[],blockedRequests:[]};
+const report = {purpose:'Production renderer visual QA in a visible focused test window with isolated synthetic fixtures; no real API, GPU or audio inference',platform:process.platform,electron:process.versions.electron,screenshots:[],checks:[],errors:[],blockedRequests:[]};
 let window, temp;
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('force-device-scale-factor','1');
@@ -29,6 +31,7 @@ async function waitFor(source, description) {
   throw Error(`UI did not reach ${description}`);
 }
 async function click(selector) {
+  await requireFocus();
   const found=await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element||element.disabled)return false;element.click();return true;})()`);
   if(!found)throw Error(`Missing usable UI control: ${selector}`);
   await settle();
@@ -39,14 +42,21 @@ async function check(name, source) {
   if(!passed)throw Error(`UI check failed: ${name}`);
 }
 async function key(keyCode) {
+  await requireFocus();
   window.webContents.sendInputEvent({type:'keyDown',keyCode});
   window.webContents.sendInputEvent({type:'keyUp',keyCode});
   await settle();
 }
 async function fill(selector,value) {
+  await requireFocus();
   await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});if(!input)throw Error('Missing input');input.focus();input.select();if(document.activeElement!==input)throw Error('Input did not receive focus');})()`);
   await window.webContents.insertText(value);
   await settle();
+}
+async function requireFocus() {
+  if(await evaluate('document.hasFocus()'))return;
+  window.show();window.focus();window.webContents.focus();
+  await waitFor('document.hasFocus()','focused test document');
 }
 async function colorState() {
   return evaluate(`(()=>{const input=document.querySelector('input[aria-label="强调色 HEX"]');return {value:input?.value,invalid:input?.getAttribute('aria-invalid'),focused:document.activeElement===input,documentHasFocus:document.hasFocus(),activeElement:{tag:document.activeElement?.tagName,label:document.activeElement?.getAttribute('aria-label')},accent:getComputedStyle(document.querySelector('.app')).getPropertyValue('--accent').trim()};})()`);
@@ -116,13 +126,16 @@ async function run() {
   const partition=session.fromPartition(`capture-${Date.now()}`);
   partition.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
   partition.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*']},(details,callback)=>{report.blockedRequests.push(details.url);callback({cancel:true});});
-  window=new BrowserWindow({width:1280,height:840,useContentSize:true,show:false,frame:false,backgroundColor:'#f1f6fc',webPreferences:{preload:path.join(__dirname,'ui-capture/preload.cjs'),session:partition,contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,offscreen:true}});
+  window=new BrowserWindow({width:1280,height:840,useContentSize:true,show:true,frame:false,backgroundColor:'#f1f6fc',webPreferences:{preload:path.join(__dirname,'ui-capture/preload.cjs'),session:partition,contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
   window.webContents.on('console-message',details=>{if(details.level==='error')report.errors.push(details.message);});
   window.webContents.on('preload-error',(_event,_file,error)=>report.errors.push(error.message));
   window.webContents.on('render-process-gone',(_event,details)=>report.errors.push(`Renderer process gone: ${details.reason}`));
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',event=>event.preventDefault());
   await window.loadFile(path.join(root,'dist/index.html'));
+  window.show();window.focus();window.webContents.focus();
+  await waitFor('document.hasFocus()','focused test document');
+  await check('Visible Electron test document has native focus','document.hasFocus()');
   await waitFor(`Boolean(document.querySelector('.app')&&document.querySelector('.welcome'))`,'welcome screen');
   await check('Application icon loads',`[...document.querySelectorAll('img')].every(img=>img.complete&&img.naturalWidth>0)`);
   await capture('01-home');
