@@ -4,10 +4,12 @@ const asar = require('@electron/asar');
 
 function verifyCharacterPackage(archive) {
   if (!fs.existsSync(archive)) throw Error(`找不到打包产物：${archive}`);
-  const prefix = 'characters/yukino/';
+  const prefix = path.join('characters', 'yukino');
   function read(relative) {
     if (typeof relative !== 'string' || relative.includes('\\') || path.posix.isAbsolute(relative) || path.posix.normalize(relative).startsWith('../')) throw Error('角色包包含无效路径');
-    const value = asar.extractFile(archive, prefix + relative).toString('utf8');
+    // @electron/asar traverses archive directories with the host path.sep.
+    // Manifest paths stay POSIX, but extractFile requires a native path on Windows.
+    const value = asar.extractFile(archive, path.join(prefix, ...relative.split('/'))).toString('utf8');
     if (!value.trim()) throw Error(`角色包资源为空：${relative}`);
     return value;
   }

@@ -212,3 +212,49 @@ test('main-process IPC compiles persisted settings before the real HTTP transpor
   const loaded = await handlers.get('load')(event);
   assert.ok(!('personaStage' in loaded.state));
 });
+
+
+test('archive verification uses Windows separators with the real asar directory traversal', async t => {
+  const vm = require('node:vm');
+  const { createRequire } = require('node:module');
+  const { temp } = fixture(t, 'source/characters/yukino');
+  const source = path.join(temp, 'source');
+  fs.mkdirSync(path.join(source, 'electron'));
+  for (const file of ['persona.cjs', 'main.cjs', 'preload.cjs']) fs.writeFileSync(path.join(source, 'electron', file), '// runtime');
+  const archive = path.join(temp, 'app.asar');
+  await asar.createPackage(source, archive);
+
+  function loadWithWindowsPaths(filename, overrides = {}) {
+    const module = { exports: {} };
+    const originalRequire = createRequire(filename);
+    const simulatedRequire = name => {
+      if (name === 'path' || name === 'node:path') return path.win32;
+      return overrides[name] || originalRequire(name);
+    };
+    vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, exports: module.exports, require: simulatedRequire }, { filename });
+    return module.exports;
+  }
+  const asarDirectory = path.dirname(require.resolve('@electron/asar'));
+  const { Filesystem: WindowsFilesystem } = loadWithWindowsPaths(path.join(asarDirectory, 'filesystem.js'));
+  const archiveHeader = asar.getRawHeader(archive);
+  const windowsFilesystem = new WindowsFilesystem(archive);
+  windowsFilesystem.setHeader(archiveHeader.header, archiveHeader.headerSize);
+  // Keep the physical archive accessible on the test host; only the archive lookup uses Windows semantics.
+  windowsFilesystem.getRootPath = () => archive;
+  assert.throws(() => windowsFilesystem.getFile('characters/yukino/manifest.json'), /was not found in this archive/);
+  const disk = require(path.join(asarDirectory, 'disk.js'));
+  const requestedNames = [];
+  const windowsAsar = {
+    extractFile: (_archive, filename) => {
+      requestedNames.push(filename);
+      return disk.readFileSync(windowsFilesystem, filename, windowsFilesystem.getFile(filename));
+    },
+    listPackage: () => windowsFilesystem.listFiles(),
+  };
+  const windowsVerifier = loadWithWindowsPaths(path.resolve(__dirname, '../scripts/verify-character-package.cjs'), { '@electron/asar': windowsAsar });
+  assert.equal(windowsVerifier.verifyCharacterPackage(archive).resources, 6);
+  assert.equal(requestedNames[0], path.win32.join('characters', 'yukino', 'manifest.json'));
+  assert.ok(requestedNames.every(filename => !filename.includes('/')));
+  delete archiveHeader.header.files.characters.files.yukino.files['compact.md'];
+  assert.throws(() => windowsVerifier.verifyCharacterPackage(archive), /compact.*was not found in this archive/);
+});
