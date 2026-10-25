@@ -20,7 +20,7 @@ permissions:
   contents: write
 concurrency:
   group: windows-release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   metadata:
     if: ${{ github.event_name == 'push' || inputs.confirm_publish }}
@@ -59,7 +59,9 @@ jobs:
       - run: python -m pytest model-service/tests/test_desktop_worker.py -q
       - run: npm run build
       - run: npm run qa:ui
+        timeout-minutes: 5
       - run: npm run qa:pet
+        timeout-minutes: 5
       - name: Compile and test the bootstrap installer with tiny fixtures
         run: |
           choco install nsis --version=3.11 --yes --no-progress
@@ -147,6 +149,11 @@ jobs:
         with:
           cuda: '12.4.1'
           method: network
+          # The pinned action fails before installation when its installer-cache
+          # path is missing on current Windows runners. Download the small
+          # network installer directly instead of using that optional cache.
+          use-github-cache: false
+          use-local-cache: false
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
       - name: Build shared Python and both inference engines
         id: runtime_build
@@ -276,12 +283,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pytest model-service/tests/test_desktop_worker.py -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Capture actual Electron and companion UI
-        run: |
-          npm run qa:ui
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run qa:pet
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Capture actual Electron UI
+        timeout-minutes: 5
+        run: npm run qa:ui
+      - name: Capture actual companion UI
+        timeout-minutes: 5
+        run: npm run qa:pet
       - name: Verify installer installs local parts without downloading
         run: |
           $extractor = node -p "require('7zip-bin').path7za"
