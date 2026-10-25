@@ -18,12 +18,14 @@ jobs:
       - run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Verify bundled character resources
+        run: npm run verify:characters
       - name: Publish executable before tests
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.1.0-framework.${{ github.run_number }}"
-          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.1 · Framework ${{ github.run_number }}" --prerelease --notes "框架预览：UI、聊天 API、自定义颜色；3D、本地模型、音色预留。按要求先发布 EXE，再运行测试。未签名安装包，Windows 实机与真实供应商兼容性仍需验证。"
+          $tag = "v0.2.0-persona.${{ github.run_number }}"
+          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.2 · Complete Persona ${{ github.run_number }}" --prerelease --notes "角色规范预览：内置完整统一的雪乃角色规范，详细与精简提示词，API 请求自动注入；附角色专项训练流程。性格专项权重尚未完成质量验收。按既定流程先发布 EXE，再运行测试；安装包未签名，实际供应商的人格遵循程度仍需验证。"
       - name: Tests after executable publication
         run: npm test

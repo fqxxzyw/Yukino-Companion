@@ -1,6 +1,8 @@
 """LoRA CPT and assistant-only supervised training; same adapter on CPU or GPU."""
 
-import json, math, random
+import json
+import math
+import random
 from pathlib import Path
 from .io import read_jsonl, save_json, file_sha, sha
 from .hardware import detect, device
@@ -69,6 +71,89 @@ class Collator:
         }
 
 
+def validate_training_spec(c):
+    """Reject ambiguous adapter reuse and data leakage before allocating weights."""
+    if c.get("run_purpose", "training") not in {"training", "smoke"}:
+        raise ValueError("run_purpose must be training or smoke")
+    mode = c.get("adapter_mode", "fresh")
+    initial = c.get("initial_adapter")
+    if mode not in {"fresh", "continue"}:
+        raise ValueError("adapter_mode must be fresh or continue")
+    if (mode == "continue") != bool(initial):
+        raise ValueError(
+            "Only adapter_mode:continue accepts and requires initial_adapter"
+        )
+    if initial and c.get("resume"):
+        raise ValueError(
+            "initial_adapter starts a new run; resume restores an existing run, not both"
+        )
+    meta = {"adapter_mode": mode}
+    if initial:
+        path = Path(initial)
+        if not (path / "adapter_model.safetensors").is_file():
+            raise ValueError("initial_adapter must contain safetensors LoRA weights")
+        report_path = path.parent / "training_report.json"
+        if report_path.is_file():
+            report = json.loads(report_path.read_text())
+            if report.get("base_revision") != c.get("revision", REVISION):
+                raise ValueError("Initial adapter and requested base revisions differ")
+        elif not c.get("allow_unverified_initial_adapter", False):
+            raise ValueError(
+                "Initial adapter lacks base provenance; do not silently combine unknown weights"
+            )
+        meta["initial_adapter_sha256"] = file_sha(path / "adapter_model.safetensors")
+    if c.get("task") == "complete_persona":
+        from .persona import valid_review
+
+        if not c.get("allow_synthetic_persona"):
+            raise ValueError(
+                "Synthetic persona training requires allow_synthetic_persona:true; targets are not human accepted"
+            )
+        manifest_path = Path(c["data_manifest"])
+        manifest = json.loads(manifest_path.read_text())
+        if not manifest.get("tokenization_checked"):
+            raise ValueError("Run the persona builder with a tokenizer before training")
+        if manifest.get("base_revision") != c.get("revision", REVISION):
+            raise ValueError("Persona data expects a different base revision")
+        if manifest.get("max_tokens", 0) > c.get("sequence_length", 512):
+            raise ValueError(
+                "Training sequence_length is smaller than the validated persona examples"
+            )
+        families = {}
+        for split, field in [("train", "train_file"), ("val", "eval_file")]:
+            if file_sha(c[field]) != manifest["sha256"][split]:
+                raise ValueError("Persona dataset changed after manifest creation")
+            rows = list(read_jsonl(c[field]))
+            families[split] = {r["family_id"] for r in rows}
+            if families[split] != set(manifest["split_family_ids"][split]):
+                raise ValueError(
+                    "Persona scenario families do not match their split manifest"
+                )
+            for family in families[split]:
+                variants = [r["variant_id"] for r in rows if r["family_id"] == family]
+                if len(variants) < 3 or len(set(variants)) != len(variants):
+                    raise ValueError(
+                        "Every scenario family needs at least three distinct variants"
+                    )
+            if any(
+                not valid_review(r) or r.get("provenance") != "synthetic_original"
+                for r in rows
+            ):
+                raise ValueError(
+                    "Synthetic persona review status and human_reviewed flag must agree"
+                )
+        if families["train"] & families["val"]:
+            raise ValueError("Scenario-family leakage between train and validation")
+        if families["train"] & set(manifest["split_family_ids"]["test"]) or families[
+            "val"
+        ] & set(manifest["split_family_ids"]["test"]):
+            raise ValueError("Test scenario leaked into development data")
+        meta.update(
+            data_manifest_sha256=file_sha(manifest_path), persona_manifest=manifest
+        )
+    return meta
+
+
 def train(c):
     import torch
     from transformers import (
@@ -78,8 +163,14 @@ def train(c):
         Trainer,
         set_seed,
     )
-    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+    from peft import (
+        LoraConfig,
+        PeftModel,
+        get_peft_model,
+        prepare_model_for_kbit_training,
+    )
 
+    specification = validate_training_spec(c)
     info = detect()
     selected = device(info, c.get("device", "auto"))
     if selected == "mps":
@@ -137,17 +228,22 @@ def train(c):
     else:
         model.to(selected)
     model.config.use_cache = False
-    model = get_peft_model(
-        model,
-        LoraConfig(
-            r=c.get("rank", 8),
-            lora_alpha=c.get("rank", 8) * 2,
-            lora_dropout=0.05,
-            target_modules="all-linear",
-            bias="none",
-            task_type="CAUSAL_LM",
-        ),
-    )
+    if c.get("adapter_mode", "fresh") == "continue":
+        model = PeftModel.from_pretrained(
+            model, c["initial_adapter"], is_trainable=True, local_files_only=True
+        )
+    else:
+        model = get_peft_model(
+            model,
+            LoraConfig(
+                r=c.get("rank", 8),
+                lora_alpha=c.get("rank", 8) * 2,
+                lora_dropout=0.05,
+                target_modules="all-linear",
+                bias="none",
+                task_type="CAUSAL_LM",
+            ),
+        )
     model.print_trainable_parameters()
 
     def load(path):
@@ -211,6 +307,7 @@ def train(c):
         "eval_examples": len(validation),
         "train_tokens": sum(sum(v != -100 for v in r["labels"]) for r in training),
     }
+    provenance.update(specification)
     save_json(out / "run_config.json", c)
     save_json(out / "data_provenance.json", provenance)
 
@@ -265,6 +362,11 @@ def train(c):
     trainable, total = model.get_nb_trainable_parameters()
     report = {
         "completed": True,
+        "task": c.get(
+            "task", "knowledge_sft" if c.get("mode", "sft") == "sft" else "cpt"
+        ),
+        "adapter_sha256": file_sha(out / "adapter" / "adapter_model.safetensors"),
+        "run_purpose": c.get("run_purpose", "training"),
         "base_model": source,
         "base_revision": c.get("revision", REVISION),
         "hardware": info,

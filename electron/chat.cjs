@@ -1,7 +1,7 @@
-const {StringDecoder}=require('node:string_decoder');
+const {isYukinoLocal}=require('./persona.cjs');
 function endpoint(base){const u=new URL(base); if(u.username||u.password||u.search||u.hash)throw Error('地址不能包含凭据、查询或锚点');if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw Error('请使用 HTTPS，或本机 HTTP 地址');return u.href.replace(/\/$/,'').replace(/\/chat\/completions$/,'')+'/chat/completions'}
-async function chat({profile,key,messages,signal,onToken,fetcher=fetch}){
- const response=await fetcher(endpoint(profile.base),{method:'POST',redirect:'error',signal,headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key}`}:{})},body:JSON.stringify({model:profile.model,messages,stream:true,temperature:.7})});
+async function chat({profile,key,messages,signal,onToken,fetcher=fetch,localRoleplay=false}){
+ const response=await fetcher(endpoint(profile.base),{method:'POST',redirect:'error',signal,headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key}`}:{})},body:JSON.stringify({model:profile.model,messages,stream:true,temperature:.7,...(localRoleplay&&isYukinoLocal(profile)?{use_knowledge:false}:{})})});
  if(!response.ok){await response.body?.cancel();throw Error(`请求失败 HTTP ${response.status}：请检查地址、模型、密钥及额度。`)}
  if(!response.headers.get('content-type')?.includes('text/event-stream')){const j=await response.json();const t=j.choices?.[0]?.message?.content;if(typeof t!=='string')throw Error('服务返回格式不兼容');onToken(t);return}
  const decoder=new TextDecoder();let buffer='',done=false;

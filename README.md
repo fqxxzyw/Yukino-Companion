@@ -4,9 +4,9 @@
 
 Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪伴项目，计划将文字对话、本地语音、动态人物与可管理的长期记忆结合起来，并建设独立的公共资源社区。
 
-当前已落地 **v0.1 桌面聊天框架**：无边框界面、可配置的聊天 API、本机会话保存、可编辑人设和手动记忆。完整数字人能力按阶段接入。
+当前为 **v0.2 角色规范预览**：无边框界面、可配置的聊天 API、本机会话保存、完整统一的雪乃角色规范、追加人设和手动记忆。角色规范会随每次 API 聊天请求发送，完整数字人能力按阶段接入。性格专项训练流程和原创情境样例已提供；这不代表新的性格权重已经训练或通过验收。
 
-[下载 Windows 预览版](https://github.com/fqxxzyw/Yukino-Companion/releases) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [当前框架范围](docs/FRAMEWORK.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues) · [构建记录](https://github.com/fqxxzyw/Yukino-Companion/actions)
+[下载 Windows 预览版](https://github.com/fqxxzyw/Yukino-Companion/releases) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [当前框架范围](docs/FRAMEWORK.md) · [角色规范与性格训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues) · [构建记录](https://github.com/fqxxzyw/Yukino-Companion/actions)
 
 > **项目状态：早期框架预览。** 下文明确区分当前功能与规划。人物区域目前为占位展示，尚未加载雪乃模型，也不会合成语音。需求文档中的验收清单和性能目标不是完成记录。
 
@@ -49,7 +49,7 @@ Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪
 | 外观 | 浅蓝默认主题、预设配色、自定义背景和强调色、减少动态效果 | 更完整的主题与可访问性设置 |
 | 会话 | 新建、按标题搜索、切换、删除、本机保存；复制回复 | 重命名、置顶、全文搜索、更多消息操作 |
 | 对话 API | 多配置管理、Chat Completions 兼容接口、流式显示、停止、超时与连接测试 | 供应商原生协议、能力检测与更多参数 |
-| 角色设定 | 编辑提示词、恢复默认人设 | 角色知识库、检索增强、性格微调评估 |
+| 角色设定 | 内置完整角色规范；详细/精简档；追加设定；每次 API 请求注入 | 真实供应商行为评测、性格适配器质量验收 |
 | 个人记忆 | 手动编辑、启用/关闭、JSON 导入导出、清空 | 自动提取、来源追溯、冲突处理与分层管理 |
 | 本地模型 | 可连接用户已启动的本机兼容 API 服务 | 内置模型导入、加载/卸载、设备与进程管理 |
 | 语音 | 定义扩展接口 | GPT-SoVITS、本地音色包、分段播放与口型同步 |
@@ -61,7 +61,7 @@ Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪
 ### Windows 预览版
 
 1. 打开 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases)，选择带安装包的框架预览版本。
-2. 在 **Assets** 中下载 `Yukino-Companion-0.1.0-Setup.exe`。GitHub 自动生成的 Source code 压缩包是源码，不是安装程序。
+2. 在 **Assets** 中下载 `Yukino-Companion-0.2.0-Setup.exe`。GitHub 自动生成的 Source code 压缩包是源码，不是安装程序。
 3. 安装并启动软件，从侧边栏底部打开设置。
 4. 在「对话 API」中配置服务，测试成功后即可开始文字聊天。
 
@@ -84,7 +84,8 @@ Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪
 
 ### 人设与手动记忆
 
-- 「角色设定」中编辑角色提示词，也可恢复默认设置；修改作用于后续回复。
+- 「角色设定」中使用完整统一的雪乃人格，可选择详细或精简档、查看完整规范，并追加自己的设定；修改作用于后续回复。没有时期选择，详细/精简仅改变说明长度，不改变人格。
+- 内置角色规范可关闭；关闭后仍保留追加设定和已启用的记忆。角色规范不会把用户自动认定为原作人物或恋人。
 - 「个人记忆」中填写希望角色记住的信息，并开启「在对话中使用这些记忆」。
 - 手动记忆支持 JSON 导入导出；**当前导入会在确认后替换原内容，不会自动合并**。
 - 切换 API 配置后仍使用同一份本地人设与已启用的手动记忆。它们会随下一次请求发送给所选服务。
@@ -187,6 +188,8 @@ GitHub Pages 只承担静态前端托管。独立账号、站内私信、实时�
 | [electron/main.cjs](electron/main.cjs) | 窗口生命周期、IPC、持久化、密钥与请求管理 |
 | [electron/preload.cjs](electron/preload.cjs) | 向界面暴露有限的桌面能力 |
 | [electron/chat.cjs](electron/chat.cjs) | API 地址处理、请求与流式响应解析 |
+| [electron/persona.cjs](electron/persona.cjs) | 角色资源读取、主进程提示词组装与旧设置迁移 |
+| [characters/yukino/CHARACTER.md](characters/yukino/CHARACTER.md) | 完整角色规范；相邻目录包含运行卡、训练卡和证据索引 |
 | [src/main.jsx](src/main.jsx) | 聊天、侧边栏、设置与人物占位界面 |
 | [src/style.css](src/style.css) | 布局、主题与动效 |
 | [src/contracts.ts](src/contracts.ts) | 人物、语音与本地模型的扩展接口 |
@@ -227,7 +230,7 @@ npm run dev
 npm test
 ```
 
-当前测试集中于对话模块；通过这些测试不代表已验证安装、DPI、多屏、真实 API 或尚未实现的数字人功能。
+当前测试覆盖对话模块、角色提示词组装与旧设置迁移；Windows 构建还检查实际 app.asar 中的角色资源。通过这些测试不代表已验证 Windows 安装交互、DPI、多屏、真实供应商角色表现或尚未实现的数字人功能。
 
 ### 构建 Windows 安装包
 
@@ -237,9 +240,9 @@ npm test
 npm run dist:win
 ```
 
-当前版本输出为 `release/Yukino-Companion-0.1.0-Setup.exe`，文件名随 `package.json` 版本更新。
+当前版本输出为 `release/Yukino-Companion-0.2.0-Setup.exe`，文件名随 `package.json` 版本更新。
 
-现有 Actions 流程为：**构建 → 发布带 EXE 的预览 Release → 运行测试**。发布成功不代表后续测试已经通过，请同时查看对应工作流结果。仅修改 Markdown 或 `docs/` 不会触发自动打包。
+现有 Actions 流程为：**构建 → 检查安装内容中的角色文件 → 发布带 EXE 的预览 Release → 运行测试**。发布成功不代表后续测试已经通过，请同时查看对应工作流结果。仅修改 Markdown 或 `docs/` 不会触发自动打包。
 
 ## 数据与隐私
 
@@ -247,7 +250,7 @@ npm run dist:win
 
 - 会话、手动记忆、人设与界面设置保存在应用 `userData` 目录下的 `state.json`；这些内容是普通 JSON，并未整体加密。
 - API 密钥经系统安全存储加密后写入 `keys.json`，由主进程解密并用于请求。界面只获取已保存密钥的配置标识。
-- 每次聊天会发送角色提示词、启用的手动记忆、当前会话中筛选后的最近最多 40 条历史消息，以及本次提问。
+- 每次聊天会发送统一角色提示词、追加设定、启用的手动记忆、筛选后的最近最多 40 条对话消息。本项目本机 `oregairu-small` 服务使用精简角色卡，最多保留 28 条非 system 消息，并按上下文预算减少旧消息；角色规范不会被静默截断。
 - 本地保存不等于不联网：使用远程 API 时，上述请求内容会发送到当前配置的服务。
 - 当前社区入口仅打开仓库主页，不会同步本机聊天或记忆。
 - 当前关闭主窗口会退出应用，尚未实现收至托盘或保留桌面人物。

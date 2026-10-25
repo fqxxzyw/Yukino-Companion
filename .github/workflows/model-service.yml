@@ -1,9 +1,9 @@
 name: Model service tests
 on:
   push:
-    paths: ['model-service/**', '.github/workflows/model-service.yml']
+    paths: ['model-service/**', 'characters/**', '.github/workflows/model-service.yml']
   pull_request:
-    paths: ['model-service/**', '.github/workflows/model-service.yml']
+    paths: ['model-service/**', 'characters/**', '.github/workflows/model-service.yml']
 permissions:
   contents: read
 jobs:

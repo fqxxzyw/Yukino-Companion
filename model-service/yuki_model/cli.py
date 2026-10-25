@@ -37,8 +37,9 @@ def main():
             from huggingface_hub import snapshot_download
 
             from .training import BASE, REVISION
+            from .io import file_sha, save_json
 
-            print(
+            downloaded = Path(
                 snapshot_download(
                     BASE,
                     revision=REVISION,
@@ -53,6 +54,25 @@ def main():
                     max_workers=3,
                 )
             )
+            save_json(
+                downloaded / "BASE_PROVENANCE.json",
+                {
+                    "base_model": BASE,
+                    "base_revision": REVISION,
+                    "created_by": "yuki-model download (pinned snapshot)",
+                    "files": {
+                        file.name: file_sha(file)
+                        for file in sorted(downloaded.iterdir())
+                        if file.is_file()
+                        and file.name != "BASE_PROVENANCE.json"
+                        and (
+                            file.suffix in {".json", ".safetensors", ".txt", ".md"}
+                            or file.name == "LICENSE"
+                        )
+                    },
+                },
+            )
+            print(downloaded)
         elif a.command == "prepare":
             from .corpus import prepare
 
