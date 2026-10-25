@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location('translation_worker', Path(__file__).resolve().parents[1] / 'translation/worker.py')
 worker = importlib.util.module_from_spec(spec)
@@ -10,6 +11,27 @@ spec.loader.exec_module(worker)
 
 
 class TranslationWorkerTests(unittest.TestCase):
+    def test_windows_private_dlls_are_visible_to_legacy_loader_without_cuda_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/'runtime'; scripts=root/'Scripts'; library=root/'Lib/site-packages/torch/lib'
+            scripts.mkdir(parents=True);library.mkdir(parents=True)
+            (library/'cublas64_12.dll').write_bytes(b'private CUDA DLL fixture')
+            original='inherited-system-bin';added=[]
+            with mock.patch.object(worker.sys,'platform','win32'), mock.patch.object(worker.sys,'prefix',str(root)), mock.patch.object(worker.sys,'executable',str(scripts/'python.exe')), mock.patch.object(worker.os,'add_dll_directory',side_effect=lambda item: added.append(item) or object(),create=True), mock.patch.dict(worker.os.environ,{'PATH':str(library).upper()+worker.os.pathsep+original},clear=True), mock.patch.object(worker,'_DLL_HANDLES',[]), mock.patch.object(worker,'_DLL_DIRECTORIES',set()):
+                worker.prepare_windows_dlls();first=worker.os.environ['PATH'];worker.prepare_windows_dlls()
+                self.assertEqual(worker.os.environ['PATH'],first)
+                paths=first.split(worker.os.pathsep)
+                self.assertEqual(paths,[str(library.resolve()),str(scripts.resolve()),str(root.resolve()),original])
+                self.assertEqual(added,paths[:-1]);self.assertEqual(len(worker._DLL_HANDLES),3)
+                self.assertNotIn('CUDA_PATH',worker.os.environ)
+                self.assertTrue(any((Path(item)/'cublas64_12.dll').is_file() for item in paths))
+                self.assertNotIn(str(scripts/'Lib/site-packages/torch/lib'),paths)
+
+    def test_dll_setup_does_not_modify_non_windows_search_paths(self):
+        with mock.patch.object(worker.sys,'platform','linux'), mock.patch.dict(worker.os.environ,{'PATH':'original-search-path'}), mock.patch.object(worker.os,'add_dll_directory',create=True) as add:
+            worker.prepare_windows_dlls()
+            self.assertEqual(worker.os.environ['PATH'],'original-search-path');add.assert_not_called()
+
     def test_chunking_keeps_source_without_truncating(self):
         class Tokenizer:
             def __call__(self, text, **kwargs):

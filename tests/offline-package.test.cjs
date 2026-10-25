@@ -64,6 +64,28 @@ test('offline package rejects absent icon, mismatched manifests and missing trai
   const noIcon=path.join(f.root,'no-icon');await fs.mkdir(noIcon);await fs.rename(archive,path.join(noIcon,'app.asar'));
   await assert.rejects(verifyOfflinePackage(noIcon,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/图标|yukino-icon/);
 });
+test('CPU-only runtime catalogues are accepted while all bundled model and voice checks still run',async t=>{
+  const f=await fixture(t),catalogPath=path.join(f.resources,'runtime-catalog.json');
+  const catalog=JSON.parse(await fs.readFile(catalogPath,'utf8'));delete catalog.variants.cu124;
+  await fs.writeFile(catalogPath,JSON.stringify(catalog));
+  const result=await verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1});
+  assert.equal(result.runtime,'downloadable-cpu');assert.deepEqual(result.runtimeVariants,['cpu']);
+  assert.equal(result.localModelBytes,14);assert.equal(result.modelBytes,14);assert.equal(result.petVoiceCount,1);
+  await f.write(f.resources,'voice-models/reference.bin','broken reference');
+  await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/资源长度|SHA-256/);
+});
+test('runtime catalogue still requires CPU and rejects unknown or invalid present variants',async t=>{
+  const f=await fixture(t),catalogPath=path.join(f.resources,'runtime-catalog.json'),original=JSON.parse(await fs.readFile(catalogPath,'utf8'));
+  const cases=[
+    [{...original,variants:{cu124:original.variants.cu124}},/CPU/],
+    [{...original,variants:{...original.variants,unverified:original.variants.cpu}},/未知类型/],
+    [{...original,variants:{cpu:{...original.variants.cpu,archiveSha256:'invalid'}}},/有效分卷/],
+    [{...original,variants:{...original.variants,cu124:{...original.variants.cu124,parts:[]}}},/有效分卷/],
+    [{...original,variants:{cpu:{...original.variants.cpu,parts:[{...original.variants.cpu.parts[0],digest:'invalid'}]}}},/分卷清单/],
+    [{...original,variants:{cpu:{...original.variants.cpu,bytes:11}}},/总长度/],
+  ];
+  for(const [catalog,expected] of cases){await fs.writeFile(catalogPath,JSON.stringify(catalog));await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),expected);}
+});
 test('release checks reject missing, tiny or over-limit installers and write hashes',async t=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-release-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
   await assert.rejects(verifyReleaseAssets(directory),/未找到/);

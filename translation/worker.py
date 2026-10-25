@@ -13,18 +13,41 @@ import sys
 MODEL_ID = "tencent/Hy-MT2-1.8B-GGUF"
 MAX_INPUT = 20000
 _DLL_HANDLES = []
+_DLL_DIRECTORIES = set()
 
 
 def prepare_windows_dlls():
-    """Use the application's packaged CUDA DLLs without requiring CUDA_PATH."""
+    """Expose private DLLs to both Python's safe loader and llama's winmode=0."""
     if sys.platform != "win32" or not hasattr(os, "add_dll_directory"):
         return
     candidates = [Path(sys.prefix) / "Lib/site-packages/torch/lib",
                   Path(sys.executable).parent / "Lib/site-packages/torch/lib",
-                  Path(sys.executable).parent]
-    for directory in dict.fromkeys(candidates):
-        if directory.is_dir():
-            _DLL_HANDLES.append(os.add_dll_directory(str(directory.resolve())))
+                  Path(sys.executable).parent, Path(sys.prefix)]
+    directories = []
+    seen = set()
+    for directory in candidates:
+        if not directory.is_dir():
+            continue
+        resolved = str(directory.resolve())
+        key = os.path.normcase(resolved).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        directories.append(resolved)
+        if key not in _DLL_DIRECTORIES:
+            _DLL_HANDLES.append(os.add_dll_directory(resolved))
+            _DLL_DIRECTORIES.add(key)
+    # llama-cpp-python 0.3.36 explicitly uses CDLL(winmode=0), which does not
+    # reliably search AddDllDirectory entries. Only this owned worker process
+    # inherits this PATH; no system/user environment or CUDA installation changes.
+    search = []
+    seen.clear()
+    for entry in directories + os.environ.get("PATH", "").split(os.pathsep):
+        key = os.path.normcase(entry).casefold()
+        if entry and key not in seen:
+            search.append(entry)
+            seen.add(key)
+    os.environ["PATH"] = os.pathsep.join(search)
 
 
 def validate_config(config):

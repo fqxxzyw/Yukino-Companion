@@ -27,7 +27,10 @@ def main():
     p.add_argument('--training-report', type=Path, required=True)
     p.add_argument('--base-license', type=Path, required=True)
     p.add_argument('--threads', type=int, default=min(8, os.cpu_count() or 1))
+    p.add_argument('--remove-fp16', action='store_true', help='Delete this conversion intermediate after a complete successful export')
     a = p.parse_args()
+    if a.output.resolve().is_relative_to(a.merged.resolve()) or a.merged.resolve().is_relative_to(a.output.resolve()):
+        p.error('Shipping output and merged HF source directories must not overlap')
     report = json.loads(a.training_report.read_text(encoding='utf-8'))
     if report.get('completed') is not True or report.get('run_purpose') != 'training' or report.get('steps', 0) <= 1:
         p.error('Shipping requires a completed training run, not a one-step smoke check')
@@ -65,6 +68,9 @@ def main():
     shutil.move(str(temporary), q4)
     shutil.copyfile(a.base_license, a.output / 'BASE_LICENSE.txt')
     save_json(a.output / 'training_report.json', report)
+    merge_proof = a.merged / 'merge-validation.json'
+    if merge_proof.is_file():
+        shutil.copyfile(merge_proof, a.output / merge_proof.name)
     save_json(a.output / 'manifest.json', {
         'schemaVersion': 1, 'name': '雪乃本地角色模型 · Qwen 1.5B · 人格续训 v1.2',
         'file': q4.name, 'bytes': q4.stat().st_size, 'sha256': file_sha(q4),
@@ -81,6 +87,8 @@ def main():
             'Validation loss is not a character-fidelity or general-knowledge score.',
             'GPU execution requires a compatible runtime and actual offload.'],
     })
+    if a.remove_fp16:
+        fp16.unlink()
     print(q4)
 
 

@@ -274,3 +274,17 @@ test('hardware detection is cancelled through its owned process signal',async()=
   },controller.signal);
   controller.abort(); await assert.rejects(pending,/aborted/); assert.equal(received,controller.signal);
 });
+
+test('a CPU-only catalogue installs CPU automatically and refuses an unavailable CUDA request',async t=>{
+  let hardwareProbes=0;
+  const env=await fixture(t,{flavor:'cpu',run:async(executable)=>{
+    if(executable==='powershell.exe')hardwareProbes++;
+    return {stdout:JSON.stringify({torch:'cpu-test',gpuAvailable:false,translationGpuBuild:false})};
+  }});
+  const result=await env.manager.install('auto');
+  assert.equal(result.flavor,'cpu'); assert.deepEqual(result.variants,['cpu']); assert.equal(hardwareProbes,0);
+  const previousRoot=result.root;
+  await assert.rejects(env.manager.install('cu124'),/尚未提供所选运行环境/);
+  assert.equal((await env.manager.current()).root,previousRoot);
+  assert.equal(env.calls.length,2,'unavailable CUDA must not start any additional download');
+});

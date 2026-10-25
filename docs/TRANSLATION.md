@@ -16,13 +16,13 @@
 | 许可 | Apache-2.0；保留腾讯版权说明、原始 README 与 LICENSE |
 | 本地目录标识 | `hy-mt2-1.8b-q4` |
 
-所有资源的固定 URL、长度与 SHA-256 均在 `translation/model-manifest.json`；界面目录在 `resources/translation-models.json`。模型权重被 git 忽略，不提交到源码仓库。最终 EXE 构建复制清单中的模型目录到 `extraResources/translation-models/`，不放入 asar。
+所有资源的固定 URL、长度与 SHA-256 均在 `translation/model-manifest.json`；界面目录在 `resources/translation-models.json`。模型权重被 git 忽略，不提交到源码仓库。主应用构建复制清单中的模型目录到 `extraResources/translation-models/`，随完整应用分卷提供，不放入 asar；小型 EXE 安装器本身不包含这些大文件。
 
 曾实际试过 OPUS-MT tc-big-zh-ja 的官方现版和 M2M100-418M：前者实测译文严重跑偏，后者在专名、货币和条件语气上出现明显错误，均未列入可安装模型。官方 OPUS 相关讨论：https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-zh-ja/discussions/4 。
 
 ## 运行库与资源准备
 
-推理使用 `llama-cpp-python==0.3.36`，独立 JSONL 子进程，无本地 HTTP 监听端口，不修改 GPT-SoVITS 的 Torch/Transformers 版本。CPU 版安装官方 release 预编译 wheel；每个平台的 SHA-256 固定在 `translation/prepare_runtime.py`。它只供开发/构建使用，不在用户聊天时执行 pip。
+推理使用 `llama-cpp-python==0.3.36`，独立 JSONL 子进程，无本地 HTTP 监听端口，不修改 GPT-SoVITS 的 Torch/Transformers 版本。CPU 版安装官方 release 预编译 wheel；每个平台的 SHA-256 固定在 `translation/prepare_runtime.py`。它只供开发/构建使用，不在用户聊天时执行 pip。主安装包不包含 Python/PyTorch/CUDA；首次引导下载独立共享环境，或允许跳过，设置中可再次打开。首批提供 CPU 环境，CUDA 环境后续提供，可安装选项以实际资源目录为准。
 
 ```bash
 python translation/prepare_runtime.py --flavor cpu
@@ -33,7 +33,7 @@ python translation/smoke.py --model-dir translation/models/hy-mt2-1.8b-q4 --devi
 
 可使用 `--python` 指向打包运行环境的 Python。`prepare.py --output PATH` 可将权重准备在自定义构建目录；中断下载保留 `.part` 并续传，完成后核验整文件 SHA-256，再原子替换正式文件。
 
-应用内“安装翻译模型”使用 Electron 网络层，下载到用户数据目录而非 Program Files，支持进度、取消、断点续传、磁盘空间检查和 SHA-256 校验。安装完成保存返回的 `config.modelDir`。完整权重已随安装包提供时可直接离线运行。安装运行库和安装模型是不同步骤：模型下载不会凭空为任意 Python 安装运行库。
+应用内“安装翻译模型”使用 Electron 网络层，下载到用户数据目录而非 Program Files，支持进度、取消、断点续传、磁盘空间检查和 SHA-256 校验。安装完成保存返回的 `config.modelDir`。完整权重已随应用分卷提供时不重复下载；还需已安装兼容运行环境才能离线推理。安装运行库和安装模型是不同步骤：模型下载不会凭空为任意 Python 安装运行库。
 
 ### Windows CUDA 构建
 
@@ -48,7 +48,7 @@ cmake --version
 & .\build\runtime-venv\Scripts\python.exe translation\smoke.py --model-dir translation\models\hy-mt2-1.8b-q4 --device cuda
 ```
 
-worker 在 Windows 导入 llama.cpp 前，将打包 Python 的 `Lib/site-packages/torch/lib` 加入 DLL 搜索目录并保持目录句柄存活，以复用语音 CUDA Torch 自带的 cudart/cuBLAS DLL，不依赖用户的 `CUDA_PATH`。这是静态集成修复；仍需在清空 `CUDA_PATH`、没有开发工具的干净 Windows 机器上验证加载与真实翻译，才能作为 GPU 安装包发布。当前 **没有完成 Windows/CUDA 实机验证**，不能把 Linux CPU 成功当作已验证 Windows GPU 包。最终 CI 应在 CUDA 构建 job 前置官方 CUDA Toolkit 和兼容 MSVC，随后运行上面的真实模型 smoke；本轮未触发 EXE 打包。
+worker 在 Windows 导入 llama.cpp 前，将打包 Python 的 `Lib/site-packages/torch/lib` 加入 DLL 搜索目录并保持目录句柄存活，以复用语音 CUDA Torch 自带的 cudart/cuBLAS DLL，不依赖用户的 `CUDA_PATH`。该 CUDA 路径仍需在清空 `CUDA_PATH`、没有开发工具的干净 Windows NVIDIA 机器上验证加载与真实翻译。Windows CPU 已完成实际翻译，但 **没有 NVIDIA GPU 实机验证**，不能把 CPU 成功或 CUDA 构建通过当作 GPU 推理验收。首批主应用测试包与 CPU 公共环境独立交付，CUDA 环境后续提供；完整 0.4.0 安装包尚未发布。
 
 运行时 `auto` 先检查 llama.cpp GPU 后端可用性，有则尝试 GPU layers；模型加载后还检查原生引擎日志中实际 offload 的层数，只有大于零才报告 `device=gpu`，静默回落时报告 CPU。指定 `cpu` 强制 CPU；指定 `cuda` 而无可用 GPU 时明确失败。GPU 加载失败或推理显存不足且 `cpuFallback=true` 时重新加载 CPU。CPU 版运行库在有显卡的机器上仍会用 CPU；需要选择 GPU 版运行库。
 
@@ -88,5 +88,7 @@ worker 逐句拆分，过长句子按 Unicode 字符进一步拆分，使用 tok
 > 雪ノ下雪乃は猫が好きですが、今は猫を飼っていません。
 
 专名、250 元、未养猫的否定、准备去图书馆的将来语义以及“如果不下雨”的条件在本组样例中得到保留。但一条输出使用了不自然的「でたらけ」，不是全面质量验收；自然程度与角色口吻仍需日语使用者评估。内置模型负责翻译已有回复，API 的人物提示仍负责塑造雪乃的说话方式。
+
+另有 Windows CPU 实测：固定 Hy-MT2 Q4 实际生成四句日文，每句约 1.06–2.14 秒；同一任务也完成默认 GPT-SoVITS 音色的真实合成，详见[0.4.0 验证记录](VALIDATION_0.4.0.md)。这些小样本不能代替翻译质量、人工听音或 GPU 验收。
 
 Node 测试覆盖队列顺序、加载复用、重复编号、取消、迟到结果丢弃、错误语言拒绝和安装校验；Python 测试覆盖完整分片、校验失败、CPU/GPU 选择、术语提示和不完整输出。未在本次翻译测试中验证真实语音音质。

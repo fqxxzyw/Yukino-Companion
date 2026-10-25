@@ -109,7 +109,7 @@ else {
       const [environment,local,translated,voices,voice]=await Promise.all([runtime.status(),localChat.status(),translation.status(),voiceResources.inspect(),speech.readiness(await voiceConfig())]);
       const coreReady=!voice.missing?.some(x=>['bert','hubert'].includes(x.key));
       const presetReady=!voice.missing?.some(x=>['gpt','sovits','reference','promptText'].includes(x.key));
-      return {runtimeFlavor:environment.flavor,device:environment.metadata?.gpuAvailable?'GPU':'CPU',steps:[
+      return {runtimeFlavor:environment.flavor,runtimeVariants:environment.variants,device:environment.metadata?.gpuAvailable?'GPU':'CPU',steps:[
         {id:'runtime',state:environment.ready?'ready':'missing',detail:environment.ready?`公共推理环境已安装 · ${environment.flavor}`:'Python 与推理依赖将统一安装，不影响已内置的模型。'},
         {id:'chat',state:local.modelInstalled?'ready':'missing',detail:local.modelInstalled?'角色权重已内置，首次发送时自动加载。':'本地角色权重缺失，请检查安装分卷。'},
         {id:'translation',state:translated.modelInstalled?'ready':'missing',detail:translated.modelInstalled?'中日翻译权重已安装，不会重复下载。':'需要准备中日翻译权重。'},

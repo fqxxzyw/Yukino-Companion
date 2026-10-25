@@ -21,7 +21,7 @@ let voice={enabled:false,python:'',root:'',gpt:'',sovits:'',reference:'',bert:''
 let companions={mode:'none',closeAction:'ask',bubbleLanguage:'zh',position:'right',scale:1,opacity:1,alwaysOnTop:true,animation:true,modelReady:false,petReady:true,voiceCount:2391,startupAvailable:true,usage:{todayMs:5760000,sessionMs:1380000,totalMs:48960000}};
 let translation={ready:false,available:false,phase:'unloaded',modelInstalled:true,runtimeAvailable:false,modelSource:'bundled',model:'tencent/Hy-MT2-1.8B-GGUF',modelBytes:1133107392,device:'auto',config:{python:'',modelDir:'',device:'auto',cpuThreads:4,cpuFallback:true,timeout:180}};
 let local={phase:'unloaded',modelInstalled:true,runtimeAvailable:false,available:false,ready:false,model:'雪乃本地角色模型 · 1.5B',config:{device:'auto',cpuFallback:true,maxNewTokens:256,cpuThreads:4,python:'',modelDir:''}};
-let setup={phase:'idle',ready:false,steps:[
+let setup={phase:'idle',ready:false,runtimeVariants:['cpu'],steps:[
   {id:'runtime',state:'missing',detail:'界面验证场景：需要公共 Python 与推理依赖'},
   {id:'chat',state:'ready',detail:'已找到随安装包提供的 1.5B 角色权重'},
   {id:'translation',state:'ready',detail:'已找到随安装包提供的 Hy-MT2 翻译权重'},

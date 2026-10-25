@@ -87,3 +87,31 @@ def test_gpu_memory_failure_reloads_cpu_once(monkeypatch):
     result = engine.generate([{'role': 'user', 'content': '你好'}])
     assert calls == ['gpu', 'load-cpu', 'cpu']
     assert result['fallback'] == 'gpu-memory'
+
+
+def test_windows_private_dll_path_is_idempotent_and_needs_no_system_cuda(monkeypatch,tmp_path):
+    root=tmp_path/'runtime';scripts=root/'Scripts';library=root/'Lib/site-packages/torch/lib'
+    scripts.mkdir(parents=True);library.mkdir(parents=True)
+    (library/'cudart64_12.dll').write_bytes(b'private runtime fixture')
+    monkeypatch.setattr(worker.sys,'platform','win32')
+    monkeypatch.setattr(worker.sys,'prefix',str(root))
+    monkeypatch.setattr(worker.sys,'executable',str(scripts/'python.exe'))
+    monkeypatch.setattr(worker,'_DLL_HANDLES',[]);monkeypatch.setattr(worker,'_DLL_DIRECTORIES',set())
+    added=[];monkeypatch.setattr(worker.os,'add_dll_directory',lambda value: added.append(value) or object(),raising=False)
+    monkeypatch.setenv('PATH',str(library).upper()+worker.os.pathsep+'inherited-system-bin')
+    monkeypatch.delenv('CUDA_PATH',raising=False)
+    worker.prepare_windows_dlls();first=worker.os.environ['PATH'];worker.prepare_windows_dlls()
+    assert worker.os.environ['PATH']==first
+    paths=first.split(worker.os.pathsep)
+    assert paths==[str(library.resolve()),str(scripts.resolve()),str(root.resolve()),'inherited-system-bin']
+    assert added==paths[:-1] and len(worker._DLL_HANDLES)==3
+    assert 'CUDA_PATH' not in worker.os.environ
+    assert any((Path(item)/'cudart64_12.dll').is_file() for item in paths)
+    assert str(scripts/'Lib/site-packages/torch/lib') not in paths
+
+
+def test_dll_setup_leaves_non_windows_environment_untouched(monkeypatch):
+    monkeypatch.setattr(worker.sys,'platform','linux');monkeypatch.setenv('PATH','original-search-path')
+    calls=[];monkeypatch.setattr(worker.os,'add_dll_directory',lambda value:calls.append(value),raising=False)
+    worker.prepare_windows_dlls()
+    assert worker.os.environ['PATH']=='original-search-path' and calls==[]

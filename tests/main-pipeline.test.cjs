@@ -166,6 +166,15 @@ test('first-use setup installs one shared runtime and keeps model/runtime states
   await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);
 });
 
+test('setup exposes actual downloadable CPU-only or CPU/CUDA variants to the renderer',async()=>{
+  const app=await mainHarness({state});
+  const original=app.runtime.status.bind(app.runtime);
+  app.runtime.status=async()=>({...await original(),variants:['cpu']});
+  assert.deepEqual(Array.from((await app.invoke('setup-status')).runtimeVariants),['cpu']);
+  app.runtime.status=original;
+  assert.deepEqual(Array.from((await app.invoke('setup-status')).runtimeVariants),['cpu','cu124']);
+});
+
 
 test('setup preserves custom Python and valid core paths without duplicate voice downloads',async()=>{
   const custom={python:path.resolve('/my-voice/python'),root:path.resolve('/my-voice/engine'),bert:path.resolve('/my-voice/bert'),hubert:path.resolve('/my-voice/hubert')};

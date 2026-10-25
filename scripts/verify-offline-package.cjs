@@ -83,16 +83,19 @@ async function verifyOfflinePackage(resources, {expectedManifest = translationMa
   }
   const runtime = JSON.parse(await fsp.readFile(path.join(resources, 'runtime-catalog.json'), 'utf8'));
   if (runtime.schemaVersion !== 1 || runtime.version !== '0.4.0') throw Error('运行环境下载清单版本无效');
-  for (const flavor of ['cpu', 'cu124']) {
+  if (!runtime.variants || typeof runtime.variants !== 'object' || Array.isArray(runtime.variants) || !Object.hasOwn(runtime.variants, 'cpu')) throw Error('运行环境下载清单必须提供有效 CPU 环境');
+  const runtimeVariants = Object.keys(runtime.variants).sort();
+  if (runtimeVariants.some(flavor => !['cpu', 'cu124'].includes(flavor))) throw Error('运行环境下载清单包含未知类型');
+  for (const flavor of runtimeVariants) {
     const variant = runtime.variants?.[flavor];
-    if (variant?.id !== `windows-x64-${flavor}` || !/^[a-f0-9]{64}$/.test(variant?.archiveSha256 || '') || !Number.isSafeInteger(variant.unpackedBytes) || variant.unpackedBytes < 1 || !Array.isArray(variant.parts) || !variant.parts.length) throw Error('运行环境下载清单缺少有效 CPU/CUDA 分卷');
+    if (variant?.id !== `windows-x64-${flavor}` || !/^[a-f0-9]{64}$/.test(variant?.archiveSha256 || '') || !Number.isSafeInteger(variant.unpackedBytes) || variant.unpackedBytes < 1 || variant.unpackedBytes > 16 * 1024 ** 3 || !Array.isArray(variant.parts) || !variant.parts.length) throw Error('运行环境下载清单缺少有效分卷：' + flavor);
     let bytes = 0;
     for (const [index, part] of variant.parts.entries()) {
       const filename = `Yukino-Runtime-0.4.0-windows-x64-${flavor}.zip.part${String(index + 1).padStart(3, '0')}`;
-      if (part.path !== filename || part.algorithm !== 'sha256' || !/^[a-f0-9]{64}$/.test(part.digest || '') || !Number.isSafeInteger(part.bytes) || part.bytes < 1 || part.bytes > 900 * 1024 ** 2 || !part.url?.startsWith('https://github.com/fqxxzyw/Yukino-Companion/releases/download/') || !part.url.endsWith('/' + filename)) throw Error('运行环境分卷清单不完整');
+      if (part?.path !== filename || part.algorithm !== 'sha256' || !/^[a-f0-9]{64}$/.test(part.digest || '') || !Number.isSafeInteger(part.bytes) || part.bytes < 1 || part.bytes > 900 * 1024 ** 2 || typeof part.url !== 'string' || !part.url.startsWith('https://github.com/fqxxzyw/Yukino-Companion/releases/download/') || !part.url.endsWith('/' + filename)) throw Error('运行环境分卷清单不完整');
       bytes += part.bytes;
     }
-    if (variant.bytes !== bytes) throw Error('运行环境总长度不符');
+    if (!Number.isSafeInteger(variant.bytes) || variant.bytes !== bytes) throw Error('运行环境总长度不符');
   }
   const localRoot = path.join(resources, 'local-model/yukino-1.5b-persona-q4');
   const local = JSON.parse(await fsp.readFile(path.join(localRoot, 'manifest.json'), 'utf8'));
@@ -121,9 +124,9 @@ async function verifyOfflinePackage(resources, {expectedManifest = translationMa
   let modelBytes = 0;
   for (const item of expectedManifest.files) modelBytes += await verifyFile(modelRoot, item);
   const pkg = JSON.parse(asarRead(archive, 'package.json'));
-  return {version:pkg.version, characterVersion:character.version, runtime:'downloadable-cpu-cu124', localModel:local.name, localModelBytes, voiceBytes, petVoiceCount:voices.count,
+  return {version:pkg.version, characterVersion:character.version, runtime:'downloadable-' + runtimeVariants.join('-'), localModel:local.name, localModelBytes, voiceBytes, petVoiceCount:voices.count,
     model:expectedManifest.modelId, modelBytes, artwork:artwork.files.filter(item => item.path.endsWith('.png')).length,
-    audioSynthesisValidated:false, runtimeVariants:Object.keys(runtime.variants)};
+    audioSynthesisValidated:false, runtimeVariants};
 }
 if (require.main === module) {
   verifyOfflinePackage(process.argv[2] || 'release/win-unpacked/resources')

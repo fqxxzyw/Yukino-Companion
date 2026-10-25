@@ -164,6 +164,10 @@ async function run() {
   await check('Application icon loads',`[...document.querySelectorAll('img')].every(img=>img.complete&&img.naturalWidth>0)`);
   await waitFor(`Boolean(document.querySelector('.setup-dialog'))`,'first-run setup');
   await check('First-run setup distinguishes bundled weights from runtime',`document.querySelector('.setup-dialog').textContent.includes('公共推理环境')&&document.querySelector('.setup-step.ready').textContent.includes('角色')&&document.querySelectorAll('.setup-step.ready').length===3`);
+  await check('CPU-only catalogue has a truthful runtime notice',`document.querySelector('.setup-runtime').textContent.includes('此测试包可下载 CPU 环境')&&document.querySelector('.setup-runtime').textContent.includes('GPU 环境将在后续版本提供')`);
+  await click('[aria-label="首次配置推理环境"]');
+  await check('Unavailable CUDA is disabled in the runtime picker',`[...document.querySelectorAll('[role="option"]')].some(option=>option.textContent.includes('NVIDIA CUDA')&&option.getAttribute('aria-disabled')==='true')`);
+  await key('Escape');
   await capture('00-first-run-setup');
   await click('.setup-dialog footer .text-link');
   await check('Skipping setup leaves chat available',`!document.querySelector('.setup-dialog')&&Boolean(document.querySelector('.composer'))`);

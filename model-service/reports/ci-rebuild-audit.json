@@ -1,0 +1,67 @@
+{
+  "completed": true,
+  "executedAtUtc": "2026-10-25T09:00:27.494786+00:00",
+  "scope": "Fresh isolated Python 3.12 environment on this Linux container; actual native quantizer compilation, approved LoRA merge, GGUF export and desktop worker generation. This is not a completed GitHub Ubuntu/Windows workflow run.",
+  "baseAcquisition": "Reused the local snapshot and verified its full SHA-256 against official Hugging Face LFS metadata for the pinned revision. Fresh CI network downloading of the full base is not covered by this execution.",
+  "archive": {
+    "name": "Yukino-Persona-LoRA-0.4.0.zip",
+    "bytes": 38114354,
+    "sha256": "fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5"
+  },
+  "baseOrigin": {
+    "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+    "bytes": 3087467144,
+    "sha256": "dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee"
+  },
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "dependencies": {
+    "torch": "2.6.0+cpu",
+    "transformers": "4.57.6",
+    "peft": "0.18.1",
+    "accelerate": "1.12.0",
+    "huggingface_hub": "0.36.2",
+    "numpy": "2.2.6",
+    "safetensors": "0.6.2",
+    "sentencepiece": "0.2.0",
+    "protobuf": "4.25.8",
+    "psutil": "7.2.1"
+  },
+  "converterCommit": "b3fa69955ea81c3b60e77e3c1e2224c4a826ffb9",
+  "quantizer": {
+    "binary": "llama-quantize",
+    "sha256": "fafd4e30223b718ea2fc5619759da00d7cc3c08c55c888203c5613ab823543ed"
+  },
+  "output": {
+    "file": "yukino-persona-q4_k_m.gguf",
+    "bytes": 986048160,
+    "sha256": "d8ebc7c6b27743400b600a984736c1b9882c1b06e8d519ebd583d7f0bb858268",
+    "training": {
+      "completed": true,
+      "task": "complete_persona",
+      "runPurpose": "training",
+      "steps": 47,
+      "adapterSha256": "21f347ebc4b8658705dfd601270955708814d37a18bf5272cd0bfa1878cfdb7b",
+      "beforeEvalLoss": 3.632673501968384,
+      "afterEvalLoss": 3.2491447925567627,
+      "qualityClaim": "Configured training completed; not proof of complete canon knowledge or character fidelity."
+    }
+  },
+  "mergeApplication": {
+    "checkedTensor": "model.layers.0.self_attn.q_proj.weight",
+    "changedElements": 792049,
+    "maxAbsoluteDelta": 0.00048828125,
+    "adapterSha256": "21f347ebc4b8658705dfd601270955708814d37a18bf5272cd0bfa1878cfdb7b",
+    "scope": "This verifies application of the approved adapter, not personality accuracy."
+  },
+  "temporaryFp16Removed": true,
+  "smoke": {
+    "transport": "Electron LocalChatService -> Python JSONL worker -> GGUF; no API",
+    "device": "cpu",
+    "question": "你好，请打个招呼。",
+    "actualAnswer": "你好！"
+  },
+  "tests": {
+    "newArchiveBoundaryTests": 7,
+    "allPythonDistributionTests": 39
+  }
+}
