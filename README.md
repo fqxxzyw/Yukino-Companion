@@ -4,7 +4,7 @@
 
 Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪伴项目，计划将文字对话、本地语音、动态人物与可管理的长期记忆结合起来，并建设独立的公共资源社区。
 
-当前为 **v0.2 角色规范预览**：无边框界面、可配置的聊天 API、本机会话保存、完整统一的雪乃角色规范、追加人设和手动记忆。角色规范会随每次 API 聊天请求发送，完整数字人能力按阶段接入。性格专项训练流程和原创情境样例已提供；这不代表新的性格权重已经训练或通过验收。
+当前为 **v0.2.1 人物档案预览**：无边框界面、可配置的聊天 API、本机会话保存、完整统一的雪乃角色规范、追加人设和手动记忆。角色规范会随每次 API 聊天请求发送，完整数字人能力按阶段接入。性格专项训练流程和原创情境样例已提供；这不代表新的性格权重已经训练或通过验收。
 
 [下载 Windows 预览版](https://github.com/fqxxzyw/Yukino-Companion/releases) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [当前框架范围](docs/FRAMEWORK.md) · [角色规范与性格训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues) · [构建记录](https://github.com/fqxxzyw/Yukino-Companion/actions)
 
@@ -61,7 +61,7 @@ Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪
 ### Windows 预览版
 
 1. 打开 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases)，选择带安装包的框架预览版本。
-2. 在 **Assets** 中下载 `Yukino-Companion-0.2.0-Setup.exe`。GitHub 自动生成的 Source code 压缩包是源码，不是安装程序。
+2. 在 **Assets** 中下载 `Yukino-Companion-0.2.1-Setup.exe`。GitHub 自动生成的 Source code 压缩包是源码，不是安装程序。
 3. 安装并启动软件，从侧边栏底部打开设置。
 4. 在「对话 API」中配置服务，测试成功后即可开始文字聊天。
 
@@ -84,7 +84,7 @@ Yukino Companion 是一个以雪之下雪乃为核心角色的 Windows 桌面陪
 
 ### 人设与手动记忆
 
-- 「角色设定」中使用完整统一的雪乃人格，可选择详细或精简档、查看完整规范，并追加自己的设定；修改作用于后续回复。没有时期选择，详细/精简仅改变说明长度，不改变人格。
+- 「角色设定」中使用完整统一的雪乃人格，可选择详细或精简档、查看完整角色设定，并追加自己的设定；修改作用于后续回复。没有时期选择，详细/精简仅改变说明长度，不改变人格。
 - 内置角色规范可关闭；关闭后仍保留追加设定和已启用的记忆。角色规范不会把用户自动认定为原作人物或恋人。
 - 「个人记忆」中填写希望角色记住的信息，并开启「在对话中使用这些记忆」。
 - 手动记忆支持 JSON 导入导出；**当前导入会在确认后替换原内容，不会自动合并**。
@@ -189,7 +189,7 @@ GitHub Pages 只承担静态前端托管。独立账号、站内私信、实时�
 | [electron/preload.cjs](electron/preload.cjs) | 向界面暴露有限的桌面能力 |
 | [electron/chat.cjs](electron/chat.cjs) | API 地址处理、请求与流式响应解析 |
 | [electron/persona.cjs](electron/persona.cjs) | 角色资源读取、主进程提示词组装与旧设置迁移 |
-| [characters/yukino/CHARACTER.md](characters/yukino/CHARACTER.md) | 完整角色规范；相邻目录包含运行卡、训练卡和证据索引 |
+| [characters/yukino/CHARACTER.md](characters/yukino/CHARACTER.md) | 个人资料、性格、关系与经历、完整行为指导与示例；相邻目录包含运行卡、训练卡和来源索引 |
 | [src/main.jsx](src/main.jsx) | 聊天、侧边栏、设置与人物占位界面 |
 | [src/style.css](src/style.css) | 布局、主题与动效 |
 | [src/contracts.ts](src/contracts.ts) | 人物、语音与本地模型的扩展接口 |
@@ -240,7 +240,7 @@ npm test
 npm run dist:win
 ```
 
-当前版本输出为 `release/Yukino-Companion-0.2.0-Setup.exe`，文件名随 `package.json` 版本更新。
+当前版本输出为 `release/Yukino-Companion-0.2.1-Setup.exe`，文件名随 `package.json` 版本更新。
 
 现有 Actions 流程为：**构建 → 检查安装内容中的角色文件 → 发布带 EXE 的预览 Release → 运行测试**。发布成功不代表后续测试已经通过，请同时查看对应工作流结果。仅修改 Markdown 或 `docs/` 不会触发自动打包。
 
@@ -296,6 +296,10 @@ API 请求、密钥和持久化通过 Electron 主进程完成。请构建后运
 
 **网站和 EXE 是同一个程序吗？**  
 不是。两者独立发布，计划共享公开社区内容；本机私有数据不因此成为社区数据。
+
+## 文本模型发布状态
+
+桌面 EXE 与文本模型分别发布。当前 EXE 包含角色资料与 API 接入，不含文本模型权重。旧 1.5B 知识 LoRA 完成过训练但效果仍有明显局限，模型包尚未上传 GitHub；新性格 LoRA 只做过单步流程验证，尚未完成整轮训练。训练完成后，文本模型将作为独立 GitHub Release 附件发布，并提供基础模型版本、加载方法、验证结果与校验值。详见[已确认的发布方式](docs/角色规范与性格专项训练.md#8-已确认的模型发布方式2026-10-25)。
 
 ## 独立本地文本模型服务
 

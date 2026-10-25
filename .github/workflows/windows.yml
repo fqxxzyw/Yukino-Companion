@@ -25,7 +25,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.2.0-persona.${{ github.run_number }}"
-          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.2 · Complete Persona ${{ github.run_number }}" --prerelease --notes "角色规范预览：内置完整统一的雪乃角色规范，详细与精简提示词，API 请求自动注入；附角色专项训练流程。性格专项权重尚未完成质量验收。按既定流程先发布 EXE，再运行测试；安装包未签名，实际供应商的人格遵循程度仍需验证。"
+          $tag = "v0.2.1-profile.${{ github.run_number }}"
+          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.2.1 · Character Profile ${{ github.run_number }}" --prerelease --notes "人物档案更新：补齐个人资料、家庭、兴趣、能力、性格与经历；保留完整行为指导与情境示例，移除说明性前言，同步 API 角色卡。EXE 不含文本模型权重；性格专项尚未完成整轮训练，训练完成后的模型将作为独立 Release 附件发布。按既定流程先发布 EXE，再运行测试；安装包未签名，实际供应商的人格遵循程度仍需验证。"
       - name: Tests after executable publication
         run: npm test

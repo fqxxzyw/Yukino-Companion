@@ -6,11 +6,11 @@
 
 `persona-data/scenarios.jsonl` 是原创合成场景种子，不是小说对白摘录。每个 `family_id` 含至少三个有不同自然问法/上下文的 `variants`，每个变体只有一个目标回答。部分场景含多轮历史；模型只计算最后一条 assistant 的损失，system/user/历史 assistant 均掩码为 `-100`，不会教模型复述用户问题或角色说明书。
 
-统一卡定义在 `../characters/yukino/manifest.json`（schema 2）：`runtime_path` 是运行完整版，`compact_path` 是本地/小上下文版本，`training_path` 是约 350–500 字的训练精炼版，`bible_path` 是详细解释文档。三种运行长度来自同一角色规范，没有阶段变量。构建记录所用提示 hash、整个包中全部 Markdown/JSON 的 hash、数据源 hash、基础模型 revision 和训练/验证/测试文件 hash。
+统一卡定义在 `../characters/yukino/manifest.json`（schema 2）：`runtime_path` 是运行完整版，`compact_path` 是本地/小上下文版本，`training_path` 是约 600 字的训练精炼版，`bible_path` 是详细解释文档。三种运行长度来自同一角色规范，没有阶段变量。构建记录所用提示 hash、整个包中全部 Markdown/JSON 的 hash、数据源 hash、基础模型 revision 和训练/验证/测试文件 hash。
 
 发布种子标记 `provenance:"synthetic_original"`、`review_status:"assistant-reviewed"`、`human_reviewed:false`；编写代理作过编辑审阅，但没有宣称人工验收。`reviewed:true` 是现有 SFT 编码器的兼容字段，仅承认所声明的审核方式。`allow_synthetic_persona:true` 显式允许训练这种合成数据。若后来真正由人审阅，成对更新为 `human-reviewed` / `true`，记录审阅者、时间及结论，保留合成来源；构建器允许人工与代理审阅样例共存，但拒绝互相矛盾的标记。
 
-当前种子共 66 个场景族、198 条变体，23 个场景族含多轮历史。实际 Qwen tokenizer 检查：最大 398 token，平均 362.37 token（训练精炼卡版本）。按场景族的稳定 hash 顺序切分约 80% 训练、10% 验证、10% 测试；同一族的所有变体和多轮历史留在同一集合。验证/测试各向上取整，训练取剩余，因此少量样例时比例不恰好为 80/10/10。本次为训练 52 族/156 条、验证 7 族/21 条、测试 7 族/21 条。归一化的完全重复问题跨族会被拒绝。没有声称消除了所有语义相似性；人工还要检查相近场景。`test-prompts.jsonl` 不含最终目标答案，供独立生成评估使用；`test.jsonl` 仅作后续参考审阅。
+当前种子共 66 个场景族、198 条变体，23 个场景族含多轮历史。实际 Qwen tokenizer 检查：最大 538 token，平均 502.37 token（角色包 1.1.0 的训练精炼卡；旧 1.0.0 记录保留在 VALIDATION.md）。按场景族的稳定 hash 顺序切分约 80% 训练、10% 验证、10% 测试；同一族的所有变体和多轮历史留在同一集合。验证/测试各向上取整，训练取剩余，因此少量样例时比例不恰好为 80/10/10。本次为训练 52 族/156 条、验证 7 族/21 条、测试 7 族/21 条。归一化的完全重复问题跨族会被拒绝。没有声称消除了所有语义相似性；人工还要检查相近场景。`test-prompts.jsonl` 不含最终目标答案，供独立生成评估使用；`test.jsonl` 仅作后续参考审阅。
 
 ## 构建与训练
 
