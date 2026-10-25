@@ -13,7 +13,7 @@ on:
         type: string
         default: ''
       transfer_commit:
-        description: 'Exact explicitly approved transfer/persona-0.4.0 commit (required unless model URL supplied)'
+        description: 'Optional exact approved transfer commit; empty uses the pinned authorized archive'
         type: string
         default: ''
       local_model_url:
@@ -25,7 +25,7 @@ permissions:
   actions: read
 env:
   MODEL_TRANSFER_BRANCH: transfer/persona-0.4.0
-  MODEL_TRANSFER_COMMIT: ${{ inputs.transfer_commit }}
+  MODEL_TRANSFER_COMMIT: ${{ inputs.transfer_commit || '413bc5ccd27afdca98ed790f3291571c7889ffd8' }}
   MODEL_TRANSFER_SHA256: fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5
   MODEL_TRANSFER_BYTES: '38114354'
   RUNTIME_REUSE_RUN: '40176955172'

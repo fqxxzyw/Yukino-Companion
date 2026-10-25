@@ -16,7 +16,7 @@
 
 ## 模型来源与失败条件
 
-模型任务只有收到明确授权后的 `transfer_commit` 输入，才读取临时 `transfer/persona-0.4.0` 分支对应的固定提交，而非漂移的分支 HEAD。当前提交输入缺省为空，缺少输入且未提供有效模型 URL 时明确失败，不生成残缺安装包。本次唯一允许的输入为 `Yukino-Persona-LoRA-0.4.0.zip`，38,114,354 字节、73 个分片，SHA-256 `fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5`。先校验提交、清单和逐片／整包哈希，再调用 `build-release-local-model.py` 核对训练报告、47 步和适配器哈希，固定 Qwen revision 及量化工具生成实际 GGUF。
+模型任务默认读取用户明确授权的临时 `transfer/persona-0.4.0` 提交 `413bc5ccd27afdca98ed790f3291571c7889ffd8`，而非漂移的分支 HEAD。可通过 `transfer_commit` 显式覆盖固定提交，但输入仍必须是同一个归档，缺失或校验不符时明确失败，不生成残缺安装包。本次唯一允许的输入为 `Yukino-Persona-LoRA-0.4.0.zip`，38,114,354 字节、73 个分片，SHA-256 `fff8bdcb2df7f0bfa1a30d2983ca1e7498f241ee978d41a206db54ba456989e5`。先校验提交、清单和逐片／整包哈希，再调用 `build-release-local-model.py` 核对训练报告、47 步和适配器哈希，固定 Qwen revision 及量化工具生成实际 GGUF。
 
 显式提供 workflow `local_model_url` 或仓库 `YUKINO_LOCAL_MODEL_ARCHIVE_URL` 时，可导入已有的 GGUF ZIP。它必须有 `manifest.json`，包含 `name`、`file`、`bytes`、`sha256`、`training.completed: true`；导入校验真实 GGUF 文件头、大小和哈希。不会用占位权重补齐缺失资源。
 
