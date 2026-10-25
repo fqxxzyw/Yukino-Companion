@@ -1,0 +1,219 @@
+{
+  "revision": "336b2ec4e8d4ac74740798dd40af44e74659ecaf",
+  "source": "https://huggingface.co/lj1995/GPT-SoVITS",
+  "packs": {
+    "core": {
+      "label": "BERT + HuBERT 公共基础模型",
+      "files": [
+        {
+          "path": "chinese-hubert-base/config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/config.json",
+          "bytes": 1449,
+          "algorithm": "sha1",
+          "digest": "0bb839d4b0cd2ad41cb13c6500fd660800aaefdf"
+        },
+        {
+          "path": "chinese-hubert-base/preprocessor_config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/preprocessor_config.json",
+          "bytes": 212,
+          "algorithm": "sha1",
+          "digest": "409547bbb99588f69a603019a707505610fa38d3"
+        },
+        {
+          "path": "chinese-hubert-base/pytorch_model.bin",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/pytorch_model.bin",
+          "bytes": 188811417,
+          "algorithm": "sha256",
+          "digest": "24164f129c66499d1346e2aa55f183250c223161ec2770c0da3d3b08cf432d3c"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/config.json",
+          "bytes": 963,
+          "algorithm": "sha1",
+          "digest": "3ae58d7f0734373bb28d3b6b9d6858b34f600b4a"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/pytorch_model.bin",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/pytorch_model.bin",
+          "bytes": 651225145,
+          "algorithm": "sha256",
+          "digest": "e53a693acc59ace251d143d068096ae0d7b79e4b1b503fa84c9dcf576448c1d8"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/tokenizer.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/tokenizer.json",
+          "bytes": 268962,
+          "algorithm": "sha1",
+          "digest": "9e77beb20869ea3b7850166fbc8cc7734662a017"
+        }
+      ],
+      "kind": "core"
+    },
+    "yukino-e1": {
+      "label": "雪乃 · GPT e1 / SoVITS e1（v1）",
+      "kind": "voice",
+      "version": "v1",
+      "requiresReference": true,
+      "source": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1",
+      "paths": {
+        "gpt": "yukino-v1/gpt-e1.ckpt",
+        "sovits": "yukino-v1/sovits-e1-s3561.pth"
+      },
+      "files": [
+        {
+          "path": "yukino-v1/gpt-e1.ckpt",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e1.ckpt",
+          "bytes": 155087158,
+          "algorithm": "sha256",
+          "digest": "af1d0ee01b67aa95f951d0f4d4dbdaae8ddb7043c8ee26334f5921bd068d0df3"
+        },
+        {
+          "path": "archives/yukino-sovits-e1.zip",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip",
+          "bytes": 78568088,
+          "algorithm": "sha256",
+          "digest": "1b4761af82ac6c383ce90983c91d2a853c4f3c8d4a3a6a3eae197823ed2072c9",
+          "extract": {
+            "member": "SoVITS_weights/雪乃_e1_s3561.pth",
+            "path": "yukino-v1/sovits-e1-s3561.pth",
+            "bytes": 84932096,
+            "digest": "c14b9f1127a20817d1206f47c5d0fcb483aadad614fd8502690c4ff63fc66c9c"
+          }
+        }
+      ]
+    },
+    "yukino-e2": {
+      "label": "雪乃 · GPT e2 / SoVITS e1（v1）",
+      "kind": "voice",
+      "version": "v1",
+      "requiresReference": true,
+      "source": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1",
+      "paths": {
+        "gpt": "yukino-v1/gpt-e2.ckpt",
+        "sovits": "yukino-v1/sovits-e1-s3561.pth"
+      },
+      "files": [
+        {
+          "path": "yukino-v1/gpt-e2.ckpt",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e2.ckpt",
+          "bytes": 155087158,
+          "algorithm": "sha256",
+          "digest": "13cc20b4a3019268eae02f1b415e8eb174e0d07a640f554ac5eeebcf0d95b6e6"
+        },
+        {
+          "path": "archives/yukino-sovits-e1.zip",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip",
+          "bytes": 78568088,
+          "algorithm": "sha256",
+          "digest": "1b4761af82ac6c383ce90983c91d2a853c4f3c8d4a3a6a3eae197823ed2072c9",
+          "extract": {
+            "member": "SoVITS_weights/雪乃_e1_s3561.pth",
+            "path": "yukino-v1/sovits-e1-s3561.pth",
+            "bytes": 84932096,
+            "digest": "c14b9f1127a20817d1206f47c5d0fcb483aadad614fd8502690c4ff63fc66c9c"
+          }
+        }
+      ]
+    },
+    "yukino-e3": {
+      "label": "雪乃 · GPT e3 / SoVITS e1（v1）",
+      "kind": "voice",
+      "version": "v1",
+      "requiresReference": true,
+      "source": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1",
+      "paths": {
+        "gpt": "yukino-v1/gpt-e3.ckpt",
+        "sovits": "yukino-v1/sovits-e1-s3561.pth"
+      },
+      "files": [
+        {
+          "path": "yukino-v1/gpt-e3.ckpt",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e3.ckpt",
+          "bytes": 155087158,
+          "algorithm": "sha256",
+          "digest": "6c30fb5053c1fe9d6e2a34f6b9a15117840aeb073753ce346b05fca2dc080747"
+        },
+        {
+          "path": "archives/yukino-sovits-e1.zip",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip",
+          "bytes": 78568088,
+          "algorithm": "sha256",
+          "digest": "1b4761af82ac6c383ce90983c91d2a853c4f3c8d4a3a6a3eae197823ed2072c9",
+          "extract": {
+            "member": "SoVITS_weights/雪乃_e1_s3561.pth",
+            "path": "yukino-v1/sovits-e1-s3561.pth",
+            "bytes": 84932096,
+            "digest": "c14b9f1127a20817d1206f47c5d0fcb483aadad614fd8502690c4ff63fc66c9c"
+          }
+        }
+      ]
+    },
+    "yukino-e4": {
+      "label": "雪乃 · GPT e4 / SoVITS e1（v1）",
+      "kind": "voice",
+      "version": "v1",
+      "requiresReference": true,
+      "source": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1",
+      "paths": {
+        "gpt": "yukino-v1/gpt-e4.ckpt",
+        "sovits": "yukino-v1/sovits-e1-s3561.pth"
+      },
+      "files": [
+        {
+          "path": "yukino-v1/gpt-e4.ckpt",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e4.ckpt",
+          "bytes": 155087158,
+          "algorithm": "sha256",
+          "digest": "e5a6d8148ec762daf5f81c904e867ae74f57e5849fcbb893b2369f7f070df72f"
+        },
+        {
+          "path": "archives/yukino-sovits-e1.zip",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip",
+          "bytes": 78568088,
+          "algorithm": "sha256",
+          "digest": "1b4761af82ac6c383ce90983c91d2a853c4f3c8d4a3a6a3eae197823ed2072c9",
+          "extract": {
+            "member": "SoVITS_weights/雪乃_e1_s3561.pth",
+            "path": "yukino-v1/sovits-e1-s3561.pth",
+            "bytes": 84932096,
+            "digest": "c14b9f1127a20817d1206f47c5d0fcb483aadad614fd8502690c4ff63fc66c9c"
+          }
+        }
+      ]
+    },
+    "yukino-e5": {
+      "label": "雪乃 · GPT e5 / SoVITS e1（v1）",
+      "kind": "voice",
+      "version": "v1",
+      "requiresReference": true,
+      "source": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1",
+      "paths": {
+        "gpt": "yukino-v1/gpt-e5.ckpt",
+        "sovits": "yukino-v1/sovits-e1-s3561.pth"
+      },
+      "files": [
+        {
+          "path": "yukino-v1/gpt-e5.ckpt",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e5.ckpt",
+          "bytes": 155087158,
+          "algorithm": "sha256",
+          "digest": "f989e159f13428d8d364ea5a2c7bea2131627cb47e82c8ca2956ea9b94533585"
+        },
+        {
+          "path": "archives/yukino-sovits-e1.zip",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip",
+          "bytes": 78568088,
+          "algorithm": "sha256",
+          "digest": "1b4761af82ac6c383ce90983c91d2a853c4f3c8d4a3a6a3eae197823ed2072c9",
+          "extract": {
+            "member": "SoVITS_weights/雪乃_e1_s3561.pth",
+            "path": "yukino-v1/sovits-e1-s3561.pth",
+            "bytes": 84932096,
+            "digest": "c14b9f1127a20817d1206f47c5d0fcb483aadad614fd8502690c4ff63fc66c9c"
+          }
+        }
+      ]
+    }
+  }
+}

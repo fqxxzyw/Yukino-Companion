@@ -1,0 +1,3 @@
+# Build inputs are downloaded at an immutable revision and verified by provenance.json.
+*.png
+*.tmp

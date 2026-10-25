@@ -1,0 +1,38 @@
+name: Desktop integration checks (no packaging)
+on:
+  push:
+    branches: [main, 'integration/**']
+  pull_request:
+    paths:
+      - 'electron/**'
+      - 'src/**'
+      - 'inference/**'
+      - 'translation/**'
+      - 'scripts/**'
+      - 'resources/**'
+      - 'tests/**'
+      - 'characters/**'
+      - 'package*.json'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+jobs:
+  checks:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: python -m unittest discover -s tests -p '*_test.py'
+      - run: npm run build
+      # The user's packaging pause remains active. No EXE or Release job here.

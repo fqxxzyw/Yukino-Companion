@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Yukino Companion desktop foundation",
   "author": "fqxxzyw",
   "private": true,
@@ -8,11 +8,16 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "npm run prepare:companions && vite build",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
     "test": "node --test tests/*.test.cjs",
-    "verify:characters": "node scripts/verify-character-package.cjs"
+    "prepare:inference": "python scripts/build_windows_runtime.py --source-only",
+    "runtime:cpu": "python scripts/build_windows_runtime.py --flavor cpu",
+    "runtime:cuda": "python scripts/build_windows_runtime.py --flavor cu124",
+    "verify:characters": "node scripts/verify-character-package.cjs",
+    "prepare:companions": "node scripts/prepare-companion-assets.cjs",
+    "prepare:translation": "python translation/prepare.py"
   },
   "dependencies": {
     "react": "19.3.1",
@@ -31,8 +36,11 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "package.json",
+      "resources/voice-models.json",
       "characters/**/*",
-      "package.json"
+      "resources/translation-models.json",
+      "translation/model-manifest.json"
     ],
     "directories": {
       "output": "release"
@@ -47,6 +55,44 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "extraResources": [
+      {
+        "from": "inference",
+        "to": "inference",
+        "filter": [
+          "*.py",
+          "requirements.txt"
+        ]
+      },
+      {
+        "from": "build/inference-engine",
+        "to": "inference-engine"
+      },
+      {
+        "from": "build/python-runtime",
+        "to": "python-runtime"
+      },
+      {
+        "from": "translation",
+        "to": "translation",
+        "filter": [
+          "*.py",
+          "*.json",
+          "*.txt",
+          "NOTICE.md",
+          "README.md"
+        ]
+      },
+      {
+        "from": "translation/models/hy-mt2-1.8b-q4",
+        "to": "translation-models/hy-mt2-1.8b-q4",
+        "filter": [
+          "*.gguf",
+          "*.md",
+          "*.txt"
+        ]
+      }
+    ]
   }
 }

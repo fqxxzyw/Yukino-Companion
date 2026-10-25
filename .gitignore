@@ -3,3 +3,13 @@ dist/
 release/
 .env*
 *.log
+
+# Local inference resources and Python caches
+__pycache__/
+*.pyc
+*.pth
+*.ckpt
+*.safetensors
+.venv/
+runtime/
+build/

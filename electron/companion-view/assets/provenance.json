@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/fqxxzyw/yukino_desktop_pet",
+  "revision": "70269cfc0a82756d7730425a38e53233bdf90aed",
+  "files": [
+    {
+      "path": "assets/spritesheet.png",
+      "bytes": 2884250,
+      "sha256": "235ac837bb63de9e844eb3c0067c5a8c1b4c7d10464fc6383b8597851800b6db"
+    },
+    {
+      "path": "assets/walking-left.png",
+      "bytes": 320381,
+      "sha256": "7ce7cbd8c6f962e0508dc9d047811dc35269d42909502042b29d54c1ee5b5184"
+    },
+    {
+      "path": "assets/walking-right.png",
+      "bytes": 303026,
+      "sha256": "bc6384cc36e8de938dc94e28ccc5f5f12854638c99c60e294be0a0c3e6823502"
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.txt",
+      "bytes": 3175,
+      "sha256": "41c4419998c6afb5dd86516356bef51a607eb2b27cb5cf1415e4e2384ff08e41"
+    }
+  ]
+}

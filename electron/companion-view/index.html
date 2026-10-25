@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'">
+<title>Yukino · 桌面陪伴</title><link rel="stylesheet" href="view.css">
+</head>
+<body>
+<main id="stage">
+  <div id="bubble" class="bubble" hidden><div id="zh"></div><div id="ja" lang="ja"></div></div>
+  <button id="open" class="open" title="打开对话" aria-label="打开对话">↗</button>
+  <canvas id="pet" width="192" height="208" aria-label="雪乃 Q 版桌宠，拖动可移动，右键打开菜单" role="img"></canvas>
+  <div id="model" class="model" hidden><div class="orb">Y</div><strong>人物模型位置</strong><span>3D 模型与动作正在准备</span><button id="model-open">打开对话</button></div>
+</main>
+<script src="view.js"></script>
+</body>
+</html>

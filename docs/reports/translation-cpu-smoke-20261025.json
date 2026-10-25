@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "model": "tencent/Hy-MT2-1.8B-GGUF",
+    "revision": "a0c709d9fac510f2c807aa3af52872340dc37a4a",
+    "device": "cpu",
+    "runtime": "llama-cpp-python 0.3.36",
+    "quantization": "Q4_K_M",
+    "source": "zh",
+    "target": "ja"
+  },
+  "load_seconds": 3.217,
+  "samples": [
+    {
+      "zh": "你好，今天也辛苦了。",
+      "ja": "こんにちは、今日も大変でしたね。",
+      "seconds": 1.063
+    },
+    {
+      "zh": "我刚刚吃完饭，准备去图书馆看书。",
+      "ja": "私はちょうど食事を終え、図書館で本を読むつもりです。",
+      "seconds": 0.867
+    },
+    {
+      "zh": "不必勉强自己。先把问题说清楚，我们再一起想办法。",
+      "ja": "無理に自分を追い込まないでください。\nまず問題を明確にしてから、一緒に解決策を考えましょう。",
+      "seconds": 1.246
+    },
+    {
+      "zh": "雪之下雪乃喜欢猫，也喜欢读书。",
+      "ja": "雪ノ下雪乃は猫が好きで、読書も好きです。",
+      "seconds": 1.08
+    },
+    {
+      "zh": "侧边栏可以收起，人物会自动靠左。",
+      "ja": "サイドバーは折りたたむことができ、キャラクターは自動的に左に寄ります。",
+      "seconds": 1.184
+    },
+    {
+      "zh": "模型下载失败时，请检查网络后重试。",
+      "ja": "モデルのダウンロードが失敗した場合は、ネットワークを確認してから再試行してください。",
+      "seconds": 1.103
+    },
+    {
+      "zh": "我不是在责备你，只是希望你不要再独自承担。",
+      "ja": "私はあなたを責めているわけではありません。ただ、もう一人で背負わないでほしいのです。",
+      "seconds": 1.279
+    },
+    {
+      "zh": "如果不知道答案，就坦率地承认，不要编造。",
+      "ja": "答えがわからないなら、正直に認めなさい。でたらけはやめて。",
+      "seconds": 0.803
+    },
+    {
+      "zh": "下午三点半见面，一共需要两百五十元。",
+      "ja": "午後3時半に会いましょう。合計で250元が必要です。",
+      "seconds": 0.845
+    },
+    {
+      "zh": "我不会替你完成作业，但可以陪你分析题目。",
+      "ja": "私はあなたの宿題を代わりにやることはできませんが、問題を分析するのを手伝うことができます。",
+      "seconds": 1.078
+    },
+    {
+      "zh": "我喜欢猫，但我现在并没有养猫。",
+      "ja": "私は猫が好きですが、今は猫を飼っていません。",
+      "seconds": 0.713
+    },
+    {
+      "zh": "雪之下雪乃的生日是一月三日。",
+      "ja": "雪ノ下雪乃の誕生日は1月3日です。",
+      "seconds": 1.113
+    },
+    {
+      "zh": "明天不下雨的话，我们就去公园散步吧。",
+      "ja": "明日雨が降らなければ、公園で散歩に行こう。",
+      "seconds": 0.968
+    },
+    {
+      "zh": "谢谢你愿意告诉我。我会认真听的。",
+      "ja": "教えてくださってありがとう。\n私は真剣に聞きます。",
+      "seconds": 0.666
+    },
+    {
+      "zh": "不要把 API 密钥发给别人。",
+      "ja": "APIキーを他人に渡さないでください。",
+      "seconds": 0.428
+    }
+  ],
+  "validation_scope": "15 synthetic Chinese sentences, Linux x64 CPU only; not a formal bilingual quality benchmark or Windows/CUDA validation.",
+  "observed_limitations": [
+    "One sample produced でたらけ instead of natural でたらめ. Style and word choice still need native review.",
+    "API-provided Japanese is preferred. This local model is an offline fallback, not a proof of semantic equivalence."
+  ]
+}

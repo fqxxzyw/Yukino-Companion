@@ -1,31 +1,61 @@
-name: Windows EXE first, then tests
+name: Manual Windows release (packaging paused)
 on:
-  push:
-    branches: [main]
-    paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
+    inputs:
+      confirm_publish:
+        description: 'Only enable after the user resumes EXE packaging'
+        type: boolean
+        default: false
+      runtime_flavor:
+        description: 'Embedded PyTorch runtime (CPU universal / NVIDIA CUDA 12.4)'
+        type: choice
+        options: [cpu, cu124]
+        default: cpu
 permissions:
   contents: write
 jobs:
   release:
-    runs-on: windows-latest
+    if: ${{ inputs.confirm_publish == true }}
+    runs-on: windows-2022
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm install --no-audit --no-fund
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Set supported MSVC for CUDA 12.4
+        if: ${{ inputs.runtime_flavor == 'cu124' }}
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+          toolset: '14.29'
+      - name: Install CUDA build toolkit
+        if: ${{ inputs.runtime_flavor == 'cu124' }}
+        uses: Jimver/cuda-toolkit@433d453c1fa37d10a3254452fa8e284441c9192d # v0.2.27
+        with:
+          cuda: '12.4.1'
+          method: network
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+      - name: Prepare inference runtime
+        env:
+          RUNTIME_FLAVOR: ${{ inputs.runtime_flavor }}
+        run: python scripts/build_windows_runtime.py --flavor $env:RUNTIME_FLAVOR
+      - name: Prepare pinned offline translation resources
+        run: npm run prepare:translation
       - run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Verify bundled character resources
-        run: npm run verify:characters
-      - name: Publish executable before tests
+      - run: npm run verify:characters
+      - name: Publish executable before post-release tests
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.2.1-profile.${{ github.run_number }}"
-          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.2.1 · Character Profile ${{ github.run_number }}" --prerelease --notes "人物档案更新：补齐个人资料、家庭、兴趣、能力、性格与经历；保留完整行为指导与情境示例，移除说明性前言，同步 API 角色卡。EXE 不含文本模型权重；性格专项尚未完成整轮训练，训练完成后的模型将作为独立 Release 附件发布。按既定流程先发布 EXE，再运行测试；安装包未签名，实际供应商的人格遵循程度仍需验证。"
-      - name: Tests after executable publication
-        run: npm test
+          $tag = "v0.3.0-bilingual.${{ github.run_number }}"
+          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.3.0 · Bilingual Companion ${{ github.run_number }}" --prerelease --notes "中日双语、日语语音衔接、桌面陪伴与时长记录。3D 资源待接入。用户音色可自选，内置已发布权重下载入口；参考音频和准确转录须单独提供。"
+      - run: npm test
+      - run: python -m unittest discover -s tests -p '*_test.py'
