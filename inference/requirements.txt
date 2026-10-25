@@ -1,0 +1,38 @@
+# Inference dependency baseline for the pinned upstream, NOT the full training/WebUI requirements.
+# Install matching torch + torchaudio separately (CPU or the correct CUDA wheel).
+# The upstream model class still imports Lightning; this is required even for inference.
+numpy<2
+scipy
+librosa==0.10.2
+soundfile
+numba
+pytorch-lightning>=2.4,<3
+torchmetrics<=1.5
+ffmpeg-python
+tqdm
+cn2an
+pypinyin
+pyopenjtalk>=0.4.1
+g2p_en
+sentencepiece
+transformers==4.51.3
+peft>=0.14,<0.18
+chardet
+PyYAML
+psutil
+jieba_fast
+jieba
+split-lang
+fast_langdetect==1.1.0
+wordsegment
+rotary_embedding_torch
+ToJyutping
+g2pk2
+ko_pron
+opencc
+python_mecab_ko; sys_platform != 'win32'
+x_transformers
+onnxruntime
+einops
+torchdiffeq
+matplotlib

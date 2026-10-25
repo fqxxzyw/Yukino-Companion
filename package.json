@@ -1,1 +1,72 @@
-{"name":"yukino-companion","version":"0.1.0","description":"Yukino Companion desktop foundation","author":"fqxxzyw","private":true,"type":"module","main":"electron/main.cjs","scripts":{"dev":"vite --host 127.0.0.1","build":"vite build","start":"electron .","dist:win":"npm run build && electron-builder --win nsis --x64 --publish never","test":"node --test tests/*.test.cjs"},"dependencies":{"react":"19.3.1","react-dom":"19.3.1","lucide-react":"0.468.0"},"devDependencies":{"electron":"45.0.0","electron-builder":"26.18.0","vite":"8.3.5"},"build":{"appId":"io.github.fqxxzyw.yukino","productName":"Yukino Companion","asar":true,"files":["dist/**/*","electron/**/*","package.json"],"directories":{"output":"release"},"win":{"target":"nsis","artifactName":"Yukino-Companion-${version}-Setup.exe","signAndEditExecutable":false},"nsis":{"oneClick":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":true,"deleteAppDataOnUninstall":false}}}
+{
+  "name": "yukino-companion",
+  "version": "0.2.0",
+  "description": "Yukino Companion desktop foundation",
+  "author": "fqxxzyw",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "electron .",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "test": "node --test tests/*.test.cjs",
+    "prepare:inference": "python scripts/build_windows_runtime.py --source-only",
+    "runtime:cpu": "python scripts/build_windows_runtime.py --flavor cpu",
+    "runtime:cuda": "python scripts/build_windows_runtime.py --flavor cu124"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "lucide-react": "0.468.0"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "vite": "8.3.5"
+  },
+  "build": {
+    "appId": "io.github.fqxxzyw.yukino",
+    "productName": "Yukino Companion",
+    "asar": true,
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "resources/voice-models.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "Yukino-Companion-${version}-Setup.exe",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "extraResources": [
+      {
+        "from": "inference",
+        "to": "inference",
+        "filter": [
+          "*.py",
+          "requirements.txt"
+        ]
+      },
+      {
+        "from": "build/inference-engine",
+        "to": "inference-engine"
+      },
+      {
+        "from": "build/python-runtime",
+        "to": "python-runtime"
+      }
+    ]
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "revision": "336b2ec4e8d4ac74740798dd40af44e74659ecaf",
+  "source": "https://huggingface.co/lj1995/GPT-SoVITS",
+  "packs": {
+    "core": {
+      "label": "BERT + HuBERT 公共基础模型",
+      "files": [
+        {
+          "path": "chinese-hubert-base/config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/config.json",
+          "bytes": 1449,
+          "algorithm": "sha1",
+          "digest": "0bb839d4b0cd2ad41cb13c6500fd660800aaefdf"
+        },
+        {
+          "path": "chinese-hubert-base/preprocessor_config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/preprocessor_config.json",
+          "bytes": 212,
+          "algorithm": "sha1",
+          "digest": "409547bbb99588f69a603019a707505610fa38d3"
+        },
+        {
+          "path": "chinese-hubert-base/pytorch_model.bin",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/pytorch_model.bin",
+          "bytes": 188811417,
+          "algorithm": "sha256",
+          "digest": "24164f129c66499d1346e2aa55f183250c223161ec2770c0da3d3b08cf432d3c"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/config.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/config.json",
+          "bytes": 963,
+          "algorithm": "sha1",
+          "digest": "3ae58d7f0734373bb28d3b6b9d6858b34f600b4a"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/pytorch_model.bin",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/pytorch_model.bin",
+          "bytes": 651225145,
+          "algorithm": "sha256",
+          "digest": "e53a693acc59ace251d143d068096ae0d7b79e4b1b503fa84c9dcf576448c1d8"
+        },
+        {
+          "path": "chinese-roberta-wwm-ext-large/tokenizer.json",
+          "url": "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/tokenizer.json",
+          "bytes": 268962,
+          "algorithm": "sha1",
+          "digest": "9e77beb20869ea3b7850166fbc8cc7734662a017"
+        }
+      ]
+    }
+  }
+}

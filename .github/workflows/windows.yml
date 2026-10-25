@@ -4,6 +4,12 @@ on:
     branches: [main]
     paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
+    inputs:
+      runtime_flavor:
+        description: 'Embedded PyTorch runtime (CPU universal / CUDA 12.4)'
+        type: choice
+        options: [cpu, cu124]
+        default: cpu
 permissions:
   contents: write
 jobs:
@@ -14,7 +20,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm install --no-audit --no-fund
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build embedded inference runtime
+        env:
+          RUNTIME_FLAVOR: ${{ inputs.runtime_flavor || 'cpu' }}
+        run: python scripts/build_windows_runtime.py --flavor $env:RUNTIME_FLAVOR
+      - run: npm ci --no-audit --no-fund
       - run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -23,7 +36,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.1.0-framework.${{ github.run_number }}"
-          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.1 · Framework ${{ github.run_number }}" --prerelease --notes "框架预览：UI、聊天 API、自定义颜色；3D、本地模型、音色预留。按要求先发布 EXE，再运行测试。未签名安装包，Windows 实机与真实供应商兼容性仍需验证。"
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $tag = "v$version-inference.${{ github.run_number }}"
+          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino $version · Inference ${{ github.run_number }}" --prerelease --notes "语音推理预览：GPT-SoVITS 本地权重加载、GPU/CPU 检测、文字分句与顺序朗读。内嵌 Python/推理源码/FFmpeg，公共 BERT/HuBERT 可在软件内下载；GPT/SoVITS 训练权重与参考音频由用户本机选择。不包含训练。未签名；尚未用用户真实音色与 CUDA 硬件验收。配置见 docs/VOICE_INFERENCE.md。发布后的测试结果请查看 Actions。"
       - name: Tests after executable publication
         run: npm test
+
+      - name: Worker protocol and device selection tests
+        run: python -m unittest discover -s tests -p "*_test.py"
