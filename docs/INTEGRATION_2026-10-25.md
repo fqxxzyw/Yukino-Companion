@@ -1,6 +1,6 @@
 # v0.3.0 双语、语音与桌面陪伴集成记录
 
-日期：2026-10-25。此文记录待发布源码的功能与验证边界，不表示新的安装包、角色训练权重或线上社区已经发布。用户的暂停打包要求继续有效。
+日期：2026-10-25。此文记录本轮源码功能和验证边界。用户随后已授权恢复打包并发布新 Release，当前准备 Windows x64 CPU 完整离线翻译包；Windows CI 结果待完成。前期暂停仅是当时的工作状态，不再限制本轮发行。
 
 ## 本轮结果
 
@@ -9,7 +9,7 @@
 - 本地翻译采用官方 `tencent/Hy-MT2-1.8B-GGUF` 的 `Q4_K_M` 文件，约 1.13 GB；通过独立 JSONL worker 调用固定版本 `llama-cpp-python`，不使用角色 LoRA 执行翻译。
 - 合成语言固定日语；参考音频语言独立设置。GPT e1–e5 与 SoVITS e1 下载目录已接入，保留本机自选训练文件、模型版本与参考语料。
 - 接入指定桌宠仓库的逐帧素材、独立透明窗口、关闭策略、托盘与本地使用/陪伴时长。模型专窗保留明确的 3D 占位，真实模型、动作和口型仍待用户素材。
-- UI 改为一体化浅蓝面板、系统字体、圆角和克制的透明层次，提高正文与辅助文字对比度，并保留颜色自定义。
+- UI 改为一体化浅蓝玻璃面板、系统字体、圆角和柔和背景层次，提高正文与辅助文字对比度，并保留颜色自定义。加入专属应用、安装器和快捷方式图标。
 
 ## 对话到声音的顺序
 
@@ -33,11 +33,11 @@
 | `translate({text,source:'zh',target:'ja',requestId})` | 本地补译，返回日文 `text` 与模型/设备元数据 |
 | `translationStatus/Save/Install` | 检查资源、保存环境与设备设置、安装并校验固定模型 |
 | `translationCancel(requestId)` | 取消对应补译；带 ID 时不误杀其他排队任务 |
-| `voiceInstall('core'|'yukino-e1'…'yukino-e5')` | 下载并校验公共基础模型或所选音色；返回相应资源路径 |
+| `voiceInstall('core'\|'yukino-e1'…'yukino-e5')` | 下载并校验公共基础模型或所选音色；返回相应资源路径 |
 | `voiceSave/Probe/Load/Unload` | 保存语音配置、检测设备、加载/卸载权重与参考音频 |
 | `voiceBegin/Synthesize/Stop` | 绑定朗读会话 ID、合成日语片段、停止本应用拥有的任务 |
 | `companionState/Set` | 读取或修改显示模式、关闭行为、气泡语言、位置、缩放和时长 |
-| `closeChoice('quit'|'model'|'pet'|'both')` | 完全退出，或隐藏主窗并留下所选形象 |
+| `closeChoice('quit'\|'model'\|'pet'\|'both')` | 完全退出，或隐藏主窗并留下所选形象 |
 | `onCloseRequested` | 系统关窗和界面关闭按钮共用选择流程 |
 | `onFlushState/flushComplete` | 完全退出前刷新 renderer 尚未落盘的状态，再等待主进程保存与清理 |
 
@@ -47,9 +47,9 @@
 
 固定模型清单：[translation/model-manifest.json](../translation/model-manifest.json)。当前模型 revision 为 `a0c709d9fac510f2c807aa3af52872340dc37a4a`；文件 `Hy-MT2-1.8B-Q4_K_M.gguf` 为 1,133,080,448 字节，SHA-256 为 `dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699`。保留官方 Apache-2.0 许可与来源信息。
 
-模型安装先验证大小和哈希，再原子发布；会话过程中不会自动安装依赖。已准备权重可离线加载。运行库固定为 `llama-cpp-python 0.3.36`，CPU 采用校验后的官方 wheel；CUDA 采用固定源码构建。最终安装规则已包含翻译 worker、模型、许可和运行库准备路径，但本轮未执行 EXE 打包。
+模型安装先验证大小和哈希，再原子发布；会话过程中不会自动安装依赖。已准备权重可离线加载。运行库固定为 `llama-cpp-python 0.3.36`，CPU 采用校验后的官方 wheel；CUDA 采用固定源码构建。本轮 CPU 安装规则包含翻译 worker、完整模型、许可和运行库，安装后中译日无需另外下载模型或安装 Python；实际安装内容待 Windows CI 检查。
 
-CPU 路径已真测。自动模式只在运行库和设备支持时尝试 GPU；运行库构建类型、实际 offload 与语音模块的 PyTorch CUDA 是分别处理的状态。CUDA 构建及干净 Windows 环境仍需实机验证。具体命令、版本与设备说明见[TRANSLATION.md](TRANSLATION.md)。
+CPU 路径已真测，本轮发布 CPU 通用包。设置仍允许 GPU 用户选择外部兼容 CUDA 环境；本轮不发布或宣称已验证 CUDA 包。自动模式只在运行库和设备支持时尝试 GPU；运行库构建类型、实际 offload 与语音模块的 PyTorch CUDA 是分别处理的状态。干净 Windows 与 CUDA 环境仍需实机验证。具体命令、版本与设备说明见[TRANSLATION.md](TRANSLATION.md)。
 
 ## 音色资源与参考语料
 
@@ -69,7 +69,7 @@ CPU 路径已真测。自动模式只在运行库和设备支持时尝试 GPU；
 
 详见[DESKTOP_COMPANIONS.md](DESKTOP_COMPANIONS.md)。
 
-## 验证记录与未验证部分
+## 源码阶段验证记录与未验证部分
 
 | 检查 | 本轮证据 | 限制 |
 | --- | --- | --- |
@@ -86,8 +86,8 @@ CPU 路径已真测。自动模式只在运行库和设备支持时尝试 GPU；
 
 ## 发布与后续衔接
 
-桌面 push/PR CI 只做测试和前端构建。Windows 发布改为手动 `workflow_dispatch`，`confirm_publish` 默认 `false`；当前没有执行新 EXE 构建或发布。源码准备合并不代表用户已经拿到安装包。
+用户已授权本轮统一打包与新 Release。桌面 push/PR CI 继续只做测试和前端构建，Windows 发行通过手动工作流执行。当前准备 CPU 通用包，含完整离线翻译模型/运行库、语音推理环境、桌宠素材、角色资料、玻璃质感 UI 和专属图标。Windows CI 及最终 EXE 资源检查待完成；发布状态以 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) 与对应工作流为准。
 
-恢复统一打包后，先准备固定资源与所需 CPU/CUDA 运行库，再验证 Windows 安装内容、实际音色、系统托盘、窗口模式和 GPU 行为。3D 模型和动作通过已有独立窗口/适配边界接入，继续复用会话、双语气泡、日语音频与陪伴记录。
+完整发行说明见 [v0.3.0](releases/v0.3.0.md)。真实音色仍需要参考音频与准确转录；Windows 托盘、窗口模式和多屏需实际安装验收，CUDA 仅保留外部环境配置入口，不写成已测试功能。3D 模型和动作通过已有独立窗口/适配边界接入，继续复用会话、双语气泡、日语音频与陪伴记录。
 
 角色训练状态不随此次集成改变：旧 1.5B 知识 LoRA 有明显局限，新性格 LoRA 尚未完成整轮训练。完成且验收后的角色权重将单独作为 Release 附件，不能把翻译 GGUF 或语音权重称为训练好的雪乃性格模型。

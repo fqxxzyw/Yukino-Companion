@@ -156,8 +156,8 @@ class CompanionManager {
   openMain() { this.onOpenMain(); if (this.mainWindow && !this.mainWindow.isDestroyed()) { this.mainWindow.show(); this.mainWindow.restore(); this.mainWindow.focus(); } }
   ensureTray() {
     if (this.tray || !this.e.Tray || !this.e.nativeImage) return;
-    const source = this.e.nativeImage.createFromPath(path.join(__dirname, 'companion-view/assets/spritesheet.png'));
-    const icon = source.isEmpty() ? this.e.nativeImage.createEmpty() : source.crop({ x: 0,y: 0,width: 192,height: 208 }).resize({ width: 24,height: 26 });
+    const source = this.e.nativeImage.createFromPath(path.join(__dirname, '../dist/yukino-icon.png'));
+    const icon = source.isEmpty() ? this.e.nativeImage.createEmpty() : source.resize({ width: 32,height: 32 });
     this.tray = new this.e.Tray(icon); this.tray.setToolTip('Yukino Companion · 雪乃在这里');
     this.tray.on('double-click', () => this.openMain()); this.updateTray();
   }

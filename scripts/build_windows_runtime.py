@@ -19,6 +19,43 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / 'inference'))
 from prepare_runtime import prepare, REVISION
 
+RUNTIME_INPUTS = [
+    'scripts/build_windows_runtime.py', 'inference/prepare_runtime.py',
+    'inference/requirements.txt', 'translation/prepare_runtime.py',
+    'translation/requirements.txt',
+]
+
+
+def inputs_fingerprint():
+    """Do not reuse a cache when either dependency baseline or preparation changes."""
+    digest = hashlib.sha256()
+    for name in RUNTIME_INPUTS:
+        digest.update(name.encode('utf-8'))
+        digest.update((PROJECT / name).read_bytes())
+    return digest.hexdigest()
+
+
+def embedded_smoke(embedded, engine, runtime):
+    """Import both engines from the distributable Python, not the build venv."""
+    env = os.environ.copy()
+    env.update(PYTHONUTF8='1', NLTK_DATA=str(runtime / 'nltk_data'),
+               HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
+    source = (f"import sys,importlib.util;sys.path[:0]=[{str(engine)!r},{str(engine/'GPT_SoVITS')!r}];"
+              f"spec=importlib.util.spec_from_file_location('translation_worker',{str(PROJECT/'translation/worker.py')!r});"
+              "worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker);"
+              "worker.prepare_windows_dlls();"
+              "import llama_cpp;"
+              "from GPT_SoVITS.TTS_infer_pack.TTS import TTS;"
+              "import torch, torchaudio, nltk, pyopenjtalk;"
+              "assert torch.__version__.startswith('2.5.1');"
+              "assert torchaudio.__version__.startswith('2.5.1');"
+              "assert llama_cpp.__version__ == '0.3.36';"
+              "nltk.data.find('taggers/averaged_perceptron_tagger_eng/');"
+              "assert pyopenjtalk.g2p('こんにちは');"
+              "print('Embedded engines ready:',torch.__version__,llama_cpp.__version__)")
+    run(embedded, '-c', source, cwd=engine, env=env)
+    run(runtime / 'ffmpeg.exe', '-version', env=env, stdout=subprocess.DEVNULL)
+
 
 def run(*args, **kwargs):
     subprocess.run([str(x) for x in args], check=True, **kwargs)
@@ -60,7 +97,13 @@ def build(flavor='cpu', source=None, source_only=False):
     marker = runtime / 'yukino-runtime-build.json'
     if marker.exists():
         saved = json.loads(marker.read_text())
-        if saved.get('flavor') == flavor and saved.get('revision') == REVISION and saved.get('translationRuntime') == 'llama-cpp-python-0.3.36':
+        if (saved.get('flavor') == flavor and saved.get('revision') == REVISION
+                and saved.get('translationRuntime') == 'llama-cpp-python-0.3.36'
+                and saved.get('inputFingerprint') == inputs_fingerprint()):
+            for name in ['python.exe', 'python312.dll', 'python312.zip', 'python312._pth', 'ffmpeg.exe']:
+                if not (runtime / name).is_file():
+                    raise RuntimeError(f'运行环境缓存不完整：{name}；请清理 build/python-runtime 后重建')
+            embedded_smoke(runtime / 'python.exe', engine, runtime)
             return
         raise RuntimeError('运行环境版本不同，请清理 build/python-runtime 后重新构建')
     if runtime.exists():
@@ -78,6 +121,9 @@ def build(flavor='cpu', source=None, source_only=False):
     # Install in a build-only venv first so the dependency resolver sees the
     # selected CPU/CUDA torch; copy the completed environment into embedded Python.
     env_dir = build_dir / 'runtime-venv'
+    # A reused venv can retain a different CUDA wheel or obsolete dependencies.
+    if env_dir.exists():
+        shutil.rmtree(env_dir)
     run(sys.executable, '-m', 'venv', env_dir)
     python = env_dir / 'Scripts/python.exe'
     run(python, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel')
@@ -97,11 +143,11 @@ def build(flavor='cpu', source=None, source_only=False):
     # Freeze the exact platform dependencies for release diagnostics.
     freeze = subprocess.check_output([str(python), '-m', 'pip', 'freeze'], text=True)
     (runtime / 'requirements-resolved.txt').write_text(freeze, encoding='utf-8')
-    smoke = f"import sys;sys.path[:0]=[{str(engine)!r},{str(engine/'GPT_SoVITS')!r}];from GPT_SoVITS.TTS_infer_pack.TTS import TTS;import torch;print(torch.__version__)"
-    run(embedded, '-c', smoke, cwd=engine)
+    embedded_smoke(embedded, engine, runtime)
     marker.write_text(json.dumps({'flavor':flavor,'revision':REVISION,'python':'3.12.10',
                                  'pythonArchiveSha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
-                                 'translationRuntime':'llama-cpp-python-0.3.36'}, indent=2), encoding='utf-8')
+                                 'translationRuntime':'llama-cpp-python-0.3.36',
+                                 'inputFingerprint':inputs_fingerprint()}, indent=2), encoding='utf-8')
 
 
 if __name__ == '__main__':

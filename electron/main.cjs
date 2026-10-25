@@ -51,8 +51,9 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', openMain);
   app.whenReady().then(async () => {
+    app.setAppUserModelId?.('io.github.fqxxzyw.yukino');
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    win = new BrowserWindow({width:1280,height:840,minWidth:760,minHeight:580,frame:false,backgroundColor:'#f1f6fc',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+    win = new BrowserWindow({width:1280,height:840,minWidth:760,minHeight:580,frame:false,icon:path.join(__dirname,'../dist/yukino-icon.png'),backgroundColor:'#f1f6fc',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
     win.webContents.setWindowOpenHandler(() => ({action:'deny'}));
     win.webContents.on('will-navigate', event => event.preventDefault());
     const workerPath = name => app.isPackaged ? path.join(process.resourcesPath, name, 'worker.py') : path.join(__dirname, '..', name, 'worker.py');

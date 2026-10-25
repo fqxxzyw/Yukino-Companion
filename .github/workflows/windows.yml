@@ -1,9 +1,12 @@
-name: Manual Windows release (packaging paused)
+name: Windows full release
 on:
+  push:
+    branches: [release/0.3.0-glass]
+    paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
     inputs:
       confirm_publish:
-        description: 'Only enable after the user resumes EXE packaging'
+        description: 'Build and publish a Windows EXE release'
         type: boolean
         default: false
       runtime_flavor:
@@ -13,11 +16,16 @@ on:
         default: cpu
 permissions:
   contents: write
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   release:
-    if: ${{ inputs.confirm_publish == true }}
+    if: ${{ github.event_name == 'push' || inputs.confirm_publish == true }}
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 120
+    env:
+      RUNTIME_FLAVOR: ${{ inputs.runtime_flavor || 'cpu' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,35 +35,78 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --no-audit --no-fund
+      - name: Build and capture actual Electron UI
+        run: |
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run qa:ui
+      - name: Upload UI review images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ui-review-${{ github.run_number }}
+          path: build/ui-review
+          if-no-files-found: warn
       - name: Set supported MSVC for CUDA 12.4
-        if: ${{ inputs.runtime_flavor == 'cu124' }}
+        if: ${{ env.RUNTIME_FLAVOR == 'cu124' }}
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: x64
           toolset: '14.29'
       - name: Install CUDA build toolkit
-        if: ${{ inputs.runtime_flavor == 'cu124' }}
+        if: ${{ env.RUNTIME_FLAVOR == 'cu124' }}
         uses: Jimver/cuda-toolkit@433d453c1fa37d10a3254452fa8e284441c9192d # v0.2.27
         with:
           cuda: '12.4.1'
           method: network
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
-      - name: Prepare inference runtime
-        env:
-          RUNTIME_FLAVOR: ${{ inputs.runtime_flavor }}
+      - name: Prepare and smoke-test embedded inference runtime
         run: python scripts/build_windows_runtime.py --flavor $env:RUNTIME_FLAVOR
       - name: Prepare pinned offline translation resources
         run: npm run prepare:translation
-      - run: npm run dist:win
+      - name: Package Windows executable
+        run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - run: npm run verify:characters
+      - name: Verify packaged resources and executable
+        run: |
+          npm run verify:characters
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run verify:offline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/verify-release-assets.cjs
       - name: Publish executable before post-release tests
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.3.0-bilingual.${{ github.run_number }}"
-          gh release create $tag release/*.exe --target "${{ github.sha }}" --title "Yukino 0.3.0 · Bilingual Companion ${{ github.run_number }}" --prerelease --notes "中日双语、日语语音衔接、桌面陪伴与时长记录。3D 资源待接入。用户音色可自选，内置已发布权重下载入口；参考音频和准确转录须单独提供。"
-      - run: npm test
-      - run: python -m unittest discover -s tests -p '*_test.py'
+          $tag = "v0.3.0-glass.${{ github.run_number }}"
+          Copy-Item docs/releases/v0.3.0.md build/release-notes.md
+          Add-Content build/release-notes.md "`n构建：${{ github.sha }} · 运行环境：$env:RUNTIME_FLAVOR · [验证记录](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})。EXE 已上传，发布后测试结果见此记录。"
+          gh release create $tag release/*.exe release/SHA256SUMS.txt release/release-assets.json branding/app-icon.ico public/yukino-icon.png --target "${{ github.sha }}" --title "Yukino Companion 0.3.0 · 雪蓝玻璃 ${{ github.run_number }}" --prerelease --notes-file build/release-notes.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Post-release tests
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p '*_test.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & release/win-unpacked/resources/python-runtime/python.exe release/win-unpacked/resources/translation/smoke.py --model-dir release/win-unpacked/resources/translation-models/hy-mt2-1.8b-q4 --device cpu --report release/translation-windows-smoke.json
+      - name: Record successful release validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Add-Content build/release-notes.md "`n发布后验证通过：Node 与 Python 测试、实际安装包内 Python + GGUF 的 Windows CPU 中日翻译。UI 截图见验证记录的 Artifacts。未验证用户音色的完整合成（仍需参考音频）。"
+          gh release edit $env:RELEASE_TAG --notes-file build/release-notes.md
+          gh release upload $env:RELEASE_TAG release/translation-windows-smoke.json
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-evidence-${{ github.run_number }}
+          path: |
+            release/SHA256SUMS.txt
+            release/release-assets.json
+            release/translation-windows-smoke.json
+          if-no-files-found: warn

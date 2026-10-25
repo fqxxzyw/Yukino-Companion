@@ -2,11 +2,11 @@
 
 **一方安静的空间，让对话逐步拥有记忆、声音与形象。**
 
-Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项目。当前源码版本为 **v0.3.0，待发布**：整合中日双语对话、本地中译日、日语 GPT-SoVITS 合成、Q 版桌宠、独立人物窗口框架、陪伴时长和可自定义的浅蓝界面。
+Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项目。当前版本为 **v0.3.0，正在准备 Windows Release**：整合中日双语对话、本地中译日、日语 GPT-SoVITS 合成、Q 版桌宠、独立人物窗口框架、陪伴时长和可自定义的浅蓝界面。
 
-**本轮暂停 EXE 打包与发布。** 当前源码功能不等于已有安装包功能。此前发布的 [v0.2.0-persona.4](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.2.0-persona.4) 是人物规范与 API 文字对话版本，不包含本轮完整双语、语音和桌宠整合。3D 模型与动作仍在制作；新性格 LoRA 也尚未完成整轮训练。
+**用户已授权恢复打包并发布新 Release。** 本轮准备 Windows x64 CPU 完整离线翻译安装包，包含玻璃质感 UI、专属应用图标、翻译权重与运行库。Windows 构建和安装包检查等待 CI 完成，不能把准备中的产物视为已发布或已通过。3D 模型与动作仍在制作；新性格 LoRA 也尚未完成整轮训练。
 
-[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [当前框架范围](docs/FRAMEWORK.md) · [本轮集成说明](docs/INTEGRATION_2026-10-25.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与性格训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
+[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [v0.3.0 发行说明](docs/releases/v0.3.0.md) · [当前框架范围](docs/FRAMEWORK.md) · [本轮集成说明](docs/INTEGRATION_2026-10-25.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与性格训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 
 ## 产品与功能状态
 
@@ -16,7 +16,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 | 模块 | 当前源码实现 | 尚未完成 |
 | --- | --- | --- |
-| 桌面界面 | 无边框一体化窗口、折叠侧栏、浅蓝默认主题；自定义背景/强调色、自动文字对比度、减少动态效果 | Windows DPI、多屏与辅助功能完整验收 |
+| 桌面界面 | 无边框玻璃质感窗口、折叠侧栏、浅蓝默认主题与专属图标；自定义背景/强调色、自动文字对比度、减少动态效果 | Windows DPI、多屏与辅助功能完整验收 |
 | 对话与 API | 多配置 Chat Completions、中文流式显示、停止、超时、连接测试；会话搜索/切换/删除/本机保存 | 供应商原生协议、视觉输入、更多参数 |
 | 中日双语 | API 同时返回中文/日文，缺失日文时本地补译；也可选择全部本地翻译；全局与单条气泡切换中文/日文/双语 | 更大规模双语质量与角色语气评测 |
 | 本地翻译 | Hy-MT2-1.8B 的 Q4_K_M GGUF，模型约 1.13 GB；固定版本、哈希校验、离线推理、取消、CPU 与 GPU 运行库接口 | Windows/CUDA 实机性能验收 |
@@ -31,11 +31,13 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 ## 下载与使用
 
-### 已发布的旧版
+### Windows 安装包
 
-在 [v0.2.0-persona.4](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.2.0-persona.4) 的 Assets 下载 `Yukino-Companion-0.2.0-Setup.exe`。Source code 压缩包是源码，不是安装程序。此旧版主要用于 API 文字聊天与角色规范，不代表下文 v0.3.0 源码功能已经进入 Release。
+打开 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases)，以实际 Assets 与工作流结果确认可下载版本。v0.3.0 的目标安装包为 `Yukino-Companion-0.3.0-Setup.exe`；发布资产检查会同时生成校验记录。当前仍在准备发布，Windows CI 结果待完成。Source code 压缩包是源码，不是安装程序。
 
-当前安装目标为 Windows x64，安装包尚未签名。没有内置 API 密钥；远程服务费用和可用性由所选服务商决定。新的统一安装包需等恢复打包后生成，本轮没有发布新的 EXE。
+本轮 CPU 包包含 Python、翻译运行库和 Hy-MT2 量化权重，安装后本地中译日不需要再下载该模型，也不要求系统另外安装 Python。首次安装包较大，具体大小以 Release 资产为准。
+
+此前 [v0.2.0-persona.4](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.2.0-persona.4) 主要用于 API 文字聊天与角色规范，不含本轮整合功能。安装目标为 Windows x64，未使用代码签名证书；专属图标与安装器资源不等于证书签名。没有内置 API 密钥，远程服务费用与可用性由所选服务商决定。
 
 ### 配置对话 API
 
@@ -52,7 +54,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 聊天可以全局或逐条选择中文、日文、双语。旧消息和翻译失败的消息可单独补译，也可补译后朗读。日文尚未准备好时明确标注中文原文；翻译失败保留中文和错误提示，**不会把中文作为日语合成的失败回退**。气泡显示语言不改变朗读语言。
 
-本地翻译使用官方 [Hy-MT2-1.8B-GGUF](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 的 Q4_K_M 权重，经固定版本和 SHA-256 校验；模型约 1.13 GB，采用 Apache-2.0 许可。它用于翻译，不是本项目训练的雪乃性格模型。最终打包规则已预留内嵌权重与运行库；开发环境可单独准备资源。见[翻译配置与验证](docs/TRANSLATION.md)。
+本地翻译使用官方 [Hy-MT2-1.8B-GGUF](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 的 Q4_K_M 权重，经固定版本和 SHA-256 校验；模型约 1.13 GB，采用 Apache-2.0 许可。它用于翻译，不是本项目训练的雪乃性格模型。本轮 CPU 完整包按打包规则内嵌这些权重与运行库，等待 Windows CI 验证安装内容；开发环境可单独准备资源。见[翻译配置与验证](docs/TRANSLATION.md)。
 
 ### 配置日语语音
 
@@ -62,7 +64,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 日文准备完成后才进入分句合成和顺序播放。支持自动朗读开关、日语试听、历史朗读、停止与卸载；停止正在计算的语音会结束本应用持有的推理进程，下次朗读重新加载。语音失败不删除对话。详见[语音推理说明](docs/VOICE_INFERENCE.md)。
 
-CPU 环境可以使用；GPU 需要对应运行库及可用驱动。CPU 安装包不会因为电脑有显卡就自动获得 CUDA 能力。翻译与语音分别判断运行环境，不能把一个模块的 GPU 状态当作另一个模块的结果。
+本轮面向无需独立显卡的 Windows x64 电脑发布 CPU 通用包。GPU 用户可以在高级设置选择自行准备的兼容 CUDA 环境；本轮不发布或宣称已测试 CUDA 版。CPU 安装包不会因为电脑有显卡就自动获得 CUDA 能力。翻译与语音分别判断运行环境，不能把一个模块的 GPU 状态当作另一个模块的结果。
 
 ### 角色设定与手动记忆
 
@@ -74,7 +76,7 @@ CPU 环境可以使用；GPU 需要对应运行库及可用驱动。CPU 安装�
 
 ## 界面、桌宠与陪伴时间
 
-界面采用一体化无边框标题区、浅蓝底色、蓝色强调、圆角面板和克制的半透明层次。正文、次要文字、输入框提示与按钮按当前颜色计算可读对比度，避免使用过浅灰字。系统字体优先，保留用户自定义颜色与减少动态效果选项。
+界面采用一体化无边框标题区、浅蓝底色、蓝色强调、圆角玻璃面板与柔和背景层次，并统一设置控件的外观。应用、安装器与桌面快捷方式使用专属图标。正文、次要文字、输入框提示与按钮按当前颜色计算可读对比度，避免使用过浅灰字。系统字体优先，保留用户自定义颜色与减少动态效果选项。
 
 | 操作 | 行为 |
 | --- | --- |
@@ -143,11 +145,13 @@ python -m unittest discover -s tests -p '*_test.py'
 
 准备本地翻译可运行 `npm run prepare:translation`；运行库准备与真实协议测试见[翻译说明](docs/TRANSLATION.md)。这一步下载模型，不生成 EXE。
 
-### 打包暂停与后续统一构建
+### Windows 统一构建与发布
 
-本轮**不执行安装包构建或 Release 发布**。普通 push/PR 的桌面 CI 只做测试和前端构建，不生成 EXE。Windows 发布工作流只允许手动启动，`confirm_publish` 默认 `false`；恢复打包后才启用。
+用户已授权本轮打包和新 Release。普通 push/PR 的桌面 CI 仍只做测试和前端构建；发行通过手动 Windows 工作流执行，避免每次源码修改都自动发布。
 
-未来统一构建需先准备 GPT-SoVITS 运行环境、翻译运行库/权重、桌宠素材及角色文件，再执行 Windows 打包。CPU/CUDA 运行库需分别准备；CUDA 翻译运行库的构建机器需要对应工具链。安装包文件名将依据当前源码版本生成，不能提前视为已存在。
+本轮构建 CPU 通用包，包含 GPT-SoVITS 推理运行环境、完整本地翻译运行库/权重、桌宠素材、角色文件与专属图标。语音 BERT/HuBERT、所选音色和用户参考音频按声音设置另行准备。Windows CI 将检查实际安装内容、翻译模型校验值和 EXE 资产；其结果仍待完成。
+
+准备命令为 `npm run runtime:cpu` 和 `npm run prepare:translation`，随后 `npm run dist:win`。正式发布以 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) 的实际附件为准。完整发行范围与未验证项见 [v0.3.0 发行说明](docs/releases/v0.3.0.md)。
 
 ## 数据与隐私
 

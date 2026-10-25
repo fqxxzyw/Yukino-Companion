@@ -1,7 +1,7 @@
 {
   "name": "yukino-companion",
   "version": "0.3.0",
-  "description": "Yukino Companion desktop foundation",
+  "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
   "type": "module",
@@ -17,7 +17,9 @@
     "runtime:cuda": "python scripts/build_windows_runtime.py --flavor cu124",
     "verify:characters": "node scripts/verify-character-package.cjs",
     "prepare:companions": "node scripts/prepare-companion-assets.cjs",
-    "prepare:translation": "python translation/prepare.py"
+    "prepare:translation": "python translation/prepare.py",
+    "verify:offline": "node scripts/verify-offline-package.cjs",
+    "qa:ui": "electron scripts/capture-ui.cjs --output build/ui-review"
   },
   "dependencies": {
     "react": "19.3.1",
@@ -48,13 +50,24 @@
     "win": {
       "target": "nsis",
       "artifactName": "Yukino-Companion-${version}-Setup.exe",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": true,
+      "icon": "branding/app-icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "branding/app-icon.ico",
+      "uninstallerIcon": "branding/app-icon.ico",
+      "installerHeaderIcon": "branding/app-icon.ico",
+      "shortcutName": "Yukino Companion",
+      "unicode": true,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": "2052"
     },
     "extraResources": [
       {

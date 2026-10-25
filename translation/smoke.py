@@ -3,6 +3,9 @@ import argparse
 import json
 from pathlib import Path
 import time
+import sys
+# Embedded Windows Python uses an isolated ._pth and omits the script directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from worker import Engine
 
 
