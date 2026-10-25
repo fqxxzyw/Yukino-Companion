@@ -27,33 +27,42 @@ async function fixture(t) {
   await write(source,'translation/model-manifest.json',JSON.stringify(manifest));
   await write(resources,'translation/model-manifest.json',JSON.stringify(manifest));
   await write(resources,'translation-models/test-model/model.gguf',model);
-  const engine=Buffer.from('test engine source');
-  await write(resources,'inference-engine/GPT_SoVITS/TTS_infer_pack/TTS.py',engine);
-  await write(resources,'inference-engine/yukino-runtime.json',JSON.stringify({revision:SOVITS_REVISION,files:[{path:'GPT_SoVITS/TTS_infer_pack/TTS.py',bytes:engine.length,sha256:digest(engine)}]}));
-  await write(resources,'python-runtime/yukino-runtime-build.json',JSON.stringify({flavor:'cpu',revision:SOVITS_REVISION,translationRuntime:'llama-cpp-python-0.3.36',inputFingerprint:'a'.repeat(64)}));
-  await write(resources,'python-runtime/python312._pth','python312.zip\n.\nLib/site-packages\nimport site\n');
+  const variants = {};
+  for (const flavor of ['cpu','cu124']) {
+    const filename=`Yukino-Runtime-0.4.0-windows-x64-${flavor}.zip.part001`;
+    variants[flavor]={id:`windows-x64-${flavor}`,bytes:10,unpackedBytes:20,archiveSha256:'a'.repeat(64),parts:[{path:filename,bytes:10,algorithm:'sha256',digest:'b'.repeat(64),url:`https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-test/${filename}`}]};
+  }
+  await write(resources,'runtime-catalog.json',JSON.stringify({schemaVersion:1,version:'0.4.0',variants}));
+  await write(resources,'local-model/yukino-1.5b-persona-q4/manifest.json',JSON.stringify({name:'test persona',file:'model.gguf',bytes:model.length,sha256:digest(model),training:{fixture:true}}));
+  await write(resources,'local-model/yukino-1.5b-persona-q4/model.gguf',model);
+  const files=[];
+  for(const kind of ['gpt','sovits','reference']) { const data=Buffer.from(kind);await write(resources,`voice-models/${kind}.bin`,data);files.push({kind,path:`${kind}.bin`,bytes:data.length,sha256:digest(data)}); }
+  await write(resources,'voice-models/preset.json',JSON.stringify({schemaVersion:1,promptText:'こんにちは。',promptLang:'all_ja',files}));
+  const ogg=Buffer.from('OggS fixture');
+  await write(source,'electron/companion-view/assets/voices/fixture.ogg',ogg);
+  await write(source,'electron/companion-view/assets/voices.json',JSON.stringify({count:1,files:[{file:'fixture.ogg',bytes:ogg.length,sha256:digest(ogg)}]}));
   await asar.createPackage(source,path.join(resources,'app.asar'));
   return {root,source,resources,manifest,write};
 }
 
 test('offline package opens real asar and verifies external model/source bytes',async t=>{
-  const f=await fixture(t),result=await verifyOfflinePackage(f.resources,{expectedManifest:f.manifest});
-  assert.equal(result.version,'0.3.0');assert.equal(result.runtime,'cpu');assert.equal(result.modelBytes,14);
+  const f=await fixture(t),result=await verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1});
+  assert.equal(result.version,'0.3.0');assert.equal(result.runtime,'downloadable-cpu-cu124');assert.equal(result.localModelBytes,14);assert.equal(result.petVoiceCount,1);assert.equal(result.modelBytes,14);
   assert.equal(result.audioSynthesisValidated,false);assert.equal(result.artwork,1);
   await f.write(f.resources,'translation-models/test-model/model.gguf','GGUF_TEST_FAKE');
-  await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest}),/长度|SHA-256/);
+  await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/长度|SHA-256/);
 });
-test('offline package rejects absent icon, mismatched manifests and missing Python',async t=>{
+test('offline package rejects absent icon, mismatched manifests and missing trained weights',async t=>{
   const f=await fixture(t);
   await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:{...f.manifest,id:'wrong'}}),/清单/);
-  await fs.rm(path.join(f.resources,'python-runtime/python.exe'));
-  await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest}),/python.exe/);
-  await f.write(f.resources,'python-runtime/python.exe','MZ');
+  await fs.rm(path.join(f.resources,'local-model/yukino-1.5b-persona-q4/model.gguf'));
+  await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/model.gguf/);
+  await f.write(f.resources,'local-model/yukino-1.5b-persona-q4/model.gguf','GGUF_TEST_ONLY');
   await fs.rm(path.join(f.source,'dist/yukino-icon.png'));
   const archive=path.join(f.resources,'no-icon.asar');await asar.createPackage(f.source,archive);
   // asar caches headers by path; use a fresh directory for an independent artifact.
   const noIcon=path.join(f.root,'no-icon');await fs.mkdir(noIcon);await fs.rename(archive,path.join(noIcon,'app.asar'));
-  await assert.rejects(verifyOfflinePackage(noIcon,{expectedManifest:f.manifest}),/图标|yukino-icon/);
+  await assert.rejects(verifyOfflinePackage(noIcon,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/图标|yukino-icon/);
 });
 test('release checks reject missing, tiny or over-limit installers and write hashes',async t=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-release-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));

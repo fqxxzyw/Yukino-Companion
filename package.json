@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
@@ -10,7 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "npm run prepare:companions && vite build",
     "start": "electron .",
-    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "dist:win": "npm run build && electron-builder --win --x64 --dir --publish never",
     "test": "node --test tests/*.test.cjs",
     "prepare:inference": "python scripts/build_windows_runtime.py --source-only",
     "runtime:cpu": "python scripts/build_windows_runtime.py --flavor cpu",
@@ -19,12 +19,19 @@
     "prepare:companions": "node scripts/prepare-companion-assets.cjs",
     "prepare:translation": "python translation/prepare.py",
     "verify:offline": "node scripts/verify-offline-package.cjs",
-    "qa:ui": "electron scripts/capture-ui.cjs --output build/ui-review"
+    "qa:ui": "electron scripts/capture-ui.cjs --output build/ui-review",
+    "package:payload": "python scripts/package-app-payload.py",
+    "package:bootstrap": "node scripts/build-bootstrap.cjs",
+    "package:runtime": "python scripts/package-runtime.py",
+    "prepare:local-model": "python scripts/prepare-local-model.py",
+    "prepare:voice": "python scripts/prepare-bundled-voice.py",
+    "qa:pet": "electron scripts/capture-pet-ui.cjs --output build/pet-ui-review"
   },
   "dependencies": {
+    "lucide-react": "0.468.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "lucide-react": "0.468.0"
+    "yauzl": "3.2.0"
   },
   "devDependencies": {
     "electron": "45.0.0",
@@ -79,14 +86,6 @@
         ]
       },
       {
-        "from": "build/inference-engine",
-        "to": "inference-engine"
-      },
-      {
-        "from": "build/python-runtime",
-        "to": "python-runtime"
-      },
-      {
         "from": "translation",
         "to": "translation",
         "filter": [
@@ -104,6 +103,27 @@
           "*.gguf",
           "*.md",
           "*.txt"
+        ]
+      },
+      {
+        "from": "build/runtime-distribution/runtime-catalog.json",
+        "to": "runtime-catalog.json"
+      },
+      {
+        "from": "resources/local-model/yukino-1.5b-persona-q4",
+        "to": "local-model/yukino-1.5b-persona-q4"
+      },
+      {
+        "from": "model-service/desktop_worker.py",
+        "to": "local-chat/desktop_worker.py"
+      },
+      {
+        "from": "build/bundled-voice",
+        "to": "voice-models",
+        "filter": [
+          "**/*",
+          "!**/*.zip",
+          "!**/*.part"
         ]
       }
     ]

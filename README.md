@@ -2,11 +2,11 @@
 
 **一方安静的空间，让对话逐步拥有记忆、声音与形象。**
 
-Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项目。当前版本为 **v0.3.0，正在准备 Windows Release**：整合中日双语对话、本地中译日、日语 GPT-SoVITS 合成、Q 版桌宠、独立人物窗口框架、陪伴时长和可自定义的浅蓝界面。
+Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项目。当前源码版本为 **0.4.0**：本地角色模型、远程 API、中文／日文对话、日语 GPT-SoVITS、完整 Q 版桌宠、陪伴时间和浅蓝界面。
 
-**用户已授权恢复打包并发布新 Release。** 本轮准备 Windows x64 CPU 完整离线翻译安装包，包含玻璃质感 UI、专属应用图标、翻译权重与运行库。Windows 构建和安装包检查等待 CI 完成，不能把准备中的产物视为已发布或已通过。3D 模型与动作仍在制作；新性格 LoRA 也尚未完成整轮训练。
+发行采用 **EXE 安装器 + 完整应用分卷 + 独立共享推理环境**。本地对话、翻译、默认音色和参考 WAV 随应用分卷安装；首次引导下载 Python 等公共环境，可跳过。Windows 的真实打包、安装、翻译和合成结果由发布工作流填写，源码完成不等于已验收。3D 模型与动作仍在制作。
 
-[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [v0.3.0 发行说明](docs/releases/v0.3.0.md) · [当前框架范围](docs/FRAMEWORK.md) · [本轮集成说明](docs/INTEGRATION_2026-10-25.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与性格训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
+[Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 
 ## 产品与功能状态
 
@@ -17,31 +17,31 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 | 模块 | 当前源码实现 | 尚未完成 |
 | --- | --- | --- |
 | 桌面界面 | 无边框玻璃质感窗口、折叠侧栏、浅蓝默认主题与专属图标；自定义背景/强调色、自动文字对比度、减少动态效果 | Windows DPI、多屏与辅助功能完整验收 |
-| 对话与 API | 多配置 Chat Completions、中文流式显示、停止、超时、连接测试；会话搜索/切换/删除/本机保存 | 供应商原生协议、视觉输入、更多参数 |
+| 对话与 API | 供应商预设、账号模型下拉、多配置 Chat Completions、中文流式显示、停止、连接测试；会话本机保存 | 供应商原生协议、视觉输入、更多参数 |
 | 中日双语 | API 同时返回中文/日文，缺失日文时本地补译；也可选择全部本地翻译；全局与单条气泡切换中文/日文/双语 | 更大规模双语质量与角色语气评测 |
 | 本地翻译 | Hy-MT2-1.8B 的 Q4_K_M GGUF，模型约 1.13 GB；固定版本、哈希校验、离线推理、取消、CPU 与 GPU 运行库接口 | Windows/CUDA 实机性能验收 |
 | 角色规范 | 完整统一的人物档案、行为指导与情境示例；详细/精简运行卡、全文查看、每次 API 请求注入 | 性格微调质量验收；不同 API 的遵循能力评测 |
 | 记忆 | 手动编辑、启用/关闭、JSON 导入导出、清空；切换 API 保留同一份本地资料 | 自动提取、来源追溯、冲突处理与分层管理 |
 | 日语语音 | GPT-SoVITS 独立进程；参考音频与权重选择、设备检测、试听、历史回复朗读、队列、停止与卸载；合成语言固定日语 | 用户音色真实出声与 Windows/CUDA 验收、口型同步 |
-| 音色资源 | 已登记 Release 中 GPT e1–e5 与 SoVITS e1；下载/校验/选择；保留任意本地训练文件导入 | 参考音频仍须另选，音质不能按训练轮次推定 |
-| Q 版桌宠 | 复用指定桌宠仓库的逐帧素材；透明窗口、基础动作、拖动、置顶、缩放和双语气泡 | 原独立桌宠所有功能的完整移植 |
+| 音色资源 | 已登记 Release 中 GPT e1–e5 与 SoVITS e1；下载/校验/选择；保留任意本地训练文件导入 | 默认参考 WAV 和日语文本已内置；音质仍需人工听校 |
+| Q 版桌宠 | 完整设置、2,391 段预录语音、语录、专注、拖动、置顶、缩放、透明度和开机启动 | Windows 多屏及长期使用实机验收 |
 | 人物与关闭策略 | 主界面人物左右布局；关主窗可留桌宠、人物模型位置、两者，或完全退出；托盘找回 | 实际 3D/Live2D 渲染、动作、换装与口型 |
 | 使用时长 | 本地累计、今日、本次使用时间及桌面陪伴时间；休眠/锁屏暂停、跨日记录、双窗口不重复计时 | 统计图表等扩展 |
-| 本地角色 LLM | 可连接已有本机兼容 API；另有独立 `model-service` | 角色 LLM 的应用内安装、加载与管理 |
+| 本地角色 LLM | 内置实际训练的 Qwen2.5-1.5B GGUF；应用管理 JSONL 子进程、CPU/GPU、停止与回退 | 角色质量与 GPU 实机验证 |
 
 ## 下载与使用
 
 ### Windows 安装包
 
-打开 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases)，以实际 Assets 与工作流结果确认可下载版本。v0.3.0 的目标安装包为 `Yukino-Companion-0.3.0-Setup.exe`；发布资产检查会同时生成校验记录。当前仍在准备发布，Windows CI 结果待完成。Source code 压缩包是源码，不是安装程序。
+在 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) 下载 `Yukino-Companion-0.4.0-Setup.exe`。联网安装时会下载本次发布缺少的应用分卷；离线安装主应用则将所有 `Yukino-Companion-0.4.0-windows-x64.zip.partNNN` 与 EXE 放在同一目录。安装器逐卷校验并自动组合，不需要手工解压。
 
-本轮 CPU 包包含 Python、翻译运行库和 Hy-MT2 量化权重，安装后本地中译日不需要再下载该模型，也不要求系统另外安装 Python。首次安装包较大，具体大小以 Release 资产为准。
+小 EXE 不含全部模型；完整模型在分卷中，下载与安装所需空间以清单和安装器检查为准。首次引导可一键安装共享 Python/PyTorch/llama.cpp/GPT-SoVITS 环境及语音公共资源，也可跳过。对话、翻译和默认音色权重不重复下载。全部所需资源齐备后才具备完整本地推理能力。
 
-此前 [v0.2.0-persona.4](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.2.0-persona.4) 主要用于 API 文字聊天与角色规范，不含本轮整合功能。安装目标为 Windows x64，未使用代码签名证书；专属图标与安装器资源不等于证书签名。没有内置 API 密钥，远程服务费用与可用性由所选服务商决定。
+发布按需求先上传安装器及资源，再执行耗时实测。请查看发行页的“验证状态”；未完成或未通过时不能当作稳定版。Windows x64 产物目前未签名，Source code 附件只是源码。旧 [0.3.0 发行文档](docs/releases/v0.3.0.md) 保留用于历史记录。
 
 ### 配置对话 API
 
-设置 →「对话 API」中填写配置名称、兼容基础地址、模型 ID 与 API 密钥。地址支持基础路径或完整 `/chat/completions`；远程地址须 HTTPS，本机 `localhost`、`127.0.0.1`、`[::1]` 可使用 HTTP。无需鉴权的本机服务可留空密钥。
+设置 →「对话 API」中选择服务商、填写密钥，再从下拉框选择模型；支持获取账号可用模型，也保留自定义兼容地址。地址支持基础路径或完整 `/chat/completions`；远程地址须 HTTPS，本机 `localhost`、`127.0.0.1`、`[::1]` 可使用 HTTP。无需鉴权的本机服务可留空密钥。
 
 保存后点击「测试连接」，会发送一条简短请求，可能计入服务商用量。已保存密钥留空时保留原值；使用「移除密钥」才会删除。当前支持文本 Chat Completions，不会仅因填写模型 ID 就启用视觉或适配所有厂商协议。
 
@@ -54,17 +54,17 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 聊天可以全局或逐条选择中文、日文、双语。旧消息和翻译失败的消息可单独补译，也可补译后朗读。日文尚未准备好时明确标注中文原文；翻译失败保留中文和错误提示，**不会把中文作为日语合成的失败回退**。气泡显示语言不改变朗读语言。
 
-本地翻译使用官方 [Hy-MT2-1.8B-GGUF](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 的 Q4_K_M 权重，经固定版本和 SHA-256 校验；模型约 1.13 GB，采用 Apache-2.0 许可。它用于翻译，不是本项目训练的雪乃性格模型。本轮 CPU 完整包按打包规则内嵌这些权重与运行库，等待 Windows CI 验证安装内容；开发环境可单独准备资源。见[翻译配置与验证](docs/TRANSLATION.md)。
+本地翻译使用官方 [Hy-MT2-1.8B-GGUF](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 的 Q4_K_M 权重，经固定版本和 SHA-256 校验；模型约 1.13 GB，采用 Apache-2.0 许可。它用于翻译，不是本项目训练的雪乃性格模型。主应用分卷内置翻译权重；运行库由首次引导安装。Windows CI 将实际验证发行资源，开发环境可单独准备。见[翻译配置与验证](docs/TRANSLATION.md)。
 
 ### 配置日语语音
 
 设置 →「声音与语音」中先准备公共 BERT/HuBERT 模型，再选择已发布音色或本机 GPT `.ckpt`、SoVITS `.pth` 文件。内置目录已登记[用户上传的 Release](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.1.0-framework.1) 中 GPT e1–e5 与 SoVITS e1；可以逐个选择，轮次不代表音质排名。
 
-**还需要 3–10 秒参考音频及准确转录。** 当前该 Release 没有参考音频；不能仅下载两种权重就宣称已经可以正常出声。参考音频语言按音频实际内容设置，待合成的回答始终使用日语。保留用户自行选择训练文件、模型版本和参考语料的功能。
+默认 GPT e2、SoVITS e1、3.083 秒参考 WAV 与日语转录已内置；也可选择自己的音色和 3–10 秒参考音频。默认文本的两次自动转写记录保存在预设中，尚不能代替人工听校。待合成回答始终为日语。
 
 日文准备完成后才进入分句合成和顺序播放。支持自动朗读开关、日语试听、历史朗读、停止与卸载；停止正在计算的语音会结束本应用持有的推理进程，下次朗读重新加载。语音失败不删除对话。详见[语音推理说明](docs/VOICE_INFERENCE.md)。
 
-本轮面向无需独立显卡的 Windows x64 电脑发布 CPU 通用包。GPU 用户可以在高级设置选择自行准备的兼容 CUDA 环境；本轮不发布或宣称已测试 CUDA 版。CPU 安装包不会因为电脑有显卡就自动获得 CUDA 能力。翻译与语音分别判断运行环境，不能把一个模块的 GPU 状态当作另一个模块的结果。
+首次配置提供 CPU 通用环境和 NVIDIA CUDA 12.4 环境；有兼容显卡时可选择 GPU，实际运行设备以每个组件加载结果为准，失败可回退 CPU。CUDA 构建和导入检查不等同于真实显卡验收。
 
 ### 角色设定与手动记忆
 
@@ -91,7 +91,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 | 关闭主窗口 | 默认询问；可配置完全退出、只留 Q 版桌宠、只留人物模型位置、两者都留 |
 | 托盘「打开对话 / 完全退出」 | 找回主窗 / 结束所有窗口与推理进程 |
 
-Q 版桌宠来自 [fqxxzyw/yukino_desktop_pet](https://github.com/fqxxzyw/yukino_desktop_pet) 的真实逐帧素材，通过 Electron 透明窗口适配，无需安装 .NET。支持基础待机、挥手、点击反应、拖拽与慢走；未移植原工程的全部语录、预录音频、专注计时和开机启动功能。
+Q 版桌宠来自 [fqxxzyw/yukino_desktop_pet](https://github.com/fqxxzyw/yukino_desktop_pet) 的真实逐帧素材，通过 Electron 透明窗口适配，无需安装 .NET。保留完整桌宠设置、语录、2,391 段预录音频、专注计时、开机启动、待机、点击反应、拖拽和走动。菜单保持桌宠自己的界面风格，详情见[功能对照](docs/DESKTOP_PET_PARITY.md)。
 
 人物模型窗口现在明确显示 **3D 模型与动作仍在准备**，保留渲染器接入位置。选择“人物模型”只启用窗口基础设施，不表示已加载正式 3D 模型。桌宠与模型位置可同时显示、左右放置、缩放、置顶，并在屏幕变化后移回可见范围。
 
@@ -147,11 +147,9 @@ python -m unittest discover -s tests -p '*_test.py'
 
 ### Windows 统一构建与发布
 
-用户已授权本轮打包和新 Release。普通 push/PR 的桌面 CI 仍只做测试和前端构建；发行通过手动 Windows 工作流执行，避免每次源码修改都自动发布。
+0.4.0 使用模型构建任务、CPU/CUDA 公共运行环境矩阵和 Windows 主应用打包。手动确认或 `release/0.4.0-local` 分支 push 触发发布；普通源码分支不自动发布。
 
-本轮构建 CPU 通用包，包含 GPT-SoVITS 推理运行环境、完整本地翻译运行库/权重、桌宠素材、角色文件与专属图标。语音 BERT/HuBERT、所选音色和用户参考音频按声音设置另行准备。Windows CI 将检查实际安装内容、翻译模型校验值和 EXE 资产；其结果仍待完成。
-
-准备命令为 `npm run runtime:cpu` 和 `npm run prepare:translation`，随后 `npm run dist:win`。正式发布以 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) 的实际附件为准。完整发行范围与未验证项见 [v0.3.0 发行说明](docs/releases/v0.3.0.md)。
+模型分卷来自完整应用 ZIP64，每卷不超过 900 MiB；小型 NSIS 安装器带进度、取消和校验。首次引导安装公共环境。打包输入、模型来源、完整命令与发布后测试见[Windows 0.4.0 发布流程](docs/WINDOWS_RELEASE_0.4.md)。
 
 ## 数据与隐私
 
@@ -174,17 +172,15 @@ python -m unittest discover -s tests -p '*_test.py'
 
 ## 文本模型与训练状态
 
-桌面 EXE、翻译模型和角色训练模型是不同组件。本轮使用现成的 Hy-MT2 翻译权重，不表示雪乃性格训练已完成。
+本地角色模型与 Hy-MT2 翻译模型独立。角色模型以固定 Qwen2.5-1.5B-Instruct 为基础，接续已有知识 LoRA，再训练完整统一的人格数据。发布流水线只接收具有真实完成报告的适配器或已校验 GGUF，不以未训练基础模型代替。
 
-旧 Qwen2.5-1.5B-Instruct 知识 LoRA 完成过训练，但测试仍有明显知识错误，模型包尚未上传 GitHub。新性格 LoRA 仅做过单步流程验证，未完成整轮训练。完整人物档案、运行卡、训练流程与原创情境样例已有源码，不能当作已训练权重。
+同一 GGUF 随主应用分卷安装，也单独发布为 `Yukino-Local-1.5B-Persona-0.4.0.zip`；LoRA、训练报告和许可独立保留。基础 revision、实际步数、损失、哈希和真实测试回复以随附报告为准。训练完成并不说明所有事实和语气都正确。私人小说索引不会进入公开模型包。
 
-用户已确认：完成并验证的角色文本模型将作为独立 GitHub Release 附件发布，与 EXE 分开，记录基础模型版本、加载方式、测试结果和校验值。公开包不包含私人小说索引。见[角色规范与性格专项训练](docs/角色规范与性格专项训练.md)。
-
-[model-service](model-service/README.md) 提供独立人物知识训练、检索与兼容聊天接口，支持可用 GPU 和 CPU 路径，尚未成为 EXE 内置角色 LLM 管理器。小说数据和训练权重不公开提交 Git。
+桌面[本地模型组件](electron/local-chat.cjs)直接管理[JSONL worker](model-service/desktop_worker.py)，不要求用户启动本机 HTTP API。独立训练／服务工程仍保留在 [model-service](model-service/README.md)。
 
 ## 验证边界与参与
 
-本轮已有 Linux CPU 的真实翻译样例，详见[15 句翻译记录](docs/reports/translation-cpu-smoke-20261025.json)；其中仍有错词与语气需要人工复核。这不是正式翻译质量评测，也不是 Windows/CUDA 或 GPT-SoVITS 真实音色验收。实际语音还缺用户参考音频，最终 Windows 透明窗口、托盘、DPI、多屏与统一安装包仍需验证。
+本轮已有 Linux CPU 的真实翻译样例，详见[15 句翻译记录](docs/reports/translation-cpu-smoke-20261025.json)；其中仍有错词与语气需要人工复核。这不是正式翻译质量评测，也不是 Windows/CUDA 或 GPT-SoVITS 真实音色验收。默认参考音频现已内置。Windows 工作流将补充真实合成和安装证据，透明窗口、托盘、DPI、多屏与 CUDA 硬件的完整验收仍需对应实机结果。
 
 通过 [Issues](https://github.com/fqxxzyw/Yukino-Companion/issues) 提交版本、系统、显示缩放、复现步骤及脱敏错误信息；本地推理问题再补充 CPU/GPU、运行库和模型版本，不要提供密钥。
 

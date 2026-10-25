@@ -1,12 +1,14 @@
 # Yukino 本地文本模型服务
 
-独立于桌面 UI、GPT-SoVITS 和形象渲染的文本后端。默认模型为 **Qwen2.5-1.5B-Instruct + 本项目 LoRA**，同一套权重自动优先 CUDA，其次 macOS MPS，最后 CPU。没有按硬件另训两套模型。默认监听 `127.0.0.1:8765`，为桌面程序提供流式聊天接口。
+独立于桌面 UI、GPT-SoVITS 和形象渲染的文本后端。基础模型为 **Qwen2.5-1.5B-Instruct + 本项目 LoRA**，没有按硬件另训两套模型。
+
+桌面版的本地回复现在由专属 Python worker 直接加载合并后的 GGUF 权重，通过 JSONL 通信，不需要 API key 或 HTTP 服务。首次配置、真实权重验证、GPU 优先/CPU 回退及生成取消见 [桌面离线回复](docs/offline-desktop.md)。下文的 `yuki_model serve` 是开发者可选的 Transformers 服务：优先 CUDA，其次 macOS MPS，最后 CPU，默认监听 `127.0.0.1:8765`。
 
 ## 本次训练的范围
 
 - 20 本用户提供的 EPUB，清理后 209 个章节/文件、2,177,905 个字符、3,011 个文本块，加入人物卡后索引共 3,039 项。
 - 从明确的人物介绍整理 16 个人物、113 条训练样本和 29 条验证样本，进行 3 个 epoch 的 assistant-only LoRA SFT。训练涉及人物知识、依据资料回答和资料不足时拒绝编造。
-- 全文用于本地检索（RAG），**不是将全部小说逐句训练进参数**。此前知识权重没有完成雪乃说话风格专项微调；现在另提供完整人格的专项数据、训练与评估流程，但不把代码提交视为新权重训练或人格验收完成。
+- 全文用于原有开发服务的本地检索（RAG），**不是将全部小说逐句训练进参数**。2026-10-25 已在旧知识适配器上真实续训完整一轮人格数据（186 条 / 47 个 optimizer step），导出合并 Q4 权重并接通桌面离线生成。具体结果与已知错误见 [续训验证](reports/persona-continued-validation.md)，不能把训练完成视为人格验收。
 - 验证集包含已知事实的不同问法，不能作为陌生知识准确率。最终指标见 `reports/validation.md`；不要把小样本关键词检查当成通用能力评测。
 - 小说、索引、由小说整理的训练数据和权重不进入 Git。`persona-data/scenarios.jsonl` 是本项目另写的原创合成角色对话种子，可以在仓库中查看。代码仓库本身不含可直接回答的模型文件。
 
@@ -62,11 +64,11 @@ python -m yuki_model train --config configs/train-sft.json
 
 ```bash
 python -m yuki_model merge --adapter outputs/yukino-1.5b-knowledge-v1/adapter --output outputs/merged
-python scripts/export_gguf.py --llama-cpp /path/to/llama.cpp --merged outputs/merged --quantizer /path/to/llama-quantize --output outputs/gguf
-python scripts/launch_local.py --llama-server /path/to/llama-server --model outputs/gguf/yukino-q4_k_m.gguf
+python scripts/export_gguf.py --llama-cpp /path/to/llama.cpp --merged outputs/merged --training-report outputs/yukino-1.5b-knowledge-v1/training_report.json --base-license models/base/LICENSE --quantizer /path/to/llama-quantize --output outputs/gguf
+python scripts/launch_local.py --llama-server /path/to/llama-server --model outputs/gguf/yukino-persona-q4_k_m.gguf
 ```
 
-转换脚本要求自行安装 llama.cpp 转换器依赖，输出包含 llama.cpp commit 和模型 SHA256 的清单。量化可能改变回答，需要重新执行集成检查。本次默认交付与实测对象是 Transformers + LoRA；GGUF 导出及 GPU 启动器不是已经完成的硬件验证。
+转换脚本要求自行安装 llama.cpp 转换器依赖，输出包含转换器 commit、文件大小、SHA-256、训练报告和基础模型许可证的清单。可省略 `--quantizer` 复用已安装的 `llama-cpp-python`；FP16 中间权重在发行目录之外。量化可能改变回答，需要重新执行实际 GGUF 集成检查。CPU 实测不能代表已经验证目标机器的 GPU 兼容性。
 
 ## 基础事实的回答方式
 

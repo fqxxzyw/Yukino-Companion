@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { WorkerClient } = require('./speech.cjs');
-const { VoiceResources } = require('./voice-resources.cjs');
+const { VoiceResources, verified } = require('./voice-resources.cjs');
 const DEFAULTS = Object.freeze({ python: '', modelDir: '', device: 'auto', cpuThreads: 4, cpuFallback: true, timeout: 180 });
 
 function validateConfig(input = {}) {
@@ -21,11 +21,12 @@ function validateConfig(input = {}) {
 function abortError() { const error = Error('翻译已取消'); error.name = 'AbortError'; return error; }
 
 class TranslationService {
-  constructor({ script, stateDir, modelDir = '', python = '', notify = () => {}, fetcher = fetch, workerFactory = options => new WorkerClient(options) }) {
-    Object.assign(this, { script, stateDir, notify, fetcher, workerFactory });
+  constructor({ script, stateDir, modelDir = '', python = '', notify = () => {}, fetcher = fetch, verifyFile = verified, workerFactory = options => new WorkerClient(options) }) {
+    Object.assign(this, { script, stateDir, notify, fetcher, verifyFile, workerFactory });
+    this.bundledModelDir = modelDir;
     this.config = validateConfig({ modelDir, python });
     this.worker = null; this.loadedConfig = ''; this.pending = new Map(); this.active = null;
-    this.installer = null; this.progress = null; this.error = null;
+    this.installer = null; this.installToken = null; this.progress = null; this.error = null;
     this.queue = Promise.resolve(); this.phase = 'unloaded'; this.metadata = null; this.disposed = false;
   }
   configure(input) {
@@ -35,39 +36,91 @@ class TranslationService {
   }
   update(phase, extra = {}) { this.phase = phase; this.error = extra.error || null; this.notify({ type: 'translation', phase, ...extra }); }
   async status() {
-    let available = false;
+    let modelInstalled = false, runtimeAvailable = false;
     try {
       await fs.access(this.config.python); await fs.access(this.script);
+      runtimeAvailable = true;
+    } catch { /* Runtime and weights are separate resources. */ }
+    try {
       const manifest = JSON.parse(await fs.readFile(path.join(path.dirname(this.script), 'model-manifest.json'), 'utf8'));
       for (const item of manifest.files) {
         const stat = await fs.stat(path.join(this.config.modelDir, item.path));
         if (!stat.isFile() || stat.size !== item.size) throw Error('翻译模型不完整');
       }
-      available = true;
+      modelInstalled = true;
     } catch { /* Missing resources are reported, never downloaded during conversation. */ }
-    return { ready: available, phase: this.phase, available, model: 'tencent/Hy-MT2-1.8B-GGUF', device: this.metadata?.device || this.config.device, error: this.error, config: { ...this.config }, progress: this.progress, metadata: this.metadata, modelDir: this.config.modelDir, python: this.config.python, source: 'zh', target: 'ja' };
+    const available = modelInstalled && runtimeAvailable;
+    const downloaded = path.join(this.stateDir, 'models');
+    const modelSource = this.config.modelDir === this.bundledModelDir ? 'bundled' : this.config.modelDir.startsWith(downloaded + path.sep) ? 'downloaded' : 'custom';
+    return { ready: available, phase: this.phase, available, modelInstalled, runtimeAvailable, modelSource, loaded:Boolean(this.worker&&!this.worker.closed&&this.loadedConfig), model: 'tencent/Hy-MT2-1.8B-GGUF', device: this.metadata?.device || this.config.device, error: this.error, config: { ...this.config }, progress: this.progress, metadata: this.metadata, modelDir: this.config.modelDir, python: this.config.python, source: 'zh', target: 'ja' };
   }
   async install() {
     if (this.disposed) throw Error('翻译服务已关闭');
-    if (this.installer) throw Error('翻译模型正在下载');
+    // Reserve the entire operation before the first await, including manifest
+    // reading and in-place hashing. A second click must not start a parallel job.
+    if (this.installToken) throw Error('翻译模型正在准备，请等待当前操作结束');
     this.cancel();
-    const manifest = JSON.parse(await fs.readFile(path.join(path.dirname(this.script), 'model-manifest.json'), 'utf8'));
-    const root = path.join(this.stateDir, 'models', manifest.directory || manifest.id);
-    const catalog = { packs: { core: { label: '中日翻译模型', files: manifest.files.map(item => ({
-      path: item.path, bytes: item.size, algorithm: 'sha256', digest: item.sha256, url: `${manifest.baseUrl}/${item.path}`
-    })) } } };
-    const installer = new VoiceResources({ root, catalog, fetcher: this.fetcher, notify: status => {
-      this.progress = { ...status, bytes: status.received || 0 };
-      this.update(status.phase, { progress: this.progress, bytes: status.received || 0, total: status.total, error: status.error });
-    } });
-    this.installer = installer;
+    const token = { cancelled: false, installer: null };
+    this.installToken = token;
+    const check = () => {
+      if (token.cancelled || this.disposed || this.installToken !== token) throw abortError();
+    };
     try {
+      this.progress = null;
+      this.update('checking');
+      const manifest = JSON.parse(await fs.readFile(path.join(path.dirname(this.script), 'model-manifest.json'), 'utf8'));
+      check();
+      // A valid bundled/custom model is reused even if Python is not installed.
+      // Runtime installation is separate; never download a second 1.13 GB copy.
+      for (const candidate of [...new Set([this.config.modelDir, this.bundledModelDir].filter(Boolean))]) {
+        let complete = true;
+        for (const item of manifest.files) {
+          check();
+          const valid = await this.verifyFile(path.join(candidate, item.path), { bytes: item.size, algorithm: 'sha256', digest: item.sha256 });
+          check();
+          if (!valid) { complete = false; break; }
+        }
+        if (complete) {
+          check();
+          this.config = validateConfig({ ...this.config, modelDir: candidate });
+          this.update('installed');
+          const status = await this.status();
+          check();
+          return status;
+        }
+      }
+      check();
+      const root = path.join(this.stateDir, 'models', manifest.directory || manifest.id);
+      const catalog = { packs: { core: { label: '中日翻译模型', files: manifest.files.map(item => ({
+        path: item.path, bytes: item.size, algorithm: 'sha256', digest: item.sha256, url: `${manifest.baseUrl}/${item.path}`
+      })) } } };
+      const installer = new VoiceResources({ root, catalog,
+        // Guard the final network boundary too: cancellation can happen while
+        // the downloader checks an existing file or available disk space.
+        fetcher: (...args) => { check(); return this.fetcher(...args); },
+        notify: status => {
+          if (token.cancelled || this.disposed || this.installToken !== token) return;
+          this.progress = { ...status, bytes: status.received || 0 };
+          this.update(status.phase, { progress: this.progress, bytes: status.received || 0, total: status.total, error: status.error });
+        }
+      });
+      token.installer = this.installer = installer;
+      check();
       await installer.install('core');
-      if (this.disposed) throw abortError();
+      check();
       this.config = validateConfig({ ...this.config, modelDir: root });
       this.update('installed');
-      return this.status();
-    } finally { if (this.installer === installer) this.installer = null; }
+      const status = await this.status();
+      check();
+      return status;
+    } catch (error) {
+      if (token.cancelled || this.disposed) throw abortError();
+      this.update('error', { error: error.message });
+      throw error;
+    } finally {
+      if (this.installer === token.installer) this.installer = null;
+      if (this.installToken === token) this.installToken = null;
+    }
   }
   async ensureLoaded(config, token) {
     if (token.cancelled) throw abortError();
@@ -126,7 +179,10 @@ class TranslationService {
     return task.finally(() => { this.pending.delete(requestId); signal?.removeEventListener('abort', onAbort); });
   }
   cancel(requestId) {
-    if (!requestId) this.installer?.cancel();
+    if (!requestId) {
+      if (this.installToken) this.installToken.cancelled = true;
+      this.installer?.cancel();
+    }
     for (const [id, token] of this.pending) if (!requestId || id === requestId) token.cancelled = true;
     if (!requestId || this.active?.requestId === requestId) {
       this.worker?.close(abortError()); this.worker = null; this.loadedConfig = '';

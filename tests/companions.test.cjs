@@ -96,3 +96,52 @@ test('overlapping sleep and screen lock require both to clear before resuming', 
   f.powerMonitor.emit('resume'); assert.equal(f.manager.usage.active.paused,true);
   f.powerMonitor.emit('unlock-screen'); assert.equal(f.manager.usage.active.paused,false);
 });
+
+test('all original pet preferences persist without overriding unrelated preferences', async t=>{
+  const f=await fixture(t);
+  const patch={scale:.6,opacity:.35,animation:false,interactionPaused:true,quietMode:true,randomQuotes:false,interactionQuotes:false,nightReminders:false,showBubbles:false,soundEnabled:false,soundVolume:0,alwaysOnTop:false};
+  await f.manager.setPreferences(patch);
+  const saved=JSON.parse(await fs.readFile(path.join(f.manager.dataDir,'companions.json'),'utf8'));
+  for(const [key,value]of Object.entries(patch))assert.equal(saved[key],value,key);
+  await f.manager.setPreferences({opacity:1,soundVolume:.75});
+  assert.equal(f.manager.preferences.randomQuotes,false);assert.equal(f.manager.preferences.interactionPaused,true);
+  for(const invalid of [{opacity:0},{opacity:1.1},{soundVolume:NaN},{soundVolume:-1},{scale:.59}])assert.throws(()=>sanitizePreferences(invalid));
+});
+test('close remembers the selected behavior only when requested', async t=>{
+  const f=await fixture(t);await f.manager.closeChoice('pet');assert.equal(f.manager.preferences.closeAction,'ask');
+  f.main.show();await f.manager.closeChoice('both',{remember:true});assert.equal(f.manager.preferences.closeAction,'both');
+  f.main.show();f.main.emit('close',{preventDefault(){}});assert.equal(f.main.visible,false);assert.equal(f.requested(),0);
+});
+test('focus starts, persists, completes once and cancels without an API',async t=>{
+  const f=await fixture(t);await f.manager.setMode('pet');const events=[];f.manager.windows.get('pet').webContents.send=(channel,data)=>events.push({channel,data});
+  const before=Date.now();await f.manager.performAction('focus-25');assert.ok(f.manager.preferences.focusEnds>=before+25*60000);assert.equal(f.manager.getState().focus.active,true);
+  assert.equal(JSON.parse(await fs.readFile(path.join(f.manager.dataDir,'companions.json'),'utf8')).focusEnds,f.manager.preferences.focusEnds);
+  f.manager.preferences.focusEnds=Date.now()-1;f.manager.tickFocus();f.manager.tickFocus();assert.equal(events.filter(x=>x.data.name==='focus-complete').length,1);assert.equal(f.manager.getState().focus.active,false);
+  await f.manager.performAction('focus-50');await f.manager.performAction('focus-cancel');assert.equal(f.manager.preferences.focusEnds,0);
+});
+test('pet actions create the pet alongside a model and preview enables only pet sound',async t=>{
+  const f=await fixture(t);await f.manager.setMode('model');await f.manager.setPreferences({soundEnabled:false});
+  await f.manager.performAction('greet');assert.equal(f.manager.preferences.mode,'both');
+  const events=[];f.manager.windows.get('pet').webContents.send=(channel,data)=>events.push({channel,data});
+  await f.manager.performAction('voice');assert.equal(f.manager.preferences.soundEnabled,true);assert.ok(events.some(x=>x.data.name==='voice'));
+  await assert.rejects(f.manager.performAction('execute-shell'),/未知/);
+});
+test('custom pet menu uses renderer events and cannot mutate close behavior through view prefs',async t=>{
+  const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame},events=[];win.webContents.send=(channel,data)=>events.push({channel,data});
+  await f.manager.viewCall(event,'menu');assert.deepEqual(events.pop(),{channel:'companion-action',data:{name:'menu'}});
+  await f.manager.viewCall(event,'prefs',{closeAction:'quit',soundVolume:.5});assert.equal(f.manager.preferences.closeAction,'ask');assert.equal(f.manager.preferences.soundVolume,.5);
+  await assert.rejects(f.manager.viewCall({sender:win.webContents,senderFrame:{}},'action','voice'),/不允许/);
+  await assert.rejects(f.manager.viewCall({sender:win.webContents,senderFrame:{}},'catalog'),/不允许/);
+});
+test('walking obeys interaction, quiet and focus settings and moves both axes only within desktop',async t=>{
+  const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};win.setBounds({x:500,y:500,width:330,height:410});
+  assert.equal(await f.manager.viewCall(event,'walk-step',{x:-1,y:-1}),true);assert.equal(win.bounds.x,497);assert.equal(win.bounds.y,497);
+  for(const patch of [{interactionPaused:true},{interactionPaused:false,quietMode:true},{quietMode:false,focusEnds:Date.now()+60000}]){await f.manager.setPreferences(patch);assert.equal(await f.manager.viewCall(event,'walk-step',1),false);}
+  await f.manager.setPreferences({focusEnds:0});assert.equal(await f.manager.viewCall(event,'walk-step',{x:100,y:0}),false);
+});
+test('quote settings suppress matching sources while independent categories stay available',async t=>{
+  const f=await fixture(t);await f.manager.setPreferences({interactionQuotes:false,randomQuotes:false,nightReminders:false});
+  for(const trigger of ['Click','HeadPat','Mouse','Idle','Observation','Affection','Night'])assert.equal(f.manager.pickQuote(trigger),null,trigger);
+  assert.ok(f.manager.pickQuote('Work'));
+  await f.manager.setPreferences({quietMode:true});assert.equal(f.manager.pickQuote('Break'),null);
+});

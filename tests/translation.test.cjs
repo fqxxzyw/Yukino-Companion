@@ -86,3 +86,48 @@ test('install verifies fixed files and records a writable offline model director
     await service.install();assert.equal(fetches,1);service.dispose();
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
+
+async function installFixture(t,options={}) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-translation-install-'));
+  const script=path.join(dir,'worker.py'),bundled=path.join(dir,'bundled'),data=Buffer.from('bundled translated model');
+  await fs.mkdir(bundled);await fs.writeFile(script,'');
+  const filename='translation.gguf';await fs.writeFile(path.join(bundled,filename),data);
+  await fs.writeFile(path.join(dir,'model-manifest.json'),JSON.stringify({directory:'hy-mt2-test',baseUrl:'https://example.invalid/pinned',files:[{path:filename,size:data.length,sha256:createHash('sha256').update(data).digest('hex')}]}));
+  let fetches=0;const service=new TranslationService({script,stateDir:dir,modelDir:bundled,fetcher:async()=>{fetches++;return new Response(data)},...options});
+  t.after(async()=>{service.dispose();await fs.rm(dir,{recursive:true,force:true})});
+  return {service,dir,bundled,data,filename,fetches:()=>fetches};
+}
+function barrier(){let release,enter;return{entered:new Promise(resolve=>enter=resolve),wait:()=>{enter();return new Promise(resolve=>release=resolve)},release:(value)=>release(value)}}
+test('valid bundled translation weights are reused without Python or any network download',async t=>{
+  const f=await installFixture(t),status=await f.service.install();
+  assert.equal(f.fetches(),0);assert.equal(status.modelDir,f.bundled);assert.equal(status.modelInstalled,true);assert.equal(status.runtimeAvailable,false);assert.equal(status.ready,false);assert.equal(status.modelSource,'bundled');assert.equal(status.phase,'installed');assert.equal(status.loaded,false);
+  f.service.configure({python:process.execPath});const ready=await f.service.status();assert.equal(ready.ready,true);assert.equal(ready.runtimeAvailable,true);assert.equal(ready.loaded,false);
+});
+test('concurrent translation installs are rejected during manifest and in-place hash checks',async t=>{
+  const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});
+  const first=f.service.install();await assert.rejects(f.service.install(),/正在准备/);
+  await gate.entered;await assert.rejects(f.service.install(),/正在准备/);gate.release(true);await first;
+  assert.equal(f.fetches(),0);assert.equal(f.service.installToken,null);
+});
+test('cancelling during existing-model verification prevents later downloads and permits retry',async t=>{
+  const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});
+  const operation=f.service.install(),rejected=assert.rejects(operation,{name:'AbortError'});await gate.entered;
+  f.service.cancel();gate.release(false);await rejected;
+  assert.equal(f.fetches(),0);assert.equal(f.service.config.modelDir,f.bundled);assert.equal(f.service.phase,'paused');assert.equal(f.service.installToken,null);
+  f.service.verifyFile=require('../electron/voice-resources.cjs').verified;const result=await f.service.install();assert.equal(result.modelInstalled,true);assert.equal(f.fetches(),0);
+});
+test('dispose during translation verification never publishes installed status or requests network',async t=>{
+  const gate=barrier(),events=[],f=await installFixture(t,{verifyFile:()=>gate.wait(),notify:event=>events.push(event)});
+  const operation=f.service.install(),rejected=assert.rejects(operation,{name:'AbortError'});await gate.entered;f.service.dispose();gate.release(true);await rejected;
+  assert.equal(f.fetches(),0);assert.equal(events.some(event=>event.phase==='installed'),false);assert.equal(f.service.installToken,null);
+});
+test('request-specific chat cancellation does not cancel a separate translation installation',async t=>{
+  const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});
+  const operation=f.service.install();await gate.entered;f.service.cancel('one-chat-request');gate.release(true);
+  assert.equal((await operation).modelInstalled,true);assert.equal(f.service.installToken,null);
+});
+test('failed translation installation releases the entire lifecycle guard',async t=>{
+  const f=await installFixture(t,{verifyFile:async()=>{throw Error('cannot read model')}});
+  await assert.rejects(f.service.install(),/cannot read model/);assert.equal(f.service.installToken,null);assert.equal(f.service.phase,'error');
+  f.service.verifyFile=require('../electron/voice-resources.cjs').verified;assert.equal((await f.service.install()).modelInstalled,true);
+});

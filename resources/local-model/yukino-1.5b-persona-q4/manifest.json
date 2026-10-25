@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "雪乃本地角色模型 · Qwen 1.5B · 人格续训 v1.2",
+  "file": "yukino-persona-q4_k_m.gguf",
+  "bytes": 986048192,
+  "sha256": "118ddd271a7fc2119a9e8140e2df7ad1d5e8cc84d2e18ca4344551747f0934a6",
+  "baseModel": "Qwen/Qwen2.5-1.5B-Instruct",
+  "baseRevision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "baseLicense": "Apache-2.0",
+  "quantization": "Q4_K_M",
+  "llamaCppConverterCommit": "b3fa69955ea81c3b60e77e3c1e2224c4a826ffb9",
+  "quantizer": {
+    "runtime": "llama-cpp-python",
+    "version": "0.3.36"
+  },
+  "sameWeightsCpuGpu": true,
+  "training": {
+    "completed": true,
+    "task": "complete_persona",
+    "runPurpose": "training",
+    "steps": 47,
+    "adapterSha256": "21f347ebc4b8658705dfd601270955708814d37a18bf5272cd0bfa1878cfdb7b",
+    "beforeEvalLoss": 3.632673501968384,
+    "afterEvalLoss": 3.2491447925567627,
+    "qualityClaim": "Configured training completed; not proof of complete canon knowledge or character fidelity."
+  },
+  "limitations": [
+    "Small-model generations may contain factual errors.",
+    "Validation loss is not a character-fidelity or general-knowledge score.",
+    "GPU execution requires a compatible runtime and actual offload."
+  ]
+}

@@ -1,30 +1,75 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { DEFAULTS } = require('./speech.cjs');
+const { createHash } = require('node:crypto');
+const { DEFAULTS, validateSettings } = require('./speech.cjs');
 
-async function bundledVoiceDefaults({ resourceRoot, dataRoot }) {
-  const engine=path.join(resourceRoot,'inference-engine');
-  const runtime=path.join(resourceRoot,'python-runtime');
+async function exists(filename, directory=false) {
+  try {const stat=await fs.stat(filename);return directory?stat.isDirectory():stat.isFile();}catch{return false;}
+}
+function resourcePath(root, relative) {
+  if(typeof relative!=='string'||relative.includes('\\')||path.isAbsolute(relative)||relative.split('/').some(x=>!x||x==='..'||x==='.'))throw Error('内置音色资源路径无效');
+  const resolved=path.resolve(root,relative);
+  if(!resolved.startsWith(path.resolve(root)+path.sep))throw Error('内置音色资源路径越界');
+  return resolved;
+}
+async function readVoicePreset(resourceRoot) {
+  const root=path.join(resourceRoot,'voice-models');
+  let manifest;
+  try{manifest=JSON.parse(await fs.readFile(path.join(root,'preset.json'),'utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}
+  if(manifest.schemaVersion!==1||typeof manifest.promptText!=='string'||!manifest.promptText.trim()||!['ja','all_ja'].includes(manifest.promptLang)||!Array.isArray(manifest.files))throw Error('内置音色预设清单无效');
+  const selected={};
+  for(const kind of ['gpt','sovits','reference']) {
+    const item=manifest.files.find(file=>file.kind===kind);
+    if(!item||!Number.isSafeInteger(item.bytes)||item.bytes<=0||!/^[a-f0-9]{64}$/.test(item.sha256))throw Error('内置音色文件记录不完整');
+    const filename=resourcePath(root,item.path),stat=await fs.stat(filename);
+    if(!stat.isFile()||stat.size!==item.bytes)throw Error(`内置音色资源不完整：${kind}`);
+    // Large checkpoint hashes are checked during packaging. Verify the small
+    // reference here as well so stale audio cannot be paired with a transcript.
+    if(kind==='reference'&&createHash('sha256').update(await fs.readFile(filename)).digest('hex')!==item.sha256)throw Error('内置参考音频校验失败');
+    selected[kind]=filename;
+  }
+  return { ...selected, version:manifest.version, promptText:manifest.promptText,promptLang:manifest.promptLang,
+    metadata:{id:manifest.id,label:manifest.label,packId:manifest.packId,durationSeconds:manifest.durationSeconds,
+      referenceSource:manifest.referenceSource,transcriptVerification:manifest.transcriptVerification,ready:true} };
+}
+
+async function bundledVoiceDefaults({ resourceRoot, dataRoot, runtimeRoot }) {
+  const candidates=[runtimeRoot,resourceRoot,path.join(dataRoot,'runtime','current')].filter(Boolean);
   const result={...DEFAULTS};
-  try {
+  const engine=(await Promise.all(candidates.map(async root=>{const item=path.join(root,'inference-engine');return await exists(path.join(item,'yukino-runtime.json'))?item:null;}))).find(Boolean);
+  if(engine) {
     const manifest=JSON.parse(await fs.readFile(path.join(engine,'yukino-runtime.json'),'utf8'));
     if(!/^[a-f0-9]{40}$/.test(manifest.revision))throw Error('推理组件清单版本无效');
-    // Upstream creates lexicon caches. Keep packaged source read-only and deploy
-    // a private writable copy; trained weights remain referenced in place.
-    const installed=path.join(dataRoot,'speech-engine',manifest.revision);
-    const marker=path.join(installed,'.installed');
-    try{await fs.access(marker)}catch{
-      await fs.mkdir(installed,{recursive:true});
-      await fs.cp(engine,installed,{recursive:true,force:true});
+    // Upstream writes pronunciation caches; keep packaged or downloaded source
+    // read-only and use a private copy. Checkpoints are referenced in place.
+    const installed=path.join(dataRoot,'speech-engine',manifest.revision),marker=path.join(installed,'.installed');
+    if(!await exists(marker)) {
+      await fs.mkdir(installed,{recursive:true});await fs.cp(engine,installed,{recursive:true,force:true});
       await fs.writeFile(marker,manifest.revision);
     }
     result.root=installed;
-  }catch(e){if(e.code!=='ENOENT')throw e}
-  try{await fs.access(path.join(runtime,'python.exe'));result.python=path.join(runtime,'python.exe')}catch{}
-  try{await fs.access(path.join(runtime,'ffmpeg.exe'));result.ffmpeg=path.join(runtime,'ffmpeg.exe')}catch{}
+  }
+  for(const candidate of candidates) {
+    const runtime=path.join(candidate,'python-runtime');
+    if(!result.python&&await exists(path.join(runtime,'python.exe')))result.python=path.join(runtime,'python.exe');
+    if(!result.ffmpeg&&await exists(path.join(runtime,'ffmpeg.exe')))result.ffmpeg=path.join(runtime,'ffmpeg.exe');
+  }
   const pretrained=result.root?path.join(result.root,'GPT_SoVITS','pretrained_models'):path.join(dataRoot,'speech-models');
-  result.bert=path.join(pretrained,'chinese-roberta-wwm-ext-large');
-  result.hubert=path.join(pretrained,'chinese-hubert-base');
-  return { defaults:result, modelRoot:pretrained, bundled:Boolean(result.root&&result.python) };
+  result.bert=path.join(pretrained,'chinese-roberta-wwm-ext-large');result.hubert=path.join(pretrained,'chinese-hubert-base');
+  const preset=await readVoicePreset(resourceRoot);
+  if(preset){for(const key of ['gpt','sovits','reference','version','promptText','promptLang'])result[key]=preset[key];}
+  return {defaults:result,modelRoot:pretrained,bundled:Boolean(result.root&&result.python),preset:preset?.metadata||null};
 }
-module.exports={bundledVoiceDefaults};
+
+function mergeVoiceDefaults(saved={}, bundle) {
+  const defaults=bundle.defaults||bundle,config={...DEFAULTS,...saved};
+  for(const key of ['root','python','ffmpeg','bert','hubert'])if(!config[key])config[key]=defaults[key]||'';
+  // A custom pair or reference is a single configuration unit. Never mix half
+  // a user's pair with a preset, and never replace a custom transcript.
+  if(!saved.gpt&&!saved.sovits){config.gpt=defaults.gpt||'';config.sovits=defaults.sovits||'';config.version=defaults.version||config.version;}
+  if(!saved.reference&&!String(saved.promptText||'').trim()){
+    config.reference=defaults.reference||'';config.promptText=defaults.promptText||'';config.promptLang=defaults.promptLang||config.promptLang;
+  }
+  return validateSettings(config);
+}
+module.exports={bundledVoiceDefaults,mergeVoiceDefaults,readVoicePreset,resourcePath};

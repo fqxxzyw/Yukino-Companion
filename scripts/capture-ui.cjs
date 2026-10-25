@@ -13,6 +13,9 @@ const root = path.resolve(__dirname,'..');
 const outputIndex = process.argv.indexOf('--output');
 const output = path.resolve(outputIndex < 0 ? path.join(root,'build/ui-review') : process.argv[outputIndex+1]);
 const report = {purpose:'Production renderer visual QA in a visible focused test window with isolated synthetic fixtures; no real API, GPU or audio inference',platform:process.platform,electron:process.versions.electron,screenshots:[],checks:[],errors:[],blockedRequests:[]};
+const headless=app.commandLine.getSwitchValue('ozone-platform')==='headless';
+report.headless=headless;
+if(headless)report.purpose+='; headless rendering is supplemental and does not verify a native Windows desktop';
 let window, temp;
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('force-device-scale-factor','1');
@@ -32,8 +35,12 @@ async function waitFor(source, description) {
 }
 async function click(selector) {
   await requireFocus();
-  const found=await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element||element.disabled)return false;element.click();return true;})()`);
+  const found=await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element||element.disabled)return false;element.scrollIntoView({block:'nearest',inline:'nearest'});return true;})()`);
   if(!found)throw Error(`Missing usable UI control: ${selector}`);
+  await settle();
+  const point=await evaluate(`(()=>{const rect=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)};})()`);
+  window.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});
+  window.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});
   await settle();
 }
 async function check(name, source) {
@@ -45,6 +52,21 @@ async function key(keyCode) {
   await requireFocus();
   window.webContents.sendInputEvent({type:'keyDown',keyCode});
   window.webContents.sendInputEvent({type:'keyUp',keyCode});
+  await settle();
+}
+async function pointerDrag(selector,target) {
+  await requireFocus();
+  const start=await evaluate(`(()=>{const rect=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+Math.min(18,rect.height/2))};})()`);
+  const end=typeof target==='string'?await evaluate(target):target;
+  const hit=await evaluate(`(()=>{const el=document.elementFromPoint(${start.x},${start.y});return {tag:el?.tagName,classes:el?.className};})()`);
+  report.pointerInteractions??=[];report.pointerInteractions.push({selector,start,end,hit});
+  window.webContents.sendInputEvent({type:'mouseMove',...start});
+  window.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...start});
+  for(let step=1;step<=8;step++){
+    window.webContents.sendInputEvent({type:'mouseMove',x:Math.round(start.x+(end.x-start.x)*step/8),y:Math.round(start.y+(end.y-start.y)*step/8),button:'left',modifiers:['leftButtonDown']});
+    await pause(20);
+  }
+  window.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:Math.round(end.x),y:Math.round(end.y)});
   await settle();
 }
 async function fill(selector,value) {
@@ -134,10 +156,18 @@ async function run() {
   window.webContents.on('will-navigate',event=>event.preventDefault());
   await window.loadFile(path.join(root,'dist/index.html'));
   window.show();window.focus();window.webContents.focus();
+  // Ozone headless advertises a 1×1 desktop; explicit post-show bounds allow layout QA.
+  if(headless)window.setContentSize(1280,840);
   await waitFor('document.hasFocus()','focused test document');
   await check('Visible Electron test document has native focus','document.hasFocus()');
   await waitFor(`Boolean(document.querySelector('.app')&&document.querySelector('.welcome'))`,'welcome screen');
   await check('Application icon loads',`[...document.querySelectorAll('img')].every(img=>img.complete&&img.naturalWidth>0)`);
+  await waitFor(`Boolean(document.querySelector('.setup-dialog'))`,'first-run setup');
+  await check('First-run setup distinguishes bundled weights from runtime',`document.querySelector('.setup-dialog').textContent.includes('公共推理环境')&&document.querySelector('.setup-step.ready').textContent.includes('角色')&&document.querySelectorAll('.setup-step.ready').length===3`);
+  await capture('00-first-run-setup');
+  await click('.setup-dialog footer .text-link');
+  await check('Skipping setup leaves chat available',`!document.querySelector('.setup-dialog')&&Boolean(document.querySelector('.composer'))`);
+  await waitFor(`window.desktop.load().then(({state})=>state.setupDismissedVersion==='0.4.0')`,'persisted setup skip');
   await capture('01-home');
   await click('.history-row>button');
   await waitFor(`document.querySelectorAll('.message').length===2`,'fixture conversation');
@@ -145,6 +175,10 @@ async function run() {
   await click('.chat-toolbar [aria-label="气泡显示语言"] button:nth-child(2)');
   await waitFor(`Boolean(document.querySelector('.language-block[lang="ja"]'))&&!document.querySelector('.bubble [lang="zh-CN"]')`,'Japanese display');
   await capture('03-japanese-chat');
+  await click('[aria-label="用日语朗读这条回复"]');
+  await check('Missing voice resources route directly to voice settings in Chinese',`document.querySelector('.settings-main h2')?.textContent==='声音与语音'&&document.querySelector('.speech-bar')?.textContent.includes('语音资源尚未准备好')&&!document.body.innerText.includes('Error invoking remote method')`);
+  await capture('03a-voice-setup-action');
+  await click('[aria-label="关闭设置"]');
   await click('[aria-label="设置"]');
   await waitFor(`Boolean(document.querySelector('.settings'))`,'settings dialog');
   await capture('04-appearance-settings');
@@ -173,10 +207,42 @@ async function run() {
   await click('button[aria-label="强调色"]');
   await settingsTab('形象与展示');
   await capture('05-companion-settings');
+  await check('Complete original pet settings remain available',`['互动与动作','气泡与语录','桌宠预录语音','专注一会儿','形象透明度','暂停互动','安静模式'].every(text=>document.querySelector('.pet-settings').textContent.includes(text))`);
+  await evaluate(`document.querySelector('.pet-settings-card:last-of-type').scrollIntoView({block:'end'})`);await settle();
+  await capture('05a-pet-settings-details');
   await settingsTab('声音与语音');
   await capture('06-voice-settings');
   await settingsTab('双语与翻译');
   await capture('07-translation-settings');
+  await check('Translation distinguishes bundled model from missing runtime',`document.querySelector('.settings-body').textContent.includes('随安装包提供')&&document.querySelector('.settings-body').textContent.includes('公共环境尚未准备好')`);
+  await settingsTab('本地模型');
+  await capture('07a-local-settings');
+  await check('Local model installed but runtime missing is explicit',`document.querySelector('.local-model-settings').textContent.includes('角色模型已内置 · 等待运行环境')`);
+  await click('.setup-entry');
+  await click('.setup-dialog footer .primary');
+  await waitFor(`document.querySelector('.setup-progress progress')?.value===268435456`,'status-driven download progress');
+  await evaluate(`document.querySelector('.setup-progress').scrollIntoView({block:'end'})`);await settle();
+  await capture('07b-setup-progress');
+  await pause(250);
+  await check('Progress stays at the reported bytes without fake timer increments',`document.querySelector('.setup-progress progress').value===268435456&&document.querySelector('.setup-progress progress').max===1073741824`);
+  await evaluate('window.desktop.qaCompleteSetup()');await settle();
+  await check('Completed setup keeps resources unloaded until first use',`Boolean(document.querySelector('.setup-complete'))&&document.querySelector('.setup-complete').textContent.includes('第一次使用时加载')`);
+  await click('.setup-dialog footer .text-link');
+  await click('.local-model-settings .voice-status .primary');
+  await check('Local model can be selected and loaded independently of API',`document.querySelector('.local-model-settings').textContent.includes('本地对话已就绪')&&document.querySelector('.chat-source-switch button:first-child').getAttribute('aria-pressed')==='true'`);
+  await capture('07c-local-ready');
+  await settingsTab('对话 API');
+  await waitFor(`!document.querySelector('.api-discover')?.disabled`,'API discovery control');
+  await click('.api-discover');
+  await check('API discovery presents account models as selectable options',`document.querySelector('.api-notice').textContent.includes('2 个合成测试模型')&&!document.querySelector('input[placeholder="以服务商提供的模型 ID 为准"]')`);
+  await click('[aria-label="对话模型"]');
+  await waitFor(`Boolean(document.querySelector('[role="listbox"]'))`,'model dropdown');
+  await capture('07d-api-model-picker');
+  await key('Escape');
+  await click('.api-advanced-toggle');
+  await click('.api-clear-key');
+  await check('Deleting a saved API key clears persistence without removing the selected model',`!document.querySelector('.api-clear-key')&&!document.querySelector('.api-saved')&&document.querySelector('.api-notice').textContent.includes('已删除')&&document.querySelector('[aria-label="对话模型"]').textContent.includes('qa-chat')`);
+  await check('Deleted key is absent from the persisted key IDs',`window.desktop.load().then(value=>!value.keyIds.includes('visual-qa'))`);
   await settingsTab('角色设定');
   const select='[role="combobox"][aria-label="提示词档位"]';
   await evaluate(`document.querySelector(${JSON.stringify(select)}).focus()`);
@@ -194,7 +260,10 @@ async function run() {
   await click('[aria-label="关闭聊天窗口"]');
   await waitFor(`Boolean(document.querySelector('.close-dialog'))`,'close behavior dialog');
   await capture('09-close-choice');
-  await evaluate(`document.querySelector('.close-dialog .secondary').click()`);await settle();
+  await click('.close-remember input');
+  await click('.close-options button:first-child');
+  await check('Remembered close choice reaches companion persistence',`window.desktop.companionState().then(value=>value.closeAction==='pet'&&value.mode==='pet')`);
+  await check('Close choice dismisses the dialog',`!document.querySelector('.close-dialog')`);
   await click('[aria-label="删除这段对话"]');
   await waitFor(`Boolean(document.querySelector('.confirm-dialog'))`,'custom confirmation dialog');
   await capture('10-confirm-dialog');
@@ -204,8 +273,26 @@ async function run() {
   await click('[aria-label="收起或展开侧边栏"]');
   await capture('11-collapsed-sidebar');
   await check('Left character follows the collapsed sidebar',`document.querySelector('.avatar-stage').getBoundingClientRect().x<${expandedAvatarX}`);
+  await click('[aria-label="人物停靠右侧"]');
+  await check('Right docking allocates the fixed pane to the character, not the chat',`(()=>{const avatar=document.querySelector('.avatar-stage').getBoundingClientRect(),chat=document.querySelector('.chat').getBoundingClientRect();return avatar.x>chat.x&&avatar.width<=460&&chat.width>=310;})()`);
+  await capture('11a-right-docked');
+  await pointerDrag('.character-resizer',`(()=>{const r=document.querySelector('.character-resizer').getBoundingClientRect();return {x:r.x+80,y:r.y+18};})()`);
+  await check('Pointer resize makes the right character pane narrower',`document.querySelector('.avatar-stage').getBoundingClientRect().width<280`);
+  await pointerDrag('.character-drag-handle',`(()=>{const r=document.querySelector('.main').getBoundingClientRect();return {x:r.left+45,y:r.top+40};})()`);
+  await check('Pointer dragging snaps the character to the left',`!document.querySelector('.main').classList.contains('avatar-right')`);
+  await evaluate(`document.querySelector('.character-resizer').focus()`);await key('Home');
+  await check('Character resize stops at its readable minimum',`Math.round(document.querySelector('.avatar-stage').getBoundingClientRect().width)===168`);
+  await capture('11b-resized-left');
   window.setContentSize(760,580);await settle();
   await capture('12-compact-chat');
+  await check('Compact window preserves a readable chat and character pane',`(()=>{const avatar=document.querySelector('.avatar-stage').getBoundingClientRect(),chat=document.querySelector('.chat').getBoundingClientRect();return avatar.width>=167.5&&chat.width>=310&&avatar.right<=innerWidth&&chat.right<=innerWidth;})()`);
+  await click('[aria-label="收起或展开侧边栏"]');
+  await capture('12a-compact-expanded-sidebar');
+  await check('Compact sidebar keeps collapse and settings buttons fully visible',`(()=>{const sidebar=document.querySelector('.sidebar').getBoundingClientRect();return ['[aria-label=\"收起或展开侧边栏\"]','[aria-label=\"设置\"]'].every(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return r.left>=sidebar.left&&r.right<=sidebar.right;});})()`);
+  await check('Expanded sidebar at the minimum window width keeps both panes usable',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.width>=168&&c.width>=310&&c.right<=innerWidth;})()`);
+  await click('[aria-label="人物停靠右侧"]');
+  await capture('12b-compact-right');
+  await check('Compact right docking preserves minimum chat width',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.x>c.x&&a.width>=168&&c.width>=310;})()`);
   await click('[aria-label="设置"]');await settle();
   await capture('13-compact-settings');
   report.success=report.errors.length===0&&report.blockedRequests.length===0;

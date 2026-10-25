@@ -82,7 +82,7 @@ test('only our named loopback model forces compact and disables knowledge retrie
   for (const base of ['https://localhost.example/v1', 'https://remote.example/v1', 'file:///tmp/']) assert.equal(isYukinoLocal({ ...local, base }), false);
   const body = await payload({ personaPromptMode: 'detailed' }, local, prompt, root);
   assert.equal(body.use_knowledge, false);
-  assert.match(body.messages[0].content, /COMPACT_PERSONALITY/);
+  assert.match(body.messages[0].content, /TRAINING_PERSONALITY/);
   assert.doesNotMatch(body.messages[0].content, /COMPLETE_PERSONALITY/);
   for (const profile of [{ ...local, model: 'other-model' }, { ...remote, model: 'oregairu-small' }]) {
     const generic = await payload({}, profile, prompt, root);
@@ -233,4 +233,32 @@ test('archive verification uses Windows separators with the real asar directory 
   assert.ok(requestedNames.every(filename => !filename.includes('/')));
   delete archiveHeader.header.files.characters.files.yukino.files['compact.md'];
   assert.throws(() => windowsVerifier.verifyCharacterPackage(archive), /compact.*was not found in this archive/);
+});
+
+
+test('normal identity and relationship requests keep the first-person contract after remembered context', async () => {
+  const {NATURAL_DIALOGUE_CONTRACT} = require('../electron/persona.cjs');
+  for (const question of ['你是谁？', '你和八幡是什么关系？']) {
+    const body = await payload({useMemory:true,memory:'用户喜欢蓝色。'},remote,[
+      {role:'user',content:'你好'},
+      {role:'assistant',content:'我是按角色设定交流的数字角色。在原著中……'},
+      {role:'user',content:question},
+    ]);
+    assert.ok(body.messages[0].content.endsWith(NATURAL_DIALOGUE_CONTRACT));
+    assert.match(body.messages[0].content,/普通交谈直接用雪乃的第一人称回答/);
+    assert.match(body.messages[0].content,/只有明确追问现实或技术身份时才简短诚实说明/);
+    assert.equal(body.messages.at(-1).content,question);
+    // Preserve history as supplied; prevent its incidental wording from becoming policy.
+    assert.match(body.messages[2].content,/数字角色/);
+  }
+});
+
+test('explicit technical identity and literary questions are preserved rather than keyword-filtered', async () => {
+  for (const question of ['你实际上是软件里的AI还是真人？', '请分析原著中雪乃与八幡的关系变化。']) {
+    const body = await payload({},remote,[{role:'user',content:question}]);
+    assert.equal(body.messages.at(-1).content,question);
+    assert.match(body.messages[0].content,/明确要求作品、剧情、章节或改编分析/);
+  }
+  const disabled = buildPersonaPrompt({personaEnabled:false,persona:'以普通助手回答'},remote);
+  assert.doesNotMatch(disabled.content,/【本轮表达】|普通交谈直接用雪乃/);
 });

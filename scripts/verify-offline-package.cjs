@@ -11,10 +11,11 @@ const REQUIRED_ASAR = [
   'package.json', 'dist/index.html', 'electron/main.cjs', 'electron/preload.cjs', 'electron/persona.cjs',
   'electron/bilingual.cjs', 'electron/translation.cjs', 'electron/speech.cjs',
   'electron/voice-resources.cjs', 'electron/voice-archive.cjs',
+  'electron/local-chat.cjs', 'electron/runtime-manager.cjs', 'electron/setup.cjs', 'electron/providers.cjs', 'electron/pet-features.cjs',
   'electron/bundled-voice.cjs', 'electron/companions.cjs', 'electron/usage.cjs',
   'electron/companion-preload.cjs', 'electron/companion-view/index.html',
   'electron/companion-view/view.js', 'electron/companion-view/view.css',
-  'electron/companion-view/assets/provenance.json',
+  'electron/companion-view/assets/provenance.json', 'electron/companion-view/assets/voices.json', 'electron/companion-view/quotes.json',
   'electron/companion-view/assets/spritesheet.png',
   'electron/companion-view/assets/walking-left.png',
   'electron/companion-view/assets/walking-right.png',
@@ -25,16 +26,8 @@ const REQUIRED_ASAR = [
 const REQUIRED_EXTERNAL = [
   'inference/worker.py', 'translation/worker.py', 'translation/model-manifest.json',
   'translation/LICENSE-HY-MT2.txt', 'translation/LICENSE-LLAMA-CPP-PYTHON.txt',
-  'translation/LICENSE-LLAMA-CPP.txt', 'inference-engine/yukino-runtime.json',
-  'inference-engine/GPT_SoVITS/TTS_infer_pack/TTS.py',
-  'python-runtime/python.exe', 'python-runtime/python312.dll',
-  'python-runtime/python312.zip', 'python-runtime/python312._pth',
-  'python-runtime/ffmpeg.exe', 'python-runtime/yukino-runtime-build.json',
-  'python-runtime/requirements-resolved.txt',
-  'python-runtime/Lib/site-packages/llama_cpp/__init__.py',
-  'python-runtime/Lib/site-packages/torch/__init__.py',
-  'python-runtime/Lib/site-packages/torchaudio/__init__.py',
-  'python-runtime/Lib/site-packages/transformers/__init__.py',
+  'translation/LICENSE-LLAMA-CPP.txt', 'local-chat/desktop_worker.py',
+  'runtime-catalog.json', 'local-model/yukino-1.5b-persona-q4/manifest.json', 'voice-models/preset.json',
 ];
 
 function inside(root, relative) {
@@ -59,7 +52,7 @@ async function verifyFile(root, item) {
   if (await sha256(file) !== item.sha256) throw Error(`资源 SHA-256 不符：${item.path}`);
   return stat.size;
 }
-async function verifyOfflinePackage(resources, {expectedManifest = translationManifest, iconRelative = 'dist/yukino-icon.png'} = {}) {
+async function verifyOfflinePackage(resources, {expectedManifest = translationManifest, iconRelative = 'dist/yukino-icon.png', expectedPetVoiceCount = 2391} = {}) {
   resources = path.resolve(resources);
   const archive = path.join(resources, 'app.asar');
   const character = verifyCharacterPackage(archive);
@@ -83,22 +76,54 @@ async function verifyOfflinePackage(resources, {expectedManifest = translationMa
     const stat = await fsp.stat(inside(resources, relative));
     if (!stat.isFile() || stat.size === 0) throw Error(`安装包缺少外部资源：${relative}`);
   }
-  const runtime = JSON.parse(await fsp.readFile(path.join(resources, 'python-runtime/yukino-runtime-build.json'), 'utf8'));
-  if (!['cpu', 'cu124'].includes(runtime.flavor) || runtime.revision !== SOVITS_REVISION
-      || runtime.translationRuntime !== 'llama-cpp-python-0.3.36' || !/^[a-f0-9]{64}$/.test(runtime.inputFingerprint || '')) throw Error('内嵌推理运行环境版本或构建指纹无效');
-  const pth = await fsp.readFile(path.join(resources, 'python-runtime/python312._pth'), 'utf8');
-  if (!pth.includes('Lib/site-packages') || !/^import site\s*$/m.test(pth)) throw Error('内嵌 Python 无法读取自己的依赖');
-  const engineRoot = path.join(resources, 'inference-engine');
-  const engine = JSON.parse(await fsp.readFile(path.join(engineRoot, 'yukino-runtime.json'), 'utf8'));
-  if (engine.revision !== SOVITS_REVISION || !Array.isArray(engine.files) || !engine.files.length) throw Error('GPT-SoVITS 组件清单无效');
-  for (const item of engine.files) await verifyFile(engineRoot, item);
+  // Runtime binaries are downloaded once by onboarding. Their pinned merged
+  // catalog must ship, while both language models and the usable voice ship here.
+  for (const name of ['python-runtime', 'inference-engine']) {
+    if (fs.existsSync(path.join(resources, name))) throw Error('共享 Python 运行环境不应重复内嵌：' + name);
+  }
+  const runtime = JSON.parse(await fsp.readFile(path.join(resources, 'runtime-catalog.json'), 'utf8'));
+  if (runtime.schemaVersion !== 1 || runtime.version !== '0.4.0') throw Error('运行环境下载清单版本无效');
+  for (const flavor of ['cpu', 'cu124']) {
+    const variant = runtime.variants?.[flavor];
+    if (variant?.id !== `windows-x64-${flavor}` || !/^[a-f0-9]{64}$/.test(variant?.archiveSha256 || '') || !Number.isSafeInteger(variant.unpackedBytes) || variant.unpackedBytes < 1 || !Array.isArray(variant.parts) || !variant.parts.length) throw Error('运行环境下载清单缺少有效 CPU/CUDA 分卷');
+    let bytes = 0;
+    for (const [index, part] of variant.parts.entries()) {
+      const filename = `Yukino-Runtime-0.4.0-windows-x64-${flavor}.zip.part${String(index + 1).padStart(3, '0')}`;
+      if (part.path !== filename || part.algorithm !== 'sha256' || !/^[a-f0-9]{64}$/.test(part.digest || '') || !Number.isSafeInteger(part.bytes) || part.bytes < 1 || part.bytes > 900 * 1024 ** 2 || !part.url?.startsWith('https://github.com/fqxxzyw/Yukino-Companion/releases/download/') || !part.url.endsWith('/' + filename)) throw Error('运行环境分卷清单不完整');
+      bytes += part.bytes;
+    }
+    if (variant.bytes !== bytes) throw Error('运行环境总长度不符');
+  }
+  const localRoot = path.join(resources, 'local-model/yukino-1.5b-persona-q4');
+  const local = JSON.parse(await fsp.readFile(path.join(localRoot, 'manifest.json'), 'utf8'));
+  if (typeof local.file !== 'string' || path.basename(local.file) !== local.file || !local.file.endsWith('.gguf') || !local.name || !local.training || typeof local.training !== 'object' || !/^[a-f0-9]{64}$/.test(local.sha256 || '')) throw Error('本地对话模型清单不完整');
+  const localModelBytes = await verifyFile(localRoot, {path:local.file, bytes:local.bytes, sha256:local.sha256});
+  const localHandle = await fsp.open(path.join(localRoot, local.file), 'r');
+  try { const magic=Buffer.alloc(4);await localHandle.read(magic,0,4,0);if(magic.toString()!=='GGUF')throw Error('本地对话权重不是 GGUF'); } finally { await localHandle.close(); }
+  const preset = JSON.parse(await fsp.readFile(path.join(resources, 'voice-models/preset.json'), 'utf8'));
+  if (preset.schemaVersion !== 1 || !preset.promptText?.trim() || !['ja', 'all_ja'].includes(preset.promptLang) || !Array.isArray(preset.files) || preset.files.length !== 3) throw Error('内置日语音色预设不完整');
+  let voiceBytes = 0;
+  for (const kind of ['gpt', 'sovits', 'reference']) {
+    const item = preset.files.find(file => file.kind === kind);
+    if (!item || !/^[a-f0-9]{64}$/.test(item.sha256 || '')) throw Error('内置音色缺少权重或参考音频：' + kind);
+    voiceBytes += await verifyFile(path.join(resources, 'voice-models'), item);
+  }
+  const voices = JSON.parse(asarRead(archive, 'electron/companion-view/assets/voices.json'));
+  if (voices.count !== expectedPetVoiceCount || voices.files?.length !== expectedPetVoiceCount) throw Error('桌宠预录音频数量不完整');
+  const seen = new Set();
+  for (const item of voices.files) {
+    if (!/^[A-Za-z0-9_-]+\.ogg$/.test(item.file) || seen.has(item.file)) throw Error('桌宠预录音频名称无效');
+    seen.add(item.file);
+    const data = asarRead(archive, 'electron/companion-view/assets/voices/' + item.file);
+    if (data.length !== item.bytes || crypto.createHash('sha256').update(data).digest('hex') !== item.sha256) throw Error('桌宠预录音频校验失败：' + item.file);
+  }
   const modelRoot = inside(resources, 'translation-models/' + expectedManifest.directory);
   let modelBytes = 0;
   for (const item of expectedManifest.files) modelBytes += await verifyFile(modelRoot, item);
   const pkg = JSON.parse(asarRead(archive, 'package.json'));
-  return {version:pkg.version, characterVersion:character.version, runtime:runtime.flavor,
+  return {version:pkg.version, characterVersion:character.version, runtime:'downloadable-cpu-cu124', localModel:local.name, localModelBytes, voiceBytes, petVoiceCount:voices.count,
     model:expectedManifest.modelId, modelBytes, artwork:artwork.files.filter(item => item.path.endsWith('.png')).length,
-    audioSynthesisValidated:false, sourceFilesVerified:engine.files.length};
+    audioSynthesisValidated:false, runtimeVariants:Object.keys(runtime.variants)};
 }
 if (require.main === module) {
   verifyOfflinePackage(process.argv[2] || 'release/win-unpacked/resources')

@@ -9,7 +9,7 @@ const deferred = () => {let resolve;const promise=new Promise(r=>{resolve=r;});r
 
 test('real main entrypoint wires startup IPC and rejects non-main renderer callers', async () => {
   const app = await mainHarness({state});
-  for(const name of ['chat','voice-synthesize','voice-install','translation-status','translation-save','translate','translation-cancel','companion-state','companion-set','close-choice']) assert.ok(app.handlers.has(name),name);
+  for(const name of ['chat','voice-synthesize','voice-install','translation-status','translation-save','translate','translation-cancel','companion-state','companion-set','close-choice','local-chat-settings','local-chat-status','local-chat-save','local-chat-load','local-chat-unload','local-chat-probe','setup-status','setup-install','setup-cancel','api-providers','api-models']) assert.ok(app.handlers.has(name),name);
   assert.equal(app.window.visible,true);
   assert.match(app.window.loadedFile,/dist[/\\]index\.html$/);
   await assert.rejects(app.handlers.get('translate')({sender:{},senderFrame:{}},{text:'你好',requestId:'untrusted'}),/不允许/);
@@ -26,7 +26,7 @@ test('real main returns two versions, emits only Chinese chunks, and forwards bo
   assert.equal(app.companions.replies[0].id,request.id);
 });
 
-test('local mode obtains Chinese from API and runs the local translator before returning Japanese', async () => {
+test('local translation mode obtains Chinese from API and runs the local translator before returning Japanese', async () => {
   const app = await mainHarness({state:{...state,translationMode:'local'},reply:'不必急着回答。'});
   const result = await app.invoke('chat',request);
   assert.match(app.requests[0].messages[0].content,/请用简体中文自然回答/);
@@ -64,4 +64,159 @@ test('empty translation paths resolve to bundled defaults and persist valid conf
     assert.equal(saved.python,result.config.python);assert.equal(saved.modelDir,result.config.modelDir);
     await app.invoke('translation-cancel','preview-id');assert.equal(app.cancelled.at(-1),'preview-id');
   }
+});
+
+
+test('built-in local chat works without an API profile or key and completes Japanese translation',async()=>{
+  const app=await mainHarness({state:{...state,profiles:[],activeProfile:'',chatMode:'local'},localReply:'先坐下，喝杯茶再说。'});
+  const result=await app.invoke('chat',{...request,profileId:undefined,mode:'local'});
+  assert.equal(app.requests.length,0);assert.equal(app.network.length,0);assert.equal(app.localRequests.length,1);
+  assert.equal(app.localRequests[0].messages[0].role,'system');
+  assert.match(app.localRequests[0].messages[0].content,/雪之下雪乃/);
+  assert.match(app.localRequests[0].messages[0].content,/请用简体中文自然回答/);
+  assert.equal(result.bilingual.zh,'先坐下，喝杯茶再说。');assert.equal(result.bilingual.ja,'ローカルで翻訳しました。');
+  assert.equal(app.translated[0].request.text,result.bilingual.zh);assert.equal(app.companions.replies[0].ja,result.bilingual.ja);
+  assert.equal(app.sent.filter(item=>item.channel==='chunk').map(item=>item.payload.text).join(''),result.bilingual.zh);
+});
+
+test('local reply remains visible if the Japanese translation model fails',async()=>{
+  const app=await mainHarness({state:{...state,profiles:[],chatMode:'local'},localReply:'你的努力并非没有意义。',translate:async()=>{throw Error('翻译模型尚未准备好');}});
+  const result=await app.invoke('chat',{...request,mode:'local'});
+  assert.equal(result.ok,true);assert.equal(result.bilingual.zh,'你的努力并非没有意义。');assert.equal(result.bilingual.ja,'');
+  assert.equal(result.bilingual.translationStatus,'error');assert.match(result.bilingual.translationError,/翻译模型尚未准备好/);
+  assert.equal(app.requests.length,0);assert.equal(app.companions.replies[0].zh,result.bilingual.zh);
+});
+
+test('stop cancels built-in local generation and prevents translation or companion updates',async()=>{
+  const output=deferred(),entered=deferred();
+  const app=await mainHarness({state:{...state,chatMode:'local'},localReply:async()=>{entered.resolve();return output.promise;}});
+  const active=app.invoke('chat',{...request,mode:'local'});await entered.promise;await app.invoke('stop');
+  output.resolve({text:'迟到的回复',device:'cpu'});assert.equal((await active).stopped,true);
+  assert.ok(app.localCancelled.length);assert.equal(app.translated.length,0);assert.equal(app.companions.replies.length,0);
+});
+
+test('explicit API mode overrides a saved local mode',async()=>{
+  const app=await mainHarness({state:{...state,chatMode:'local'}});
+  const result=await app.invoke('chat',{...request,mode:'api'});
+  assert.equal(result.ok,true);assert.equal(app.requests.length,1);assert.equal(app.localRequests.length,0);
+});
+
+test('API model discovery uses draft keys without saving or returning the secret',async()=>{
+  const app=await mainHarness({state});
+  const providers=await app.invoke('api-providers');assert.ok(providers.some(item=>item.id==='openai'));
+  const result=await app.invoke('api-models',{profileId:'draft',base:'https://api.example.test/v1',providerId:'custom',key:'draft-secret'});
+  assert.equal(result.verified,true);assert.equal(result.models[0].id,'test-chat-model');
+  assert.equal(app.network[0].options.headers.Authorization,'Bearer draft-secret');
+  assert.equal(app.network[0].options.redirect,'error');assert.equal(app.storage.has('keys.json'),false);
+  assert.doesNotMatch(JSON.stringify(result),/draft-secret/);
+});
+
+test('API keys remain bound to their saved origin across chat and model discovery',async()=>{
+  const app=await mainHarness({state});await app.invoke('key',profile.id,'private-secret',profile.base);
+  const stored=JSON.parse(app.storage.get('keys.json'));assert.equal(stored[profile.id].origin,'https://example.test');
+  assert.doesNotMatch(app.storage.get('keys.json'),/private-secret/);
+  await app.invoke('chat',request);assert.equal(app.transport[0].headers.Authorization,'Bearer private-secret');
+  await app.invoke('api-models',{profileId:profile.id,base:'https://example.test/another-version',providerId:'custom'});
+  assert.equal(app.network.at(-1).options.headers.Authorization,'Bearer private-secret');
+  const changed={...state,profiles:[{...profile,base:'https://another.example.test/v1'}]};await app.invoke('save',changed);
+  await assert.rejects(app.invoke('chat',request),/地址已变更/);
+  await assert.rejects(app.invoke('api-models',{profileId:profile.id,base:changed.profiles[0].base,providerId:'custom'}),/地址已变更/);
+  assert.equal(app.transport.length,1);assert.equal(app.network.length,1);
+  assert.doesNotMatch(JSON.stringify(await app.invoke('load')),/private-secret|sealed:/);
+});
+
+test('legacy encrypted keys migrate using the persisted profile origin and orphan keys stay blocked',async()=>{
+  const sealed=Buffer.from('sealed:legacy-secret').toString('base64');
+  const app=await mainHarness({state,files:{'keys.json':JSON.stringify({[profile.id]:sealed,orphan:sealed})}});
+  const migrated=JSON.parse(app.storage.get('keys.json'));
+  assert.equal(migrated[profile.id].ciphertext,sealed);assert.equal(migrated[profile.id].origin,'https://example.test');assert.equal(migrated.orphan.origin,'');
+  await app.invoke('chat',request);assert.equal(app.transport[0].headers.Authorization,'Bearer legacy-secret');
+  await assert.rejects(app.invoke('api-models',{profileId:'orphan',base:profile.base,providerId:'custom'}),/重新验证/);
+  assert.equal(app.network.length,0);
+});
+
+test('voice begin applies merged defaults after saving and unloading, with no manual load',async()=>{
+  const app=await mainHarness({state});
+  const defaults=await app.invoke('voice-settings');assert.ok(defaults.gpt.endsWith('default.ckpt'));assert.ok(defaults.reference.endsWith('ref.wav'));assert.ok(defaults.promptText);
+  const status=await app.invoke('voice-status');assert.equal(status.configured,true);
+  await app.invoke('voice-save',{...defaults,enabled:true});await app.invoke('voice-unload');
+  const count=app.voiceActions.length;await app.invoke('voice-begin','first-voice');
+  assert.deepEqual(app.voiceActions.slice(count).map(item=>item.method),['configure','begin']);
+  assert.equal(app.voiceActions.at(-1).config.gpt,defaults.gpt);
+  await app.invoke('voice-synthesize','first-voice','こんにちは。');
+  assert.equal(app.voiceActions.filter(item=>item.method==='load').length,0);
+});
+
+test('voice defaults do not pair a user GPT checkpoint or reference with unrelated bundled files',async()=>{
+  const custom={gpt:path.resolve('/custom/gpt.ckpt'),sovits:'',reference:path.resolve('/custom/ref.wav'),promptText:''};
+  const app=await mainHarness({state,files:{'speech.json':JSON.stringify(custom)}});
+  const config=await app.invoke('voice-settings');assert.equal(config.gpt,custom.gpt);assert.equal(config.sovits,'');assert.equal(config.reference,custom.reference);assert.equal(config.promptText,'');
+});
+
+test('first-use setup installs one shared runtime and keeps model/runtime states separate',async()=>{
+  const app=await mainHarness({state,runtimeReady:false,voiceMissing:['bert','hubert']});
+  const before=await app.invoke('setup-status');
+  assert.equal(before.steps.find(item=>item.id==='runtime').state,'missing');
+  assert.equal(before.steps.find(item=>item.id==='chat').state,'ready');assert.equal(before.steps.find(item=>item.id==='translation').state,'ready');
+  const after=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
+  assert.equal(after.ready,true);assert.deepEqual(app.runtime.installs,['cpu']);assert.deepEqual(app.voiceInstallCalls,['core']);
+  const local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status'),voice=await app.invoke('voice-settings');
+  assert.equal(local.python,path.resolve('/embedded/python'));assert.equal(translation.config.python,local.python);assert.equal(voice.python,local.python);
+  assert.equal(JSON.parse(app.storage.get('speech.json')).bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
+  await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);
+});
+
+
+test('setup preserves custom Python and valid core paths without duplicate voice downloads',async()=>{
+  const custom={python:path.resolve('/my-voice/python'),root:path.resolve('/my-voice/engine'),bert:path.resolve('/my-voice/bert'),hubert:path.resolve('/my-voice/hubert')};
+  const customTranslation=path.resolve('/my-translation/python'),customLocal=path.resolve('/my-local/python');
+  const app=await mainHarness({state,runtimeReady:false,files:{'speech.json':JSON.stringify(custom),'translation.json':JSON.stringify({python:customTranslation}),'local-chat.json':JSON.stringify({python:customLocal})}});
+  const result=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
+  assert.equal(result.ready,true);assert.deepEqual(app.voiceInstallCalls,[]);
+  const voice=await app.invoke('voice-settings'),local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status');
+  for(const key of Object.keys(custom))assert.equal(voice[key],custom[key],key);
+  assert.equal(local.python,customLocal);assert.equal(translation.config.python,customTranslation);
+  assert.equal(JSON.parse(app.storage.get('local-chat.json')).python,customLocal);
+  assert.equal(JSON.parse(app.storage.get('translation.json')).python,customTranslation);
+});
+
+test('setup fills only a missing core component and keeps the existing custom counterpart',async()=>{
+  const custom={bert:path.resolve('/custom/missing-bert'),hubert:path.resolve('/custom/working-hubert')};
+  const app=await mainHarness({state,voiceMissing:['bert'],files:{'speech.json':JSON.stringify(custom)}});
+  const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.ready,true);assert.deepEqual(app.voiceInstallCalls,['core']);
+  const voice=await app.invoke('voice-settings');assert.equal(voice.bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));assert.equal(voice.hubert,custom.hubert);
+});
+
+test('setup cancellation during startup preparation blocks all subsequent installs',async()=>{
+  const gate=deferred();
+  const app=await mainHarness({state,runtimeReady:false,voiceMissing:['bert','hubert'],bundleGate:gate.promise});
+  const installing=app.invoke('setup-install',{features:['chat','translation','voice']});
+  await assert.rejects(app.invoke('setup-install',{features:['voice']}),/正在进行/);
+  await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);gate.resolve();
+  await assert.rejects(installing,/已取消准备/);
+  assert.deepEqual(app.runtime.installs,[]);assert.deepEqual(app.voiceInstallCalls,[]);assert.equal(app.network.length,0);
+  const status=await app.invoke('setup-status');assert.equal(status.phase,'cancelled');
+  assert.equal(status.steps.find(item=>item.id==='runtime').state,'missing');
+});
+
+
+test('cancelling while voice readiness is pending cannot start a core download',{timeout:3000},async()=>{
+  const gate=deferred(),entered=deferred();let pending=0;
+  const app=await mainHarness({state,voiceMissing:['bert','hubert']});
+  const readiness=app.voice.readiness.bind(app.voice);
+  app.voice.readiness=async(...args)=>{
+    if(app.setup.active==='voiceCore'){
+      // Both the progress inspection and the actual installation preflight can
+      // inspect resources. Hold both so cancellation happens inside preflight.
+      pending++;if(pending>=2)entered.resolve();await gate.promise;
+    }
+    return readiness(...args);
+  };
+  const installing=app.invoke('setup-install',{features:['voice']});await entered.promise;
+  const savedBeforeCancel=app.storage.get('speech.json');
+  await app.invoke('setup-cancel');gate.resolve();
+  await assert.rejects(installing,/已取消准备/);
+  assert.deepEqual(app.voiceInstallCalls,[]);assert.equal(app.network.length,0);
+  assert.equal(app.storage.get('speech.json'),savedBeforeCancel);
+  assert.equal((await app.invoke('setup-status')).phase,'cancelled');
 });

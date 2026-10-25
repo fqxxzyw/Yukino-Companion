@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "yukino-e2-default",
+  "label": "雪乃 · 内置默认声音",
+  "packId": "yukino-e2",
+  "version": "v1",
+  "promptLang": "all_ja",
+  "promptText": "一つ思うところがあるのだけれど、いいかしら。",
+  "durationSeconds": 3.082688,
+  "referenceSource": {
+    "archive": "YUKINO.zip",
+    "member": "YUKINO/A010ESS0_YUK039.ogg",
+    "archiveSha256": "2a4f08969fd1d294d3b22d1d20871077f21d1bf793688f37cee05db5ced297e4",
+    "originalSha256": "019a0ae015c2e3be92eabf2124c9bbd55866fc992251abc508f85558a6d652bc",
+    "publicEquivalent": {
+      "repository": "https://github.com/fqxxzyw/yukino_desktop_pet",
+      "revision": "70269cfc0a82756d7730425a38e53233bdf90aed",
+      "path": "src/YukinoPet/voice/YukinoVoices.zip",
+      "gitBlobSha1": "ece51249bb44f5b59c807e01ec9f66bf50969f04",
+      "archiveSha256": "7b8b150e6b2593b43dd44bf476348b7a44ea0ab6c90d9bddc6a31cce1e2cb6bc",
+      "member": "A010ESS0_YUK039.ogg",
+      "memberSha256": "019a0ae015c2e3be92eabf2124c9bbd55866fc992251abc508f85558a6d652bc",
+      "conversion": "ffmpeg -i A010ESS0_YUK039.ogg -ar 32000 -ac 1 -c:a pcm_s16le yukino-reference.wav",
+      "convertedWavSha256": "35ae6c751e0231437e5ac2750f8a0228235c989b4d35aa983531f6e9293bb059",
+      "byteIdenticalToPreset": true
+    }
+  },
+  "transcriptVerification": {
+    "method": "two-model-local-asr-agreement",
+    "models": [
+      {
+        "id": "Systran/faster-whisper-small",
+        "revision": "536b0662742c02347bc0e980a01041f333bce120",
+        "device": "cpu",
+        "computeType": "int8"
+      },
+      {
+        "id": "Systran/faster-whisper-medium",
+        "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+        "device": "cpu",
+        "computeType": "int8"
+      }
+    ],
+    "humanListeningVerified": false,
+    "note": "两种本地日语 ASR 的正文一致；统一一つ/ひとつ字形并添加标点。没有人工听音验收记录。"
+  },
+  "reference": {
+    "sourcePath": "yukino-reference.wav",
+    "path": "reference/yukino-reference.wav",
+    "bytes": 197370,
+    "sha256": "35ae6c751e0231437e5ac2750f8a0228235c989b4d35aa983531f6e9293bb059",
+    "sampleRate": 32000,
+    "channels": 1
+  }
+}

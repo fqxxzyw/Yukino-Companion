@@ -215,5 +215,7 @@
         }
       ]
     }
-  }
+  },
+  "defaultVoicePack": "yukino-e2",
+  "defaultPreset": "voice-presets/yukino-default.json"
 }

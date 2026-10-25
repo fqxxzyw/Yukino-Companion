@@ -135,7 +135,7 @@ test('unexpected process exit exposes error and terminates pending operation',as
 });
 
 function fakeService(){
-  const clients=[];const service=new SpeechService({script:__filename,stateDir:require('node:os').tmpdir()});
+  const clients=[];const service=new SpeechService({script:__filename,stateDir:require('node:os').tmpdir(),readinessChecker:async()=>({configured:true,needsSetup:false,missing:[]})});
   service.makeWorker=async()=>{const client={closed:false,pending:null,loadGate:null,
     async request(method){if(method==='load')return {device:'cpu'};const d=deferred();this.pending=d;return d.promise},
     close(){this.closed=true;this.pending?.reject(Error('cancelled'));this.pending=null}};clients.push(client);return client};

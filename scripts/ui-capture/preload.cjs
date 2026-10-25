@@ -1,48 +1,72 @@
 // QA ONLY. This preload is never included in the application package.
 // It exercises the production renderer with deterministic, in-memory fixtures.
+// Download progress advances only when the QA runner explicitly supplies an event.
 const {contextBridge} = require('electron');
 const subscriptions = new Map();
-function on(name, fn) {
-  const listeners = subscriptions.get(name) || new Set();
-  listeners.add(fn); subscriptions.set(name, listeners);
-  return () => listeners.delete(fn);
-}
-function emit(name, value) { for (const fn of subscriptions.get(name) || []) fn(value); }
-const copy = value => JSON.parse(JSON.stringify(value));
-const zh = '先不必急着给今天下结论。\n\n把让你在意的那件事说清楚，我们再一起想办法。窗外的雨已经停了，留一点时间给自己，也没有什么不好。';
-const ja = '今日のことを、今すぐ結論づける必要はないわ。\n\n気になっていることを話してみて。一緒に考えましょう。外の雨も上がったし、自分のために少し時間を残してもいいでしょう。';
-let state = {
-  collapsed:false, side:'left', showAvatar:true, width:290, accent:'#477fd1', background:'#f1f6fc', reduce:true,
-  bubbleLanguage:'both', translationMode:'api',
-  profiles:[{id:'visual-qa',name:'界面验证 · 无网络请求',base:'https://example.invalid/v1',model:'已连接的对话模型'}],activeProfile:'visual-qa',
+function on(name, fn) {const listeners=subscriptions.get(name)||new Set();listeners.add(fn);subscriptions.set(name,listeners);return()=>listeners.delete(fn);}
+function emit(name,value) {for(const fn of subscriptions.get(name)||[])fn(value);}
+const copy=value=>JSON.parse(JSON.stringify(value));
+const zh='先不必急着给今天下结论。\n\n把让你在意的那件事说清楚，我们再一起想办法。窗外的雨已经停了，留一点时间给自己，也没有什么不好。';
+const ja='今日のことを、今すぐ結論づける必要はないわ。\n\n気になっていることを話してみて。一緒に考えましょう。外の雨も上がったし、自分のために少し時間を残してもいいでしょう。';
+let state={
+  collapsed:false,side:'left',showAvatar:true,width:290,accent:'#477fd1',background:'#f1f6fc',reduce:true,
+  bubbleLanguage:'both',translationMode:'api',chatMode:'api',setupDismissedVersion:'',
+  profiles:[{id:'visual-qa',name:'界面验证 · 无网络请求',providerId:'custom',base:'https://example.invalid/v1',model:'qa-chat'}],activeProfile:'visual-qa',
   conversations:[{id:'qa-conversation',title:'雨后的图书馆（界面测试）',messages:[
     {id:'qa-user',role:'user',content:'今天有点累，想先安静地待一会儿。'},
     {id:'qa-assistant',role:'assistant',content:zh,zh,ja,status:'done',translationStatus:'ready',source:'api'},
   ]}],activeConversation:null,personaEnabled:true,personaPromptMode:'detailed',persona:'',memory:'',useMemory:false,
 };
-let voice = {enabled:false,python:'C:\\Yukino\\resources\\python-runtime\\python.exe',root:'',gpt:'',sovits:'',reference:'',bert:'',hubert:'',ffmpeg:'',promptText:'',promptLang:'ja',textLang:'all_ja',version:'v1',device:'auto',half:false,cpuFallback:true,cpuThreads:4,speed:1,volume:.8,timeout:300};
-let companions = {mode:'none',closeAction:'ask',bubbleLanguage:'zh',position:'right',scale:1,alwaysOnTop:true,animation:true,modelReady:false,petReady:true,usage:{todayMs:5760000,sessionMs:1380000,totalMs:48960000}};
-let translation = {ready:true,available:true,phase:'unloaded',model:'tencent/Hy-MT2-1.8B-GGUF',modelBytes:1133107392,device:'auto',config:{python:'',modelDir:'',device:'auto',cpuThreads:4,cpuFallback:true,timeout:180}};
-const no = async () => undefined;
-const noNetwork = async () => { throw Error('界面截图模式不会访问网络或加载真实模型。'); };
-contextBridge.exposeInMainWorld('desktop', {
-  load:async()=>({state:copy(state),keyIds:[],character:{version:'1.1.0'}}),
-  save:async value=>{state=copy(value);},saveKey:no,test:async()=> '界面验证模式 · 未发送请求',
-  send:async request=>{emit('chunk',{id:request.id,text:zh});return {ok:true,bilingual:{zh,ja,translationStatus:'ready',source:'api'}};},
+let voice={enabled:false,python:'',root:'',gpt:'',sovits:'',reference:'',bert:'',hubert:'',ffmpeg:'',promptText:'',promptLang:'ja',textLang:'all_ja',version:'v1',device:'auto',half:false,cpuFallback:true,cpuThreads:4,speed:1,volume:.8,timeout:300};
+let companions={mode:'none',closeAction:'ask',bubbleLanguage:'zh',position:'right',scale:1,opacity:1,alwaysOnTop:true,animation:true,modelReady:false,petReady:true,voiceCount:2391,startupAvailable:true,usage:{todayMs:5760000,sessionMs:1380000,totalMs:48960000}};
+let translation={ready:false,available:false,phase:'unloaded',modelInstalled:true,runtimeAvailable:false,modelSource:'bundled',model:'tencent/Hy-MT2-1.8B-GGUF',modelBytes:1133107392,device:'auto',config:{python:'',modelDir:'',device:'auto',cpuThreads:4,cpuFallback:true,timeout:180}};
+let local={phase:'unloaded',modelInstalled:true,runtimeAvailable:false,available:false,ready:false,model:'雪乃本地角色模型 · 1.5B',config:{device:'auto',cpuFallback:true,maxNewTokens:256,cpuThreads:4,python:'',modelDir:''}};
+let setup={phase:'idle',ready:false,steps:[
+  {id:'runtime',state:'missing',detail:'界面验证场景：需要公共 Python 与推理依赖'},
+  {id:'chat',state:'ready',detail:'已找到随安装包提供的 1.5B 角色权重'},
+  {id:'translation',state:'ready',detail:'已找到随安装包提供的 Hy-MT2 翻译权重'},
+  {id:'voiceCore',state:'missing',detail:'需要 BERT 与 HuBERT 公共语音模型'},
+  {id:'voicePreset',state:'ready',detail:'已找到默认音色与 3.08 秒日语参考声音'},
+]};
+let setupResolve;
+let keyIds=['visual-qa'];
+const no=async()=>undefined;
+const noNetwork=async()=>{throw Error('界面截图模式不会访问网络或加载真实模型。');};
+const voiceStatus=()=>({phase:'unloaded',configured:false,needsSetup:true,missing:[{key:'python',label:'公共运行环境'},{key:'bert',label:'语音公共模型'}],message:'语音资源尚未准备好，请完成声音配置。'});
+const updateCompanions=patch=>{companions={...companions,...copy(patch)};emit('companion-state',copy(companions));return copy(companions);};
+contextBridge.exposeInMainWorld('desktop',{
+  load:async()=>({state:copy(state),keyIds:[...keyIds],character:{version:'1.1.0'}}),
+  save:async value=>{state=copy(value);},saveKey:async(id,key)=>{keyIds=key.trim()?[...new Set([...keyIds,id])]:keyIds.filter(value=>value!==id);},test:async()=> '界面验证模式 · 未发送请求',
+  apiProviders:async()=>[
+    {id:'deepseek',name:'DeepSeek',base:'https://api.deepseek.com',note:'界面验证目录，不发送请求。'},
+    {id:'openai',name:'OpenAI',base:'https://api.openai.com/v1',note:'界面验证目录，不发送请求。'},
+    {id:'custom',name:'自定义兼容服务',base:'',keyOptional:true,note:'界面验证目录，不发送请求。'},
+  ],
+  apiModels:async()=>({status:'ok',verified:true,message:'界面验证：已载入 2 个合成测试模型，未发送网络请求。',models:[{id:'qa-chat',name:'界面测试对话模型'},{id:'qa-vision',name:'界面测试视觉模型'}]}),
+  send:async request=>{emit('chunk',{id:request.id,text:zh});return{ok:true,bilingual:{zh,ja,translationStatus:'ready',source:request.mode==='local'?'local':'api'}};},
   stop:no,window:async action=>{if(action==='close')emit('close');},openCommunity:no,
   characterDocument:async()=>({version:'1.1.0',text:'界面验证仅使用占位文本。正式角色档案由生产主进程提供。'}),
   characterPreview:async()=>({characters:4810,mode:'detailed',enabled:true,local:false}),
   onChunk:fn=>on('chunk',fn),onError:fn=>on('error',fn),
-  voiceResources:async()=>({phase:'idle',bundled:true,packs:Array.from({length:5},(_,i)=>({id:`yukino-e${i+1}`,kind:'voice',label:`雪乃 · GPT e${i+1} / SoVITS e1（v1）`}))}),
+  voiceResources:async()=>({phase:'idle',bundled:false,coreReady:false,preset:{durationSeconds:3.083},packs:Array.from({length:5},(_,i)=>({id:`yukino-e${i+1}`,kind:'voice',bundled:i===1,installed:i===1,label:`雪乃 · GPT e${i+1} / SoVITS e1（v1）`}))}),
   voiceInstall:noNetwork,voiceDownloadCancel:no,onVoiceDownload:fn=>on('voice-download',fn),
   voiceSettings:async()=>copy(voice),voiceSave:async value=>{voice=copy(value);return copy(voice);},
-  voiceStatus:async()=>({phase:'unloaded'}),voiceProbe:async()=>({torch:'界面测试',cudaAvailable:false,devices:[]}),
+  voiceStatus:async()=>voiceStatus(),voiceProbe:async()=>({torch:'界面测试',cudaAvailable:false,devices:[]}),
   voiceLoad:noNetwork,voiceUnload:no,voiceBegin:no,voiceSynthesize:noNetwork,voiceStop:no,voicePick:async()=>null,
   onVoiceStatus:fn=>on('voice-status',fn),
   translate:async()=>({text:ja,source:'zh',target:'ja',device:'qa-fixture'}),
   translationStatus:async()=>copy(translation),translationSave:async config=>{translation.config=copy(config);return copy(translation);},
   translationInstall:noNetwork,translationCancel:no,translationPick:async()=>null,onTranslationStatus:fn=>on('translation-status',fn),
-  companionState:async()=>copy(companions),companionSet:async patch=>{companions={...companions,...copy(patch)};emit('companion-state',copy(companions));return copy(companions);},
-  closeChoice:no,onCompanionState:fn=>on('companion-state',fn),onCloseRequested:fn=>on('close',fn),
-  onFlushState:fn=>on('flush',fn),flushComplete:no,
+  localChatSettings:async()=>copy(local.config),localChatSave:async config=>{local.config=copy(config);return copy(local);},localChatStatus:async()=>copy(local),
+  localChatLoad:async()=>{local={...local,phase:'ready',ready:true,metadata:{device:'cpu'}};emit('local-status',copy(local));return copy(local);},
+  localChatUnload:async()=>{local={...local,phase:'unloaded',ready:false};emit('local-status',copy(local));return copy(local);},
+  localChatProbe:async()=>({gpuRuntimeAvailable:false}),onLocalChatStatus:fn=>on('local-status',fn),
+  setupStatus:async()=>copy(setup),onSetupStatus:fn=>on('setup-status',fn),
+  setupInstall:async()=>{setup={...setup,phase:'installing',steps:setup.steps.map(step=>step.id==='runtime'?{...step,state:'downloading',bytes:268435456,total:1073741824}:step)};emit('setup-status',copy(setup));return new Promise(resolve=>{setupResolve=resolve;});},
+  setupCancel:async()=>{setup={...setup,phase:'idle',steps:setup.steps.map(step=>step.id==='runtime'?{...step,state:'missing'}:step)};emit('setup-status',copy(setup));setupResolve?.(copy(setup));setupResolve=null;return copy(setup);},
+  qaCompleteSetup:async()=>{setup={...setup,phase:'ready',ready:true,steps:setup.steps.map(step=>({...step,state:'ready'}))};local={...local,runtimeAvailable:true,available:true};translation={...translation,runtimeAvailable:true,available:true};emit('setup-status',copy(setup));emit('local-status',copy(local));emit('translation-status',copy(translation));setupResolve?.(copy(setup));setupResolve=null;},
+  companionState:async()=>copy(companions),companionSet:async patch=>updateCompanions(patch),
+  companionAction:async action=>updateCompanions(action.startsWith('focus-')?{focus:action==='focus-cancel'?{active:false}:{active:true,remainingMs:Number(action.slice(6))*60000}}:{mode:'pet',lastAction:action}),
+  closeChoice:async(mode,options={})=>updateCompanions({mode:mode==='quit'?'none':mode,...(options.remember?{closeAction:mode}:{})}),
+  onCompanionState:fn=>on('companion-state',fn),onOpenSettings:fn=>on('open-settings',fn),onCloseRequested:fn=>on('close',fn),onFlushState:fn=>on('flush',fn),flushComplete:no,
 });

@@ -1,0 +1,65 @@
+{
+  "source": {
+    "archive": "YUKINO.zip",
+    "member": "YUKINO/A010ESS0_YUK039.ogg",
+    "archiveSha256": "2a4f08969fd1d294d3b22d1d20871077f21d1bf793688f37cee05db5ced297e4",
+    "originalSha256": "019a0ae015c2e3be92eabf2124c9bbd55866fc992251abc508f85558a6d652bc"
+  },
+  "selected": "一つ思うところがあるのだけれど、いいかしら。",
+  "durationSeconds": 3.082688,
+  "referenceFormat": {
+    "sampleRate": 32000,
+    "channels": 1,
+    "sampleWidth": 2
+  },
+  "measurements": {
+    "meanDb": -15.3,
+    "peakDb": -1.0,
+    "terminalSilenceSeconds": 0.2035
+  },
+  "models": [
+    {
+      "id": "Systran/faster-whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120",
+      "device": "cpu",
+      "computeType": "int8"
+    },
+    {
+      "id": "Systran/faster-whisper-medium",
+      "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+      "device": "cpu",
+      "computeType": "int8"
+    }
+  ],
+  "observations": [
+    {
+      "file": "A010ESS0_YUK039.ogg",
+      "model": "Systran/faster-whisper-small",
+      "seconds": 2.01,
+      "segments": [
+        {
+          "text": "一つ思うところがあるのだけれどいいかしら",
+          "start": 0.0,
+          "end": 4.76,
+          "avg_logprob": -0.2612986084487703,
+          "no_speech_prob": 0.07118464261293411
+        }
+      ]
+    },
+    {
+      "file": "A010ESS0_YUK039.ogg",
+      "model": "Systran/faster-whisper-medium",
+      "seconds": 7.87,
+      "segments": [
+        {
+          "text": "ひとつ思うところがあるのだけれど、いいかしら",
+          "start": 0.0,
+          "end": 3.0,
+          "avg_logprob": -0.24947940409183503,
+          "no_speech_prob": 0.24913956224918365
+        }
+      ]
+    }
+  ],
+  "humanListeningVerified": false
+}

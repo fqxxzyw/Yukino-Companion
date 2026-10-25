@@ -22,5 +22,17 @@
       "bytes": 3175,
       "sha256": "41c4419998c6afb5dd86516356bef51a607eb2b27cb5cf1415e4e2384ff08e41"
     }
-  ]
+  ],
+  "quotes": {
+    "path": "src/YukinoPet/quotes.json",
+    "count": 38,
+    "sha256": "3bc71d35038fc71650051278f1d60a5be52290698cdb060ef17be9b46c548c74"
+  },
+  "voiceArchive": {
+    "path": "src/YukinoPet/voice/YukinoVoices.zip",
+    "bytes": 80380288,
+    "sha256": "7b8b150e6b2593b43dd44bf476348b7a44ea0ab6c90d9bddc6a31cce1e2cb6bc",
+    "clips": 2391,
+    "uncompressedBytes": 81392721
+  }
 }

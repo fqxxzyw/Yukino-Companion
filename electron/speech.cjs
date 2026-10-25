@@ -81,13 +81,49 @@ class WorkerClient {
   }
 }
 
-class SpeechService {
-  constructor({ script, stateDir, notify = () => {}, workerFactory = options => new WorkerClient(options) }) {
-    Object.assign(this, { script, stateDir, notify, workerFactory });
-    this.worker = null; this.config = null; this.session = null; this.loading = null; this.epoch = 0;
-    this.status = { phase: 'unloaded' }; this.probes = new Set();
+const CONFIG_LABELS = Object.freeze({python:'语音运行环境',root:'语音推理组件',gpt:'GPT 音色权重',sovits:'SoVITS 音色权重',reference:'参考音频',bert:'BERT 公共模型',hubert:'HuBERT 公共模型',promptText:'参考音频对应文本'});
+async function voiceReadiness(input) {
+  const config=validateSettings(input), missing=[];
+  for (const key of ['python','root','gpt','sovits','reference','bert','hubert']) {
+    const filename=config[key];
+    if(!filename){missing.push({key,label:CONFIG_LABELS[key],reason:'not-selected'});continue;}
+    try {
+      const stat=await fs.stat(filename), directory=['root','bert','hubert'].includes(key);
+      if(directory?!stat.isDirectory():!stat.isFile())throw Error('wrong-kind');
+      const children=key==='root'?['GPT_SoVITS/TTS_infer_pack/TTS.py']:key==='bert'?['config.json','pytorch_model.bin','tokenizer.json']:key==='hubert'?['config.json','pytorch_model.bin','preprocessor_config.json']:[];
+      for(const child of children){const part=await fs.stat(path.join(filename,child));if(!part.isFile()||part.size===0)throw Error('incomplete');}
+    }catch{missing.push({key,label:CONFIG_LABELS[key],reason:'missing-file'});}
   }
-  update(phase, extra = {}) { this.status = { phase, ...extra }; this.notify(this.status); }
+  if(!config.promptText.trim())missing.push({key:'promptText',label:CONFIG_LABELS.promptText,reason:'not-selected'});
+  return {configured:missing.length===0,needsSetup:missing.length>0,missing,
+    message:missing.length?'语音尚未准备好：'+missing.map(item=>item.label).join('、')+'。请打开“声音与语音”完成一键配置。':'语音资源已准备好，首次朗读时会自动加载。'};
+}
+
+class SpeechService {
+  constructor({ script, stateDir, notify = () => {}, workerFactory = options => new WorkerClient(options), readinessChecker = voiceReadiness }) {
+    Object.assign(this, { script, stateDir, notify, workerFactory, readinessChecker });
+    this.worker = null; this.config = null; this.session = null; this.loading = null; this.epoch = 0;
+    this.readinessState = {configured:false,needsSetup:true,missing:[],message:'尚未检查语音资源。'};
+    this.status = { phase: 'unloaded', ...this.readinessState }; this.probes = new Set();
+  }
+  update(phase, extra = {}) { this.status = { phase, ...this.readinessState, ...extra }; this.notify(this.status); }
+  configure(input) {
+    const config=validateSettings(input),ignored=new Set(['enabled','volume']);
+    if(!this.config||Object.keys(config).some(key=>!ignored.has(key)&&config[key]!==this.config[key]))this.unload();
+    this.config=config;
+    return config;
+  }
+  async readiness(input=this.config||DEFAULTS) {
+    const result=await this.readinessChecker(input);
+    this.readinessState=result;this.status={...this.status,...result};
+    return this.status;
+  }
+  async prepare(input) {
+    this.configure(input);
+    const status=await this.readiness();
+    if(!status.configured)throw Error(status.message);
+    return this.ensureLoaded();
+  }
   async makeWorker(config) {
     await fs.access(config.python); await fs.access(this.script);
     return this.workerFactory({ python: config.python, script: this.script, cwd: config.root || this.stateDir });
@@ -106,7 +142,7 @@ class SpeechService {
   async load(input) {
     const config = validateSettings(input);
     for (const key of ['python', 'root', 'gpt', 'sovits', 'reference', 'bert', 'hubert']) {
-      if (!config[key]) throw Error(`请先选择 ${key}`);
+      if (!config[key]) throw Error(`语音尚未准备好：${CONFIG_LABELS[key]}。请打开“声音与语音”完成一键配置。`);
     }
     this.unload(); this.config = config;
     return this.ensureLoaded();
@@ -114,10 +150,14 @@ class SpeechService {
   async ensureLoaded() {
     if (this.loading) return this.loading;
     if (this.worker && !this.worker.closed) return this.status;
-    if (!this.config) throw Error('请先配置并加载语音模型');
+    if (!this.config) throw Error('语音尚未准备好。请打开“声音与语音”完成一键配置。');
     const epoch = this.epoch, config = this.config;
     this.update('loading');
     const promise = (async () => {
+      const ready=await this.readinessChecker(config);
+      if(epoch!==this.epoch)throw Error('加载已取消');
+      this.readinessState=ready;
+      if(!ready.configured)throw Error(ready.message);
       await fs.mkdir(this.stateDir, { recursive: true });
       const client = await this.makeWorker(config);
       if (epoch !== this.epoch) { client.close(); throw Error('加载已取消'); }
@@ -175,4 +215,4 @@ function assertJapaneseSpeech(text) {
     throw Error('语音仅接受日语译文；请等待翻译完成，或使用包含假名的完整日语句子。');
   }
 }
-module.exports = { DEFAULTS, validateSettings, assertJapaneseSpeech, WorkerClient, SpeechService };
+module.exports = { DEFAULTS, CONFIG_LABELS, validateSettings, voiceReadiness, assertJapaneseSpeech, WorkerClient, SpeechService };

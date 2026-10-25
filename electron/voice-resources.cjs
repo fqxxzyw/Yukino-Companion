@@ -27,28 +27,55 @@ function safeDestination(root, relative) {
 }
 
 class VoiceResources {
-  constructor({ root, catalog, fetcher=fetch, notify=()=>{} }) {
-    Object.assign(this,{root,catalog,fetcher,notify});this.controller=null;this.status={phase:'idle'};
+  constructor({ root, catalog, bundledRoot=null, bundledPackId=null, fetcher=fetch, notify=()=>{} }) {
+    Object.assign(this,{root,catalog,bundledRoot,bundledPackId,fetcher,notify});this.controller=null;this.status={phase:'idle'};
   }
   emit(status){this.status=status;this.notify(status)}
-  summary(){return { ...this.status, root:this.root,packs:Object.entries(this.catalog.packs).map(([id,p])=>({id,label:p.label,kind:p.kind||'core',version:p.version,requiresReference:Boolean(p.requiresReference),bytes:p.files.reduce((n,f)=>n+f.bytes,0)})) }}
+  summary(){return { ...this.status, root:this.root,packs:Object.entries(this.catalog.packs).map(([id,p])=>({id,label:p.label,kind:p.kind||'core',version:p.version,requiresReference:Boolean(p.requiresReference),bundled:id===this.bundledPackId,bytes:p.files.reduce((n,f)=>n+f.bytes,0)})) }}
+  async packAvailable(pack,root,{hash=false}={}) {
+    if(!root)return false;
+    for(const file of pack.files){
+      const item=file.extract?{path:file.extract.path,bytes:file.extract.bytes,algorithm:'sha256',digest:file.extract.digest}:file;
+      const filename=safeDestination(root,item.path);
+      if(hash){if(!await verified(filename,item))return false;}
+      else {try{const stat=await fs.stat(filename);if(!stat.isFile()||stat.size!==item.bytes)return false;}catch{return false;}}
+    }
+    return true;
+  }
+  async inspect() {
+    const summary=this.summary();
+    for(const item of summary.packs){
+      const pack=this.catalog.packs[item.id];
+      item.bundled=pack.kind==='voice'&&item.id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot);
+      item.installed=item.bundled||await this.packAvailable(pack,this.root);
+    }
+    summary.coreReady=Boolean(summary.packs.find(pack=>pack.id==='core')?.installed);
+    return summary;
+  }
   async install(id='core') {
     const pack=this.catalog.packs[id];if(!pack)throw Error('未知公共模型组件');
     if(this.controller)throw Error('已有资源下载进行中');
     const controller=new AbortController();this.controller=controller;
     const total=pack.files.reduce((n,f)=>n+f.bytes,0);let complete=0;
     try {
+    if(pack.kind==='voice'&&id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot,{hash:true})){
+      controller.signal.throwIfAborted();
+      this.emit({phase:'complete',source:'bundled',packId:id,received:0,total:0});
+      return {gpt:safeDestination(this.bundledRoot,pack.paths.gpt),sovits:safeDestination(this.bundledRoot,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
+    }
       await fs.mkdir(this.root,{recursive:true});
       for(const file of pack.files){
         controller.signal.throwIfAborted();
         const dest=safeDestination(this.root,file.path);
         this.emit({phase:'checking',file:file.path,received:complete,total});
-        if(await verified(dest,file)){complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);continue}
+        if(await verified(dest,file)){complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);controller.signal.throwIfAborted();continue}
+        controller.signal.throwIfAborted();
         const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<file.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');
         await fs.mkdir(path.dirname(dest),{recursive:true});
         const part=dest+'.part';let offset=0;
         try{offset=(await fs.stat(part)).size}catch(e){if(e.code!=='ENOENT')throw e}
         if(offset>=file.bytes){await fs.rm(part,{force:true});offset=0}
+        controller.signal.throwIfAborted();
         const response=await this.fetcher(file.url,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(1800000)]),headers:offset?{Range:`bytes=${offset}-`}:{}});
         if(!response.ok||!response.body)throw Error(`下载失败 HTTP ${response.status}：${file.path}`);
         if(offset&&response.status===200)offset=0;
@@ -69,6 +96,7 @@ class VoiceResources {
         await fs.rm(dest,{force:true});await fs.rename(part,dest);complete+=file.bytes;
         await this.extract(file,dest,controller.signal,complete,total);
       }
+      controller.signal.throwIfAborted();
       this.emit({phase:'complete',received:total,total});
       if(pack.kind==='voice')return {gpt:safeDestination(this.root,pack.paths.gpt),sovits:safeDestination(this.root,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
       return {bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')};

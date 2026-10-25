@@ -1,31 +1,49 @@
-name: Windows full release
+name: Windows 0.4.0 complete model release
 on:
   push:
-    branches: [release/0.3.0-glass]
-    paths-ignore: ['docs/**', '**.md']
+    branches: [release/0.4.0-local]
   workflow_dispatch:
     inputs:
       confirm_publish:
-        description: 'Build and publish a Windows EXE release'
+        description: 'Publish EXE and complete payload before slow validation'
         type: boolean
         default: false
-      runtime_flavor:
-        description: 'Embedded PyTorch runtime (CPU universal / NVIDIA CUDA 12.4)'
-        type: choice
-        options: [cpu, cu124]
-        default: cpu
+      release_tag:
+        description: 'Existing v0.4.0 prerelease tag, or empty for v0.4.0-local.RUN'
+        type: string
+        default: ''
+      local_model_url:
+        description: 'Optional trained GGUF ZIP override; prefer repository secret for private URLs'
+        type: string
+        default: ''
 permissions:
   contents: write
 concurrency:
   group: windows-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  release:
-    if: ${{ github.event_name == 'push' || inputs.confirm_publish == true }}
+  metadata:
+    if: ${{ github.event_name == 'push' || inputs.confirm_publish }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        env:
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        run: |
+          python - <<'PY'
+          import os, re
+          tag = os.environ['REQUESTED_TAG'] or 'v0.4.0-local.${{ github.run_number }}'
+          if not re.fullmatch(r'v0\.4\.0[A-Za-z0-9._-]*', tag):
+              raise SystemExit('Use a safe v0.4.0 release tag')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('tag=' + tag + '\n')
+          PY
+  source_checks:
+    needs: metadata
     runs-on: windows-2022
-    timeout-minutes: 120
-    env:
-      RUNTIME_FLAVOR: ${{ inputs.runtime_flavor || 'cpu' }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,79 +53,279 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --no-audit --no-fund
-      - name: Build and capture actual Electron UI
+      - run: npm test
+      - run: python -m unittest discover -s tests -p '*_test.py'
+      - run: python -m pip install pytest
+      - run: python -m pytest model-service/tests/test_desktop_worker.py -q
+      - run: npm run build
+      - run: npm run qa:ui
+      - run: npm run qa:pet
+      - name: Compile and test the bootstrap installer with tiny fixtures
         run: |
-          npm run build
+          choco install nsis --version=3.11 --yes --no-progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run qa:ui
-      - name: Upload UI review images
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/smoke-windows-bootstrap.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: windows-ui-review-${{ github.run_number }}
-          path: build/ui-review
+          name: windows-source-ui-checks-${{ github.run_number }}
+          path: |
+            build/ui-review
+            build/pet-ui-review
+            build/bootstrap-review
           if-no-files-found: warn
+  model:
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      YUKINO_LOCAL_MODEL_ARCHIVE_URL: ${{ inputs.local_model_url || secrets.YUKINO_LOCAL_MODEL_ARCHIVE_URL || vars.YUKINO_LOCAL_MODEL_ARCHIVE_URL }}
+      RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Obtain the actual model from an authorized Release asset or explicit URL
+        run: |
+          if [ -n "$YUKINO_LOCAL_MODEL_ARCHIVE_URL" ]; then
+            echo "::add-mask::$YUKINO_LOCAL_MODEL_ARCHIVE_URL"
+            python scripts/prepare-local-model.py
+          else
+            mkdir -p build/model-input
+            if ! gh release download "$RELEASE_TAG" --pattern 'Yukino-Local-1.5B-Persona-0.4.0.zip' --dir build/model-input; then
+              echo '::error::The actual trained GGUF is not yet available as a Release asset. Upload Yukino-Local-1.5B-Persona-0.4.0.zip to this tag, or provide an explicitly authorized HTTPS model URL. No placeholder model or incomplete application will be published. Independent source/UI/runtime checks continue.'
+              exit 1
+            fi
+            python scripts/prepare-local-model.py --archive build/model-input/Yukino-Local-1.5B-Persona-0.4.0.zip
+          fi
+      - name: Archive the verified model for Windows and separate Release download
+        run: |
+          python - <<'PYCODE'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          root=Path('resources/local-model/yukino-1.5b-persona-q4'); Path('build/model-distribution').mkdir(parents=True,exist_ok=True)
+          with ZipFile('build/model-distribution/Yukino-Local-1.5B-Persona-0.4.0.zip','w',compression=ZIP_DEFLATED,allowZip64=True) as bundle:
+              for source in sorted(root.rglob('*')):
+                  if source.is_file(): bundle.write(source,source.relative_to(root))
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actual-trained-local-model
+          path: build/model-distribution/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+  runtime:
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [cpu, cu124]
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      RUNTIME_FLAVOR: ${{ matrix.flavor }}
+      RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Set supported MSVC for CUDA 12.4
-        if: ${{ env.RUNTIME_FLAVOR == 'cu124' }}
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        if: matrix.flavor == 'cu124'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
         with:
           arch: x64
           toolset: '14.29'
       - name: Install CUDA build toolkit
-        if: ${{ env.RUNTIME_FLAVOR == 'cu124' }}
-        uses: Jimver/cuda-toolkit@433d453c1fa37d10a3254452fa8e284441c9192d # v0.2.27
+        if: matrix.flavor == 'cu124'
+        uses: Jimver/cuda-toolkit@433d453c1fa37d10a3254452fa8e284441c9192d
         with:
           cuda: '12.4.1'
           method: network
           sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
-      - name: Prepare and smoke-test embedded inference runtime
+      - name: Build shared Python and both inference engines
+        id: runtime_build
         run: python scripts/build_windows_runtime.py --flavor $env:RUNTIME_FLAVOR
-      - name: Prepare pinned offline translation resources
-        run: npm run prepare:translation
-      - name: Package Windows executable
-        run: npm run dist:win
+      - name: Package independent runtime ZIP64 parts
+        id: runtime_package
+        run: python scripts/package-runtime.py --flavor $env:RUNTIME_FLAVOR --tag $env:RELEASE_TAG
+      - name: Cache pinned public speech core weights
+        if: matrix.flavor == 'cpu'
+        uses: actions/cache@v4
+        with:
+          path: build/voice-smoke-models
+          key: windows-cpu-voice-core-${{ hashFiles('resources/voice-models.json') }}
+      - name: Prepare real CPU translation model independently of the character model
+        id: prepare_translation
+        if: ${{ !cancelled() && matrix.flavor == 'cpu' && steps.runtime_build.outcome == 'success' }}
+        run: python translation/prepare.py
+      - name: Prepare the bundled voice and reference independently of the character model
+        id: prepare_voice
+        if: ${{ !cancelled() && matrix.flavor == 'cpu' && steps.runtime_build.outcome == 'success' }}
+        run: python scripts/prepare-bundled-voice.py
+      - name: Independently test real Windows CPU Chinese to Japanese translation
+        if: ${{ !cancelled() && matrix.flavor == 'cpu' && steps.prepare_translation.outcome == 'success' }}
+        run: '& build/python-runtime/python.exe -X utf8 translation/smoke.py --model-dir translation/models/hy-mt2-1.8b-q4 --device cpu --report build/cpu-inference-review/translation.json'
+      - name: Independently synthesize real Japanese with the bundled voice on CPU
+        if: ${{ !cancelled() && matrix.flavor == 'cpu' && steps.prepare_voice.outcome == 'success' }}
+        run: python scripts/smoke_bundled_voice.py --runtime-root build --voice-root build/bundled-voice --download-core --report build/cpu-inference-review/voice.json --audio build/cpu-inference-review/japanese.wav
+      - name: Keep independent CPU inference evidence even when another job fails
+        if: ${{ always() && matrix.flavor == 'cpu' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cpu-inference-evidence-${{ github.run_number }}
+          path: build/cpu-inference-review
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.runtime_package.outcome == 'success' }}
+        with:
+          name: inference-runtime-${{ matrix.flavor }}
+          path: build/runtime-distribution/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+  release:
+    needs: [metadata, runtime, model]
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      PYTHONUTF8: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: inference-runtime-*
+          merge-multiple: true
+          path: build/runtime-distribution
+      - uses: actions/download-artifact@v4
+        with:
+          name: actual-trained-local-model
+          path: build/model-distribution
+      - name: Merge runtime catalogs and verify actual trained GGUF
+        run: |
+          python scripts/package-runtime.py --merge build/runtime-distribution/runtime-catalog-cpu.json build/runtime-distribution/runtime-catalog-cu124.json --output build/runtime-distribution
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/prepare-local-model.py --archive build/model-distribution/Yukino-Local-1.5B-Persona-0.4.0.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prepare translation, default voice, reference and complete pet
+        run: |
+          npm run prepare:translation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run prepare:voice
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run dist:win
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Verify packaged resources and executable
+      - name: Verify all bundled resources and build full ZIP64 payload
         run: |
           npm run verify:characters
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run verify:offline
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/verify-release-assets.cjs
-      - name: Publish executable before post-release tests
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "v0.3.0-glass.${{ github.run_number }}"
-          Copy-Item docs/releases/v0.3.0.md build/release-notes.md
-          Add-Content build/release-notes.md "`n构建：${{ github.sha }} · 运行环境：$env:RUNTIME_FLAVOR · [验证记录](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})。EXE 已上传，发布后测试结果见此记录。"
-          Add-Content build/release-notes.md "`n界面截图（演示数据）：`n![主界面](https://github.com/${{ github.repository }}/releases/download/$tag/01-home.png)`n![声音设置](https://github.com/${{ github.repository }}/releases/download/$tag/06-voice-settings.png)"
-          gh release create $tag release/*.exe release/SHA256SUMS.txt release/release-assets.json branding/app-icon.ico public/yukino-icon.png build/ui-review/01-home.png build/ui-review/04-appearance-settings.png build/ui-review/06-voice-settings.png --target "${{ github.sha }}" --title "Yukino Companion 0.3.0 · 雪蓝玻璃 ${{ github.run_number }}" --prerelease --notes-file build/release-notes.md
+          python scripts/package-app-payload.py --tag $env:RELEASE_TAG
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Post-release tests
+      - name: Build small installer with progress and cancellation
+        run: |
+          choco install nsis --version=3.11 --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run package:bootstrap
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/verify-release-assets.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish EXE first and mark full validation pending
+        run: |
+          Copy-Item docs/releases/v0.4.0.md build/release-notes.md
+          Add-Content build/release-notes.md "`n**验证状态：未完成。** EXE 与完整分卷优先上传，真实 Windows 测试进行中。构建：${{ github.sha }} · [验证记录](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})。"
+          gh release view $env:RELEASE_TAG --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG release/Yukino-Companion-0.4.0-Setup.exe --target '${{ github.sha }}' --title 'Yukino Companion 0.4.0 · 本地对话与完整桌宠' --prerelease --notes-file build/release-notes.md
+          } else {
+            gh release upload $env:RELEASE_TAG release/Yukino-Companion-0.4.0-Setup.exe --clobber
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            gh release edit $env:RELEASE_TAG --prerelease --title 'Yukino Companion 0.4.0 · 本地对话与完整桌宠' --notes-file build/release-notes.md
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'PUBLISHED=true' | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $assets = @(Get-ChildItem release -File | Where-Object { $_.Name -match '\.part\d+$|\.json$|SHA256SUMS.txt$' } | ForEach-Object FullName)
+          $assets += @(Get-ChildItem build/runtime-distribution,build/model-distribution -File | ForEach-Object FullName)
+          gh release upload $env:RELEASE_TAG @assets --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Node and Python unit and integration tests after upload
         run: |
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s tests -p '*_test.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & release/win-unpacked/resources/python-runtime/python.exe -X utf8 release/win-unpacked/resources/translation/smoke.py --model-dir release/win-unpacked/resources/translation-models/hy-mt2-1.8b-q4 --device cpu --report release/translation-windows-smoke.json
-      - name: Record successful release validation
-        env:
-          GH_TOKEN: ${{ github.token }}
+          python -m pip install pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest model-service/tests/test_desktop_worker.py -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Capture actual Electron and companion UI
         run: |
-          Add-Content build/release-notes.md "`n发布后验证通过：Node 与 Python 测试、实际安装包内 Python + GGUF 的 Windows CPU 中日翻译。UI 截图见验证记录的 Artifacts。未验证用户音色的完整合成（仍需参考音频）。"
+          npm run qa:ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run qa:pet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify installer installs local parts without downloading
+        run: |
+          $extractor = node -p "require('7zip-bin').path7za"
+          powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/install-app-payload.ps1 -Catalog release/app-payload.json -SourceDirectory release -Target "$env:RUNNER_TEMP\Yukino-Installed" -Extractor $extractor -Headless -Offline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/verify-offline-package.cjs "$env:RUNNER_TEMP\Yukino-Installed\resources"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item "$env:RUNNER_TEMP\Yukino-Installed" -Recurse -Force
+      - name: Verify and extract distributed CPU runtime for real inference
+        run: python scripts/unpack-runtime-for-test.py --directory build/runtime-distribution --output build/verified-runtime --flavor cpu
+      - name: Real local character loading and generation from the shipped GGUF
+        run: node model-service/scripts/evaluate_desktop.cjs --python build/verified-runtime/python-runtime/python.exe --model release/win-unpacked/resources/local-model/yukino-1.5b-persona-q4 --output release/local-chat-windows-smoke.json
+      - name: Real CPU Chinese to Japanese translation
+        run: '& build/verified-runtime/python-runtime/python.exe -X utf8 release/win-unpacked/resources/translation/smoke.py --model-dir release/win-unpacked/resources/translation-models/hy-mt2-1.8b-q4 --device cpu --report release/translation-windows-smoke.json'
+      - name: Real bundled Japanese speech with pinned core resources
+        run: python scripts/smoke_bundled_voice.py --runtime-root build/verified-runtime --voice-root release/win-unpacked/resources/voice-models --download-core --report release/voice-smoke/report.json --audio release/voice-smoke/japanese.wav
+      - name: Record successful validation
+        run: |
+          Copy-Item docs/releases/v0.4.0.md build/release-notes.md
+          Add-Content build/release-notes.md "`n**验证状态：Windows CPU 检查通过。** Node/Python 测试、真实 Electron 与桌宠截图、分卷离线安装、发行包 CPU 中日翻译和默认音色日语合成已通过。合成确认真实加载及有效非静音 PCM，不等同于人工音质评价。CUDA 包完成构建和导入验证，尚未在 NVIDIA 实机执行推理。`n[验证记录](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) · 构建 ${{ github.sha }}。"
           gh release edit $env:RELEASE_TAG --notes-file build/release-notes.md
-          gh release upload $env:RELEASE_TAG release/translation-windows-smoke.json
-      - name: Upload release evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item release/voice-smoke/report.json release/voice-windows-smoke.json
+          $evidence = @('release/local-chat-windows-smoke.json', 'release/translation-windows-smoke.json', 'release/voice-smoke/japanese.wav', 'release/voice-windows-smoke.json')
+          $evidence += @(Get-ChildItem build/ui-review,build/pet-ui-review -Filter '*.png' | ForEach-Object FullName)
+          gh release upload $env:RELEASE_TAG @evidence --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Keep an honest failed-validation status
+        if: ${{ failure() && env.PUBLISHED == 'true' }}
+        run: |
+          Copy-Item docs/releases/v0.4.0.md build/release-notes.md
+          Add-Content build/release-notes.md "`n**验证状态：未通过，暂不建议作为稳定版安装。** 发布后的检查失败；EXE 保留用于复现。请查看[失败步骤与证据](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})，不要将上传视为验证通过。"
+          gh release edit $env:RELEASE_TAG --notes-file build/release-notes.md
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: windows-release-evidence-${{ github.run_number }}
+          name: windows-0.4.0-evidence-${{ github.run_number }}
           path: |
+            build/ui-review
+            build/pet-ui-review
             release/SHA256SUMS.txt
             release/release-assets.json
+            release/app-payload.json
             release/translation-windows-smoke.json
+            release/local-chat-windows-smoke.json
+            release/voice-smoke
           if-no-files-found: warn

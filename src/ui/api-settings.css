@@ -1,0 +1,23 @@
+.api-settings{min-width:0;color:var(--text)}
+.api-intro{display:flex;align-items:flex-start;gap:12px;padding:18px 19px;border:1px solid var(--line);border-radius:17px;background:var(--surface-soft)}
+.api-intro>svg{color:var(--accent-text);flex:none;margin-top:2px}
+.api-intro strong{font-size:14px;font-weight:600}.api-intro p{margin:6px 0 0;font-size:12px;line-height:1.75;color:var(--secondary)}
+.api-settings .field{position:relative}.api-settings .field>small{line-height:1.7}
+.api-settings .api-add{padding:0 13px;display:grid;place-items:center;min-width:44px}
+.api-saved{position:absolute;right:0;top:0;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;color:var(--secondary)}
+.api-discover{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px}
+.api-settings .api-model-field{margin-top:24px}
+.api-search{position:relative}.api-search>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--secondary);pointer-events:none}
+.api-settings .api-search input{padding-left:36px}
+.api-advanced-toggle{display:flex;gap:5px;align-items:center;font-size:12px;padding:5px 0}
+.api-advanced-toggle svg{transition:transform .15s}.api-advanced-toggle svg.expanded{transform:rotate(180deg)}
+.api-advanced{border-top:1px solid var(--line);margin-top:10px;padding-top:2px}
+.api-manual-toggle{display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.7;margin:17px 0;color:var(--text)}
+.api-manual-toggle input{width:15px;height:15px;margin:3px 0 0;accent-color:var(--accent-text);flex:none}
+.api-settings .api-actions{margin-top:22px}.api-delete{margin-left:auto}
+.api-notice{font-size:12px;line-height:1.8;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);margin:18px 0 0;overflow-wrap:anywhere;color:var(--text)}
+.api-notice.error{border-color:color-mix(in srgb,#c03932 35%,var(--line));background:color-mix(in srgb,#c03932 6%,var(--surface));color:var(--text)}
+.api-notice.success{border-color:color-mix(in srgb,#238864 32%,var(--line));background:color-mix(in srgb,#238864 5%,var(--surface))}
+.api-spinner{animation:api-spin 1s linear infinite}@keyframes api-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.api-spinner{animation:none}.api-advanced-toggle svg{transition:none}}
+.reduce .api-spinner{animation:none}
