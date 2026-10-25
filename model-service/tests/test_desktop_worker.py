@@ -98,7 +98,10 @@ def test_windows_private_dll_path_is_idempotent_and_needs_no_system_cuda(monkeyp
     monkeypatch.setattr(worker.sys,'executable',str(scripts/'python.exe'))
     monkeypatch.setattr(worker,'_DLL_HANDLES',[]);monkeypatch.setattr(worker,'_DLL_DIRECTORIES',set())
     added=[];monkeypatch.setattr(worker.os,'add_dll_directory',lambda value: added.append(value) or object(),raising=False)
-    monkeypatch.setenv('PATH',str(library).upper()+worker.os.pathsep+'inherited-system-bin')
+    # Match the canonical spelling before changing case; Windows TEMP can
+    # contain an 8.3 alias which is a valid distinct inherited PATH entry.
+    case_variant=str(library.resolve()).upper()
+    monkeypatch.setenv('PATH',case_variant+worker.os.pathsep+'inherited-system-bin')
     monkeypatch.delenv('CUDA_PATH',raising=False)
     worker.prepare_windows_dlls();first=worker.os.environ['PATH'];worker.prepare_windows_dlls()
     assert worker.os.environ['PATH']==first

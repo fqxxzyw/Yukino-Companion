@@ -16,8 +16,11 @@ class TranslationWorkerTests(unittest.TestCase):
             root=Path(temporary)/'runtime'; scripts=root/'Scripts'; library=root/'Lib/site-packages/torch/lib'
             scripts.mkdir(parents=True);library.mkdir(parents=True)
             (library/'cublas64_12.dll').write_bytes(b'private CUDA DLL fixture')
+            # Resolve Windows TEMP's 8.3 alias first: this fixture tests case
+            # deduplication, not equivalence between distinct short/long names.
+            case_variant=str(library.resolve()).upper()
             original='inherited-system-bin';added=[]
-            with mock.patch.object(worker.sys,'platform','win32'), mock.patch.object(worker.sys,'prefix',str(root)), mock.patch.object(worker.sys,'executable',str(scripts/'python.exe')), mock.patch.object(worker.os,'add_dll_directory',side_effect=lambda item: added.append(item) or object(),create=True), mock.patch.dict(worker.os.environ,{'PATH':str(library).upper()+worker.os.pathsep+original},clear=True), mock.patch.object(worker,'_DLL_HANDLES',[]), mock.patch.object(worker,'_DLL_DIRECTORIES',set()):
+            with mock.patch.object(worker.sys,'platform','win32'), mock.patch.object(worker.sys,'prefix',str(root)), mock.patch.object(worker.sys,'executable',str(scripts/'python.exe')), mock.patch.object(worker.os,'add_dll_directory',side_effect=lambda item: added.append(item) or object(),create=True), mock.patch.dict(worker.os.environ,{'PATH':case_variant+worker.os.pathsep+original},clear=True), mock.patch.object(worker,'_DLL_HANDLES',[]), mock.patch.object(worker,'_DLL_DIRECTORIES',set()):
                 worker.prepare_windows_dlls();first=worker.os.environ['PATH'];worker.prepare_windows_dlls()
                 self.assertEqual(worker.os.environ['PATH'],first)
                 paths=first.split(worker.os.pathsep)
