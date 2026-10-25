@@ -238,6 +238,11 @@ input[type=checkbox]::after{content:"";display:block;position:absolute;left:3px;
 input[type=checkbox]:checked{background:var(--accent-text);border-color:var(--accent-text)}
 input[type=checkbox]:checked::after{transform:translateX(17px)}
 input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}
+/* Consent/selection checkboxes must not inherit the switch thumb geometry. */
+input[type=checkbox]:not([role=switch]){width:17px;height:17px;border-radius:5px;background:var(--surface);border-color:color-mix(in srgb,var(--secondary) 40%,var(--line));box-shadow:none}
+input[type=checkbox]:not([role=switch])::after{left:5px;top:2px;width:5px;height:9px;background:transparent;border:solid #fff;border-width:0 2px 2px 0;border-radius:0;box-shadow:none;transform:rotate(45deg);opacity:0;transition:opacity .15s}
+input[type=checkbox]:not([role=switch]):checked{background:var(--accent-text);border-color:var(--accent-text)}
+input[type=checkbox]:not([role=switch]):checked::after{transform:rotate(45deg);opacity:1}
 input[type=number]{appearance:textfield;-moz-appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:50%;background:var(--surface);border:1px solid color-mix(in srgb,var(--secondary) 25%,var(--surface));box-shadow:0 2px 5px #112c4b26;cursor:grab}

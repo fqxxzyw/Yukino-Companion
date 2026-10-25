@@ -155,16 +155,8 @@ jobs:
           toolset: '14.29'
       - name: Install CUDA build toolkit
         if: matrix.flavor == 'cu124'
-        uses: Jimver/cuda-toolkit@433d453c1fa37d10a3254452fa8e284441c9192d
-        with:
-          cuda: '12.4.1'
-          method: network
-          # The pinned action fails before installation when its installer-cache
-          # path is missing on current Windows runners. Download the small
-          # network installer directly instead of using that optional cache.
-          use-github-cache: false
-          use-local-cache: false
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "visual_studio_integration"]'
+        timeout-minutes: 25
+        run: ./scripts/install-cuda-toolkit.ps1
       - name: Build shared Python and both inference engines
         id: runtime_build
         run: python scripts/build_windows_runtime.py --flavor $env:RUNTIME_FLAVOR
@@ -196,7 +188,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-cpu-inference-evidence-${{ github.run_number }}
-          path: build/cpu-inference-review
+          path: |
+            build/cpu-inference-review/translation.json
+            build/cpu-inference-review/voice.json
+            build/cpu-inference-review/voice.stderr.log
+            build/cpu-inference-review/japanese.wav
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4
@@ -344,5 +340,7 @@ jobs:
             release/app-payload.json
             release/translation-windows-smoke.json
             release/local-chat-windows-smoke.json
-            release/voice-smoke
+            release/voice-smoke/report.json
+            release/voice-smoke/report.stderr.log
+            release/voice-smoke/japanese.wav
           if-no-files-found: warn

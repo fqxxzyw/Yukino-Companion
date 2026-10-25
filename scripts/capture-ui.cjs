@@ -243,6 +243,9 @@ async function run() {
   await click('.api-clear-key');
   await check('Deleting a saved API key clears persistence without removing the selected model',`!document.querySelector('.api-clear-key')&&!document.querySelector('.api-saved')&&document.querySelector('.api-notice').textContent.includes('已删除')&&document.querySelector('[aria-label="对话模型"]').textContent.includes('qa-chat')`);
   await check('Deleted key is absent from the persisted key IDs',`window.desktop.load().then(value=>!value.keyIds.includes('visual-qa'))`);
+  await click('.api-manual-toggle input');
+  await check('Advanced manual model entry is optional and keeps the selected model',`document.querySelector('.api-manual-toggle input').checked&&document.querySelector('input[placeholder="以服务商提供的模型 ID 为准"]').value==='qa-chat'`);
+  await capture('07e-api-advanced-checkbox');
   await settingsTab('角色设定');
   const select='[role="combobox"][aria-label="提示词档位"]';
   await evaluate(`document.querySelector(${JSON.stringify(select)}).focus()`);
@@ -261,6 +264,8 @@ async function run() {
   await waitFor(`Boolean(document.querySelector('.close-dialog'))`,'close behavior dialog');
   await capture('09-close-choice');
   await click('.close-remember input');
+  await check('Remember-choice checkmark stays within the checkbox',`(()=>{const input=document.querySelector('.close-remember input'),mark=getComputedStyle(input,'::after');return input.checked&&parseFloat(mark.left)+parseFloat(mark.width)<=input.clientWidth&&parseFloat(mark.top)+parseFloat(mark.height)<=input.clientHeight;})()`);
+  await capture('09a-close-remembered');
   await click('.close-options button:first-child');
   await check('Remembered close choice reaches companion persistence',`window.desktop.companionState().then(value=>value.closeAction==='pet'&&value.mode==='pet')`);
   await check('Close choice dismisses the dialog',`!document.querySelector('.close-dialog')`);

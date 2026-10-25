@@ -33,6 +33,8 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 ### Windows 安装包
 
+**0.4.0 当前仅已上传源码，尚未发布可下载安装包。** 真实对话模型资产还未附加到 GitHub Release，完整发布会因此暂停；现有公开版本仍为 [v0.3.0-glass.8](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.3.0-glass.8)。以下为 0.4.0 资产齐备后的安装方式。
+
 在 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) 下载 `Yukino-Companion-0.4.0-Setup.exe`。联网安装时会下载本次发布缺少的应用分卷；离线安装主应用则将所有 `Yukino-Companion-0.4.0-windows-x64.zip.partNNN` 与 EXE 放在同一目录。安装器逐卷校验并自动组合，不需要手工解压。
 
 小 EXE 不含全部模型；完整模型在分卷中，下载与安装所需空间以清单和安装器检查为准。首次引导可一键安装共享 Python/PyTorch/llama.cpp/GPT-SoVITS 环境及语音公共资源，也可跳过。对话、翻译和默认音色权重不重复下载。全部所需资源齐备后才具备完整本地推理能力。
