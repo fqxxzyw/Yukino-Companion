@@ -1,4 +1,7 @@
 ﻿; Saved as UTF-8 with BOM; Inno Setup 6.7.3. Installation never downloads anything.
+#if (Ver < 0x06070300) || (Ver >= 0x06070400)
+  #error Build this installer with the pinned Inno Setup 6.7.3 engine
+#endif
 #ifndef SOURCE_DIR
   #error SOURCE_DIR is required
 #endif

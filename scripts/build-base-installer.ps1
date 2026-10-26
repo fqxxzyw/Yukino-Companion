@@ -19,7 +19,11 @@ if(-not(Test-Path -LiteralPath $compiler)){
  $child=Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/CURRENTUSER',('/DIR="'+$compilerRoot+'"')) -Wait -PassThru
  if($child.ExitCode -ne 0){throw 'Unable to prepare compiler'}
 }
-if((Get-Item -LiteralPath $compiler).VersionInfo.ProductVersion -notmatch '^6\.7\.3(?:\D|$)'){throw 'Expected Inno Setup 6.7.3'}
+# ISCC's executable version resource is not the compiler-engine version contract.
+# The installer above is pinned by SHA-256 and Authenticode; windows-base.iss
+# additionally checks the actual ISPP/engine version during compilation.
+if(-not(Test-Path -LiteralPath $compiler -PathType Leaf)){throw 'Inno Setup compiler was not installed'}
+Write-Output ('Compiler metadata: ' + (Get-Item -LiteralPath $compiler).VersionInfo.FileVersion)
 $messages=Join-Path $toolRoot 'ChineseSimplified.isl'
 FetchVerified 'https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/Files/Languages/Unofficial/ChineseSimplified.isl' $messages '7d544b9bb1d142cfa11f2e5d3cc8abe2e55f8e066c5124e3772675aa236e1278'
 foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/runtime-catalog.json','resources/aria2/aria2c.exe')){if(-not(Test-Path -LiteralPath (Join-Path $SourceDirectory $file))){throw "Missing base application input: $file"}}
