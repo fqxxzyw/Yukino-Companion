@@ -18,16 +18,20 @@ let state={
   ]}],activeConversation:null,personaEnabled:true,personaPromptMode:'detailed',persona:'',memory:'',useMemory:false,
 };
 let voice={enabled:false,python:'',root:'',gpt:'',sovits:'',reference:'',bert:'',hubert:'',ffmpeg:'',promptText:'',promptLang:'ja',textLang:'all_ja',version:'v1',device:'auto',half:false,cpuFallback:true,cpuThreads:4,speed:1,volume:.8,timeout:300};
-let companions={mode:'none',closeAction:'ask',bubbleLanguage:'zh',position:'right',scale:1,opacity:1,alwaysOnTop:true,animation:true,modelReady:false,petReady:true,voiceCount:2391,startupAvailable:true,usage:{todayMs:5760000,sessionMs:1380000,totalMs:48960000}};
-let translation={ready:false,available:false,phase:'unloaded',modelInstalled:true,runtimeAvailable:false,modelSource:'bundled',model:'tencent/Hy-MT2-1.8B-GGUF',modelBytes:1133107392,device:'auto',config:{python:'',modelDir:'',device:'auto',cpuThreads:4,cpuFallback:true,timeout:180}};
-let local={phase:'unloaded',modelInstalled:true,runtimeAvailable:false,available:false,ready:false,model:'雪乃本地角色模型 · 1.5B',config:{device:'auto',cpuFallback:true,maxNewTokens:256,cpuThreads:4,python:'',modelDir:''}};
+let companions={mode:'none',closeAction:'ask',bubbleLanguage:'zh',position:'right',scale:1,opacity:1,alwaysOnTop:true,animation:true,modelReady:false,petReady:true,voiceCount:0,startupAvailable:true,usage:{todayMs:5760000,sessionMs:1380000,totalMs:48960000}};
+let translation={ready:false,available:false,phase:'unloaded',modelInstalled:false,runtimeAvailable:false,modelSource:'downloaded',model:'tencent/Hy-MT2-1.8B-GGUF',modelBytes:1133107392,device:'auto',config:{python:'',modelDir:'',device:'auto',cpuThreads:4,cpuFallback:true,timeout:180}};
+let local={phase:'unloaded',modelInstalled:false,runtimeAvailable:false,available:false,ready:false,model:'雪乃本地角色模型 · 1.5B',config:{device:'auto',cpuFallback:true,maxNewTokens:256,cpuThreads:4,python:'',modelDir:''}};
 let setup={phase:'idle',ready:false,runtimeVariants:['cpu'],steps:[
-  {id:'runtime',state:'missing',detail:'界面验证场景：需要公共 Python 与推理依赖'},
-  {id:'chat',state:'ready',detail:'已找到随安装包提供的 1.5B 角色权重'},
-  {id:'translation',state:'ready',detail:'已找到随安装包提供的 Hy-MT2 翻译权重'},
-  {id:'voiceCore',state:'missing',detail:'需要 BERT 与 HuBERT 公共语音模型'},
-  {id:'voicePreset',state:'ready',detail:'已找到默认音色与 3.08 秒日语参考声音'},
+  {id:'runtime',state:'missing',downloadBytes:681369634,detail:'需要公共 Python 与推理依赖，仅桌宠不需要'},
+  {id:'chat',state:'missing',downloadBytes:964897463,detail:'按需安装已训练的 1.5B 角色权重'},
+  {id:'translation',state:'missing',downloadBytes:1133107392,detail:'按需安装 Hy-MT2 翻译权重'},
+  {id:'voiceCore',state:'missing',downloadBytes:840308148,detail:'需要 BERT 与 HuBERT 公共语音模型'},
+  {id:'voicePreset',state:'missing',downloadBytes:233655246,detail:'默认音色需下载；小型参考声音随应用提供'},
+  {id:'pet',state:'missing',downloadBytes:80380288,detail:'2,391 段预录声音，独立下载，不依赖 Python'},
 ]};
+const qaCalls={help:[],install:[],cancel:0};
+let selectedFeatures=[];
+const selectedStep=id=>id==='runtime'?selectedFeatures.some(value=>value!=='pet'):selectedFeatures.includes(({voiceCore:'voice',voicePreset:'voice'})[id]||id);
 let setupResolve;
 let keyIds=['visual-qa'];
 const no=async()=>undefined;
@@ -44,11 +48,11 @@ contextBridge.exposeInMainWorld('desktop',{
   ],
   apiModels:async()=>({status:'ok',verified:true,message:'界面验证：已载入 2 个合成测试模型，未发送网络请求。',models:[{id:'qa-chat',name:'界面测试对话模型'},{id:'qa-vision',name:'界面测试视觉模型'}]}),
   send:async request=>{emit('chunk',{id:request.id,text:zh});return{ok:true,bilingual:{zh,ja,translationStatus:'ready',source:request.mode==='local'?'local':'api'}};},
-  stop:no,window:async action=>{if(action==='close')emit('close');},openCommunity:no,
+  stop:no,window:async action=>{if(action==='close')emit('close');},openCommunity:no,openHelp:async topic=>{qaCalls.help.push(topic);},qaCalls:async()=>copy(qaCalls),
   characterDocument:async()=>({version:'1.1.0',text:'界面验证仅使用占位文本。正式角色档案由生产主进程提供。'}),
   characterPreview:async()=>({characters:4810,mode:'detailed',enabled:true,local:false}),
   onChunk:fn=>on('chunk',fn),onError:fn=>on('error',fn),
-  voiceResources:async()=>({phase:'idle',bundled:false,coreReady:false,preset:{durationSeconds:3.083},packs:Array.from({length:5},(_,i)=>({id:`yukino-e${i+1}`,kind:'voice',bundled:i===1,installed:i===1,label:`雪乃 · GPT e${i+1} / SoVITS e1（v1）`}))}),
+  voiceResources:async()=>({phase:'idle',bundled:false,coreReady:false,preset:null,packs:Array.from({length:5},(_,i)=>({id:`yukino-e${i+1}`,kind:'voice',bundled:false,installed:false,label:`雪乃 · GPT e${i+1} / SoVITS e1（v1）`}))}),
   voiceInstall:noNetwork,voiceDownloadCancel:no,onVoiceDownload:fn=>on('voice-download',fn),
   voiceSettings:async()=>copy(voice),voiceSave:async value=>{voice=copy(value);return copy(voice);},
   voiceStatus:async()=>voiceStatus(),voiceProbe:async()=>({torch:'界面测试',cudaAvailable:false,devices:[]}),
@@ -62,9 +66,22 @@ contextBridge.exposeInMainWorld('desktop',{
   localChatUnload:async()=>{local={...local,phase:'unloaded',ready:false};emit('local-status',copy(local));return copy(local);},
   localChatProbe:async()=>({gpuRuntimeAvailable:false}),onLocalChatStatus:fn=>on('local-status',fn),
   setupStatus:async()=>copy(setup),onSetupStatus:fn=>on('setup-status',fn),
-  setupInstall:async()=>{setup={...setup,phase:'installing',steps:setup.steps.map(step=>step.id==='runtime'?{...step,state:'downloading',bytes:268435456,total:1073741824}:step)};emit('setup-status',copy(setup));return new Promise(resolve=>{setupResolve=resolve;});},
-  setupCancel:async()=>{setup={...setup,phase:'idle',steps:setup.steps.map(step=>step.id==='runtime'?{...step,state:'missing'}:step)};emit('setup-status',copy(setup));setupResolve?.(copy(setup));setupResolve=null;return copy(setup);},
-  qaCompleteSetup:async()=>{setup={...setup,phase:'ready',ready:true,steps:setup.steps.map(step=>({...step,state:'ready'}))};local={...local,runtimeAvailable:true,available:true};translation={...translation,runtimeAvailable:true,available:true};emit('setup-status',copy(setup));emit('local-status',copy(local));emit('translation-status',copy(translation));setupResolve?.(copy(setup));setupResolve=null;},
+  setupInstall:async options=>{
+    selectedFeatures=[...options.features];qaCalls.install.push(copy(options));
+    const active=selectedFeatures.some(value=>value!=='pet')?'runtime':'pet';
+    const total=active==='runtime'?1073741824:80380288,received=active==='runtime'?268435456:20095072;
+    setup={...setup,phase:'installing',steps:setup.steps.map(step=>!selectedStep(step.id)?{...step,state:'skipped'}:step.id===active?{...step,state:'downloading',bytes:received,total,progress:{engine:'aria2',received,total,sourceLabel:'GitHub Release · QA fixture'}}:{...step,state:'missing'})};
+    emit('setup-status',copy(setup));return new Promise(resolve=>{setupResolve=resolve;});
+  },
+  setupCancel:async()=>{qaCalls.cancel++;setup={...setup,phase:'cancelled',steps:setup.steps.map(step=>({...step,state:'missing',bytes:0,total:0,progress:null}))};emit('setup-status',copy(setup));setupResolve?.(copy(setup));setupResolve=null;return copy(setup);},
+  qaCompleteSetup:async()=>{
+    setup={...setup,phase:'ready',ready:true,steps:setup.steps.map(step=>({...step,state:selectedStep(step.id)?'ready':'skipped',bytes:0,total:0,progress:null}))};
+    const runtimeAvailable=selectedFeatures.some(value=>value!=='pet');
+    if(selectedFeatures.includes('chat'))local={...local,modelInstalled:true,runtimeAvailable,available:true};
+    if(selectedFeatures.includes('translation'))translation={...translation,modelInstalled:true,runtimeAvailable,available:true};
+    if(selectedFeatures.includes('pet'))updateCompanions({voiceCount:2391});
+    emit('setup-status',copy(setup));emit('local-status',copy(local));emit('translation-status',copy(translation));setupResolve?.(copy(setup));setupResolve=null;
+  },
   companionState:async()=>copy(companions),companionSet:async patch=>updateCompanions(patch),
   companionAction:async action=>updateCompanions(action.startsWith('focus-')?{focus:action==='focus-cancel'?{active:false}:{active:true,remainingMs:Number(action.slice(6))*60000}}:{mode:'pet',lastAction:action}),
   closeChoice:async(mode,options={})=>updateCompanions({mode:mode==='quit'?'none':mode,...(options.remember?{closeAction:mode}:{})}),

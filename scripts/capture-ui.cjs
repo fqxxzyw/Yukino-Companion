@@ -163,15 +163,27 @@ async function run() {
   await waitFor(`Boolean(document.querySelector('.app')&&document.querySelector('.welcome'))`,'welcome screen');
   await check('Application icon loads',`[...document.querySelectorAll('img')].every(img=>img.complete&&img.naturalWidth>0)`);
   await waitFor(`Boolean(document.querySelector('.setup-dialog'))`,'first-run setup');
-  await check('First-run setup distinguishes bundled weights from runtime',`document.querySelector('.setup-dialog').textContent.includes('公共推理环境')&&document.querySelector('.setup-step.ready').textContent.includes('角色')&&document.querySelectorAll('.setup-step.ready').length===3`);
-  await check('CPU-only catalogue has a truthful runtime notice',`document.querySelector('.setup-runtime').textContent.includes('此测试包可下载 CPU 环境')&&document.querySelector('.setup-runtime').textContent.includes('GPU 环境将在后续版本提供')`);
+  await check('Base first-run setup truthfully offers four optional features and no installed models',`document.querySelectorAll('.setup-feature').length===4&&document.querySelectorAll('.setup-step.ready').length===0&&document.querySelectorAll('.setup-step.missing').length===5&&document.querySelector('.setup-download-summary').textContent.includes('GB')`);
+  await check('CPU-only catalogue has a truthful runtime notice',`document.querySelector('.setup-runtime').textContent.includes('目前提供 CPU 环境')&&document.querySelector('.setup-runtime').textContent.includes('Python 和推理依赖只需安装一份')`);
   await click('[aria-label="首次配置推理环境"]');
   await check('Unavailable CUDA is disabled in the runtime picker',`[...document.querySelectorAll('[role="option"]')].some(option=>option.textContent.includes('NVIDIA CUDA')&&option.getAttribute('aria-disabled')==='true')`);
   await key('Escape');
   await capture('00-first-run-setup');
+  await click('.setup-dialog .resource-help button');
+  await check('Resource help opens the fixed download help topic',`window.desktop.qaCalls().then(calls=>calls.help.at(-1)==='downloads')`);
+  for(let index=1;index<=4;index++)await click(`.setup-feature:nth-child(${index}) input`);
+  await check('Pet-only selection does not request a Python environment',`!document.querySelector('.setup-runtime')&&document.querySelector('.setup-runtime-note').textContent.includes('不安装 Python')&&document.querySelectorAll('.setup-feature input:checked').length===1`);
+  await click('.setup-dialog footer .primary');
+  await waitFor(`document.querySelector('.setup-progress progress')?.value===20095072`,'pet-only actual fixture progress');
+  await check('Only pet is passed to the installer and aria2 engine is shown',`window.desktop.qaCalls().then(calls=>JSON.stringify(calls.install.at(-1).features)==='["pet"]'&&document.querySelector('.setup-progress').textContent.includes('aria2'))`);
+  await capture('00a-pet-only-progress');
+  await click('.setup-dialog footer .secondary');
+  await waitFor(`!document.querySelector('.setup-progress')`,'cancelled resource transfer');
+  await check('Cancellation is delivered once without background retries',`window.desktop.qaCalls().then(calls=>calls.cancel===1&&calls.install.length===1)`);
+
   await click('.setup-dialog footer .text-link');
   await check('Skipping setup leaves chat available',`!document.querySelector('.setup-dialog')&&Boolean(document.querySelector('.composer'))`);
-  await waitFor(`window.desktop.load().then(({state})=>state.setupDismissedVersion==='0.4.0')`,'persisted setup skip');
+  await waitFor(`window.desktop.load().then(({state})=>state.setupDismissedVersion==='0.4.0-base.1')`,'persisted setup skip');
   await capture('01-home');
   await click('.history-row>button');
   await waitFor(`document.querySelectorAll('.message').length===2`,'fixture conversation');
@@ -211,6 +223,15 @@ async function run() {
   await click('button[aria-label="强调色"]');
   await settingsTab('形象与展示');
   await capture('05-companion-settings');
+  await evaluate(`document.querySelector('.relationship-settings').scrollIntoView({block:'center'})`);await settle();
+  await check('Relationship state and truthful unlock status are visible',`document.querySelector('.relationship-summary').textContent.includes('好感')&&document.querySelector('.relationship-summary').textContent.includes('体力')&&document.querySelector('.relationship-settings').textContent.includes('赞助解锁尚未启用')`);
+  await click('.relationship-settings .secondary');
+  await check('Daily check-in is saved once and disables duplicate claim',`document.querySelector('.relationship-settings .secondary').disabled&&document.querySelector('.relationship-settings').textContent.includes('累计签到 1 天')`);
+  await capture('05b-relationship-settings');
+  await click('.scene-options button:nth-child(2)');
+  await click('.presentation-settings .row input');
+  await check('Forest preview and full-window background are active without pretending a rig exists',`document.querySelector('.app').classList.contains('scene-spread')&&document.querySelector('.scene-picker button:nth-child(2)').getAttribute('aria-pressed')==='true'&&document.querySelector('.presentation-settings').textContent.includes('模型接入后生效')`);
+
   await check('Complete original pet settings remain available',`['互动与动作','气泡与语录','桌宠预录语音','专注一会儿','形象透明度','暂停互动','安静模式'].every(text=>document.querySelector('.pet-settings').textContent.includes(text))`);
   await evaluate(`document.querySelector('.pet-settings-card:last-of-type').scrollIntoView({block:'end'})`);await settle();
   await capture('05a-pet-settings-details');
@@ -218,10 +239,10 @@ async function run() {
   await capture('06-voice-settings');
   await settingsTab('双语与翻译');
   await capture('07-translation-settings');
-  await check('Translation distinguishes bundled model from missing runtime',`document.querySelector('.settings-body').textContent.includes('随安装包提供')&&document.querySelector('.settings-body').textContent.includes('公共环境尚未准备好')`);
+  await check('Base translation settings distinguish missing weights from missing environment',`document.querySelector('.settings-body').textContent.includes('公共环境尚未准备好')&&document.querySelector('.resource-card .primary').textContent.includes('准备翻译权重')&&document.querySelector('.resource-help').textContent.includes('无法下载')`);
   await settingsTab('本地模型');
   await capture('07a-local-settings');
-  await check('Local model installed but runtime missing is explicit',`document.querySelector('.local-model-settings').textContent.includes('角色模型已内置 · 等待运行环境')`);
+  await check('Base local chat accurately reports both missing model and environment',`document.querySelector('.local-model-settings').textContent.includes('本地角色模型尚未准备')&&document.querySelector('.local-resource-state').textContent.includes('缺少角色权重')&&document.querySelector('.local-resource-state').textContent.includes('需要安装运行环境')`);
   await click('.setup-entry');
   await click('.setup-dialog footer .primary');
   await waitFor(`document.querySelector('.setup-progress progress')?.value===268435456`,'status-driven download progress');
@@ -230,7 +251,7 @@ async function run() {
   await pause(250);
   await check('Progress stays at the reported bytes without fake timer increments',`document.querySelector('.setup-progress progress').value===268435456&&document.querySelector('.setup-progress progress').max===1073741824`);
   await evaluate('window.desktop.qaCompleteSetup()');await settle();
-  await check('Completed setup keeps resources unloaded until first use',`Boolean(document.querySelector('.setup-complete'))&&document.querySelector('.setup-complete').textContent.includes('第一次使用时加载')`);
+  await check('Completed setup keeps resources unloaded until first use',`Boolean(document.querySelector('.setup-complete'))&&document.querySelector('.setup-complete').textContent.includes('使用时加载')`);
   await click('.setup-dialog footer .text-link');
   await click('.local-model-settings .voice-status .primary');
   await check('Local model can be selected and loaded independently of API',`document.querySelector('.local-model-settings').textContent.includes('本地对话已就绪')&&document.querySelector('.chat-source-switch button:first-child').getAttribute('aria-pressed')==='true'`);
@@ -281,6 +302,11 @@ async function run() {
   const expandedAvatarX=await evaluate(`document.querySelector('.avatar-stage').getBoundingClientRect().x`);
   await click('[aria-label="收起或展开侧边栏"]');
   await capture('11-collapsed-sidebar');
+  await click('[aria-label="打开服装面板"]');
+  await check('Wardrobe truthfully reports absent model assets',`document.querySelector('.wardrobe-panel').textContent.includes('正式模型接入后')&&!document.querySelector('.wardrobe-panel>button')`);
+  await capture('11c-scene-wardrobe');
+  await click('[aria-label="关闭服装面板"]');
+
   await check('Left character follows the collapsed sidebar',`document.querySelector('.avatar-stage').getBoundingClientRect().x<${expandedAvatarX}`);
   await click('[aria-label="人物停靠右侧"]');
   await check('Right docking allocates the fixed pane to the character, not the chat',`(()=>{const avatar=document.querySelector('.avatar-stage').getBoundingClientRect(),chat=document.querySelector('.chat').getBoundingClientRect();return avatar.x>chat.x&&avatar.width<=460&&chat.width>=310;})()`);

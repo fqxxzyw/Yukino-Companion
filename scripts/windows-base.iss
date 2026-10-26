@@ -38,7 +38,7 @@ WizardStyle=modern
 WizardSizePercent=130,125
 WizardResizable=no
 ShowLanguageDialog=no
-SetupIconFile={#SourcePath}..\branding\app-icon.ico
+SetupIconFile={#AddBackslash(SourcePath)}..\branding\app-icon.ico
 OutputDir={#OUTPUT_DIR}
 OutputBaseFilename=Yukino-Companion-0.4.0-Base-Setup
 Compression=lzma2/normal
@@ -77,7 +77,7 @@ Source: "{#SOURCE_DIR}\*"; DestDir: "{app}"; Excludes: "yukino-installation.json
 Name: "{autoprograms}\Yukino Companion"; Filename: "{app}\Yukino Companion.exe"
 Name: "{autodesktop}\Yukino Companion"; Filename: "{app}\Yukino Companion.exe"; Check: CreateDesktopShortcut
 [INI]
-Filename: "{app}\yukino-base-installation.ini"; Section: "Installation"; Key: "AppId"; String: "{#ProductAppId}"; Flags: uninsdeleteentry uninsdeletesectionifempty uninsdeletefileifempty
+Filename: "{app}\yukino-base-installation.ini"; Section: "Installation"; Key: "AppId"; String: "{#ProductAppId}"; Flags: uninsdeleteentry uninsdeletesectionifempty
 [Registry]
 Root: HKCU; Subkey: "Software\Yukino Companion\Base"; ValueType: string; ValueName: "InstallDir"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
 [Run]

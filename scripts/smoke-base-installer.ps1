@@ -40,6 +40,18 @@ function Install([string]$Directory,[bool]$Expected){
  if(-not $child.WaitForExit(180000)){$child.Kill();throw 'Base installation timed out'}
  if(($Expected -and $child.ExitCode -ne 0) -or (-not $Expected -and $child.ExitCode -eq 0)){throw "Unexpected installer exit $($child.ExitCode)"}
 }
+$installedApp=$null;$appStdout=$null;$appStderr=$null
+function Stop-InstalledApp {
+ if($installedApp){
+  $installedApp.Refresh()
+  if(-not $installedApp.HasExited){
+   $killer=Start-Process -FilePath (Join-Path $env:SystemRoot 'System32/taskkill.exe') -ArgumentList @('/PID',[string]$installedApp.Id,'/T','/F') -WindowStyle Hidden -PassThru -Wait
+   if(-not $installedApp.WaitForExit(10000)){throw 'Installed application did not stop before upgrade'}
+  }
+  if($appStdout -and $appStdout.Wait(5000)){$appStdout.Result|Set-Content -LiteralPath (Join-Path $output 'app-first-launch.stdout.log') -Encoding utf8}
+  if($appStderr -and $appStderr.Wait(5000)){$appStderr.Result|Set-Content -LiteralPath (Join-Path $output 'app-first-launch.stderr.log') -Encoding utf8}
+ }
+}
 $gui=$null;$visible=$null
 try{
  if(-not(Test-Path -LiteralPath $Installer -PathType Leaf)){throw 'Published installer is missing'}
@@ -64,6 +76,37 @@ try{
  foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/aria2/aria2c.exe','resources/runtime-catalog.json','yukino-base-installation.ini')){if(-not(Test-Path -LiteralPath (Join-Path $target $file))){throw "Installed file missing: $file"}}
  if(Get-ChildItem -LiteralPath $target -Recurse -File|Where-Object{$_.Extension -in @('.gguf','.ckpt','.pth','.ogg') -or $_.Name -eq 'python.exe'}){throw 'Base installation unexpectedly contains model/audio/environment payload'}
  $report.checks+='Published EXE installs into a Chinese path without acquiring model or Python resources'
+ # Launch the actual installed application with a wholly temporary profile.
+ # APPDATA/LOCALAPPDATA isolate Electron app.getPath as well as Chromium's switch.
+ $profile=Join-Path $temporary 'isolated app profile'
+ $roaming=Join-Path $profile 'Roaming';$local=Join-Path $profile 'Local'
+ [void][IO.Directory]::CreateDirectory($roaming);[void][IO.Directory]::CreateDirectory($local)
+ $start=New-Object Diagnostics.ProcessStartInfo
+ $start.FileName=Join-Path $target 'Yukino Companion.exe';$start.WorkingDirectory=$target
+ $start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+ $start.Arguments='--user-data-dir="'+(Join-Path $profile 'Chromium')+'" --enable-logging=stderr --no-first-run'
+ $start.EnvironmentVariables['APPDATA']=$roaming;$start.EnvironmentVariables['LOCALAPPDATA']=$local
+ $installedApp=New-Object Diagnostics.Process;$installedApp.StartInfo=$start
+ if(-not $installedApp.Start()){throw 'Installed application could not start'}
+ $appStdout=$installedApp.StandardOutput.ReadToEndAsync();$appStderr=$installedApp.StandardError.ReadToEndAsync()
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ do{
+  $installedApp.Refresh()
+  if($installedApp.HasExited){throw 'Actual installed application exited during first launch'}
+  if($installedApp.MainWindowTitle -match 'JavaScript|Uncaught|Exception'){throw 'Installed application opened a JavaScript error dialog'}
+  if($installedApp.MainWindowHandle -ne 0 -and $installedApp.MainWindowTitle -eq 'Yukino Companion'){break}
+  Start-Sleep -Milliseconds 150
+ }while([DateTime]::UtcNow -lt $deadline)
+ if($installedApp.MainWindowHandle -eq 0 -or $installedApp.MainWindowTitle -ne 'Yukino Companion'){throw 'Actual installed application did not show its main window'}
+ Start-Sleep -Seconds 3
+ $installedApp.Refresh()
+ if($installedApp.HasExited -or $installedApp.MainWindowHandle -eq 0){throw 'Installed application did not remain running'}
+ $appText=Capture $installedApp.MainWindowHandle 'app-first-launch'
+ if($installedApp.MainWindowTitle -ne 'Yukino Companion' -or $appText -match 'JavaScript error|Uncaught Exception'){throw 'Installed application shows an error dialog'}
+ Stop-InstalledApp
+ $stderrFile=Join-Path $output 'app-first-launch.stderr.log'
+ if((Test-Path -LiteralPath $stderrFile) -and (Get-Content -LiteralPath $stderrFile -Raw) -match 'A JavaScript error occurred|Uncaught Exception|Cannot find module|Uncaught (Error|TypeError|ReferenceError|SyntaxError)|UnhandledPromiseRejection'){throw 'Installed application logged an uncaught JavaScript error'}
+ $report.checks+='Actual installed application launches with an isolated profile, displays its main window and stays alive; screenshot captured; no model download or inference requested'
  $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
  Install $target $true
  if((Get-Content -LiteralPath $sentinel -Raw) -ne 'keep me'){throw 'Upgrade modified personal files'}
@@ -79,6 +122,7 @@ try{
  $report.checks+='Uninstall removes owned application files and preserves added personal files'
  $report.passed=$true
 }finally{
+ try{Stop-InstalledApp}catch{Write-Warning $_.Exception.Message}
  if($visible){Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue}
  if($gui -and -not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
  $report|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $output 'report.json') -Encoding utf8

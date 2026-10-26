@@ -6,7 +6,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 新版采用 **基础 Setup + 软件内按需配置**：安装器只安装桌面程序，不在安装过程中下载。打开软件后，选择需要的本地对话、翻译、音色与公共环境；也可以先跳过并配置 API 文字聊天。大型资源通过内置 aria2 下载、校验和安装，每项独立显示进度，并提供备用源与帮助入口。
 
-[基础版 Release](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-base.1) · [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) · [新增功能规则与接口](docs/NEW_FEATURES_0.5.md)。发布状态、实际附件大小和发布后检查结果以发行页为准。之前的 [v0.4.0-local.13](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13) 保留作为已发布模型和环境的来源；它使用安装时下载应用分卷的旧方案。
+[下载 Release 中的 Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases) · [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) · [新增功能规则与接口](docs/NEW_FEATURES_0.5.md)。发布状态、实际附件大小和发布后检查结果以发行页为准。之前的 [v0.4.0-local.13](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13) 保留作为已发布模型和环境的来源；它使用安装时下载应用分卷的旧方案。
 
 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 验证记录](docs/VALIDATION_0.4.0.md) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 
@@ -170,13 +170,13 @@ python -m unittest discover -s tests -p '*_test.py'
 
 桌面视觉优先考虑用户主动选择窗口/区域并预览后发送；持续观察需另行实现状态、频率和停止机制。当前没有桌面识别、麦克风输入、语音识别或唤醒词。
 
-社区计划采用独立静态资源目录与 GitHub Discussions，支持同人作品、形象、音色、人设、适配器和教程。资源页面记录来源、兼容版本、下载地址与已知限制；大文件可用作者 Releases、模型托管或网盘链接。GitHub Pages 只提供静态前端；账号、私信、实时投稿或上传需另行后端。当前未实现社区登录、投稿、内容同步或自动安装。
+社区已发布到 GitHub Pages，以本仓库 GitHub Issues 保存二创文章、音色分享、建议与 Bug。网页提供真实内容列表、分类、搜索、正文及评论；投稿和评论跳转 GitHub 登录并由用户确认发布，返回社区刷新后可见。当前不提供站内 OAuth 会话、私信或任意模型自动安装。音色投稿可填写作者 Release 或网盘链接、校验值和兼容信息。帮助页涵盖 API 获取、首次安装完整性验证和下载排查；广告内容待用户确认。
 
 ## 文本模型与训练状态
 
 本地角色模型与 Hy-MT2 翻译模型独立。角色模型以固定 Qwen2.5-1.5B-Instruct 为基础，接续已有知识 LoRA，在云端 Linux CPU 完成 186 条样本、1 个 epoch、47 个优化步骤的性格训练；24 条验证样本 loss 从 3.63267 降至 3.24914。实际离线生成仍有关系事实错误、虚构剧情和不必要的身份说明，详见[训练及质量记录](model-service/reports/persona-continued-validation.md)。发布流水线只接收具有真实完成报告的适配器或已校验 GGUF，不以未训练基础模型代替。
 
-交付计划中，同一 GGUF 随主应用分卷安装，也单独发布为 `Yukino-Local-1.5B-Persona-0.4.0.zip`；LoRA、训练报告和许可独立保留。基础 revision、实际步数、损失、哈希和真实测试回复以随附报告为准。训练完成并不说明所有事实和语气都正确。私人小说索引不会进入公开模型包。
+已训练 GGUF 以独立 ZIP 发布，并镜像到 [资源 Release](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-resources.1) 的 `chat__Yukino-Local-1.5B-Persona-0.4.0.zip`。基础版通过应用内向导下载、校验和安装；LoRA、训练报告和许可独立保留。基础 revision、实际步数、损失、哈希和真实测试回复以随附报告为准。训练完成并不说明所有事实和语气都正确。私人小说索引不会进入公开模型包。
 
 桌面[本地模型组件](electron/local-chat.cjs)直接管理[JSONL worker](model-service/desktop_worker.py)，不要求用户启动本机 HTTP API。独立训练／服务工程仍保留在 [model-service](model-service/README.md)。
 
