@@ -1,0 +1,59 @@
+name: 音色模型分享
+description: 分享训练音色、版本信息、校验值与使用方法
+title: "[音色] "
+body:
+  - type: markdown
+    attributes:
+      value: "大型模型请上传到你有权使用的 GitHub Release、模型托管平台或网盘，在下方分享 HTTPS 链接。社区不代为保证模型质量。请先确认训练数据和声音分享的许可。"
+  - type: textarea
+    id: introduction
+    attributes:
+      label: 音色介绍
+      description: 介绍训练目标、语言、试听情况和已知限制。
+    validations:
+      required: true
+  - type: input
+    id: download
+    attributes:
+      label: 下载链接
+      description: 填写一个完整的 HTTPS 下载或资源页面链接；多个文件可打成 ZIP。
+      placeholder: https://github.com/你的账号/仓库/releases/download/版本/voice.zip
+    validations:
+      required: true
+  - type: input
+    id: sha256
+    attributes:
+      label: SHA-256
+      description: 下载文件的 64 位十六进制 SHA-256；可用 PowerShell Get-FileHash 获取。
+      placeholder: 粘贴完整的 64 位校验值
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: 模型与版本
+      description: 必须说明 GPT-SoVITS 版本、GPT 与 SoVITS 权重名称；训练轮次不等于质量排名。
+      placeholder: GPT-SoVITS v1；GPT e2 / SoVITS e1
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: 参考音频与日文文本
+      description: 说明是否包含参考声音、时长、日语转录和导入方法；不要只提供权重。
+    validations:
+      required: true
+  - type: textarea
+    id: license
+    attributes:
+      label: 授权与使用范围
+      description: 说明训练数据来源、可分享依据，以及是否允许再分发和其他用途。
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: 发布确认
+      options:
+        - label: 我确认有权分享这些文件，且未包含私钥、账号信息或未经许可的私人录音。
+          required: true

@@ -229,3 +229,21 @@ test('cancelling while voice readiness is pending cannot start a core download',
   assert.equal(app.storage.get('speech.json'),savedBeforeCancel);
   assert.equal((await app.invoke('setup-status')).phase,'cancelled');
 });
+
+test('first-use default voice preparation preserves custom reference-only and transcript-only choices',async()=>{
+ for(const saved of [{reference:path.resolve('/custom/my-reference.wav')},{promptText:'私が選んだ文章です。'}]){
+  const app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify(saved)}});
+  await assert.rejects(app.invoke('setup-install',{features:['voice']}),/自定义参考/);
+  const after=JSON.parse(app.storage.get('speech.json'));for(const [field,value]of Object.entries(saved))assert.equal(after[field],value);
+  assert.equal(app.voiceInstallCalls.includes('yukino-e2'),false);
+ }
+});
+test('an app-managed default voice pair can be repaired without being mistaken for custom weights',async()=>{
+ const saved={gpt:path.resolve('/embedded/models/yukino-v1/gpt-e2.ckpt'),sovits:path.resolve('/embedded/models/yukino-v1/sovits-e1-s3561.pth')};
+ const app=await mainHarness({state,voiceMissing:['gpt'],referenceFixture:true,files:{'speech.json':JSON.stringify(saved)}});
+ const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.phase,'ready');assert.ok(app.voiceInstallCalls.includes('yukino-e2'));assert.match(JSON.parse(app.storage.get('speech.json')).reference,/voice-presets[/\\]yukino-reference\.wav$/);
+});
+test('default voice download progress is routed to its active setup step',async()=>{
+ const app=await mainHarness({state});app.setup.controller=new AbortController();app.setup.phase='installing';app.setup.active='voicePreset';
+ app.voiceDownloads.at(-1).options.notify({phase:'downloading',received:20,total:100});assert.equal(app.setup.progress.received,20);app.setup.controller=null;
+});

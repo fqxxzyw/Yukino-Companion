@@ -1,35 +1,37 @@
-import React, {useEffect, useState} from 'react';
-import {Check, Download, LoaderCircle, Minus, RefreshCw, X, Monitor, AudioLines, Languages} from 'lucide-react';
+import React,{useEffect,useState} from 'react';
+import {Check,Download,LoaderCircle,Minus,RefreshCw,X,Monitor,AudioLines,Languages,Cat} from 'lucide-react';
 import Select from './Select.jsx';
+import ResourceHelp from './ResourceHelp.jsx';
 import {friendlyError} from './errors.mjs';
-
-const labels = {runtime:'公共推理环境',chat:'雪乃本地对话模型',translation:'中日翻译模型',voiceCore:'语音公共模型',voicePreset:'默认雪乃音色与参考声音'};
-const stateLabels = {ready:'已准备好',missing:'需要准备',installing:'正在安装',downloading:'正在下载',checking:'正在检查',extracting:'正在解压',assembling:'正在整理',cancelled:'已取消',error:'需要处理',skipped:'已跳过',pending:'等待中'};
-const features = [['chat','本地对话','无需 API Key，也能离线回复。',Monitor],['translation','日语翻译','中文阅读，日语朗读。',Languages],['voice','语音合成','准备声音模型与参考音频。',AudioLines]];
-const busyStates = ['checking','installing','downloading','extracting','assembling','running'];
-function byteLabel(value) {return value>=1073741824?`${(value/1073741824).toFixed(2)} GB`:`${Math.round(value/1048576)} MB`;}
-export default function SetupWizard({api,status={},onStatus,onClose,onFinished}) {
-  const [selection,setSelection] = useState(['chat','translation','voice']), [flavor,setFlavor] = useState('auto'), [working,setWorking] = useState(false), [error,setError] = useState('');
-  const busy=working||busyStates.includes(status.phase), steps=Array.isArray(status.steps)?status.steps:[];
-  const runtimeVariants=Array.isArray(status.runtimeVariants)?status.runtimeVariants:null;
-  const cudaAvailable=runtimeVariants===null||runtimeVariants.includes('cu124');
-  const cpuOnly=runtimeVariants?.includes('cpu')&&!cudaAvailable;
-  const current=steps.find(step=>busyStates.includes(step.state||step.phase));
-  const total=Number(current?.total||current?.progress?.total||status.progress?.total||status.total||0),bytes=Number(current?.bytes||current?.received||current?.progress?.bytes||current?.progress?.received||status.progress?.bytes||status.progress?.received||status.received||0);
-  useEffect(()=>{if(api?.setupStatus)api.setupStatus().then(onStatus).catch(e=>setError(friendlyError(e)));},[api]);
-  useEffect(()=>{if(!cudaAvailable&&flavor==='cu124')setFlavor('auto');},[cudaAvailable,flavor]);
-  async function install(){if(!api?.setupInstall){setError('请在桌面版中使用一键配置。');return;}setWorking(true);setError('');try{const next=await api.setupInstall({runtimeFlavor:flavor,features:selection});if(next)onStatus(next);if(next?.phase==='ready'||next?.phase==='complete')onFinished?.(next);}catch(e){setError(friendlyError(e,'资源准备没有完成，请重试。'));}finally{setWorking(false)}}
-  const allReady=steps.length>0&&steps.every(step=>['ready','skipped'].includes(step.state||step.phase));
-  return <div className="modal-backdrop setup-backdrop"><section className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
-    <header><img src="./yukino-icon.png" alt=""/><div><span className="eyebrow">A LITTLE PREPARATION</span><h2 id="setup-title">让她准备好，留在你身边。</h2></div><button className="icon" aria-label={busy?'后台继续配置':'关闭首次配置'} onClick={onClose}><X size={18}/></button></header>
-    <div className="setup-content"><p className="intro">先检查已经带来的模型，再补齐需要的公共组件。你可以现在配置，也可以稍后从设置顶部继续。</p>
-      <div className="setup-features">{features.map(([id,label,detail,Icon])=><label key={id} className={'setup-feature '+(selection.includes(id)?'selected':'')}><Icon size={20}/><span><strong>{label}</strong><small>{detail}</small></span><input type="checkbox" role="switch" disabled={busy} checked={selection.includes(id)} onChange={event=>setSelection(old=>event.target.checked?[...old,id]:old.filter(value=>value!==id))}/></label>)}</div>
-      <div className="setup-runtime"><label>推理环境<Select aria-label="首次配置推理环境" value={flavor} disabled={busy} onChange={event=>setFlavor(event.target.value)}><option value="auto">{cpuOnly?'自动 · 此测试包使用 CPU 环境':'自动检测 · 有兼容 NVIDIA 显卡时优先 GPU'}</option><option value="cpu">CPU 通用环境</option><option value="cu124" disabled={!cudaAvailable}>{cudaAvailable?'NVIDIA CUDA 环境':'NVIDIA CUDA · 后续版本提供'}</option></Select></label><small>{cpuOnly?'此测试包可下载 CPU 环境，NVIDIA 电脑也可用 CPU 运行；GPU 环境将在后续版本提供。公共环境包含 Python 与推理依赖，模型权重已随应用提供。':'公共环境包含 Python 与推理依赖；模型权重单独列在下面。GPU 不可用时可以选择 CPU。'}</small></div>
-      <div className="setup-steps" aria-live="polite">{steps.length?steps.map(step=>{const state=step.state||step.phase||'pending';return <div key={step.id} className={'setup-step '+state}><span className="setup-step-icon">{state==='ready'?<Check size={17}/>:busyStates.includes(state)?<LoaderCircle size={17} className="spin"/>:state==='error'?<X size={17}/>:<Minus size={17}/>}</span><div><strong>{step.label||labels[step.id]||'所需组件'}</strong><small>{step.detail||step.error|| (step.id==='runtime'?'供本地对话、翻译与语音共用':'检查本机文件，完整资源不会重复下载。')}</small></div><span className="setup-state">{stateLabels[state]||'等待中'}</span></div>;}):<div className="setup-checking"><LoaderCircle className="spin" size={18}/><span>正在检查本机资源…</span></div>}</div>
-      {busy&&<div className="setup-progress" role="status"><span>{current?.label||labels[current?.id]||'正在准备资源'}{total>0&&<b>{byteLabel(bytes)} / {byteLabel(total)}</b>}</span>{total>0?<progress value={Math.min(bytes,total)} max={total}/>:<progress/>}<small>进度来自实际下载与校验，首次准备时间取决于网络和电脑性能。</small></div>}
-      {(error||status.error)&&<p className="notice" role="alert">{friendlyError(error||status.error)}</p>}
-      {allReady&&!busy&&<div className="setup-complete"><Check size={19}/><span>资源已准备好。模型将在第一次使用时加载，暂不占用推理内存。</span></div>}
-    </div>
-    <footer><button className="text-link" onClick={onClose}>{busy?'后台继续，先使用文字聊天':allReady?'完成，开始聊天':'先跳过，稍后配置'}</button><div>{busy?<button className="secondary" onClick={()=>api?.setupCancel?.().catch(e=>setError(friendlyError(e)))}>取消准备</button>:<button className="primary" disabled={!selection.length} onClick={install}>{allReady?<RefreshCw size={16}/>:<Download size={16}/>} {allReady?'重新检查所选功能':'一键配置所选功能'}</button>}</div></footer>
-  </section></div>;
+const labels={runtime:'公共推理环境',chat:'雪乃本地对话模型',translation:'中日翻译模型',voiceCore:'语音公共模型',voicePreset:'默认雪乃音色与参考声音',pet:'桌宠预录语音'};
+const stateLabels={ready:'已准备好',missing:'需要准备',installing:'正在安装',downloading:'正在下载',checking:'正在检查',extracting:'正在解压',assembling:'正在整理',cancelled:'已取消',error:'需要处理',skipped:'已跳过',pending:'等待中',complete:'已准备好'};
+const features=[['chat','本地对话','不用 API Key，在本机生成回复。',Monitor],['translation','日语翻译','缺少日文时，在本机补译。',Languages],['voice','语音合成','安装音色与语音公共模型。',AudioLines],['pet','桌宠语音','2,391 段预录声音，无需 Python。',Cat]];
+const busyStates=['checking','installing','downloading','extracting','assembling','running'];
+const featureFor={runtime:'runtime',chat:'chat',translation:'translation',voiceCore:'voice',voicePreset:'voice',pet:'pet'};
+export function byteLabel(value){return value>=1e9?`${(value/1e9).toFixed(2)} GB`:`${Math.round(value/1e6)} MB`;}
+export default function SetupWizard({api,status={},onStatus,onClose,onFinished}){
+ const [selection,setSelection]=useState(['chat','translation','voice']),[flavor,setFlavor]=useState('auto'),[working,setWorking]=useState(false),[error,setError]=useState('');
+ const busy=working||busyStates.includes(status.phase),steps=Array.isArray(status.steps)?status.steps:[],needsRuntime=selection.some(id=>id!=='pet');
+ const variants=Array.isArray(status.runtimeVariants)?status.runtimeVariants:[],cudaAvailable=variants.includes('cu124'),cpuOnly=variants.includes('cpu')&&!cudaAvailable;
+ const selected=step=>step.id==='runtime'?needsRuntime:selection.includes(featureFor[step.id]);
+ const selectedSteps=steps.filter(selected),current=steps.find(step=>busyStates.includes(step.state||step.phase));
+ const rawProgress=current?.progress||status.progress||{},progress=rawProgress.progress||rawProgress,total=Number(current?.total||progress.total||0),bytes=Number(current?.bytes||current?.received||progress.bytes||progress.received||0);
+ const neededBytes=selectedSteps.filter(step=>step.state!=='ready').reduce((sum,step)=>sum+(Number(step.downloadBytes)||0),0);
+ const allReady=selectedSteps.length>0&&selectedSteps.every(step=>['ready','complete'].includes(step.state||step.phase));
+ useEffect(()=>{let active=true;api?.setupStatus?.().then(next=>{if(active)onStatus(next)}).catch(error=>{if(active)setError(friendlyError(error))});return()=>{active=false}},[api]);
+ useEffect(()=>{if(!cudaAvailable&&flavor==='cu124')setFlavor('auto')},[cudaAvailable,flavor]);
+ async function install(){if(!api?.setupInstall){setError('请在桌面版中安装资源。');return}setWorking(true);setError('');try{const next=await api.setupInstall({runtimeFlavor:flavor,features:selection});if(next)onStatus(next);if(['ready','complete'].includes(next?.phase))await onFinished?.(next)}catch(error){setError(friendlyError(error,'资源准备没有完成，请重试。'))}finally{setWorking(false)}}
+ return <div className="modal-backdrop setup-backdrop"><section className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+ <header><img src="./yukino-icon.png" alt=""/><div><span className="eyebrow">MAKE ROOM FOR HER</span><h2 id="setup-title">应用已就绪。接下来，由你选择。</h2></div><button className="icon" aria-label={busy?'后台继续配置':'关闭首次配置'} onClick={onClose}><X size={18}/></button></header>
+ <div className="setup-content"><p className="intro">本地模型、音色与运行环境按需下载。也可以先跳过，填写 API 密钥开始文字聊天，再从设置回来。</p>
+ <div className="setup-features">{features.map(([id,label,detail,Icon])=><label key={id} className={'setup-feature '+(selection.includes(id)?'selected':'')}><Icon size={20}/><span><strong>{label}</strong><small>{detail}</small></span><input type="checkbox" role="switch" disabled={busy} checked={selection.includes(id)} onChange={event=>setSelection(old=>event.target.checked?[...old,id]:old.filter(value=>value!==id))}/></label>)}</div>
+ {needsRuntime?<div className="setup-runtime"><label>推理环境<Select aria-label="首次配置推理环境" value={flavor} disabled={busy} onChange={event=>setFlavor(event.target.value)}><option value="auto">{cpuOnly?'自动 · 当前可用 CPU 环境':'自动检测可用环境'}</option><option value="cpu">CPU 通用环境</option><option value="cu124" disabled={!cudaAvailable}>{cudaAvailable?'NVIDIA CUDA 环境':'NVIDIA CUDA · 暂无下载资源'}</option></Select></label><small>{cpuOnly?'目前提供 CPU 环境，NVIDIA 电脑也能使用。':'兼容的 GPU 环境可用时优先使用 GPU。'} Python 和推理依赖只需安装一份，由本地功能共用。</small></div>:<p className="setup-runtime-note">{selection.includes('pet')?'仅准备桌宠预录语音，不安装 Python 或推理环境。':'没有选中本地功能，可以直接跳过。'}</p>}
+ <div className="setup-download-summary"><span>本次按所选功能准备</span><strong>{neededBytes>0?`最多约 ${byteLabel(neededBytes)}`:allReady?'已在本机':'选择需要的资源'}</strong><small>已有完整文件会复用；每项资源独立下载、校验。实际下载量以进度为准。</small></div>
+ <div className="setup-steps" aria-live="polite">{steps.length?steps.map(step=>{const state=!selected(step)&&!busy?'skipped':step.state||step.phase||'pending';return <div key={step.id} className={'setup-step '+state}><span className="setup-step-icon">{['ready','complete'].includes(state)?<Check size={17}/>:busyStates.includes(state)?<LoaderCircle size={17} className="spin"/>:state==='error'?<X size={17}/>:<Minus size={17}/>}</span><div><strong>{step.label||labels[step.id]||'所需组件'}</strong><small>{step.detail||step.error||'安装前检查本机文件，完整资源不会重复下载。'}</small>{step.downloadBytes>0&&state!=='ready'&&<small>{byteLabel(step.downloadBytes)}{step.downloadSources?.length?' · 已配置下载源':''}</small>}</div><span className="setup-state">{stateLabels[state]||'等待中'}</span></div>}):<div className="setup-checking"><LoaderCircle className="spin" size={18}/><span>正在检查本机资源…</span></div>}</div>
+ {busy&&<div className="setup-progress" role="status"><span>{current?.label||labels[current?.id]||'正在准备资源'}{total>0&&<b>{byteLabel(bytes)} / {byteLabel(total)}</b>}</span>{total>0?<progress value={Math.min(bytes,total)} max={total}/>:<progress/>}<small>{progress.engine==='aria2'?'aria2 多连接下载':progress.engine==='https'?'HTTPS 下载':''}{progress.sourceLabel?` · ${progress.sourceLabel}`:''}{progress.speedBytesPerSecond>0?` · ${byteLabel(progress.speedBytesPerSecond)}/s`:''}{progress.fallback?' · 已切换备用下载方式':''}</small><small>连接超时将尝试可用备用源；取消后可重新点击继续，文件校验通过后才会使用。</small></div>}
+ {(error||status.error)&&<p className="notice" role="alert">{friendlyError(error||status.error)}</p>}
+ <ResourceHelp api={api}/>
+ {allReady&&!busy&&<div className="setup-complete"><Check size={19}/><span>所选资源已准备好。模型会在使用时加载，不会一直占用推理内存。</span></div>}
+ </div><footer><button className="text-link" onClick={onClose}>{busy?'后台继续，先使用文字聊天':allReady?'完成，开始聊天':'先跳过，稍后配置'}</button><div>{busy?<button className="secondary" onClick={()=>api?.setupCancel?.().catch(error=>setError(friendlyError(error)))}>取消准备</button>:<button className="primary" disabled={!selection.length} onClick={install}>{allReady?<RefreshCw size={16}/>:<Download size={16}/>} {allReady?'重新检查所选功能':error||status.error?'重试 / 继续下载':'安装所选资源'}</button>}</div></footer>
+ </section></div>;
 }

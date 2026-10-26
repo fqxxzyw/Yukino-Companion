@@ -50,7 +50,9 @@
       "resources/voice-models.json",
       "characters/**/*",
       "resources/translation-models.json",
-      "translation/model-manifest.json"
+      "translation/model-manifest.json",
+      "resources/*.json",
+      "resources/voice-presets/*.json"
     ],
     "directories": {
       "output": "release"

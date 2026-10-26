@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "release": "v0.4.0-resources.1",
+  "sources": {
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/config.json": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-hubert-base__config.json",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/config.json"
+    ],
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/preprocessor_config.json": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-hubert-base__preprocessor_config.json",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/preprocessor_config.json"
+    ],
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/pytorch_model.bin": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-hubert-base__pytorch_model.bin",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-hubert-base/pytorch_model.bin"
+    ],
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/config.json": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-roberta-wwm-ext-large__config.json",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/config.json"
+    ],
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/pytorch_model.bin": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-roberta-wwm-ext-large__pytorch_model.bin",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/pytorch_model.bin"
+    ],
+    "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/tokenizer.json": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__chinese-roberta-wwm-ext-large__tokenizer.json",
+      "https://huggingface.co/lj1995/GPT-SoVITS/resolve/336b2ec4e8d4ac74740798dd40af44e74659ecaf/chinese-roberta-wwm-ext-large/tokenizer.json"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e1.ckpt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__yukino-v1__gpt-e1.ckpt",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e1.ckpt"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__archives__yukino-sovits-e1.zip",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/SoVITS_weights.zip"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e2.ckpt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__yukino-v1__gpt-e2.ckpt",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e2.ckpt"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e3.ckpt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__yukino-v1__gpt-e3.ckpt",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e3.ckpt"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e4.ckpt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__yukino-v1__gpt-e4.ckpt",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e4.ckpt"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e5.ckpt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/voice__yukino-v1__gpt-e5.ckpt",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.1.0-framework.1/-e5.ckpt"
+    ],
+    "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/README.md": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/translation__README.md",
+      "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/README.md"
+    ],
+    "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/LICENSE.txt": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/translation__LICENSE.txt",
+      "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/LICENSE.txt"
+    ],
+    "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/Hy-MT2-1.8B-Q4_K_M.gguf": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/translation__Hy-MT2-1.8B-Q4_K_M.gguf",
+      "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/a0c709d9fac510f2c807aa3af52872340dc37a4a/Hy-MT2-1.8B-Q4_K_M.gguf"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Local-1.5B-Persona-0.4.0.zip": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/chat__Yukino-Local-1.5B-Persona-0.4.0.zip",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Local-1.5B-Persona-0.4.0.zip"
+    ],
+    "https://raw.githubusercontent.com/fqxxzyw/yukino_desktop_pet/70269cfc0a82756d7730425a38e53233bdf90aed/src/YukinoPet/voice/YukinoVoices.zip": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/pet__YukinoVoices.zip",
+      "https://raw.githubusercontent.com/fqxxzyw/yukino_desktop_pet/70269cfc0a82756d7730425a38e53233bdf90aed/src/YukinoPet/voice/YukinoVoices.zip"
+    ],
+    "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001": [
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/runtime__Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001",
+      "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001"
+    ]
+  }
+}

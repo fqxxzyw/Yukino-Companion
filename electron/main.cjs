@@ -10,6 +10,9 @@ const {bundledVoiceDefaults, mergeVoiceDefaults} = require('./bundled-voice.cjs'
 const {LocalChatService} = require('./local-chat.cjs');
 const {RuntimeManager} = require('./runtime-manager.cjs');
 const {SetupService} = require('./setup.cjs');
+const {ResourcePacks}=require('./resource-packs.cjs');
+const {resourceSources}=require('./resource-sources.cjs');
+const defaultVoicePreset=require('../resources/voice-presets/yukino-default.json');
 const {providerCatalog, discoverModels} = require('./providers.cjs');
 const {TranslationService, validateConfig: validateTranslation} = require('./translation.cjs');
 const {BILINGUAL_INSTRUCTION, BilingualStream, completeBilingual} = require('./bilingual.cjs');
@@ -17,7 +20,7 @@ const {CompanionManager} = require('./companions.cjs');
 const voiceCatalog = require('../resources/voice-models.json');
 const translationManifest = require('../translation/model-manifest.json');
 const outputInstruction = local => local ? '请用简体中文自然回答。不要自行附加其他语言翻译。' : BILINGUAL_INSTRUCTION;
-let win, controller, speech, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup;
+let win, controller, speech, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks;
 let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false, flushResolver;
 function flushRenderer() {
   if(!win || win.isDestroyed()) return Promise.resolve();
@@ -74,12 +77,13 @@ else {
     win.webContents.on('will-navigate', event => event.preventDefault());
     const workerPath = name => app.isPackaged ? path.join(process.resourcesPath, name, 'worker.py') : path.join(__dirname, '..', name, 'worker.py');
     speech = new SpeechService({script:workerPath('inference'),stateDir:location('speech-runtime'),notify:status=>send('voice-status',status)});
+    resourcePacks=new ResourcePacks({dataRoot:app.getPath('userData'),fetcher:(url,options)=>net.fetch(url,options),notify:(id,progress)=>setup?.report(id,progress)});
     runtime=new RuntimeManager({dataRoot:app.getPath('userData'),resourceRoot:resourceRoot(),catalogPath:path.join(resourceRoot(),'runtime-catalog.json'),fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
     const modelDir=app.isPackaged?path.join(process.resourcesPath,'translation-models',translationManifest.directory):path.join(__dirname,'../translation/models',translationManifest.directory);
     const localModelDir=app.isPackaged?path.join(resourceRoot(),'local-model/yukino-1.5b-persona-q4'):path.join(__dirname,'../resources/local-model/yukino-1.5b-persona-q4');
     const localScript=app.isPackaged?path.join(process.resourcesPath,'local-chat/desktop_worker.py'):path.join(__dirname,'../model-service/desktop_worker.py');
     const bundleReady=(async()=>{
-      const current=await runtime.current();
+      const current=await runtime.current(),chatPack=await resourcePacks.status('chat');
       voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});
       const savedVoice=await read('speech.json',{}), savedTranslation=await read('translation.json',{}),savedLocal=await read('local-chat.json',{});
       const python=current.python||voiceBundle.defaults.python||savedVoice.python||process.env.YUKINO_PYTHON||'';
@@ -87,13 +91,13 @@ else {
       translation.configure({...savedTranslation,python:savedTranslation.python||python,modelDir:savedTranslation.modelDir||modelDir});
       if(!(await translation.status()).modelInstalled&&savedTranslation.modelDir?.startsWith(path.join(location('translation-runtime'),'models')+path.sep))translation.configure({modelDir});
       localChat=new LocalChatService({script:localScript,stateDir:location('local-chat-runtime'),modelDir:localModelDir,python,notify:status=>send('local-chat-status',status)});
-      localChat.configure({...savedLocal,python:savedLocal.python||python,modelDir:savedLocal.modelDir||localModelDir});
+      localChat.configure({...savedLocal,python:savedLocal.python||python,modelDir:savedLocal.modelDir||chatPack.root||localModelDir});
       makeVoiceResources();
       speech.configure(mergeVoiceDefaults(savedVoice,voiceBundle));
       return voiceBundle;
     })();
     function makeVoiceResources(){
-      voiceResources=new VoiceResources({root:voiceBundle.modelRoot,catalog:voiceCatalog,bundledRoot:path.join(resourceRoot(),'voice-models'),bundledPackId:voiceBundle.preset?.packId,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('voice-download',status);setup?.report('voiceCore',status);}});
+      voiceResources=new VoiceResources({root:voiceBundle.modelRoot,catalog:voiceCatalog,bundledRoot:path.join(resourceRoot(),'voice-models'),bundledPackId:voiceBundle.preset?.packId,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('voice-download',status);setup?.report(setup?.active==='voicePreset'?'voicePreset':'voiceCore',status);}});
     }
     async function voiceConfig(){await bundleReady;return mergeVoiceDefaults(await read('speech.json',{}),voiceBundle);}
     async function refreshRuntime(){
@@ -104,24 +108,51 @@ else {
       for(const service of [translation,localChat])if(!service.config.python||service.config.python===previous.defaults.python)service.configure({python:current.python||value.python});
       await write('translation.json',translation.config);await write('local-chat.json',localChat.config);
     }
+    async function installChat(signal){
+      if((await localChat.status()).modelInstalled)return;
+      if(localChat.config.modelDir&&localChat.config.modelDir!==localModelDir&&!localChat.config.modelDir.startsWith(resourcePacks.root+path.sep))throw Error('已选择的自定义角色模型不完整，请在本地模型设置中重新选择或清空路径。');
+      const installed=await resourcePacks.install('chat',{signal});signal.throwIfAborted();
+      localChat.configure({modelDir:installed.root});await write('local-chat.json',localChat.config);
+    }
+    async function installPet(signal){const installed=await resourcePacks.install('pet',{signal});signal.throwIfAborted();await companions?.setResourceRoot?.(installed.root);return installed;}
+    async function installVoicePreset(signal){
+      const config=await voiceConfig(),readiness=await speech.readiness(config);signal.throwIfAborted();
+      if(!readiness.missing?.some(item=>['gpt','sovits','reference','promptText'].includes(item.key)))return;
+      const saved=await read('speech.json',{});
+      // An incomplete custom pair/reference must never be silently replaced.
+      const defaultPack=voiceCatalog.packs[voiceCatalog.defaultVoicePack||'yukino-e2'];
+      const isManaged=(field,value)=>!value||value===voiceBundle.defaults[field]||value===path.join(voiceResources.root,defaultPack.paths[field]);
+      if(!isManaged('gpt',saved.gpt)||!isManaged('sovits',saved.sovits))throw Error('已选择自定义音色，请在声音设置中补齐权重、参考音频及日语文本。');
+      const managedReference=path.join(location('voice-presets'),'yukino-reference.wav');
+      if((saved.reference&&saved.reference!==managedReference&&saved.reference!==voiceBundle.defaults.reference)||(saved.promptText?.trim()&&saved.promptText!==defaultVoicePreset.promptText&&saved.promptText!==voiceBundle.defaults.promptText))throw Error('已选择自定义参考音频或日语文本，请在声音设置中补齐配置；不会用默认参考覆盖你的选择。');
+      const paths=await voiceResources.install(voiceCatalog.defaultVoicePack||'yukino-e2');signal.throwIfAborted();
+      const source=app.isPackaged?path.join(resourceRoot(),'voice-presets',defaultVoicePreset.reference.sourcePath):path.join(__dirname,'../resources/voice-presets',defaultVoicePreset.reference.sourcePath);
+      const reference=await fs.readFile(source);if(reference.length!==defaultVoicePreset.reference.bytes||require('node:crypto').createHash('sha256').update(reference).digest('hex')!==defaultVoicePreset.reference.sha256)throw Error('默认参考音频校验失败');
+      const refDir=location('voice-presets');await fs.mkdir(refDir,{recursive:true});const target=path.join(refDir,'yukino-reference.wav');await fs.writeFile(target+'.tmp',reference);signal.throwIfAborted();await fs.rename(target+'.tmp',target);
+      const value=mergeVoiceDefaults({...saved,...paths,reference:target,promptText:defaultVoicePreset.promptText,promptLang:defaultVoicePreset.promptLang},voiceBundle);
+      await write('speech.json',value);speech.configure(value);
+    }
     setup=new SetupService({prepare:()=>bundleReady,notify:status=>send('setup-status',status),inspect:async()=>{
       await bundleReady;
-      const [environment,local,translated,voices,voice]=await Promise.all([runtime.status(),localChat.status(),translation.status(),voiceResources.inspect(),speech.readiness(await voiceConfig())]);
+      const [environment,local,translated,voices,voice,pet,chatPack,runtimeCatalog]=await Promise.all([runtime.status(),localChat.status(),translation.status(),voiceResources.inspect(),speech.readiness(await voiceConfig()),resourcePacks.status('pet'),resourcePacks.status('chat'),runtime.catalog()]);
+      const helpUrl='https://fqxxzyw.github.io/Yukino-Companion/#help';
+      const describe=files=>({downloadBytes:files.reduce((sum,file)=>sum+(file.bytes||file.size||0),0),downloadSources:[...new Set(files.flatMap(file=>resourceSources(file.url||`${translationManifest.baseUrl}/${file.path}`,file.sources)))],helpUrl});
       const coreReady=!voice.missing?.some(x=>['bert','hubert'].includes(x.key));
       const presetReady=!voice.missing?.some(x=>['gpt','sovits','reference','promptText'].includes(x.key));
       return {runtimeFlavor:environment.flavor,runtimeVariants:environment.variants,device:environment.metadata?.gpuAvailable?'GPU':'CPU',steps:[
-        {id:'runtime',state:environment.ready?'ready':'missing',detail:environment.ready?`公共推理环境已安装 · ${environment.flavor}`:'Python 与推理依赖将统一安装，不影响已内置的模型。'},
-        {id:'chat',state:local.modelInstalled?'ready':'missing',detail:local.modelInstalled?'角色权重已内置，首次发送时自动加载。':'本地角色权重缺失，请检查安装分卷。'},
-        {id:'translation',state:translated.modelInstalled?'ready':'missing',detail:translated.modelInstalled?'中日翻译权重已安装，不会重复下载。':'需要准备中日翻译权重。'},
-        {id:'voiceCore',state:coreReady||voices.coreReady?'ready':'missing',detail:'语音合成共用的 BERT 与 HuBERT 组件。'},
-        {id:'voicePreset',state:presetReady?'ready':'missing',detail:presetReady?'音色权重、日语参考声音及文本已配置。':'请在声音设置中选择完整音色及参考声音。'}]};
-    },installRuntime:flavor=>runtime.install(flavor),refresh:refreshRuntime,
+        {id:'runtime',...describe(runtimeCatalog.variants?.cpu?.parts||[]),state:environment.ready?'ready':'missing',detail:environment.ready?`公共推理环境已安装 · ${environment.flavor}`:'按需安装 Python 与推理依赖；仅桌宠不需要。'},
+        {id:'chat',downloadBytes:chatPack.downloadBytes,downloadSources:chatPack.downloadSources,helpUrl,state:local.modelInstalled?'ready':'missing',detail:local.modelInstalled?'角色权重已安装，首次发送时自动加载。':'安装已训练的角色模型，无需重新训练。'},
+        {id:'translation',...describe(translationManifest.files),state:translated.modelInstalled?'ready':'missing',detail:translated.modelInstalled?'中日翻译权重已安装，不会重复下载。':'需要准备中日翻译权重。'},
+        {id:'voiceCore',...describe(voiceCatalog.packs.core.files),state:coreReady||voices.coreReady?'ready':'missing',detail:'语音合成共用的 BERT 与 HuBERT 组件。'},
+        {id:'voicePreset',...describe(voiceCatalog.packs[voiceCatalog.defaultVoicePack||'yukino-e2'].files),state:presetReady?'ready':'missing',detail:presetReady?'音色权重、日语参考声音及文本已配置。':'按需下载默认音色，并配置日语参考音频。'},
+        {id:'pet',downloadBytes:pet.downloadBytes,downloadSources:pet.downloadSources,helpUrl,state:pet.installed?'ready':'missing',detail:'2,391 段桌宠预录语音；不依赖 Python。'}]};
+    },installRuntime:flavor=>runtime.install(flavor),refresh:refreshRuntime,installChat,installPet,installVoicePreset,
       installTranslation:async()=>{const status=await translation.install();await write('translation.json',status.config);return status;},
       installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();if(!status.missing?.some(item=>['bert','hubert'].includes(item.key)))return {};const paths=await voiceResources.install('core');const missing=new Set(status.missing?.map(item=>item.key));return Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key)));},saveVoice:async paths=>{const config=mergeVoiceDefaults({...await read('speech.json',{}),...paths},voiceBundle);await write('speech.json',config);speech.configure(config);},
-      cancel:()=>{runtime.cancel();translation?.cancel();voiceResources?.cancel();}});
+      cancel:()=>{runtime.cancel();translation?.cancel();voiceResources?.cancel();resourcePacks?.cancel();}});
     bundleReady.catch(error=>send('app-error',{message:error.message}));
     companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:openMain,onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
-    await companions.initialize(); companions.attachMainWindow(win);
+    await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
     handle('flush-complete', id=>{if(flushResolver?.id===id)flushResolver.resolve();});
     handle('load', async () => {
@@ -253,7 +284,8 @@ else {
     handle('companion-action',action=>companions.performAction(action));
     handle('close-choice',(mode,options)=>companions.closeChoice(mode,options));
     handle('window',action=>{if(action==='minimize')win.minimize();if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();if(action==='close')win.close();});
-    handle('community',()=>shell.openExternal('https://github.com/fqxxzyw/Yukino-Companion'));
+    handle('community',()=>shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/'));
+    handle('help',topic=>{if(topic!==undefined&&!['downloads','integrity','api','first-run'].includes(topic))throw Error('未知帮助主题');return shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/#help');});
     win.on('closed',()=>{controller?.abort();setup?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();});
     win.webContents.on('render-process-gone',()=>{controller?.abort();setup?.cancel();localChat?.cancel();speech?.dispose();translation?.cancel();voiceResources?.cancel();});
     await win.loadFile(path.join(__dirname,'../dist/index.html'));

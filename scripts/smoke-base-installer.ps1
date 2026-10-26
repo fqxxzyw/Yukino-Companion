@@ -1,0 +1,86 @@
+﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe')
+$ErrorActionPreference='Stop'
+$root=Split-Path $PSScriptRoot -Parent
+$Installer=[IO.Path]::GetFullPath((Join-Path $root $Installer))
+$output=Join-Path $root 'build/base-installer-review';[void][IO.Directory]::CreateDirectory($output)
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('Yukino 基础安装测试 '+[Guid]::NewGuid().ToString('N'))
+$target=Join-Path $temporary '中文目录\Yukino Companion'
+$report=@{schemaVersion=1;fixtureOnly=$false;passed=$false;checks=@();screenshots=@()}
+Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public class BaseInstallerWindow {
+ public delegate bool EnumProc(IntPtr hwnd,IntPtr data);
+ [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hwnd,EnumProc cb,IntPtr data);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd,StringBuilder s,int n);
+ [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint m,IntPtr w,IntPtr l);
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out Rect r);
+ [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr dc,uint flags);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+ public struct Rect {public int Left,Top,Right,Bottom;}
+ public class Item {public IntPtr Handle;public string Text;}
+ public static List<Item> Children(IntPtr hwnd){var items=new List<Item>();EnumChildWindows(hwnd,(h,p)=>{var s=new StringBuilder(4096);GetWindowText(h,s,s.Capacity);items.Add(new Item{Handle=h,Text=s.ToString()});return true;},IntPtr.Zero);return items;}
+}
+'@
+function Capture([IntPtr]$Window,[string]$Name){
+ $rect=New-Object BaseInstallerWindow+Rect
+ if(-not [BaseInstallerWindow]::GetWindowRect($Window,[ref]$rect)){throw 'Cannot read installer window bounds'}
+ $bitmap=New-Object Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top)
+ $graphics=[Drawing.Graphics]::FromImage($bitmap);$dc=$graphics.GetHdc()
+ try{[void][BaseInstallerWindow]::PrintWindow($Window,$dc,2)}finally{$graphics.ReleaseHdc($dc);$graphics.Dispose()}
+ try{$bitmap.Save((Join-Path $output ($Name+'.png')),[Drawing.Imaging.ImageFormat]::Png)}finally{$bitmap.Dispose()}
+ $texts=@([BaseInstallerWindow]::Children($Window)|ForEach-Object{$_.Text}|Where-Object{$_})
+ $texts | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output ($Name+'-text.json')) -Encoding utf8
+ $report.screenshots+=$Name+'.png'
+ return ($texts -join "`n")
+}
+function Install([string]$Directory,[bool]$Expected){
+ $log=Join-Path $output ('install-'+[Guid]::NewGuid().ToString('N')+'.log')
+ $child=Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DIR="'+$Directory+'"'),('/LOG="'+$log+'"')) -PassThru
+ if(-not $child.WaitForExit(180000)){$child.Kill();throw 'Base installation timed out'}
+ if(($Expected -and $child.ExitCode -ne 0) -or (-not $Expected -and $child.ExitCode -eq 0)){throw "Unexpected installer exit $($child.ExitCode)"}
+}
+$gui=$null;$visible=$null
+try{
+ if(-not(Test-Path -LiteralPath $Installer -PathType Leaf)){throw 'Published installer is missing'}
+ $gui=Start-Process -FilePath $Installer -ArgumentList '/SP-' -PassThru
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ do{$visible=Get-Process | Where-Object{$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -eq '安装 Yukino Companion'} | Select-Object -First 1;if(-not $visible){Start-Sleep -Milliseconds 150}}while(-not $visible -and [DateTime]::UtcNow -lt $deadline)
+ if(-not $visible){throw 'Native Chinese installer window did not open'}
+ Start-Sleep -Milliseconds 400
+ $text=Capture $visible.MainWindowHandle 'welcome'
+ if($text -notmatch '一方安静的空间' -or $text -notmatch '安装过程不下载资源'){throw 'Welcome page Chinese text is missing or garbled'}
+ $next=[BaseInstallerWindow]::Children($visible.MainWindowHandle)|Where-Object{$_.Text -match '^继续'}|Select-Object -First 1
+ if(-not $next){throw 'Native continue button not found'}
+ [void][BaseInstallerWindow]::SendMessage($next.Handle,0xF5,[IntPtr]::Zero,[IntPtr]::Zero)
+ Start-Sleep -Milliseconds 400
+ $text=Capture $visible.MainWindowHandle 'directory'
+ if($text -notmatch '专用文件夹' -or $text -notmatch '在桌面创建快捷方式'){throw 'Directory page Chinese text is missing or garbled'}
+ $report.checks+='Actual published native installer opens; welcome and directory Chinese text verified and captured'
+ Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue
+ if(-not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
+ $visible=$null;$gui=$null
+ Install $target $true
+ foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/aria2/aria2c.exe','resources/runtime-catalog.json','yukino-base-installation.ini')){if(-not(Test-Path -LiteralPath (Join-Path $target $file))){throw "Installed file missing: $file"}}
+ if(Get-ChildItem -LiteralPath $target -Recurse -File|Where-Object{$_.Extension -in @('.gguf','.ckpt','.pth','.ogg') -or $_.Name -eq 'python.exe'}){throw 'Base installation unexpectedly contains model/audio/environment payload'}
+ $report.checks+='Published EXE installs into a Chinese path without acquiring model or Python resources'
+ $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
+ Install $target $true
+ if((Get-Content -LiteralPath $sentinel -Raw) -ne 'keep me'){throw 'Upgrade modified personal files'}
+ $report.checks+='Recognized base-app upgrade preserves added personal files'
+ $unknown=Join-Path $temporary 'unknown personal folder';[void][IO.Directory]::CreateDirectory($unknown);[IO.File]::WriteAllText((Join-Path $unknown 'personal.txt'),'untouched')
+ Install $unknown $false
+ if((Get-Content -LiteralPath (Join-Path $unknown 'personal.txt') -Raw) -ne 'untouched'){throw 'Unknown directory was modified'}
+ $report.checks+='Unknown nonempty installation directory rejected'
+ $uninstall=Get-ChildItem -LiteralPath $target -Filter 'unins*.exe'|Select-Object -First 1
+ $child=Start-Process -FilePath $uninstall.FullName -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru
+ if(-not $child.WaitForExit(120000)){$child.Kill();throw 'Uninstall timed out'}
+ if($child.ExitCode -ne 0 -or (Test-Path -LiteralPath (Join-Path $target 'Yukino Companion.exe')) -or -not(Test-Path -LiteralPath $sentinel)){throw 'Uninstall did not preserve personal files'}
+ $report.checks+='Uninstall removes owned application files and preserves added personal files'
+ $report.passed=$true
+}finally{
+ if($visible){Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue}
+ if($gui -and -not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
+ $report|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $output 'report.json') -Encoding utf8
+ Remove-Item -LiteralPath $temporary -Recurse -Force -ErrorAction SilentlyContinue
+}

@@ -23,7 +23,7 @@ test('servers ignoring Range restart safely, and Git SHA1 blobs verify',async t=
  const data=Buffer.from('abcd');const {root,item,installer}=await setup(t,data,async()=>new Response(data));const dest=path.join(root,item.path);await fs.mkdir(path.dirname(dest),{recursive:true});await fs.writeFile(dest+'.part','ab');await installer.install();assert.equal(await verified(dest,file(data,'sha1')),true);
 });
 test('wrong Content-Range cannot append corrupt bytes',async t=>{
- const {installer}=await setup(t,Buffer.from('abcd'),async()=>new Response('bcd',{status:206,headers:{'content-range':'bytes 1-3/4'}}));await assert.rejects(installer.install(),/续传范围/);
+ const {installer}=await setup(t,Buffer.from('abcd'),async()=>new Response('bcd',{status:206,headers:{'content-range':'bytes 1-3/4'}}));await assert.rejects(installer.install(),/下载源|续传范围/);
 });
 test('cancel interrupts the network and keeps status explicit',async t=>{
  let started;const ready=new Promise(r=>started=r);const {installer}=await setup(t,Buffer.from('abcd'),async(url,opts)=>{started();return new Promise((resolve,reject)=>opts.signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true}))});
@@ -32,4 +32,9 @@ test('cancel interrupts the network and keeps status explicit',async t=>{
 test('catalog traversal and unknown packs rejected',async t=>{
  for(const p of ['../weights','a/../../x','/etc/passwd','a\\..\\x'])assert.throws(()=>safeDestination(os.tmpdir(),p));
  const {installer}=await setup(t,Buffer.from('a'),()=>{throw Error('should not fetch')});await assert.rejects(installer.install('private-weights'),/未知/);
+});
+test('Git blob configuration files switch to a second pinned source and still verify SHA1',async t=>{
+ const data=Buffer.from('{"small":"config"}'),item={...file(data,'sha1'),sources:['https://mirror.example.test/config','https://origin.example.test/config']};const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-small-source-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const requested=[];
+ const installer=new VoiceResources({root,catalog:{packs:{core:{files:[item]}}},fetcher:async url=>{requested.push(url);return url.includes('mirror')?new Response('unavailable',{status:503}):new Response(data);}});
+ await installer.install();assert.deepEqual(requested,item.sources);assert.equal(await verified(path.join(root,item.path),item),true);
 });

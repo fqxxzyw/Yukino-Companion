@@ -1,0 +1,41 @@
+name: 二创文章
+description: 分享小说、短篇、随笔或其他文字创作
+title: "[二创] "
+body:
+  - type: markdown
+    attributes:
+      value: "欢迎分享原创二创作品。发布后，标题、正文和你的 GitHub 身份会出现在社区网页；请不要提交私人信息或未经许可转载的全文。"
+  - type: textarea
+    id: summary
+    attributes:
+      label: 作品简介
+      description: 用几句话介绍这篇作品；如有剧透，请在这里提醒。
+      placeholder: 故事发生在一个普通的放学后……
+    validations:
+      required: true
+  - type: textarea
+    id: story
+    attributes:
+      label: 作品正文
+      description: 支持 Markdown 段落、标题和链接。长篇可分章节发布，并附前后篇链接。
+    validations:
+      required: true
+  - type: input
+    id: tags
+    attributes:
+      label: 标签
+      placeholder: 日常、短篇、雪之下雪乃
+  - type: textarea
+    id: permission
+    attributes:
+      label: 授权与说明
+      description: 说明原创 / 合作 / 已获授权转载，以及是否允许转载或改编。
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: 发布确认
+      options:
+        - label: 我有权分享此内容，并理解内容、评论和 GitHub 用户名会公开展示。
+          required: true

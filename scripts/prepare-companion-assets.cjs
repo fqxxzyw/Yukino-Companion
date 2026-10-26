@@ -21,7 +21,7 @@ async function prepare() {
     await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(`${target}.tmp`, data); await fs.rename(`${target}.tmp`, target);
     console.log(`Prepared ${entry.path}`);
   }
-  await prepareVoices();
+  if(process.env.YUKINO_BASE_BUILD!=='1'&&!process.argv.includes('--artwork-only')) await prepareVoices();
 }
 async function prepareVoices() {
   const archiveSha='7b8b150e6b2593b43dd44bf476348b7a44ea0ab6c90d9bddc6a31cce1e2cb6bc';

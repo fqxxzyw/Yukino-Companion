@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('desktop', {
   localChatUnload:()=>invoke('local-chat-unload'), localChatProbe:()=>invoke('local-chat-probe'),
   onLocalChatStatus:fn=>subscribe('local-chat-status',fn), onOpenSettings:fn=>subscribe('open-settings',fn),
   send:request=>invoke('chat',request), stop:()=>invoke('stop'), test:id=>invoke('test',id),
-  window:action=>invoke('window',action), openCommunity:()=>invoke('community'),
+  window:action=>invoke('window',action), openCommunity:()=>invoke('community'), openHelp:topic=>invoke('help',topic),
   characterDocument:()=>invoke('character-document'), characterPreview:()=>invoke('character-preview'),
   onChunk:fn=>subscribe('chunk',fn), onError:fn=>subscribe('app-error',fn),
   voiceResources:()=>invoke('voice-resources'), voiceInstall:id=>invoke('voice-install',id),

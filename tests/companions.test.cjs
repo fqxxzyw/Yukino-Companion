@@ -145,3 +145,17 @@ test('quote settings suppress matching sources while independent categories stay
   assert.ok(f.manager.pickQuote('Work'));
   await f.manager.setPreferences({quietMode:true});assert.equal(f.manager.pickQuote('Break'),null);
 });
+
+test('downloaded pet voices are hot-loaded and only catalogued audio may be requested',async t=>{
+ const f=await fixture(t),root=path.join(f.manager.dataDir,'downloaded-pet');
+ await fs.mkdir(path.join(root,'voices'),{recursive:true});await fs.writeFile(path.join(root,'voices','greeting.ogg'),'sound');
+ await fs.writeFile(path.join(root,'voices.json'),JSON.stringify({files:[{file:'greeting.ogg',bytes:5}]}));
+ await f.manager.setResourceRoot(root);assert.equal(f.manager.getState().voiceCount,1);
+ assert.match(await f.manager.voiceUrl('greeting.ogg'),/^file:/);
+ await assert.rejects(f.manager.voiceUrl('../secret.ogg'),/无效/);await assert.rejects(f.manager.voiceUrl('secret.ogg'),/尚未准备/);
+ await fs.writeFile(path.join(root,'voices','greeting.ogg'),'truncated audio');await assert.rejects(f.manager.voiceUrl('greeting.ogg'),/不完整/);
+});
+test('downloaded voice catalog rejects path escapes and duplicate names before replacing the active pack',async t=>{
+ const f=await fixture(t),root=path.join(f.manager.dataDir,'invalid-pet');await fs.mkdir(root);
+ for(const files of [[{file:'../hidden.ogg'}],[{file:'voice.ogg'},{file:'VOICE.ogg'}]]){await fs.writeFile(path.join(root,'voices.json'),JSON.stringify({files}));await assert.rejects(f.manager.setResourceRoot(root),/文件名/);}
+});

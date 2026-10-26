@@ -1,0 +1,6 @@
+import React from 'react';
+import {SCENES,presentationConfig} from './avatar-presentation.mjs';
+export default function AvatarPresentationSettings({value,onChange}){
+ const config=presentationConfig(value),change=patch=>onChange({...config,...patch});
+ return <div className="presentation-settings"><h3 className="settings-section-title">人物空间</h3><p className="hint">场景色调可以立即预览；对应的三维灯光、眼神和头部动作将在模型接入后生效。</p><div className="scene-options" aria-label="人物环境">{Object.entries(SCENES).map(([id,scene])=><button type="button" key={id} aria-pressed={config.scene===id} className={config.scene===id?'selected':''} onClick={()=>change({scene:id})}><i style={{background:scene.background}}/><span>{scene.label}</span></button>)}</div><label className="row"><div><strong>环境延伸到整个界面</strong><small>从人物所在位置展开；减少动态效果时直接切换。</small></div><input type="checkbox" role="switch" checked={config.spread} onChange={event=>change({spread:event.target.checked})}/></label><label className="row"><div><strong>眼神与头部跟随鼠标</strong><small>仅在人物窗口内跟随，移出后回到自然视线。</small></div><input type="checkbox" role="switch" checked={config.gaze} onChange={event=>change({gaze:event.target.checked})}/></label><p className="hint">服装面板位于人物框侧边。正式服装资源接入后，更换时先从左侧离场，再从右侧入场并打招呼；本版没有预置或出售占位皮肤。</p></div>;
+}

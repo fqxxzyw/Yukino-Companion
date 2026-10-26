@@ -1,3 +1,4 @@
+import ResourceHelp from '../ui/ResourceHelp.jsx';
 import Select from '../ui/Select.jsx';
 import React, { useEffect, useState } from 'react';
 
@@ -28,6 +29,7 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
   const pathField = key => <label className="field" key={key}>{pathLabels[key]}<div className="voice-path"><input value={config[key]} onChange={e=>patch({[key]:e.target.value})} placeholder="选择本机文件或目录"/><button type="button" className="secondary" onClick={()=>action(async()=>{const selected=await api.voicePick(key);if(selected)patch({[key]:selected})})}>浏览</button></div></label>;
   async function save() { await api.voiceSave({...config,textLang:'all_ja'}); setNotice('配置已保存；模型、语言、语速等推理设置修改后需重新加载。'); }
   return <>
+    <ResourceHelp api={api}/>
     <p className="intro">用她的声音读出日语回复。默认音色与参考声音随安装包提供，也可以换成你的训练成果。</p>
     {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">检查运行环境、公共模型与默认音色，缺少的组件会明确列出。可以跳过，稍后再来。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
     <div className="voice-status resource-card">

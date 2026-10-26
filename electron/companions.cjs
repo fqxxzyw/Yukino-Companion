@@ -1,5 +1,6 @@
 'use strict';
 const path = require('node:path');
+const {pathToFileURL} = require('node:url');
 const fs = require('node:fs/promises');
 const { UsageTracker } = require('./usage.cjs');
 const { PET_DEFAULTS, petPreferences, parseLegacySettings, QuotePicker } = require('./pet-features.cjs');
@@ -46,7 +47,7 @@ class CompanionManager {
         if(error.code==='ENOENT')try { const old=await fs.readFile(path.join(process.env.LOCALAPPDATA,'YukinoPet/settings.ini'),'utf8'); this.preferences=sanitizePreferences(parseLegacySettings(old),this.preferences); await this.persist(); } catch(legacyError) { if(legacyError.code!=='ENOENT')this.onError(new Error('旧桌宠设置未能导入，已保留原文件。')); }
       }
     }
-    try { this.voiceCatalog=JSON.parse(await fs.readFile(path.join(__dirname,'companion-view/assets/voices.json'),'utf8')); } catch { this.voiceCatalog={files:[]}; }
+    await this.setResourceRoot(path.join(__dirname,'companion-view/assets'), {notify:false});
     this.startupAvailable=['win32','darwin'].includes(process.platform)&&!!this.e.app.isPackaged&&typeof this.e.app.setLoginItemSettings==='function';
     if(this.startupAvailable)this.preferences.startup=!!this.e.app.getLoginItemSettings().openAtLogin;
     const { powerMonitor, ipcMain, screen } = this.e;
@@ -61,6 +62,34 @@ class CompanionManager {
     this.timer = setInterval(() => this.flush(), 15000);
     this.focusTimer=setInterval(()=>this.tickFocus(),1000); this.focusTimer.unref?.(); this.timer.unref?.();
     this.ensureTray(); this.applyMode(); return this.getState();
+  }
+  async setResourceRoot(root, {notify=true}={}) {
+    if(typeof root!=='string'||!path.isAbsolute(root))throw Error('桌宠语音目录必须是本机绝对路径');
+    const resolved=path.resolve(root);
+    let catalog;
+    try {
+      const stat=await fs.lstat(resolved);
+      if(!stat.isDirectory()||stat.isSymbolicLink())throw Error('桌宠语音目录不安全');
+      catalog=JSON.parse(await fs.readFile(path.join(resolved,'voices.json'),'utf8'));
+      if(!Array.isArray(catalog.files)||catalog.files.length>10000)throw Error('桌宠语音清单无效');
+      const names=new Set();
+      for(const item of catalog.files){
+        if(!item||!/^[-A-Za-z0-9_]+\.ogg$/.test(item.file)||names.has(item.file.toLowerCase()))throw Error('桌宠语音清单文件名无效');
+        names.add(item.file.toLowerCase());
+      }
+    }catch(error){if(error.code!=='ENOENT')throw error;catalog={files:[]};}
+    this.voiceRoot=resolved;this.voiceCatalog=catalog;this.voiceRevision=(this.voiceRevision||0)+1;
+    if(notify){for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
+    return {voiceCount:catalog.files.length};
+  }
+  async voiceUrl(name){
+    if(typeof name!=='string'||!/^[-A-Za-z0-9_]+\.ogg$/.test(name))throw Error('无效的桌宠语音');
+    const item=this.voiceCatalog?.files?.find(item=>item.file===name);
+    if(!item||!this.voiceRoot)throw Error('桌宠语音尚未准备');
+    const directory=path.join(this.voiceRoot,'voices'),file=path.join(directory,name);
+    const [dirStat,stat]=await Promise.all([fs.lstat(directory),fs.lstat(file)]);
+    if(!dirStat.isDirectory()||dirStat.isSymbolicLink()||!stat.isFile()||stat.isSymbolicLink()||(Number.isSafeInteger(item.bytes)&&stat.size!==item.bytes))throw Error('桌宠语音文件不完整');
+    return pathToFileURL(file).href;
   }
   attachMainWindow(win) {
     this.mainWindow = win;
@@ -138,12 +167,13 @@ class CompanionManager {
     win.loadFile(path.join(__dirname, 'companion-view/index.html'), { query: { kind } }).catch(error => this.onError(error));
     return win;
   }
-  sendState(win, kind) { if (!win.isDestroyed()) win.webContents.send('companion-state', { kind, startupAvailable:this.startupAvailable, preferences: this.preferences, reply: this.reply, focus:{active:this.preferences.focusEnds>Date.now(),remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, modelReady: false }); }
+  sendState(win, kind) { if (!win.isDestroyed()) win.webContents.send('companion-state', { kind, startupAvailable:this.startupAvailable, preferences: this.preferences, voiceRevision:this.voiceRevision||0, reply: this.reply, focus:{active:this.preferences.focusEnds>Date.now(),remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, modelReady: false }); }
   async viewCall(event, action, payload) {
     const entry = [...this.windows].find(([, win]) => !win.isDestroyed() && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame);
     if (!entry) throw Error('不允许的桌宠调用');
     const [kind, win] = entry;
     if (action === 'catalog') return {voices:(this.voiceCatalog?.files||[]).map(item=>item.file).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name))};
+    if (action === 'voice-url') return this.voiceUrl(payload);
     if (action === 'settings') { this.openMain(); this.onOpenSettings('avatar'); return true; }
     if (action === 'prefs') { const allowed=['animation','interactionPaused','quietMode','randomQuotes','interactionQuotes','nightReminders','showBubbles','soundEnabled','soundVolume','opacity','scale','alwaysOnTop','startup','bubbleLanguage']; const patch=Object.fromEntries(Object.entries(payload||{}).filter(([key])=>allowed.includes(key))); return this.setPreferences(patch); }
     if (action === 'action') return this.performAction(payload);

@@ -1,0 +1,196 @@
+name: Base application first, resources in the app
+on:
+  push:
+    branches: [release/0.4.0-base]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: base-installer-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare only small verified build dependencies and resource catalogs
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/mirror-resources.py --catalog-only --runtime-catalog
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build application without model weights or Python
+        run: node scripts/build-base-app.cjs
+      - name: Compile the native Chinese base installer
+        run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/build-base-installer.ps1
+      - name: Publish the actual installer before post-release tests
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="v0.4.0-base.${GITHUB_RUN_NUMBER}"
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n')
+          notes='''# Yukino Companion 0.4.0 · 基础安装版
+
+          优先下载 **Yukino-Companion-0.4.0-Base-Setup.exe**。
+
+          - 安装程序只安装基础应用，安装过程中不下载模型、音色或环境。
+          - 首次打开软件后按需安装本地对话、翻译、音色、桌宠语音及公共环境，也可以跳过并配置 API 文字聊天。
+          - 安装界面重新排列为浅蓝/白色，修正中文编码，使用清晰的中文字体。
+          - 内置 aria2 多连接下载与断点续传；资源按独立文件校验，下载失败可切换固定备用源。实际提速由网络与服务器决定。
+          - 共享环境暂提供 CPU 下载路径；Windows 安装器尚未代码签名。
+
+          独立资源镜像位于 [v0.4.0-resources.1](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-resources.1)。镜像尚未准备好时会回退原始固定来源。
+
+          验证状态：**已发布，发布后验证正在进行**。这是测试版，不代表所有硬件和模型质量已验收。
+          '''
+          Path('release/RELEASE-NOTES.md').write_text(notes,encoding='utf8')
+          PY
+          gh release create "$release_tag" release/Yukino-Companion-0.4.0-Base-Setup.exe release/base-installer.json release/SHA256SUMS.txt build/base-package.json --title "Yukino Companion 0.4.0 · 基础安装版 ${GITHUB_RUN_NUMBER}" --notes-file release/RELEASE-NOTES.md --target "$GITHUB_SHA" --prerelease
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$release_tag" > release/published-base.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          local=json.loads(Path('release/base-installer.json').read_text(encoding='utf-8-sig'))
+          release=json.loads(Path('release/published-base.json').read_text())
+          asset=next(x for x in release['assets'] if x['name']==local['file'])
+          if asset['size']!=local['bytes'] or asset.get('digest')!='sha256:'+local['sha256']:raise SystemExit('Published installer digest does not match the built EXE')
+          print('Actual published installer size and SHA-256 verified')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: base-installer-build-${{ github.run_number }}
+          path: |
+            release/*
+            build/base-package.json
+          if-no-files-found: warn
+          retention-days: 30
+  post_validation:
+    needs: publish
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.publish.outputs.tag }}
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Download the exact published installer and verify it
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "$RELEASE_TAG" --pattern 'Yukino-Companion-0.4.0-Base-Setup.exe' --pattern SHA256SUMS.txt --dir release
+          cd release
+          sha256sum --check SHA256SUMS.txt
+      - name: Verify actual native Windows UI, install, upgrade and uninstall
+        run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/smoke-base-installer.ps1
+      - name: Verify the actual bundled aria2 binary with a real HTTPS download
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-aria2.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm test
+      - run: python -m unittest discover -s tests -p '*_test.py'
+      - run: npm run build
+      - run: npm run qa:ui
+        timeout-minutes: 5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: base-installer-review-${{ github.run_number }}
+          path: |
+            build/base-installer-review
+            build/ui-review
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Record actual post-release validation status
+        if: always()
+        shell: bash
+        env:
+          VALIDATION_RESULT: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json body --jq .body > validation-notes.md
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          p=Path('validation-notes.md');text=p.read_text(encoding='utf8')
+          status='通过安装、下载器与源码回归检查，仍待用户实机验收' if os.environ['VALIDATION_RESULT']=='success' else '验证未通过，请查看运行日志；不能视为稳定版'
+          text+='\n\n发布后验证结果：**'+status+'**。\n运行记录：https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n'
+          p.write_text(text,encoding='utf8')
+          PY
+          gh release edit "$RELEASE_TAG" --notes-file validation-notes.md
+  mirror_resources:
+    concurrency:
+      group: yukino-resource-mirrors-v0.4.0-resources.1
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch each registered resource independently and check its pinned digest
+        run: python scripts/mirror-resources.py
+      - name: Publish individually downloadable resource mirrors without altering source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view v0.4.0-resources.1 --json id >/dev/null 2>&1; then
+            gh release create v0.4.0-resources.1 --target "$GITHUB_SHA" --title 'Yukino Companion 0.4.0 · 独立模型与环境资源' --notes '每个大文件均为固定来源的独立镜像，应用下载后逐个校验。来源和许可信息见 resource-mirrors.json 与 RESOURCE-SOURCES.txt；translation__LICENSE.txt 保留翻译模型的许可。此发行页只存放资源，安装软件请使用基础版 Base-Setup.exe。' --prerelease
+          fi
+          python - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          folder=Path('build/resource-mirror')
+          release=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/v0.4.0-resources.1"]))
+          assets={a['name']:a for a in release['assets']}
+          for file in sorted(folder.iterdir()):
+              if not file.is_file() or file.name.endswith('.part'):raise SystemExit('Incomplete resource mirror')
+              h=hashlib.sha256()
+              with file.open('rb') as source:
+                  for block in iter(lambda:source.read(1024**2),b''):h.update(block)
+              sha='sha256:'+h.hexdigest()
+              if file.name in assets:
+                  current=assets[file.name]
+                  if current['size']!=file.stat().st_size or current.get('digest')!=sha:raise SystemExit('Refusing to replace a published resource with different bytes: '+file.name)
+                  continue
+              subprocess.run(['gh','release','upload','v0.4.0-resources.1',str(file)],check=True)
+          published=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/v0.4.0-resources.1"]))
+          remote={a['name']:a for a in published['assets']}
+          for item in json.loads((folder/'resource-mirrors.json').read_text())['assets']:
+              actual=remote[item['asset']]
+              if actual['size']!=item['bytes'] or actual.get('digest')!='sha256:'+item['sha256']:raise SystemExit('Published resource digest mismatch')
+          print('Published all independent resources with matching GitHub asset digests')
+          PY

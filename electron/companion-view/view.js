@@ -14,7 +14,7 @@ const clips={
 let settings={animation:true,bubbleLanguage:'zh',scale:1,opacity:1,showBubbles:true,soundEnabled:true,soundVolume:.35},kind='pet',startupAvailable=false;
 let dragging=false,down=null,clicks=[],lastMove=0,lastHit=true,clip=clips.idle,frame=0,nextFrame=0,clipName='idle';
 let wander=null,nextDecision=performance.now()+8000,sitUntil=0,remoteReply=null,localQuote=null,localQuoteUntil=0,lastReply='',lastSettings='',focus={active:false};
-let voiceFiles=[],audio=null,lastVoice=-1,nextVoice=performance.now()+30000,nextQuote=performance.now()+60000,nextNight=performance.now()+1200000,lastHoverQuote=0;
+let voiceFiles=[],voiceRevision=-1,voiceGeneration=0,audio=null,lastVoice=-1,nextVoice=performance.now()+30000,nextQuote=performance.now()+60000,nextNight=performance.now()+1200000,lastHoverQuote=0;
 let look=-1,targetLook=-1,nextLook=0,cursorInsideSince=0,cursorBusy=false,initialized=false;
 const images={};for(const [key,file] of Object.entries({base:'spritesheet.png',left:'walking-left.png',right:'walking-right.png'})){const image=new Image();image.src=`assets/${file}`;images[key]=image;}
 function call(action,payload){return api?api.call(action,payload):Promise.resolve(false)}
@@ -23,13 +23,13 @@ function play(name){clipName=name;clip=clips[name]||clips.idle;frame=0;nextFrame
 function stopWalk(){wander=null;nextDecision=performance.now()+8000+Math.random()*11000;}
 function canAutoplay(){return settings.animation&&!settings.interactionPaused&&!settings.quietMode&&!focus.active&&!dragging&&!down&&menu.hidden;}
 function showError(error){menuError.textContent=String(error?.message||error||'桌宠操作未完成');menuError.hidden=false;}
-function stopAudio(){if(audio){audio.pause();audio.src='';audio=null;}}
+function stopAudio(){voiceGeneration++;if(audio){audio.pause();audio.src='';audio=null;}}
 async function playVoice(manual=false){
  if((!manual&&(!settings.soundEnabled||settings.quietMode||focus.active))||(!manual&&audio&&!audio.paused))return;
- if(!voiceFiles.length){if(manual)showError('桌宠预录语音库尚未准备，请重新安装包含桌宠素材的版本。');return;}
+ if(!voiceFiles.length){if(manual)showError('桌宠预录语音尚未准备，请打开完整设置中的资源向导安装。');return;}
  let next=Math.floor(Math.random()*voiceFiles.length);if(voiceFiles.length>1&&next===lastVoice)next=(next+1)%voiceFiles.length;lastVoice=next;
- stopAudio();audio=new Audio(`assets/voices/${voiceFiles[next]}`);audio.volume=settings.soundVolume;
- try{await audio.play()}catch(error){stopAudio();if(manual)showError('声音暂时无法播放，请检查系统输出设备。');}
+ stopAudio();const sequence=voiceGeneration;
+ try{const url=await call('voice-url',voiceFiles[next]);if(sequence!==voiceGeneration)return;if(typeof url!=='string'||!url.startsWith('file:'))throw Error('语音地址未准备');audio=new Audio(url);audio.volume=settings.soundVolume;await audio.play()}catch(error){stopAudio();if(manual)showError('声音暂时无法播放，请检查系统输出设备。');}
  nextVoice=performance.now()+45000+Math.random()*45000;
 }
 function renderBubble(){
@@ -102,6 +102,7 @@ function draw(time){
  requestAnimationFrame(draw);
 }
 api?.onState(state=>{
+ if(state.voiceRevision!==voiceRevision){voiceRevision=state.voiceRevision;refreshVoiceCatalog();}
  kind=state.kind;settings=state.preferences;startupAvailable=!!state.startupAvailable;focus=state.focus||{active:false};
  document.documentElement.style.setProperty('--scale',settings.scale);document.documentElement.style.setProperty('--pet-opacity',settings.opacity??1);
  canvas.hidden=kind!=='pet';model.hidden=kind!=='model';bubble.style.bottom=`${(kind==='model'?300:216)*settings.scale}px`;
@@ -137,7 +138,8 @@ window.addEventListener('keydown',event=>{if(menu.hidden)return;if(event.key==='
 document.getElementById('menu-close').addEventListener('click',closeMenu);document.getElementById('model-open').addEventListener('click',()=>safely('open-main'));
 setInterval(async()=>{
  if(cursorBusy||kind!=='pet'||!canAutoplay()||clipName!=='idle'){look=targetLook=-1;cursorInsideSince=0;return;}
- cursorBusy=true;try{const point=await call('cursor');if(!point)return;const box=canvas.getBoundingClientRect(),dx=point.x-(box.x+box.width/2),dy=point.y-(box.y+box.height*.38);if(Math.hypot(dx,dy)<210*settings.scale){let angle=Math.atan2(dx,-dy)*180/Math.PI;if(angle<0)angle+=360;targetLook=Math.round(angle/22.5)%16;if(!cursorInsideSince)cursorInsideSince=performance.now();if(performance.now()-cursorInsideSince>3200&&performance.now()-lastHoverQuote>45000){lastHoverQuote=performance.now();quote('Mouse')}}else{look=targetLook=-1;cursorInsideSince=0}}catch{}finally{cursorBusy=false}
+ cursorBusy=true;try{const point=await call('cursor');if(!point)return;if(point.x<0||point.y<0||point.x>innerWidth||point.y>innerHeight){look=targetLook=-1;cursorInsideSince=0;return;}const box=canvas.getBoundingClientRect(),dx=point.x-(box.x+box.width/2),dy=point.y-(box.y+box.height*.38);if(Math.hypot(dx,dy)<210*settings.scale){let angle=Math.atan2(dx,-dy)*180/Math.PI;if(angle<0)angle+=360;targetLook=Math.round(angle/22.5)%16;if(!cursorInsideSince)cursorInsideSince=performance.now();if(performance.now()-cursorInsideSince>3200&&performance.now()-lastHoverQuote>45000){lastHoverQuote=performance.now();quote('Mouse')}}else{look=targetLook=-1;cursorInsideSince=0}}catch{}finally{cursorBusy=false}
 },120);
-call('catalog').then(catalog=>{voiceFiles=(catalog?.voices||[]).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name));if(!menu.hidden)renderMenu()}).catch(()=>{});
+function refreshVoiceCatalog(){return call('catalog').then(catalog=>{voiceFiles=(catalog?.voices||[]).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name));lastVoice=-1;if(!menu.hidden)renderMenu()}).catch(()=>{});}
+refreshVoiceCatalog();
 safely('ready');requestAnimationFrame(draw);

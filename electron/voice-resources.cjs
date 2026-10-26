@@ -5,6 +5,8 @@ const { createHash } = require('node:crypto');
 const { Readable, Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { extractPinnedWeight } = require('./voice-archive.cjs');
+const {downloadResource}=require('./resource-download.cjs');
+const {resourceSources}=require('./resource-sources.cjs');
 
 function fileHash(file) {
   const hash = createHash(file.algorithm);
@@ -24,6 +26,29 @@ function safeDestination(root, relative) {
   const destination=path.resolve(root,relative);
   if(!destination.startsWith(path.resolve(root)+path.sep))throw Error('资源路径越界');
   return destination;
+}
+
+async function downloadGitBlob({file,dest,fetcher,signal,notify=()=>{}}){
+  if(file.algorithm!=='sha1'||!/^[a-f0-9]{40}$/.test(file.digest)||!Number.isSafeInteger(file.bytes)||file.bytes<1||file.bytes>4*1024**2)throw Error('公共模型配置清单无效');
+  const sources=resourceSources(file.url,file.sources),part=dest+'.part';let lastError;
+  for(let index=0;index<sources.length;index++){
+    signal?.throwIfAborted();const source=sources[index],bounded=AbortSignal.any([signal,AbortSignal.timeout(30000)].filter(Boolean));
+    try{
+      let offset=0;try{const stat=await fs.lstat(part);if(!stat.isFile()||stat.isSymbolicLink())throw Error('下载临时路径不是普通文件');offset=stat.size;}catch(error){if(error.code!=='ENOENT')throw error;}
+      if(offset>=file.bytes){await fs.rm(part,{force:true});offset=0;}
+      notify({phase:'downloading',received:offset,engine:'https',sourceIndex:index,sourceCount:sources.length,sourceLabel:new URL(source).hostname,sourceSwitch:index>0});
+      const response=await fetcher(source,{signal:bounded,headers:offset?{Range:`bytes=${offset}-`}:{}});
+      if(![200,206].includes(response.status)||!response.body){await response.body?.cancel();throw Error(`下载配置失败 HTTP ${response.status}`);}
+      if(response.status===200)offset=0;
+      if(response.status===206){const match=/^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range')||'');if(!match||Number(match[1])!==offset||Number(match[2])!==file.bytes-1||Number(match[3])!==file.bytes){await response.body.cancel();throw Error('下载服务器返回了不匹配的续传范围');}}
+      const hash=fileHash(file);if(offset)for await(const chunk of createReadStream(part))hash.update(chunk);let received=offset;
+      const meter=new Transform({transform(chunk,encoding,done){received+=chunk.length;if(received>file.bytes)return done(Error('配置文件超出预期长度'));hash.update(chunk);notify({phase:'downloading',received,engine:'https',sourceIndex:index,sourceCount:sources.length,sourceLabel:new URL(source).hostname});done(null,chunk);}});
+      await pipeline(Readable.fromWeb(response.body),meter,createWriteStream(part,{flags:offset?'a':'w'}),{signal:bounded});
+      if(received!==file.bytes||hash.digest('hex')!==file.digest){await fs.rm(part,{force:true});throw Error('公共模型配置校验失败');}
+      signal?.throwIfAborted();await fs.rename(part,dest);return;
+    }catch(error){signal?.throwIfAborted();lastError=error;}
+  }
+  throw Error(`公共模型配置下载未完成，请打开“无法下载，寻求帮助”：${lastError?.message||'所有源均不可用'}`);
 }
 
 class VoiceResources {
@@ -72,28 +97,15 @@ class VoiceResources {
         controller.signal.throwIfAborted();
         const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<file.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');
         await fs.mkdir(path.dirname(dest),{recursive:true});
-        const part=dest+'.part';let offset=0;
-        try{offset=(await fs.stat(part)).size}catch(e){if(e.code!=='ENOENT')throw e}
-        if(offset>=file.bytes){await fs.rm(part,{force:true});offset=0}
-        controller.signal.throwIfAborted();
-        const response=await this.fetcher(file.url,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(1800000)]),headers:offset?{Range:`bytes=${offset}-`}:{}});
-        if(!response.ok||!response.body)throw Error(`下载失败 HTTP ${response.status}：${file.path}`);
-        if(offset&&response.status===200)offset=0;
-        if(response.status===206&&!response.headers.get('content-range')?.startsWith(`bytes ${offset}-`))throw Error('下载服务器返回了不匹配的续传范围');
-        if(![200,206].includes(response.status))throw Error('不支持的资源下载响应');
-        const hash=fileHash(file);
-        if(offset)for await(const chunk of createReadStream(part))hash.update(chunk);
-        let received=offset,last=0;
-        const meter=new Transform({transform: (chunk,encoding,callback)=>{
-          received+=chunk.length;
-          if(received>file.bytes)return callback(Error('下载内容超出预期长度'));
-          hash.update(chunk);
-          if(Date.now()-last>200){last=Date.now();this.emit({phase:'downloading',file:file.path,received:complete+received,total})}
-          callback(null,chunk);
-        }});
-        await pipeline(Readable.fromWeb(response.body),meter,createWriteStream(part,{flags:offset?'a':'w'}),{signal:controller.signal});
-        if(received!==file.bytes||hash.digest('hex')!==file.digest){await fs.rm(part,{force:true});throw Error(`文件校验失败，请重试：${file.path}`)}
-        await fs.rm(dest,{force:true});await fs.rename(part,dest);complete+=file.bytes;
+        if(file.algorithm==='sha256'){
+          // Older releases used .part for contiguous HTTPS bytes. Adopt only a
+          // regular file when the new HTTPS partial does not already exist.
+          try{await fs.access(dest+'.https.partial');}catch(error){if(error.code!=='ENOENT')throw error;try{const legacy=await fs.lstat(dest+'.part');if(legacy.isFile()&&!legacy.isSymbolicLink()&&legacy.size<file.bytes)await fs.rename(dest+'.part',dest+'.https.partial');}catch(legacyError){if(legacyError.code!=='ENOENT')throw legacyError;}}
+          controller.signal.throwIfAborted();
+          await downloadResource({url:file.url,sources:resourceSources(file.url,file.sources),dest,bytes:file.bytes,sha256:file.digest,fetcher:this.fetcher,signal:controller.signal,onProgress:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});
+          controller.signal.throwIfAborted();complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);continue;
+        }
+        await downloadGitBlob({file,dest,fetcher:this.fetcher,signal:controller.signal,notify:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});complete+=file.bytes;
         await this.extract(file,dest,controller.signal,complete,total);
       }
       controller.signal.throwIfAborted();

@@ -1,0 +1,21 @@
+name: 功能建议
+description: 分享期待的功能、界面或交互改进
+title: "[建议] "
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 建议内容
+      description: 想要实现什么？可以具体描述使用情境。
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: 期望的体验
+      description: 这个改动会解决什么问题？当前有没有可替代的方法？
+  - type: textarea
+    id: reference
+    attributes:
+      label: 补充说明
+      description: 可附草图、参考链接或其他说明；不要填写 API Key。

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "packs": {
+    "chat": {
+      "label": "雪乃本地对话模型",
+      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Local-1.5B-Persona-0.4.0.zip",
+      "bytes": 964897463,
+      "sha256": "1348039add1d3a2715cc81946703d4bd48f05fa7246bca0b26ea165da508a425",
+      "maxUnpackedBytes": 1200000000
+    },
+    "pet": {
+      "label": "桌宠预录语音",
+      "url": "https://raw.githubusercontent.com/fqxxzyw/yukino_desktop_pet/70269cfc0a82756d7730425a38e53233bdf90aed/src/YukinoPet/voice/YukinoVoices.zip",
+      "bytes": 80380288,
+      "sha256": "7b8b150e6b2593b43dd44bf476348b7a44ea0ab6c90d9bddc6a31cce1e2cb6bc",
+      "maxUnpackedBytes": 160000000,
+      "expectedFiles": 2391
+    }
+  }
+}

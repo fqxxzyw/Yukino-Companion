@@ -12,10 +12,10 @@ const speechModule = require('../../electron/speech.cjs');
 const {mergeVoiceDefaults} = require('../../electron/bundled-voice.cjs');
 const localModule = require('../../electron/local-chat.cjs');
 
-async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], bundleGate, packaged = false, files = {}} = {}) {
+async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], bundleGate, packaged = false, referenceFixture=false, files = {}} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
-  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [];
+  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[];
   const missingVoiceFields=new Set(voiceMissing),installedCorePaths=new Set();let coreInstalled=voiceMissing.length===0;
   const storage = new Map(Object.entries({'state.json':JSON.stringify(state),...files}));
   const dataRoot = path.resolve('/virtual-user');
@@ -23,6 +23,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   function fileKey(file) { return path.relative(dataRoot, file); }
   const virtualFS = {
     async readFile(file) {
+      if(referenceFixture&&path.basename(file)==='yukino-reference.wav')return fs.promises.readFile(path.resolve(__dirname,'../../resources/voice-presets/yukino-reference.wav'));
       if (storage.has(fileKey(file))) return storage.get(fileKey(file));
       const error = Error('not found');error.code = 'ENOENT';throw error;
     },
@@ -95,10 +96,10 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
     dispose(){this.unload();}
   }
   class MockVoiceResources {
-    constructor(options){this.options=options;this.root=options.root;this.status={phase:'idle'};this.installs=[];}
+    constructor(options){this.options=options;this.root=options.root;this.status={phase:'idle'};this.installs=[];voiceDownloads.push(this);}
     summary(){return {...this.status,root:this.root,packs:[{id:'core',kind:'core',installed:coreInstalled},{id:'yukino-e2',kind:'voice',bundled:true,installed:true}],coreReady:coreInstalled};}
     async inspect(){return this.summary();}
-    async install(id='core'){this.installs.push(id);voiceInstallCalls.push(id);const paths=id==='core'?{bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')}:{gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),version:'v1',textLang:'all_ja'};if(id==='core'){coreInstalled=true;Object.values(paths).forEach(value=>installedCorePaths.add(value));}return paths;}
+    async install(id='core'){this.installs.push(id);voiceInstallCalls.push(id);const paths=id==='core'?{bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')}:{gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),version:'v1',textLang:'all_ja'};if(id==='core'){coreInstalled=true;Object.values(paths).forEach(value=>installedCorePaths.add(value));}else{missingVoiceFields.delete('gpt');missingVoiceFields.delete('sovits');}return paths;}
     cancel(){this.cancelled=true;}
   }
   class MockCompanions {
@@ -130,6 +131,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
       if(name==='./speech.cjs')return {...speechModule,SpeechService:class extends MockSpeech{constructor(options){super(options);voice=this;}}};
       if(name==='./voice-resources.cjs')return {VoiceResources:MockVoiceResources};
       if(name==='./local-chat.cjs')return {...localModule,LocalChatService:class extends MockLocalChat{constructor(options){super(options);local=this;}}};
+      if(name==='./resource-packs.cjs')return {ResourcePacks:class {constructor(){this.root=path.join(dataRoot,'resources');}async status(id){return {id,installed:false,root:'',downloadBytes:123,downloadSources:[]};}async install(id){return {id,installed:true,root:path.join(this.root,id)};}cancel(){}}};
       if(name==='./setup.cjs'){const actual=originalRequire(name);return {...actual,SetupService:class extends actual.SetupService{constructor(options){super(options);setup=this;}}};}
       if(name==='./runtime-manager.cjs')return {RuntimeManager:class extends MockRuntime{constructor(options){super(options);runtime=this;}}};
       if(name==='./translation.cjs')return {TranslationService:MockTranslation,validateConfig};
@@ -147,6 +149,6 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   if(errors.length)throw Error('main initialization failed: '+errors.join('; '));
   if(!handlers.has('community'))throw Error('main did not register startup IPC');
   const window=windows[0],event={sender:window.webContents,senderFrame:window.webContents.mainFrame};
-  return {handlers,sent,requests,transport,translated,cancelled,storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
+  return {handlers,sent,requests,transport,translated,cancelled,storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
 }
 module.exports={mainHarness};

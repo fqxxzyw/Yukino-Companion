@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 社区帮助中心
+    url: https://fqxxzyw.github.io/Yukino-Companion/#help
+    about: 首次安装、API 配置、资源下载与完整性检查
+  - name: 下载失败与备用源
+    url: https://fqxxzyw.github.io/Yukino-Companion/#help/download
+    about: 下载超时、断点续传和手动准备资源

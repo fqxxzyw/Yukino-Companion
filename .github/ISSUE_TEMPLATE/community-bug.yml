@@ -1,0 +1,40 @@
+name: 问题反馈
+description: 反馈安装、下载、对话、翻译或声音问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "请先查看社区帮助中的下载与完整性检查。日志和截图必须删除 API Key、访问令牌、真实姓名及其他私人内容。"
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 实际发生了什么？你期望发生什么？
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      placeholder: v0.4.0-base.1；从哪个 Release 下载
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: 系统与设备
+      placeholder: Windows 11 x64；CPU / NVIDIA 型号；使用的运行环境
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 打开……\n2. 点击……\n3. 出现……"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 错误信息与截图
+      description: 可附脱敏日志、错误文字、资源名称、下载源及完整性检查结果。
