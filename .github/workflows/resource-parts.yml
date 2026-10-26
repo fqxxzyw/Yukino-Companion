@@ -1,0 +1,70 @@
+name: Publish independently verified resource parts
+on:
+  push:
+    branches: [release/0.4.0-resource-parts]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: yukino-resource-parts-v0.4.0-resource-parts.1
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Stream pinned resources into real independently hashed 64 MiB files
+        run: python scripts/split-resources.py
+      - name: Publish each piece and verify remote byte lengths and SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag=v0.4.0-resource-parts.1
+          if ! gh release view "$release_tag" --json id >/dev/null 2>&1; then
+            gh release create "$release_tag" --target "$GITHUB_SHA" --title 'Yukino Companion 0.4.0 · 模型与环境独立分卷' --notes '每个 part 都是独立的 GitHub 附件，通常为 64 MiB。新版应用自动并行下载、逐片校验并合并；不需要手工拼接。resource-parts.json 在全部分卷发布且通过 GitHub 长度与摘要核对后才上传。各模型、音色、运行环境来源和许可保持不变，详见 RESOURCE-SOURCES.txt。' --prerelease
+          fi
+          python - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          root=Path('build/resource-parts');tag='v0.4.0-resource-parts.1';repo=os.environ['GITHUB_REPOSITORY']
+          def remote():
+              return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          known={item['name']:item for item in remote()['assets']}
+          def publish(file):
+              size=file.stat().st_size;sha=hashlib.sha256()
+              with file.open('rb') as incoming:
+                  for block in iter(lambda:incoming.read(1024**2),b''):sha.update(block)
+              digest='sha256:'+sha.hexdigest();existing=known.get(file.name)
+              if existing:
+                  if existing['size']!=size or existing.get('digest')!=digest:raise RuntimeError('Refusing to overwrite different published asset '+file.name)
+              else:subprocess.run(['gh','release','upload',tag,str(file)],check=True)
+              return file.name,(size,digest)
+          payload=sorted(p for p in root.iterdir() if p.is_file() and p.name!='resource-parts.json')
+          with ThreadPoolExecutor(max_workers=3) as pool:expected=dict(pool.map(publish,payload))
+          uploaded={a['name']:a for a in remote()['assets']}
+          for name,(size,digest) in expected.items():
+              if name not in uploaded or uploaded[name]['size']!=size or uploaded[name].get('digest')!=digest:raise RuntimeError('Published resource part verification failed '+name)
+          name,(size,digest)=publish(root/'resource-parts.json')
+          final={a['name']:a for a in remote()['assets']}
+          if final[name]['size']!=size or final[name].get('digest')!=digest:raise RuntimeError('Published catalog verification failed')
+          receipt={'tag':tag,'sourceCommit':os.environ['GITHUB_SHA'],'assets':[{ 'name':a['name'],'bytes':a['size'],'digest':a['digest'],'url':a['browser_download_url']} for a in final.values()]}
+          (root/'published-resource-parts.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print('Verified all published resource parts and the final catalog')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: resource-parts-catalog-${{ github.run_number }}
+          path: |
+            build/resource-parts/resource-parts.json
+            build/resource-parts/published-resource-parts.json
+            build/resource-parts/RESOURCE-SOURCES.txt
+          if-no-files-found: warn
+          retention-days: 90
