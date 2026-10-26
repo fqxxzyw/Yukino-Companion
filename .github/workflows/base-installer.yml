@@ -1,15 +1,47 @@
 name: Base application first, resources in the app
 on:
   push:
-    branches: [release/0.4.0-base]
+    branches: [release/0.4.0-base, 'verify/v0.4.0-base.*']
   workflow_dispatch:
+    inputs:
+      validate_release:
+        description: 'Only validate an existing base release (for example v0.4.0-base.3); leave empty to build'
+        required: false
+        type: string
+        default: ''
 permissions:
   contents: write
 concurrency:
   group: base-installer-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.target.outputs.tag }}
+      validate_only: ${{ steps.target.outputs.validate_only }}
+    steps:
+      - name: Resolve a build or an existing release to validate
+        id: target
+        shell: bash
+        env:
+          INPUT_RELEASE: ${{ inputs.validate_release }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF_NAME" in
+            verify/*) release_tag="${GITHUB_REF_NAME#verify/}" ;;
+            *) release_tag="$INPUT_RELEASE" ;;
+          esac
+          if [[ -n "$release_tag" ]]; then
+            [[ "$release_tag" =~ ^v0\.4\.0-base\.[0-9]+$ ]] || { echo 'Invalid base release tag'; exit 1; }
+            echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+            echo 'validate_only=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'validate_only=false' >> "$GITHUB_OUTPUT"
+          fi
   publish:
+    needs: target
+    if: ${{ needs.target.outputs.validate_only != 'true' }}
     runs-on: windows-2022
     timeout-minutes: 25
     outputs:
@@ -47,7 +79,7 @@ jobs:
           from pathlib import Path
           p=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
           h=hashlib.sha256(p.read_bytes()).hexdigest()
-          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n')
+          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n',encoding='utf8')
           notes='''# Yukino Companion 0.4.0 · 基础安装版
 
           优先下载 **Yukino-Companion-0.4.0-Base-Setup.exe**。
@@ -71,7 +103,7 @@ jobs:
           import json
           from pathlib import Path
           local=json.loads(Path('release/base-installer.json').read_text(encoding='utf-8-sig'))
-          release=json.loads(Path('release/published-base.json').read_text())
+          release=json.loads(Path('release/published-base.json').read_text(encoding='utf8'))
           asset=next(x for x in release['assets'] if x['name']==local['file'])
           if asset['size']!=local['bytes'] or asset.get('digest')!='sha256:'+local['sha256']:raise SystemExit('Published installer digest does not match the built EXE')
           print('Actual published installer size and SHA-256 verified')
@@ -86,12 +118,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
   post_validation:
-    needs: publish
+    needs: [target, publish]
+    if: ${{ always() && needs.target.result == 'success' && (needs.publish.result == 'success' || needs.target.outputs.validate_only == 'true') }}
     runs-on: windows-2022
     timeout-minutes: 25
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ needs.publish.outputs.tag }}
+      RELEASE_TAG: ${{ needs.target.outputs.tag || needs.publish.outputs.tag }}
       YUKINO_BASE_BUILD: '1'
     steps:
       - uses: actions/checkout@v4
@@ -106,7 +139,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release download "$RELEASE_TAG" --pattern 'Yukino-Companion-0.4.0-Base-Setup.exe' --pattern SHA256SUMS.txt --dir release
+          [[ "$RELEASE_TAG" =~ ^v0\.4\.0-base\.[0-9]+$ ]] || { echo 'Invalid base release tag'; exit 1; }
+          gh release download "$RELEASE_TAG" --pattern 'Yukino-Companion-0.4.0-Base-Setup.exe' --pattern SHA256SUMS.txt --pattern base-installer.json --dir release
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > release/published-base.json
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          local=json.loads(Path('release/base-installer.json').read_text(encoding='utf-8-sig'))
+          remote=json.loads(Path('release/published-base.json').read_text(encoding='utf8'))
+          file=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
+          asset=next(a for a in remote['assets'] if a['name']==file.name)
+          digest=hashlib.sha256(file.read_bytes()).hexdigest()
+          if local['file']!=file.name or local['bytes']!=file.stat().st_size or local['sha256']!=digest or asset['size']!=file.stat().st_size or asset.get('digest')!='sha256:'+digest:raise SystemExit('Published installer digest or size mismatch')
+          print('Downloaded installer matches both the published manifest and GitHub asset digest')
+          PY
           cd release
           sha256sum --check SHA256SUMS.txt
       - name: Verify actual native Windows UI, install, upgrade and uninstall
@@ -149,6 +195,8 @@ jobs:
           PY
           gh release edit "$RELEASE_TAG" --notes-file validation-notes.md
   mirror_resources:
+    needs: target
+    if: ${{ needs.target.outputs.validate_only != 'true' }}
     concurrency:
       group: yukino-resource-mirrors-v0.4.0-resources.1
       cancel-in-progress: false
@@ -189,7 +237,7 @@ jobs:
               subprocess.run(['gh','release','upload','v0.4.0-resources.1',str(file)],check=True)
           published=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/v0.4.0-resources.1"]))
           remote={a['name']:a for a in published['assets']}
-          for item in json.loads((folder/'resource-mirrors.json').read_text())['assets']:
+          for item in json.loads((folder/'resource-mirrors.json').read_text(encoding='utf8'))['assets']:
               actual=remote[item['asset']]
               if actual['size']!=item['bytes'] or actual.get('digest')!='sha256:'+item['sha256']:raise SystemExit('Published resource digest mismatch')
           print('Published all independent resources with matching GitHub asset digests')
