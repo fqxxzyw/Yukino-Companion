@@ -75,25 +75,28 @@ jobs:
           set -euo pipefail
           release_tag="v0.4.0-base.${GITHUB_RUN_NUMBER}"
           python - <<'PY'
-          import hashlib,json
+          import hashlib,json,os
           from pathlib import Path
           p=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
           h=hashlib.sha256(p.read_bytes()).hexdigest()
           Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n',encoding='utf8',newline='\n')
           notes='''# Yukino Companion 0.4.0 · 基础安装版
 
-          优先下载 **Yukino-Companion-0.4.0-Base-Setup.exe**。
+          优先下载 **[Yukino-Companion-0.4.0-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/__BASE_RELEASE_TAG__/Yukino-Companion-0.4.0-Base-Setup.exe)**。
 
           - 安装程序只安装基础应用，安装过程中不下载模型、音色或环境。
           - 首次打开软件后按需安装本地对话、翻译、音色、桌宠语音及公共环境，也可以跳过并配置 API 文字聊天。
           - 安装界面重新排列为浅蓝/白色，修正中文编码，使用清晰的中文字体。
           - 内置 aria2 多连接下载与断点续传；资源按独立文件校验，下载失败可切换固定备用源。实际提速由网络与服务器决定。
           - 共享环境暂提供 CPU 下载路径；Windows 安装器尚未代码签名。
+          - [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) 已上线：二创、音色、建议与 Bug，投稿时跳转 GitHub 登录并确认。
+          - 场景背景扩散与签到、体力、好感基础状态已加入；换装、视线和灯光提供适配接口，等待正式 3D 资源。赞助权益与广告尚未上线。
 
           独立资源镜像位于 [v0.4.0-resources.1](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-resources.1)。镜像尚未准备好时会回退原始固定来源。
 
           验证状态：**已发布，发布后验证正在进行**。这是测试版，不代表所有硬件和模型质量已验收。
           '''
+          notes=notes.replace('__BASE_RELEASE_TAG__','v0.4.0-base.'+os.environ['GITHUB_RUN_NUMBER'])
           Path('release/RELEASE-NOTES.md').write_text(notes,encoding='utf8')
           PY
           gh release create "$release_tag" release/Yukino-Companion-0.4.0-Base-Setup.exe release/base-installer.json release/SHA256SUMS.txt build/base-package.json --title "Yukino Companion 0.4.0 · 基础安装版 ${GITHUB_RUN_NUMBER}" --notes-file release/RELEASE-NOTES.md --target "$GITHUB_SHA" --prerelease
@@ -186,10 +189,11 @@ jobs:
           set -euo pipefail
           gh release view "$RELEASE_TAG" --json body --jq .body > validation-notes.md
           python - <<'PY'
-          import os
+          import os,re
           from pathlib import Path
           p=Path('validation-notes.md');text=p.read_text(encoding='utf8')
           status='通过安装、下载器与源码回归检查，仍待用户实机验收' if os.environ['VALIDATION_RESULT']=='success' else '验证未通过，请查看运行日志；不能视为稳定版'
+          text=re.sub(r'验证状态：[^\n]*', '验证状态：**'+status+'**。这是测试版，仍需用户实机验收。',text,count=1)
           text+='\n\n发布后验证结果：**'+status+'**。\n运行记录：https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n'
           p.write_text(text,encoding='utf8')
           PY

@@ -142,13 +142,13 @@ begin
   Result:=FileExists(Uninstaller) and FileExists(ChangeFileExt(Uninstaller,'.dat')) and FileExists(AddBackslash(Directory)+'Yukino Companion.exe') and FileExists(AddBackslash(Directory)+'resources\app.asar');
 end;
 function DirectoryProblem:String;
-var Directory:String;
+var Directory,UserProfile:String;
 begin
-  Result:=''; Directory:=NormalPath(WizardDirValue);
+  Result:=''; Directory:=NormalPath(WizardDirValue); UserProfile:=GetEnv('USERPROFILE');
   if (Length(Directory)<4) or (CompareText(Directory,RemoveBackslash(ExtractFileDrive(Directory)))=0) or
      (CompareText(Directory,NormalPath(ExpandConstant('{userappdata}')))=0) or
      (CompareText(Directory,NormalPath(ExpandConstant('{localappdata}')))=0) or
-     (CompareText(Directory,NormalPath(ExpandConstant('{userprofile}')))=0) then
+     ((UserProfile<>'') and (CompareText(Directory,NormalPath(UserProfile))=0)) then
   begin Result:='请选择一个专用的应用文件夹，不要选择磁盘或用户数据根目录。'; Exit; end;
   if FileExists(Directory) then begin Result:='所选路径是文件，请另选文件夹。'; Exit; end;
   if LinkedParent(Directory) or LinkedChildren(Directory) then begin Result:='所选文件夹包含目录链接，请选择普通文件夹。'; Exit; end;
@@ -178,7 +178,7 @@ begin
   W:=WizardForm.WelcomePage.ClientWidth-ScaleX(80);
   WizardForm.WelcomeLabel1.AutoSize:=False; WizardForm.WelcomeLabel1.SetBounds(ScaleX(40),ScaleY(36),W,ScaleY(48)); StyleLabel(WizardForm.WelcomeLabel1,23,True);
   WizardForm.WelcomeLabel2.AutoSize:=False; WizardForm.WelcomeLabel2.SetBounds(ScaleX(42),ScaleY(94),W,ScaleY(32)); StyleLabel(WizardForm.WelcomeLabel2,11,False);
-  Card:=TPanel.Create(WizardForm); Card.Parent:=WizardForm.WelcomePage; Card.SetBounds(ScaleX(40),ScaleY(143),W,ScaleY(143)); Card.BevelOuter:=bvNone; Card.Color:=clWhite;
+  Card:=TPanel.Create(WizardForm); Card.Parent:=WizardForm.WelcomePage; Card.SetBounds(ScaleX(40),ScaleY(143),W,ScaleY(143)); Card.BevelOuter:=bvNone; Card.ParentBackground:=False; Card.Color:=clWhite;
   AddText(Card,'01  安装应用',ScaleX(20),ScaleY(16),W-ScaleX(40),ScaleY(26),11,True);
   AddText(Card,'轻量安装，直接开始配置 API 对话。',ScaleX(20),ScaleY(47),W-ScaleX(40),ScaleY(26),10,False);
   AddText(Card,'02  按需添加资源',ScaleX(20),ScaleY(82),W-ScaleX(40),ScaleY(26),11,True);

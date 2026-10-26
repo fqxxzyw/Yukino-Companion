@@ -38,7 +38,10 @@ function Install([string]$Directory,[bool]$Expected){
  $log=Join-Path $output ('install-'+[Guid]::NewGuid().ToString('N')+'.log')
  $child=Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DIR="'+$Directory+'"'),('/LOG="'+$log+'"')) -PassThru
  if(-not $child.WaitForExit(180000)){$child.Kill();throw 'Base installation timed out'}
- if(($Expected -and $child.ExitCode -ne 0) -or (-not $Expected -and $child.ExitCode -eq 0)){throw "Unexpected installer exit $($child.ExitCode)"}
+ if(($Expected -and $child.ExitCode -ne 0) -or (-not $Expected -and $child.ExitCode -eq 0)){
+  if(Test-Path -LiteralPath $log){Get-Content -LiteralPath $log -Tail 50|ForEach-Object{Write-Host $_}}
+  throw "Unexpected installer exit $($child.ExitCode)"
+ }
 }
 $installedApp=$null;$appStdout=$null;$appStderr=$null
 function Stop-InstalledApp {
