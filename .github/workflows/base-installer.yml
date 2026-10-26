@@ -79,7 +79,7 @@ jobs:
           from pathlib import Path
           p=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
           h=hashlib.sha256(p.read_bytes()).hexdigest()
-          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n',encoding='utf8')
+          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n',encoding='utf8',newline='\n')
           notes='''# Yukino Companion 0.4.0 · 基础安装版
 
           优先下载 **Yukino-Companion-0.4.0-Base-Setup.exe**。
@@ -151,10 +151,10 @@ jobs:
           asset=next(a for a in remote['assets'] if a['name']==file.name)
           digest=hashlib.sha256(file.read_bytes()).hexdigest()
           if local['file']!=file.name or local['bytes']!=file.stat().st_size or local['sha256']!=digest or asset['size']!=file.stat().st_size or asset.get('digest')!='sha256:'+digest:raise SystemExit('Published installer digest or size mismatch')
-          print('Downloaded installer matches both the published manifest and GitHub asset digest')
+          checksums=Path('release/SHA256SUMS.txt').read_text(encoding='utf-8-sig').splitlines()
+          if checksums!=[digest+'  '+file.name]:raise SystemExit('Published SHA256SUMS does not match the downloaded installer')
+          print('Downloaded installer matches the manifest, SHA256SUMS and GitHub asset digest')
           PY
-          cd release
-          sha256sum --check SHA256SUMS.txt
       - name: Verify actual native Windows UI, install, upgrade and uninstall
         run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/smoke-base-installer.ps1
       - name: Verify the actual bundled aria2 binary with a real HTTPS download
