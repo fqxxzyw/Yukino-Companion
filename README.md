@@ -6,7 +6,7 @@ Yukino Companion 是以雪之下雪乃为核心角色的 Windows 桌面陪伴项
 
 新版采用 **基础 Setup + 软件内按需配置**：安装器只安装桌面程序，不在安装过程中下载。打开软件后，选择需要的本地对话、翻译、音色与公共环境；也可以先跳过并配置 API 文字聊天。大型资源通过内置 aria2 下载、校验和安装，每项独立显示进度，并提供备用源与帮助入口。
 
-[下载 Release 中的 Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases) · [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) · [新增功能规则与接口](docs/NEW_FEATURES_0.5.md)。发布状态、实际附件大小和发布后检查结果以发行页为准。之前的 [v0.4.0-local.13](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13) 保留作为已发布模型和环境的来源；它使用安装时下载应用分卷的旧方案。
+[下载基础版 base.6](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-base.6) · [本次发布与验证记录](docs/RELEASE_BASE_0.4.0.md) · [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) · [新增功能规则与接口](docs/NEW_FEATURES_0.5.md)。发布状态、实际附件大小和发布后检查结果以发行页为准。之前的 [v0.4.0-local.13](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-local.13) 保留作为已发布模型和环境的来源；它使用安装时下载应用分卷的旧方案。
 
 [Releases](https://github.com/fqxxzyw/Yukino-Companion/releases) · [0.4.0 验证记录](docs/VALIDATION_0.4.0.md) · [0.4.0 发行说明](docs/releases/v0.4.0.md) · [打包设计与步骤](docs/WINDOWS_RELEASE_0.4.md) · [完整开发需求](docs/开发需求与技术方案_v0.1.md) · [角色规范与训练](docs/角色规范与性格专项训练.md) · [反馈问题](https://github.com/fqxxzyw/Yukino-Companion/issues)
 
