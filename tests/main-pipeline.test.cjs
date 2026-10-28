@@ -38,7 +38,7 @@ test('local translation mode obtains Chinese from API and runs the local transla
 });
 
 test('local translation failure returns the original Chinese and an explicit unavailable Japanese result', async () => {
-  const app = await mainHarness({state,reply:'慢慢来就好。',translate:async()=>{throw Error('model missing');}});
+  const app = await mainHarness({state:{...state,translationMode:'local'},reply:'慢慢来就好。',translate:async()=>{throw Error('model missing');}});
   const result = await app.invoke('chat',request);
   assert.equal(result.ok,true);assert.equal(result.bilingual.zh,'慢慢来就好。');
   assert.equal(result.bilingual.ja,'');assert.equal(result.bilingual.translationStatus,'error');
@@ -246,4 +246,15 @@ test('an app-managed default voice pair can be repaired without being mistaken f
 test('default voice download progress is routed to its active setup step',async()=>{
  const app=await mainHarness({state});app.setup.controller=new AbortController();app.setup.phase='installing';app.setup.active='voicePreset';
  app.voiceDownloads.at(-1).options.notify({phase:'downloading',received:20,total:100});assert.equal(app.setup.progress.received,20);app.setup.controller=null;
+});
+
+test('manual Japanese translation follows selected API without invoking local Python',async()=>{const app=await mainHarness({state,reply:'こんにちは。'});const result=await app.invoke('translate',{text:'你好。',requestId:'api-manual',mode:'api',profileId:profile.id});assert.equal(result.text,'こんにちは。');assert.equal(result.source,'api');assert.equal(app.translated.length,0);assert.equal(app.requests.length,1);assert.match(app.requests[0].messages[0].content,/Japanese/);});
+test('translation renderer cannot override saved API profile or key',async()=>{const app=await mainHarness({state,reply:'こんにちは。'});await app.invoke('translate',{text:'你好。',requestId:'api-injection',mode:'api',profileId:profile.id,profile:{base:'https://evil.test',model:'bad'},key:'injected'});assert.equal(app.transport[0].headers.Authorization,undefined);assert.equal(app.requests[0].model,profile.model);});
+test('manual local translation stays local and does not contact the API',async()=>{const app=await mainHarness({state});const result=await app.invoke('translate',{text:'你好。',requestId:'local-manual',mode:'local',profileId:profile.id});assert.equal(app.requests.length,0);assert.equal(app.translated.length,1);assert.match(result.text,/翻訳/);});
+
+test('main-frame document reload resets the speech generation but subframes and hash changes do not',async()=>{
+ const app=await mainHarness({state});let resets=0,received=[];app.companions.resetSpeechClock=()=>resets++;app.companions.setSpeechSnapshot=value=>{received.push(value);return true};
+ const wc=app.window.webContents;wc.emit('did-start-navigation',{isMainFrame:false,isSameDocument:false});wc.emit('did-start-navigation',{isMainFrame:true,isSameDocument:true});assert.equal(resets,0);assert.equal(await app.invoke('companion-speech',{sequence:9}),true);
+ wc.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(resets,1);assert.equal(await app.invoke('companion-speech',{sequence:10}),false,'old unloading renderer cannot reclaim sequence watermark');assert.equal(received.length,1);
+ wc.emit('dom-ready');assert.equal(resets,2);assert.equal(await app.invoke('companion-speech',{sequence:1}),true);assert.equal(received.at(-1).sequence,1);
 });

@@ -52,12 +52,12 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     if (!next) return;
     invalidate(); setSecret(''); setManual(false);
     const base = id === 'custom' ? profile.base : next.base;
-    updateProfile({providerId:id, base, model:''});
+    updateProfile({providerId:id, base, model:'',visionEnabled:false});
     if (savedKey && originOf(base) !== originOf(profile.base)) setNotice({tone:'info', text:next.keyOptional ? '已更换服务商。若新服务无需密钥，请在高级设置中删除已存密钥；否则填写新密钥。' : '已更换服务商。请输入对应的密钥；原服务商的密钥不会发送到新地址。'});
   }
   function changeBase(base) {
     invalidate(); setSecret('');
-    updateProfile({base});
+    updateProfile({base,visionEnabled:false});
     if (savedKey && originOf(base) !== originOf(profile.base)) setNotice({tone:'info', text:provider?.keyOptional ? '地址已更改。若新服务无需密钥，请在高级设置中删除已存密钥；否则填写新密钥。' : '地址已更改，请重新输入此地址对应的密钥。'});
   }
   function changeSecret(value) {invalidate(); setSecret(value);}
@@ -174,7 +174,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
       </button>
       <div className="field api-model-field"><label htmlFor="api-model-picker">对话模型</label>
         {choices.length > 12 && <div className="api-search"><Search size={15}/><input aria-label="搜索模型" value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索模型名称"/></div>}
-        <Select id="api-model-picker" aria-label="对话模型" value={profile.model || ''} disabled={locked || !modelOptions.length} onChange={e => updateProfile({model:e.target.value})}>
+        <Select id="api-model-picker" aria-label="对话模型" value={profile.model || ''} disabled={locked || !modelOptions.length} onChange={e => updateProfile({model:e.target.value,visionEnabled:false})}>
           <option value="" disabled>{result ? '请选择模型' : profile.model ? '当前模型' : '先验证密钥并获取模型'}</option>
           {modelOptions.map(model => <option key={model.id} value={model.id}>{model.name === model.id ? model.id : `${model.name} · ${model.id}`}</option>)}
         </Select>
@@ -182,13 +182,14 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
         {result?.status === 'unsupported' && <small>下拉内容为服务商文档预设，尚未验证你的账户可用性。请点击「测试对话连接」。</small>}
         {result?.verified && <small>模型列表已获取；具体的对话权限和兼容性以连接测试为准。</small>}
       </div>
+      <label className="row"><div><strong>视觉 API 能力确认</strong><small>我确认此模型支持 Chat Completions 图片输入；截图仍需每次预览和确认发送。</small></div><input type="checkbox" role="switch" checked={profile.visionEnabled===true} disabled={locked} onChange={e=>updateProfile({visionEnabled:e.target.checked})}/></label>
       <button type="button" className="text-link api-advanced-toggle" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}><ChevronDown size={14} className={advanced ? 'expanded' : ''}/>高级设置</button>
       {advanced && <div className="api-advanced">
         <label className="field">配置名称<input value={profile.name} onChange={e => updateProfile({name:e.target.value})} maxLength={80}/></label>
         {provider?.id !== 'custom' && <label className="field">API 地址<input value={profile.base} onChange={e => changeBase(e.target.value)} spellCheck="false" autoComplete="off"/><small>支持基础地址或完整的 /chat/completions 地址。本机 HTTP 可用，远程地址须使用 HTTPS。</small></label>}
         {savedKey && <div className="field"><span>已保存的密钥</span><button className="secondary api-clear-key" type="button" disabled={locked} onClick={clearSavedKey}>{working === 'clearKey' ? '正在删除…' : '删除已存密钥'}</button><small>换成无需密钥的本机服务时，可在这里清除旧密钥。配置地址和模型仍会保留。</small></div>}
         <label className="api-manual-toggle"><input type="checkbox" checked={manual} onChange={e => setManual(e.target.checked)}/>手动指定模型（服务没有列表或使用自定义模型时）</label>
-        {manual && <label className="field">模型 ID<input value={profile.model} onChange={e => updateProfile({model:e.target.value})} maxLength={256} spellCheck="false" autoComplete="off" placeholder="以服务商提供的模型 ID 为准"/></label>}
+        {manual && <label className="field">模型 ID<input value={profile.model} onChange={e => updateProfile({model:e.target.value,visionEnabled:false})} maxLength={256} spellCheck="false" autoComplete="off" placeholder="以服务商提供的模型 ID 为准"/></label>}
       </div>}
       <div className="button-row api-actions">
         <button className="secondary" type="button" disabled={locked || !profile.base.trim()} onClick={() => save(false)}>{working === 'save' ? '正在保存…' : '保存配置'}</button>

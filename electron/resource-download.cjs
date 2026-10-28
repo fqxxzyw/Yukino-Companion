@@ -5,6 +5,7 @@ const {createReadStream} = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const {spawn} = require('node:child_process');
+const {resourceParts,PART_BYTES}=require('./resource-sources.cjs');
 const active = new Set();
 
 function check(signal) { signal?.throwIfAborted(); }
@@ -127,7 +128,72 @@ async function downloadHttps({url,temporary,bytes,signal:outerSignal,timeoutMs,e
   }
 }
 
-async function downloadResource({url,sources,dest,bytes,sha256,onProgress=()=>{},signal,
+function validateParts(parts,bytes) {
+  if(!Array.isArray(parts)||!parts.length||parts.length>128)throw Error('资源分卷清单无效');
+  let total=0;const names=new Set();
+  for(const part of parts){
+    if(!/^[A-Za-z0-9_.-]+$/.test(part?.name||'')||['.','..'].includes(part.name)||names.has(part.name)||!Number.isSafeInteger(part.bytes)||part.bytes<1||part.bytes>PART_BYTES||!/^[a-f0-9]{64}$/.test(part.sha256||''))throw Error('资源分卷清单无效');
+    httpsUrl(part.url);names.add(part.name);total+=part.bytes;
+  }
+  if(total!==bytes)throw Error('资源分卷总长度无效');
+}
+async function downloadParts({parts,dest,bytes,sha256,signal,notify,...options}) {
+  validateParts(parts,bytes);
+  const directory=dest+'.parts-'+sha256.slice(0,16),merged=dest+'.merge.partial';
+  await fs.mkdir(directory,{recursive:true});const stat=await fs.lstat(directory);
+  if(!stat.isDirectory()||stat.isSymbolicLink())throw Error('资源分卷目录不是普通目录');
+  await regular(merged);
+  const controller=new AbortController(),abort=()=>controller.abort(signal.reason);
+  signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+  const rows=parts.map((part,index)=>({index,name:part.name,received:0,total:part.bytes,phase:'pending'}));
+  let next=0,firstError,resumed=false;
+  const publish=(extra={})=>notify({phase:'downloading',engine:'multipart',received:rows.reduce((sum,row)=>sum+row.received,0),total:bytes,partCount:parts.length,parts:rows.map(row=>({...row})),speedBytesPerSecond:rows.reduce((sum,row)=>sum+(row.speedBytesPerSecond||0),0),...extra});
+  async function worker(){
+    while(next<parts.length&&!controller.signal.aborted){
+      const index=next++,part=parts[index];
+      try{
+        const result=await downloadResource({...options,url:part.url,parts:null,dest:path.join(directory,part.name),bytes:part.bytes,sha256:part.sha256,signal:controller.signal,onProgress:progress=>{rows[index]={...rows[index],...progress,total:part.bytes};publish();}});
+        resumed ||= result.resumed||result.engine==='cache';rows[index]={...rows[index],phase:'complete',received:part.bytes,speedBytesPerSecond:0};publish();
+      }catch(error){firstError ||= error;controller.abort(error);}
+    }
+  }
+  try{
+    // Bound both process and HTTP fan-out: three actual GitHub assets, each aria2
+    // process using at most eight range connections. Finished parts survive retry.
+    await Promise.all(Array.from({length:Math.min(3,parts.length)},worker));
+    check(signal);if(firstError)throw firstError;
+    publish({phase:'merging',received:bytes,mergedBytes:0});
+    const hash=crypto.createHash('sha256');let length=0;
+    const output=await fs.open(merged,'w');
+    try{
+      for(const part of parts){
+        let partLength=0;
+        for await(const chunk of createReadStream(path.join(directory,part.name))){
+          check(signal);partLength+=chunk.length;length+=chunk.length;
+          if(partLength>part.bytes||length>bytes)throw Error('资源分卷长度在合并时发生变化');
+          hash.update(chunk);let offset=0;
+          while(offset<chunk.length){const written=await output.write(chunk,offset,chunk.length-offset);if(!written.bytesWritten)throw Error('合并文件写入失败');offset+=written.bytesWritten;}
+        }
+        if(partLength!==part.bytes)throw Error('资源分卷未完整下载');
+        publish({phase:'merging',received:bytes,mergedBytes:length});
+      }
+      check(signal);if(length!==bytes||hash.digest('hex')!==sha256)throw Error('合并后的资源完整性校验失败');
+      await output.sync();
+    }finally{await output.close();}
+    check(signal);publish({phase:'checking',received:bytes});
+    await fs.rename(merged,dest);
+    // Remove only our named verified parts; never recursively remove a directory
+    // that might also contain unrelated files.
+    await Promise.all(parts.map(part=>fs.rm(path.join(directory,part.name),{force:true}).catch(()=>{})));
+    await fs.rmdir(directory).catch(()=>{});
+    publish({phase:'complete',received:bytes});return {path:dest,engine:'multipart',partCount:parts.length,resumed};
+  }finally{
+    signal?.removeEventListener('abort',abort);
+    await fs.rm(merged,{force:true}).catch(()=>{});
+  }
+}
+
+async function downloadResource({url,sources,dest,bytes,sha256,parts,onProgress=()=>{},signal,
   aria2Path=defaultAria2Path(),fetcher=globalThis.fetch,spawnProcess=spawn,timeoutMs=30000}={}) {
   check(signal);const candidates=normalizeSources(sources,url);
   if(!path.isAbsolute(dest||'')||!Number.isSafeInteger(bytes)||bytes<1||!/^[a-f0-9]{64}$/.test(sha256||'')||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>1800000)throw Error('资源下载清单无效');
@@ -136,7 +202,15 @@ async function downloadResource({url,sources,dest,bytes,sha256,onProgress=()=>{}
   const notify=progress=>{try{onProgress(progress);}catch{}};
   try {
     await fs.mkdir(path.dirname(dest),{recursive:true});check(signal);
-    if(await verify(dest,bytes,sha256,signal))return{path:dest,engine:'cache',source:null,resumed:false};
+    if(await verify(dest,bytes,sha256,signal)){notify({phase:'complete',received:bytes,total:bytes,engine:'cache'});return{path:dest,engine:'cache',source:null,resumed:false};}
+    const selectedParts=parts===undefined?resourceParts(bytes,sha256):parts;
+    if(selectedParts){
+      // Validate before entering a fallback path. A malformed pinned catalog is a
+      // build error, not a network failure, and must never be silently accepted.
+      validateParts(selectedParts,bytes);
+      try{return await downloadParts({parts:selectedParts,dest,bytes,sha256,signal,notify,aria2Path,fetcher,spawnProcess,timeoutMs});}
+      catch(error){check(signal);if(['EACCES','EPERM','ENOSPC','EROFS','EIO'].includes(error.code))throw Error('无法写入下载目录，请检查磁盘空间与文件权限。');notify({phase:'downloading',received:0,total:bytes,engine:'https',multipartFallback:true,retrying:true});}
+    }
     await regular(sparse);await regular(sparse+'.aria2');await regular(continuous);
     const hasAria2=Boolean(aria2Path&&await regular(aria2Path));
     for(let index=0;index<candidates.length;index++) {

@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const asar = require('@electron/asar');
+const {finished} = require('node:stream/promises');
 const {verifyOfflinePackage, inside, REQUIRED_ASAR, REQUIRED_EXTERNAL, SOVITS_REVISION} = require('../scripts/verify-offline-package.cjs');
 const {verifyReleaseAssets, LIMIT} = require('../scripts/verify-release-assets.cjs');
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
@@ -41,7 +42,8 @@ async function fixture(t) {
   const ogg=Buffer.from('OggS fixture');
   await write(source,'electron/companion-view/assets/voices/fixture.ogg',ogg);
   await write(source,'electron/companion-view/assets/voices.json',JSON.stringify({count:1,files:[{file:'fixture.ogg',bytes:ogg.length,sha256:digest(ogg)}]}));
-  await asar.createPackage(source,path.join(resources,'app.asar'));
+  // asar 3.x returns an ending WriteStream before pending writes are flushed.
+  await finished(await asar.createPackage(source,path.join(resources,'app.asar')));
   return {root,source,resources,manifest,write};
 }
 
@@ -59,7 +61,7 @@ test('offline package rejects absent icon, mismatched manifests and missing trai
   await assert.rejects(verifyOfflinePackage(f.resources,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/model.gguf/);
   await f.write(f.resources,'local-model/yukino-1.5b-persona-q4/model.gguf','GGUF_TEST_ONLY');
   await fs.rm(path.join(f.source,'dist/yukino-icon.png'));
-  const archive=path.join(f.resources,'no-icon.asar');await asar.createPackage(f.source,archive);
+  const archive=path.join(f.resources,'no-icon.asar');await finished(await asar.createPackage(f.source,archive));
   // asar caches headers by path; use a fresh directory for an independent artifact.
   const noIcon=path.join(f.root,'no-icon');await fs.mkdir(noIcon);await fs.rename(archive,path.join(noIcon,'app.asar'));
   await assert.rejects(verifyOfflinePackage(noIcon,{expectedManifest:f.manifest,expectedPetVoiceCount:1}),/图标|yukino-icon/);

@@ -1,0 +1,3 @@
+// QA-only model window bridge. Not included in packaged app; no user settings.
+const {contextBridge,ipcRenderer}=require('electron');
+contextBridge.exposeInMainWorld('companion',{call:(action,payload)=>ipcRenderer.invoke('model-qa',action,payload),onState:callback=>{const fn=(_event,state)=>callback(state);ipcRenderer.on('companion-state',fn);return()=>ipcRenderer.removeListener('companion-state',fn)},onSpeech:callback=>{const fn=(_event,value)=>callback(value);ipcRenderer.on('companion-speech',fn);return()=>ipcRenderer.removeListener('companion-speech',fn)},onMouth:callback=>{const fn=(_event,value)=>callback(value);ipcRenderer.on('companion-mouth',fn);return()=>ipcRenderer.removeListener('companion-mouth',fn)}});

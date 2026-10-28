@@ -38,7 +38,7 @@ class WorkerClient {
     // The embedded Python ._pth enables isolation and ignores PYTHON* variables.
     // Keep UTF-8 explicit so Japanese JSONL works on every Windows locale.
     this.child = spawnImpl(python, ['-X', 'utf8', '-u', script], { cwd, windowsHide: true, shell: false,
-      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ORT_DISABLE_TELEMETRY: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
     const decoder = new StringDecoder('utf8'); let buffer = '';
     this.child.stdout.on('data', chunk => {
       buffer += decoder.write(chunk);

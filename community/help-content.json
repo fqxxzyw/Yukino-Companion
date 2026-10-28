@@ -1,54 +1,215 @@
 {
-  "title": "使用与帮助",
-  "updatedAt": "2026-10-26",
+  "title": "使用文档与接口参考",
+  "updatedAt": "2026-10-27",
   "sections": [
     {
       "id": "start",
-      "title": "第一次使用：先装程序，再选择资源",
-      "summary": "基础版安装过程不下载模型；你可以先用 API 文字聊天。",
-      "body": "### 先完成这四步\n\n1. 从本项目 GitHub Releases 下载名字含 Base-Setup 的 Windows x64 基础安装器。先查看该版本的“验证状态”，测试版不等于稳定版。\n2. 按“完整性检查”核对 SHA-256，再运行安装器。基础安装只解压程序，不在安装过程中拉取模型或 Python。\n3. 打开软件，在首次配置向导选择本地对话、日语翻译、语音合成或桌宠语音。资源和所需环境会分别显示，可以取消、重试或先跳过。\n4. 只想用远程文字聊天时，跳过本地资源，进入设置 → 对话 API，选择服务商并配置密钥。\n\n### 模型、环境、加载状态有什么不同\n\n- 程序：界面、聊天记录、设置和桌宠窗口。\n- 模型：本地回复、翻译和语音各自需要的权重文件。\n- 环境：这些模型共用的 Python 与推理依赖；仅播放桌宠预录语音不需要 Python。\n- 已安装：文件已经准备好。未加载：模型暂未放入内存，不一定是缺文件。第一次使用或点击加载后才占用推理内存。\n\n要继续配置，可从设置中的“一键配置本地功能”打开向导。旧安装器 v0.4.0-local.13 在安装过程中下载应用分卷，与基础版的流程不同，请不要混用两种说明。\n\n[查看真实发行版本](https://github.com/fqxxzyw/Yukino-Companion/releases)"
+      "title": "安装与首次配置",
+      "summary": "安装程序后，根据对话、翻译和语音功能选择所需资源。",
+      "body": "## 配置步骤\n\n1. 从本项目 GitHub Releases 下载名字含 Base-Setup 的 Windows x64 基础安装器。先查看该版本的“验证状态”，测试版不等于稳定版。\n2. 按“完整性检查”核对 SHA-256，再运行安装器。基础安装只解压程序，不在安装过程中拉取模型或 Python。\n3. 打开软件，在首次配置向导选择本地对话、日语翻译、语音合成或桌宠语音。资源和所需环境会分别显示，可以取消、重试或先跳过。\n4. 只想用远程文字聊天时，跳过本地资源，进入设置 → 对话 API，选择服务商并配置密钥。\n\n## 组件与状态\n\n- 程序：界面、聊天记录、设置和桌宠窗口。\n- 模型：本地回复、翻译和语音各自需要的权重文件。\n- 环境：应用专用 Python 与本地推理依赖。桌宠预录语音使用音频播放器。\n- 已安装：所需文件已准备好。未加载：模型文件已保存在磁盘，首次使用或手动加载后进入推理内存。\n\n要继续配置，可从设置中的“一键配置本地功能”打开向导。旧安装器 v0.4.0-local.13 在安装过程中下载应用分卷，与基础版的流程不同，请不要混用两种说明。\n\n[查看真实发行版本](https://github.com/fqxxzyw/Yukino-Companion/releases)",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "桌面端首次配置向导；设置 → 一键配置本地功能"
+        },
+        {
+          "name": "所需信息",
+          "value": "Windows x64 安装器；按需准备 API 账号或本地资源"
+        },
+        {
+          "name": "完成标志",
+          "value": "软件可启动；选定的对话方式可返回一条回复"
+        }
+      ]
     },
     {
       "id": "integrity",
-      "title": "验证安装包完整性",
+      "title": "安装文件校验",
       "summary": "对照同一 Release 的 SHA-256，确认文件下载完整且与发布资产一致。",
-      "body": "### 核对来源\n\n确认地址属于 github.com/fqxxzyw/Yukino-Companion。下载同一个发行版本的安装器和 SHA256SUMS.txt。不要将别的版本或第三方帖子中的校验值混用。若当前发行尚未提供该文件，可对照该发行的 base-installer.json 或资产清单中的 sha256；没有可信校验值时先在社区反馈，不自行猜测。\n\n### 在 PowerShell 中检查\n\n打开安装器所在文件夹，在地址栏输入 powershell 并回车，然后执行：\n\n```powershell\nGet-FileHash -LiteralPath '.\\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm SHA256\nGet-Content -LiteralPath '.\\SHA256SUMS.txt'\n```\n\n将第一条命令输出的 Hash 与清单中同名文件的 64 位 SHA-256 逐字对照，大小写不影响比较。文件改名时先改命令里的文件名。分卷资源要逐卷对照，不能只校验第一卷。\n\n校验不一致时不要运行该文件；重新下载并再次检查。校验通过只说明文件与可信发布记录一致，不等于代码安全审计，也不代表所有功能都已经通过测试。\n\n### 系统提示\n\n当前测试安装器未代码签名，Windows 可能显示未知发布者或信誉提示。不要关闭全局防护或直接忽略所有提示；先核对仓库、版本、文件摘要和系统报告，再决定是否继续。无法判断时把不含个人信息的提示截图发到 Bug 区。\n\n[Microsoft：Get-FileHash](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash?view=powershell-7.5)"
+      "body": "## 核对来源\n\n确认地址属于 github.com/fqxxzyw/Yukino-Companion。下载同一个发行版本的安装器和 SHA256SUMS.txt。不要将别的版本或第三方帖子中的校验值混用。若当前发行尚未提供该文件，可对照该发行的 base-installer.json 或资产清单中的 sha256；没有可信校验值时先在社区反馈，不自行猜测。\n\n## 在 PowerShell 中检查\n\n打开安装器所在文件夹，在地址栏输入 powershell 并回车，然后执行：\n\n```powershell\nGet-FileHash -LiteralPath '.\\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm SHA256\nGet-Content -LiteralPath '.\\SHA256SUMS.txt'\n```\n\n将第一条命令输出的 Hash 与清单中同名文件的 64 位 SHA-256 逐字对照，大小写不影响比较。文件改名时先改命令里的文件名。分卷资源要逐卷对照，不能只校验第一卷。\n\n校验不一致时不要运行该文件；重新下载并再次检查。校验通过只说明文件与可信发布记录一致，不等于代码安全审计，也不代表所有功能都已经通过测试。\n\n## 系统提示\n\n当前测试安装器未代码签名，Windows 可能显示未知发布者或信誉提示。不要关闭全局防护或直接忽略所有提示；先核对仓库、版本、文件摘要和系统报告，再决定是否继续。无法判断时把不含个人信息的提示截图发到 Bug 区。\n\n[Microsoft：Get-FileHash](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash?view=powershell-7.5)",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "GitHub Releases → 对应版本附件"
+        },
+        {
+          "name": "输入",
+          "value": "待检查文件、同版本可信 SHA-256 清单"
+        },
+        {
+          "name": "输出",
+          "value": "文件 Hash 与发布记录一致"
+        }
+      ]
     },
     {
       "id": "api",
-      "title": "获取并配置其他平台的 API",
+      "title": "对话 API 配置",
       "summary": "密钥、服务地址和模型必须属于同一个平台；软件主要接入 Chat Completions。",
-      "body": "### 在软件中完成配置\n\n1. 设置 → 对话 API → 选择服务商。\n2. 只在软件的密钥输入框粘贴 API Key，不要发送到聊天或社区。\n3. 点击“验证密钥并获取模型”，从账号返回的候选列表选择模型。\n4. 点击“测试对话连接”。成功后发送一条短消息验证；测试可能计入供应商用量。\n\n获取模型列表成功不保证每一个模型都有调用权限或支持本软件需要的参数。列表接口不受支持时，软件会明确提示尚未验证；可按服务商官方文档在高级设置填写模型，再测试实际对话。不要把“输入了密钥”当作已经验证成功。\n\n### DeepSeek\n\n登录 DeepSeek 开放平台，进入 API keys 页面创建并保存自己的密钥。在软件中选择 DeepSeek，基础地址使用 https://api.deepseek.com。模型以账号列表和当前官方文档为准，不在本帮助页固定容易过时的型号。\n\n[DeepSeek 官方接入文档](https://api-docs.deepseek.com/) · [开放平台](https://platform.deepseek.com/)\n\n### 通义千问 / 阿里云百炼\n\n在百炼或 Model Studio 控制台选择所在地域和工作空间，进入 API Key 页面创建普通按量 API 密钥。地域的密钥、服务地址和模型不能混用；Token Plan / Coding Plan 有独立规则，不能直接当作普通按量接口。\n\n软件提供北京与新加坡预设。若控制台显示工作空间专属 API Host，请在高级设置按官方文档替换为该工作空间的 OpenAI-compatible 地址。以控制台给出的地域与 Host 为准。\n\n[官方密钥创建说明](https://www.alibabacloud.com/help/en/model-studio/get-api-key) · [OpenAI 兼容接口](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope)\n\n### 硅基流动\n\n登录 SiliconCloud，进入“API 密钥”创建密钥。在软件中选择“硅基流动”，基础地址使用 https://api.siliconflow.cn/v1，然后获取账号的对话模型列表。图像、语音、嵌入和重排模型不等于可聊天的模型。\n\n[硅基流动快速上手](https://docs.siliconflow.cn/docs/userguide/quickstart) · [控制台](https://cloud.siliconflow.cn/)\n\n### Google Gemini\n\n在 Google AI Studio 创建或查看 Gemini API Key，并确认账号、项目、地域和配额满足官方要求。在本软件中选择“自定义兼容服务”，基础地址填 https://generativelanguage.googleapis.com/v1beta/openai/，再获取模型并测试。不要填 Gemini 原生 generateContent 接口；本软件使用它的 OpenAI 兼容层，兼容层的功能范围不等于完整原生 API。\n\n[创建 Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key) · [Google 官方兼容说明](https://ai.google.dev/gemini-api/docs/openai)\n\n### OpenAI\n\n在 OpenAI API 平台选择项目，创建具有所需调用权限的 API Key，按需要配置 API 账单。在软件中选择 OpenAI，基础地址使用 https://api.openai.com/v1，选择支持 Chat Completions 的对话模型并测试。\n\nChatGPT 订阅与 API 平台账单分开，不能把 ChatGPT 订阅额度当成这里的 API 额度。本软件当前并未实现 OpenAI 所有接口；仅支持 Responses 的模型或功能不能只换名字就直接使用。\n\n[OpenAI 官方快速开始](https://developers.openai.com/api/docs/quickstart) · [订阅与 API 账单说明](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform)\n\n### 其他服务\n\nKimi、智谱和自建兼容服务可以从对应预设或自定义地址接入。远程地址应使用 HTTPS；本机服务可以用 localhost / 127.0.0.1。Anthropic 原生 Messages 协议不是 Chat Completions；需要使用明确兼容的接口。\n\n不要把完整密钥写进 Base URL、模型名称、截图或公开仓库。怀疑泄露时，到供应商控制台撤销并重新创建。"
+      "body": "## 配置字段\n\n- **服务地址（Base URL）**：服务商的兼容 API 根地址。软件追加 `/chat/completions`；填写根地址时保留服务商要求的 `/v1` 等版本路径。\n- **API Key**：由相同服务商的账号创建，仅输入桌面端密钥框。\n- **模型 ID**：填写账号有权调用且支持对话的精确 ID。\n- **模型列表**：通常请求 `GET /models`；百炼预设使用同源 `/api/v1/models`，硅基流动按对话类型筛选。\n\n## 已实现的对话请求\n\n桌面端 `electron/chat.cjs` 向配置的服务发送 `POST /chat/completions`，使用 `Content-Type: application/json`；配置密钥时发送 `Authorization: Bearer <API_KEY>`。以下为请求结构示例，模型名是需要替换的占位符：\n\n```json\n{\n  \"model\": \"<账号可用的模型 ID>\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"你好\"}],\n  \"stream\": true\n}\n```\n\n流式响应读取 `choices[0].delta.content`；JSON 响应读取 `choices[0].message.content`。这是桌面端调用服务商的协议，社区网页只读取公开社区内容。\n\n## 验证步骤\n\n1. 设置 → 对话 API → 选择服务商。\n2. 只在软件的密钥输入框粘贴 API Key，不要发送到聊天或社区。\n3. 点击“验证密钥并获取模型”，从账号返回的候选列表选择模型。\n4. 点击“测试对话连接”。成功后发送一条短消息验证；测试可能计入供应商用量。\n\n获取模型列表成功不保证每一个模型都有调用权限或支持本软件需要的参数。列表接口不受支持时，软件会明确提示尚未验证；可按服务商官方文档在高级设置填写模型，再测试实际对话。不要把“输入了密钥”当作已经验证成功。\n\n## DeepSeek\n\n登录 DeepSeek 开放平台，进入 API keys 页面创建并保存自己的密钥。在软件中选择 DeepSeek，基础地址使用 https://api.deepseek.com。模型以账号列表和当前官方文档为准，不在本帮助页固定容易过时的型号。\n\n[DeepSeek 官方接入文档](https://api-docs.deepseek.com/) · [开放平台](https://platform.deepseek.com/)\n\n## 通义千问 / 阿里云百炼\n\n在百炼或 Model Studio 控制台选择所在地域和工作空间，进入 API Key 页面创建普通按量 API 密钥。地域的密钥、服务地址和模型不能混用；Token Plan / Coding Plan 有独立规则，不能直接当作普通按量接口。\n\n软件提供北京与新加坡预设。若控制台显示工作空间专属 API Host，请在高级设置按官方文档替换为该工作空间的 OpenAI-compatible 地址。以控制台给出的地域与 Host 为准。\n\n[官方密钥创建说明](https://www.alibabacloud.com/help/en/model-studio/get-api-key) · [OpenAI 兼容接口](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope)\n\n## 硅基流动\n\n登录 SiliconCloud，进入“API 密钥”创建密钥。在软件中选择“硅基流动”，基础地址使用 https://api.siliconflow.cn/v1，然后获取账号的对话模型列表。图像、语音、嵌入和重排模型不等于可聊天的模型。\n\n[硅基流动快速上手](https://docs.siliconflow.cn/docs/userguide/quickstart) · [控制台](https://cloud.siliconflow.cn/)\n\n## Google Gemini\n\n在 Google AI Studio 创建或查看 Gemini API Key，并确认账号、项目、地域和配额满足官方要求。在本软件中选择“自定义兼容服务”，基础地址填 https://generativelanguage.googleapis.com/v1beta/openai/，再获取模型并测试。不要填 Gemini 原生 generateContent 接口；本软件使用它的 OpenAI 兼容层，兼容层的功能范围不等于完整原生 API。\n\n[创建 Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key) · [Google 官方兼容说明](https://ai.google.dev/gemini-api/docs/openai)\n\n## OpenAI\n\n在 OpenAI API 平台选择项目，创建具有所需调用权限的 API Key，按需要配置 API 账单。在软件中选择 OpenAI，基础地址使用 https://api.openai.com/v1，选择支持 Chat Completions 的对话模型并测试。\n\nChatGPT 订阅与 API 平台账单分开，不能把 ChatGPT 订阅额度当成这里的 API 额度。本软件当前并未实现 OpenAI 所有接口；仅支持 Responses 的模型或功能不能只换名字就直接使用。\n\n[OpenAI 官方快速开始](https://developers.openai.com/api/docs/quickstart) · [订阅与 API 账单说明](https://help.openai.com/en/articles/9039756-managing-billing-for-chatgpt-and-the-api-platform)\n\n## 其他服务\n\nKimi、智谱和自建兼容服务可以从对应预设或自定义地址接入。远程地址应使用 HTTPS；本机服务可以用 localhost / 127.0.0.1。Anthropic 原生 Messages 协议不是 Chat Completions；需要使用明确兼容的接口。\n\n不要把完整密钥写进 Base URL、模型名称、截图或公开仓库。怀疑泄露时，到供应商控制台撤销并重新创建。",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "设置 → 对话 API"
+        },
+        {
+          "name": "必填项",
+          "value": "服务地址（Base URL）、模型 ID；远程服务通常还需 API Key"
+        },
+        {
+          "name": "协议",
+          "value": "OpenAI-compatible Chat Completions；按服务商实际支持范围调用"
+        },
+        {
+          "name": "完成标志",
+          "value": "测试对话连接成功；实际消息正常返回"
+        }
+      ]
     },
     {
       "id": "download",
-      "title": "无法下载，寻求帮助",
-      "summary": "每项资源独立下载、校验和续传；超时后尝试清单中的备用来源。",
-      "body": "### 先看当前状态\n\n“下载中”显示实际收到的数据；“校验中”会读取已下载文件；“解压中”主要依赖磁盘，网速归零不一定是卡住。检查磁盘可用空间，预留压缩包、解压目录和临时文件的空间。\n\n### 多连接与备用源\n\n大型资源优先使用内置 aria2，多连接和断点续传无需另外安装 Motrix。速度受 GitHub、原模型源、网络和磁盘限制，不保证固定提速。源站不支持分段、连接受限或 aria2 无法完成时，可以回退普通 HTTPS。\n\n同一文件的主源和备用源都必须匹配清单中的长度与 SHA-256。发生连接超时或源不可用时，下载器尝试已经登记的其他来源；如果用户主动取消，则停止任务，不自动继续换源下载。没有可用备用地址的文件会保留错误并允许重试，不假装换源成功。\n\n### 可以依次检查\n\n1. 在浏览器打开资源卡或发行页中的官方链接，确认 GitHub / Hugging Face 是否能访问。\n2. 检查网络与代理。浏览器能访问不代表下载子进程使用相同代理；软件不自动读取或复制浏览器扩展的凭据。调整系统或代理工具配置后重启软件再试。\n3. 若一个源失败，让程序尝试已登记备用源；仍失败时取消后重试，已经校验好的资源不会重复下载。\n4. 检查磁盘空间、文件夹写入权限及系统防护是否阻止文件写入，不要为下载而关闭全局防护。\n5. 暂时不需要本地功能时可以跳过，先用 API 文字聊天。\n\n### 手动获取文件\n\n只使用项目 Release 或清单明确列出的原作者固定版本链接。按“完整性检查”核对长度与 SHA-256，再使用对应设置里的自定义路径：本地对话选择含 manifest.json 和对应 GGUF 的模型目录；翻译选择匹配模型清单的目录；语音分别选择 GPT、SoVITS 与参考音频。\n\n不要把任意 Python ZIP 当作本应用环境，也不要随便覆盖应用缓存。环境安装没有通用“任意压缩包导入”保证；若自动安装失败，可提供已经安装且依赖兼容的 Python 路径，或携带脱敏错误在社区寻求帮助。\n\n### 提交有效反馈\n\n附上应用版本、Windows 版本、选择的资源名称、失败阶段、错误代码、是否使用代理以及大致可用磁盘空间。可以附资源卡截图，但隐藏用户名路径、密钥、聊天正文和个人记忆。不要上传整个用户数据文件夹。\n\n[提交 Bug 或下载反馈](https://github.com/fqxxzyw/Yukino-Companion/issues/new/choose) · [资源与版本列表](https://github.com/fqxxzyw/Yukino-Companion/releases)"
+      "title": "资源下载与故障处理",
+      "summary": "查看失败阶段，检查资源来源和磁盘空间，再取消或重试相应任务。",
+      "body": "## 先看当前状态\n\n“下载中”显示实际收到的数据；“校验中”会读取已下载文件；“解压中”主要依赖磁盘，网速归零不一定是卡住。检查磁盘可用空间，预留压缩包、解压目录和临时文件的空间。\n\n## 多连接与备用源\n\n大型资源优先使用内置 aria2，多连接和断点续传无需另外安装 Motrix。速度受 GitHub、原模型源、网络和磁盘限制，不保证固定提速。源站不支持分段、连接受限或 aria2 无法完成时，可以回退普通 HTTPS。\n\n同一文件的主源和备用源都必须匹配清单中的长度与 SHA-256。发生连接超时或源不可用时，下载器尝试已经登记的其他来源；如果用户主动取消，则停止任务，不自动继续换源下载。没有可用备用地址的文件会保留错误并允许重试，不假装换源成功。\n\n## 可以依次检查\n\n1. 在浏览器打开资源卡或发行页中的官方链接，确认 GitHub / Hugging Face 是否能访问。\n2. 检查网络与代理。浏览器能访问不代表下载子进程使用相同代理；软件不自动读取或复制浏览器扩展的凭据。调整系统或代理工具配置后重启软件再试。\n3. 若一个源失败，让程序尝试已登记备用源；仍失败时取消后重试，已经校验好的资源不会重复下载。\n4. 检查磁盘空间、文件夹写入权限及系统防护是否阻止文件写入，不要为下载而关闭全局防护。\n5. 暂时不需要本地功能时可以跳过，先用 API 文字聊天。\n\n## 手动获取文件\n\n只使用项目 Release 或清单明确列出的原作者固定版本链接。按“完整性检查”核对长度与 SHA-256，再使用对应设置里的自定义路径：本地对话选择含 manifest.json 和对应 GGUF 的模型目录；翻译选择匹配模型清单的目录；语音分别选择 GPT、SoVITS 与参考音频。\n\n不要把任意 Python ZIP 当作本应用环境，也不要随便覆盖应用缓存。环境安装没有通用“任意压缩包导入”保证；若自动安装失败，可提供已经安装且依赖兼容的 Python 路径，或携带脱敏错误在社区寻求帮助。\n\n## 提交有效反馈\n\n附上应用版本、Windows 版本、选择的资源名称、失败阶段、错误代码、是否使用代理以及大致可用磁盘空间。可以附资源卡截图，但隐藏用户名路径、密钥、聊天正文和个人记忆。不要上传整个用户数据文件夹。\n\n[提交 Bug 或下载反馈](https://github.com/fqxxzyw/Yukino-Companion/issues/new/choose) · [资源与版本列表](https://github.com/fqxxzyw/Yukino-Companion/releases)",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "首次配置向导；对应功能的资源设置"
+        },
+        {
+          "name": "检查项",
+          "value": "资源名称、下载阶段、错误信息、可用磁盘空间"
+        },
+        {
+          "name": "操作",
+          "value": "取消、重试；按清单使用已登记来源"
+        }
+      ]
     },
     {
       "id": "models",
-      "title": "本地模型、GPU 与公共环境",
+      "title": "本地模型与运行环境",
       "summary": "准备文件和启动推理是两步；实际设备以加载结果为准。",
-      "body": "本地对话使用已实际训练的 1.5B 角色 GGUF；翻译使用独立的 Hy-MT2-1.8B 量化模型；语音使用 GPT-SoVITS。它们各自加载、分别占用内存，释放其中一个不代表其他模型也已卸载。\n\n首次配置根据实际提供的环境包显示可用选项。若当前发行只提供 CPU 环境，电脑即使有 NVIDIA 显卡也不会因此自动获得 CUDA 运行库。使用兼容 GPU 环境后，设备“自动”才会尝试 GPU；显存不足时可按设置回退 CPU。当前路径不表示所有品牌显卡都支持加速。\n\n“检测到显卡”“下载了 CUDA 环境”和“本次模型实际在 GPU 运行”是不同状态。请在模型加载后的状态中确认实际设备。自定义环境需满足对应组件依赖，不能仅凭电脑已有 Python 就认为全部就绪。\n\n基础版默认不会在安装时带入大模型。下载和校验完成后，第一次发送本地回复、补译或朗读才加载相应模型。小模型仍可能出现人物事实错误、语气偏差或长对话质量下降；这不等同于安装文件损坏。"
+      "body": "## 组件用途\n\n- **本地对话模型**：1.5B 角色 GGUF，生成角色回复。\n- **Hy-MT2 翻译模型**：生成日文译文，用于明确选择的本地翻译和内置本地对话流程。\n- **GPT-SoVITS 权重**：GPT / SoVITS 配对音色文件，用于语音合成。\n- **BERT / HuBERT**：语音合成的文本与音频特征模型。\n- **公共运行环境**：应用专用 Python 和本地模型所需的推理依赖。\n\n## 准备与加载\n\n1. 在首次配置向导勾选需要的功能，查看对应资源和运行环境。\n2. 等待每项资源下载、校验和安装完成。\n3. 使用本地回复、补译或朗读时加载对应模型；在状态区确认加载结果和实际设备。\n\n各模型分别占用内存。释放某个模型后，可在对应功能状态中确认；其他已加载模型继续保持自己的状态。\n\n## CPU / GPU\n\n首次配置显示当前发行实际提供的环境包。CPU 环境使用 CPU 推理；兼容 GPU 环境配置完成后，设备“自动”才会尝试 GPU。显存不足时可按设置回退 CPU。请分别检查显卡检测、环境安装和模型实际运行设备。\n\n自定义 Python 路径需要具备对应组件依赖。模型加载后如出现人物事实错误、语气偏差或长对话质量下降，可记录输入与版本并反馈模型效果；文件完整性通过 SHA-256 单独检查。",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "设置 → 本地模型；首次配置向导"
+        },
+        {
+          "name": "资源",
+          "value": "对话 GGUF、Hy-MT2 翻译、GPT-SoVITS 语音组件"
+        },
+        {
+          "name": "状态",
+          "value": "下载 → 校验 → 安装 → 加载 → 推理"
+        },
+        {
+          "name": "设备",
+          "value": "以模型加载后显示的实际 CPU / GPU 为准"
+        }
+      ]
     },
     {
       "id": "voice",
-      "title": "中文阅读，日语合成",
-      "summary": "气泡显示语言可以切换；语音只朗读准备好的日语。",
-      "body": "### 回复到声音的流程\n\nAPI 同时返回中文和日文时，界面按气泡偏好显示；缺少有效日文时，由本地翻译补齐。选择“全部本地翻译”时，API 或本地角色模型先产生中文，再翻成日文。只有日文准备完成后才进入 GPT-SoVITS 合成与播放。\n\n翻译失败时保留中文正文与错误，不把中文冒充日语送去朗读。单条消息切换中文、日文或双语，只改变阅读内容。\n\n### 默认音色与自己的训练文件\n\n在资源向导准备公共环境、BERT/HuBERT、默认 GPT e2 / SoVITS e1 及参考声音；也可以在声音设置中选择自己的 .ckpt 与 .pth。两种权重应配对且匹配模型版本，轮次更多不自动代表音质更好。\n\n自定义参考音频应为清晰的 3–10 秒 WAV / FLAC，并填写该音频实际说出的对应原文和语言；不是在这个框中写希望合成的回复。先保存并试听一小句日语，再打开自动朗读。\n\n停止朗读会取消后续播放；停止正在推理的声音可能释放本应用的推理进程，下次使用会重新加载。字幕正常但没有声音时，检查日语是否已经生成、音色和参考是否完整、输出音量及语音错误状态。"
+      "title": "日语翻译与语音合成",
+      "summary": "按选择的翻译方式准备日文，再使用 GPT-SoVITS 合成语音。",
+      "body": "## 翻译方式\n\n- **API 返回双语 · API 补译**：对话请求返回中日双语。缺少日文或点击“补译日文”时，使用当前选中的对话 API；需要有效的地址、模型和密钥，调用可能计入服务商用量。\n- **本地翻译**：使用 Hy-MT2 和本地运行环境。使用前在资源向导准备翻译模型与依赖。\n- **内置本地对话**：角色模型生成回复后使用本地翻译生成日文。\n\n气泡的中文、日文、双语开关控制阅读内容。语音合成使用准备完成的日文；翻译失败时保留中文与错误提示，先修复翻译配置再朗读。\n\n## 音色配置\n\n1. 在资源向导准备公共运行环境、BERT / HuBERT、默认 GPT e2 / SoVITS e1 及参考声音。\n2. 使用自定义音色时，在声音设置选择匹配版本的 `.ckpt` 和 `.pth` 文件。\n3. 选择清晰的 3–10 秒 WAV / FLAC 参考音频，填写该音频实际说出的原文及语言。\n4. 保存后试听一小句日语，确认正常后开启自动朗读。\n\nGPT 与 SoVITS 权重需要配对，训练轮次供识别版本使用。参考文本用于描述参考音频的内容。\n\n## 状态与故障处理\n\n- **缺少日文**：检查当前翻译方式。API 模式检查对话配置和额度；本地模式检查 Hy-MT2 与运行环境。\n- **合成失败**：检查两种权重、公共模型、参考音频和对应原文。\n- **合成完成但无声**：检查应用与系统输出音量及输出设备。\n- **停止朗读**：取消后续播放；中止正在推理的语音可能释放本应用推理进程，下次使用时重新加载。",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "入口",
+          "value": "设置 → 翻译；设置 → 声音"
+        },
+        {
+          "name": "输入",
+          "value": "中文或中日双语回复；语音权重与参考音频"
+        },
+        {
+          "name": "输出",
+          "value": "中文 / 日文气泡；日语合成语音"
+        },
+        {
+          "name": "API 模式",
+          "value": "双语回复与缺失日文补译均使用当前对话 API"
+        }
+      ]
     },
     {
       "id": "community",
-      "title": "GitHub 登录、投稿与资源分享",
+      "title": "账号、投稿与资源规范",
       "summary": "社区网页展示真实 GitHub 内容；投稿与评论由 GitHub 身份确认。",
-      "body": "点击“前往 GitHub 登录并发布”后，将打开项目的 GitHub 投稿表单。若未登录，先在 GitHub 完成登录，再检查并提交正文。提交后返回本网站刷新即可读取公开内容。网站不会要求你的 GitHub 密码或个人访问令牌，也不会把维护者密钥交给访客。\n\n首版没有在网页内建立 OAuth 登录会话；登录、最终发布、编辑和评论由 GitHub 原生界面完成。文章作者显示的是 GitHub 账号。页面只从公开 Issue 读取内容，不会把本地草稿提示成已经公开发布。\n\n### 同人文章\n\n填写标题、简介与正文，说明原创、转载或改编情况；转载需注明来源和许可。长文可以分章节或附原文链接，发布前检查排版。\n\n### 音色模型\n\n提供 GPT-SoVITS 版本、GPT 与 SoVITS 对应文件、参考音频要求、下载链接、文件大小和 SHA-256，并说明训练素材来源与使用许可。大文件放在发布者自己的可信 Release 或存储服务中，社区保存说明与链接，不将权重粘进帖子。\n\n### Bug 与建议\n\nBug 需要版本、复现步骤、实际结果与期望结果；建议说明希望改善的使用场景。反馈不要公开 API Key、聊天记录、联系方式或其他人的私密信息。\n\n公开下载链接仍由投稿者提供，先核对许可、版本、摘要与来源；外部资源不是项目官方担保。可以在 GitHub 评论中要求作者补充缺失的文件信息。\n\n[GitHub 官方：创建 Issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue)"
+      "body": "## 投稿步骤\n\n点击“打开 GitHub 投稿表单”后，将打开项目的 GitHub 投稿表单。若未登录，先在 GitHub 完成登录，再检查并提交正文。提交后返回本网站刷新即可读取公开内容。正文、作者账号和评论会公开显示，请在发布前检查内容。\n\n## 账号与权限\n\n当前版本使用 GitHub 原生页面完成登录、发布、编辑、删除和评论。社区按公开 Issue 读取投稿，作者显示为 GitHub 账号。邮箱密码注册与站内登录暂未接入，需先确认独立认证服务与托管方案。\n\n## 同人文章\n\n填写标题、简介与正文，说明原创、转载或改编情况；转载需注明来源和许可。长文可以分章节或附原文链接，发布前检查排版。\n\n## 音色模型\n\n提供 GPT-SoVITS 版本、GPT 与 SoVITS 对应文件、参考音频要求、下载链接、文件大小和 SHA-256，并说明训练素材来源与使用许可。大文件放在发布者自己的可信 Release 或存储服务中，社区保存说明与链接，不将权重粘进帖子。\n\n## Bug 与建议\n\nBug 需要版本、复现步骤、实际结果与期望结果；建议说明希望改善的使用场景。反馈不要公开 API Key、聊天记录、联系方式或其他人的私密信息。\n\n公开下载链接仍由投稿者提供，先核对许可、版本、摘要与来源；外部资源不是项目官方担保。可以在 GitHub 评论中要求作者补充缺失的文件信息。\n\n[GitHub 官方：创建 Issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue)",
+      "group": "社区",
+      "reference": [
+        {
+          "name": "浏览",
+          "value": "公开内容，无需登录"
+        },
+        {
+          "name": "投稿与评论",
+          "value": "在 GitHub 官方页面登录并确认提交"
+        },
+        {
+          "name": "内容存储",
+          "value": "本项目 GitHub Issues 与公开评论"
+        },
+        {
+          "name": "邮箱密码账号",
+          "value": "暂未接入；待确认独立认证服务与托管方案"
+        }
+      ]
+    },
+    {
+      "id": "community-api",
+      "title": "社区读取接口",
+      "group": "社区",
+      "summary": "网页调用的公开 GitHub REST API、筛选规则、分页和错误处理。",
+      "reference": [
+        {
+          "name": "Base URL",
+          "value": "https://api.github.com/repos/fqxxzyw/Yukino-Companion"
+        },
+        {
+          "name": "认证",
+          "value": "公开读取，无需密钥；credentials: omit"
+        },
+        {
+          "name": "请求头",
+          "value": "Accept: application/vnd.github+json"
+        },
+        {
+          "name": "实现",
+          "value": "community/app.mjs；community/lib.mjs"
+        }
+      ],
+      "body": "## 内容列表\n\n```http\nGET /repos/fqxxzyw/Yukino-Companion/issues?state=all&sort=created&direction=desc&per_page=60\nHost: api.github.com\nAccept: application/vnd.github+json\n```\n\n返回 Issue 数组。页面使用 `number`、`title`、`body`、`labels`、`user`、`created_at`、`state` 和 `comments`。\n\n- 标题前缀 `[二创]`、`[音色]`、`[建议]`、`[Bug]` 对应四类内容；也支持 `community:fiction`、`community:voice`、`community:idea`、`community:bug` 标签。\n- 带 `pull_request` 的记录作为 Pull Request 排除；`community:hidden` 标签使条目从社区展示中隐藏。\n- 搜索仅匹配已载入内容的标题、正文和 GitHub 作者账号。使用“载入更多”扩展搜索范围。\n\n## 详情与评论\n\n```http\nGET /repos/fqxxzyw/Yukino-Companion/issues/{issue_number}\nGET /repos/fqxxzyw/Yukino-Companion/issues/{issue_number}/comments?per_page=30\n```\n\n`issue_number` 是正整数内容编号，取自列表的 `number`。详情返回一个 Issue 对象；评论返回数组，包含 `user`、`created_at` 与 `body`。这些接口由 GitHub 提供。\n\n## 可运行的只读示例\n\n```sh\ncurl -H 'Accept: application/vnd.github+json' \\\n  'https://api.github.com/repos/fqxxzyw/Yukino-Companion/issues?state=all&sort=created&direction=desc&per_page=60'\n```\n\n示例只读取公开数据，无需提供密码或令牌。本文不提供虚构的本站注册、登录或发布接口；发布入口打开 GitHub Issue 表单。\n\n## 分页与状态\n\n- **下一页**：读取响应头 `Link` 中 `rel=\"next\"` 的地址；页面将分页请求限制在本仓库 GitHub API 路径。\n- **403 / 429**：显示访问受限提示，可稍后刷新或在 GitHub 查看。\n- **404**：内容不存在、已删除或暂不可公开访问。\n- **请求超时**：单次请求等待最多 15 秒，然后允许重试。\n- **切换页面**：中止旧详情和评论请求，避免较早的结果覆盖当前页面。\n\n## 正文与资源链接\n\nMarkdown 支持标题、段落、列表、代码、强调和 HTTPS 链接。原始 HTML 按文本显示；正文远程图片不加载。音色信息提取自 Issue 表单，作者提供的 SHA-256 与授权说明需要下载者自行核对。\n\n[GitHub Issues API](https://docs.github.com/en/rest/issues/issues#list-repository-issues) · [GitHub 评论 API](https://docs.github.com/en/rest/issues/comments#list-issue-comments)"
     },
     {
       "id": "status",
-      "title": "版本与尚在制作的功能",
-      "summary": "下载、安装成功与某个功能已经完成，是不同的验收项。",
-      "body": "发布遵循“先上传测试安装器，再进行发布后检查”。请以对应 GitHub Release 的验证状态与实际附件为准；源码提交、构建启动、上传成功和测试通过不能互相替代。\n\n当前真实 3D 模型、骨骼、动作和换装资源仍在接入。衣装面板、场景或视线参数出现时，不代表所有资源都已经具备对应动作。接口准备和正式模型视觉验收会分别记录。\n\n情绪、好感度、体力、签到与赞助解锁的完整规则在开发需求中记录；没有明确发布与说明前，不视为已经启用扣分、收费或赞助验证。\n\n[查看开发需求](https://github.com/fqxxzyw/Yukino-Companion/blob/main/docs/NEW_FEATURES_0.5.md) · [查看发行记录](https://github.com/fqxxzyw/Yukino-Companion/releases)"
+      "title": "版本与功能状态",
+      "summary": "按发行版本检查安装器、资源和具体功能的验证结果。",
+      "body": "## 发行验证\n\n查看所选 GitHub Release 的验证状态、实际附件和已知问题。源码提交、构建、上传、安装测试与功能测试分别记录，下载前按所需功能核对。\n\n## 角色资源\n\n3D 模型、骨骼、动作和换装按角色资源包逐项接入。请以当前资源包提供的模型、动作与衣装为准，视觉验收结果随对应发行记录更新。\n\n## 开发计划\n\n情绪、好感度、体力、签到与赞助解锁规则记录在开发需求中。启用范围、操作说明和验证结果以正式发行说明为准。\n\n[查看开发需求](https://github.com/fqxxzyw/Yukino-Companion/blob/main/docs/NEW_FEATURES_0.5.md) · [查看发行记录](https://github.com/fqxxzyw/Yukino-Companion/releases)",
+      "group": "桌面端",
+      "reference": [
+        {
+          "name": "依据",
+          "value": "所选 Release 的验证记录、附件与已知问题"
+        },
+        {
+          "name": "开发计划",
+          "value": "docs/NEW_FEATURES_0.5.md"
+        },
+        {
+          "name": "资源支持",
+          "value": "以当前角色包、动作和音色实际提供的文件为准"
+        }
+      ]
     }
   ]
 }

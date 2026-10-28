@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const asar = require('@electron/asar');
+const {finished} = require('node:stream/promises');
 const { LEGACY_PERSONA, migratePersonaState, buildPersonaPrompt, preparePersonaChat, characterDocument, isYukinoLocal } = require('../electron/persona.cjs');
 const { chat } = require('../electron/chat.cjs');
 const { verifyCharacterPackage } = require('../scripts/verify-character-package.cjs');
@@ -127,17 +128,17 @@ test('archive verification opens real asar resources and fails on a missing runt
   fs.mkdirSync(path.join(source, 'electron'));
   for (const file of ['persona.cjs', 'main.cjs', 'preload.cjs']) fs.writeFileSync(path.join(source, 'electron', file), '// runtime');
   const archive = path.join(temp, 'app.asar');
-  await asar.createPackage(source, archive);
+  await finished(await asar.createPackage(source, archive));
   assert.equal(verifyCharacterPackage(archive).resources, 6);
   fs.rmSync(path.join(root, 'compact.md'));
   const incomplete = path.join(temp, 'incomplete.asar');
-  await asar.createPackage(source, incomplete);
+  await finished(await asar.createPackage(source, incomplete));
   assert.throws(() => verifyCharacterPackage(incomplete), /compact/);
   fs.writeFileSync(path.join(root, 'compact.md'), 'COMPACT_PERSONALITY');
   fs.mkdirSync(path.join(root, 'stages'));
   fs.writeFileSync(path.join(root, 'stages/early.md'), 'STALE_PERSONALITY');
   const stale = path.join(temp, 'stale.asar');
-  await asar.createPackage(source, stale);
+  await finished(await asar.createPackage(source, stale));
   assert.throws(() => verifyCharacterPackage(stale), /旧版分阶段资源/);
 });
 
@@ -198,7 +199,7 @@ test('archive verification uses Windows separators with the real asar directory 
   fs.mkdirSync(path.join(source, 'electron'));
   for (const file of ['persona.cjs', 'main.cjs', 'preload.cjs']) fs.writeFileSync(path.join(source, 'electron', file), '// runtime');
   const archive = path.join(temp, 'app.asar');
-  await asar.createPackage(source, archive);
+  await finished(await asar.createPackage(source, archive));
 
   function loadWithWindowsPaths(filename, overrides = {}) {
     const module = { exports: {} };

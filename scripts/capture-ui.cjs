@@ -17,7 +17,8 @@ const headless=app.commandLine.getSwitchValue('ozone-platform')==='headless';
 report.headless=headless;
 if(headless)report.purpose+='; headless rendering is supplemental and does not verify a native Windows desktop';
 let window, temp;
-app.disableHardwareAcceleration();
+// Exercise the same WebGL-capable renderer as production: scene backgrounds
+// are actual Three.js geometry, not a software-only mock.
 app.commandLine.appendSwitch('force-device-scale-factor','1');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
@@ -228,9 +229,12 @@ async function run() {
   await click('.relationship-settings .secondary');
   await check('Daily check-in is saved once and disables duplicate claim',`document.querySelector('.relationship-settings .secondary').disabled&&document.querySelector('.relationship-settings').textContent.includes('累计签到 1 天')`);
   await capture('05b-relationship-settings');
-  await click('.scene-options button:nth-child(2)');
+  const forestButton=await evaluate(`[...document.querySelectorAll('.scene-options button')].findIndex(button=>button.textContent.trim()==='森林')+1`);
+  if(!forestButton)throw Error('Missing forest environment control');
+  await click(`.scene-options button:nth-child(${forestButton})`);
   await click('.presentation-settings .row input');
-  await check('Forest preview and full-window background are active without pretending a rig exists',`document.querySelector('.app').classList.contains('scene-spread')&&document.querySelector('.scene-picker button:nth-child(2)').getAttribute('aria-pressed')==='true'&&document.querySelector('.presentation-settings').textContent.includes('模型接入后生效')`);
+  await check('Forest is selected and the full-window environment host is active',`document.querySelector('.app').classList.contains('scene-spread')&&[...document.querySelectorAll('.scene-options button')].some(button=>button.textContent.trim()==='森林'&&button.getAttribute('aria-pressed')==='true')&&Boolean(document.querySelector('.scene-ui-backdrop .environment-backdrop-canvas'))`);
+  await check('Lighting, rendering and truthful head-only tracking controls are present',`(()=>{const panel=document.querySelector('.presentation-settings');return [...panel.querySelectorAll('select')].map(select=>select.value).join(',')==='noon,lit'&&panel.textContent.includes('赛璐璐')&&panel.textContent.includes('没有可用的独立眼球蒙皮')})()`);
 
   await check('Complete original pet settings remain available',`['互动与动作','气泡与语录','桌宠预录语音','专注一会儿','形象透明度','暂停互动','安静模式'].every(text=>document.querySelector('.pet-settings').textContent.includes(text))`);
   await evaluate(`document.querySelector('.pet-settings-card:last-of-type').scrollIntoView({block:'end'})`);await settle();
@@ -303,9 +307,14 @@ async function run() {
   await click('[aria-label="收起或展开侧边栏"]');
   await capture('11-collapsed-sidebar');
   await click('[aria-label="打开服装面板"]');
-  await check('Wardrobe truthfully reports absent model assets',`document.querySelector('.wardrobe-panel').textContent.includes('正式模型接入后')&&!document.querySelector('.wardrobe-panel>button')`);
+  await check('Wardrobe shows seven outfits plus two school previews, respecting date, affinity and HOLD gates',`(()=>{const panel=document.querySelector('.wardrobe-panel'),cards=[...panel.querySelectorAll('.skin-card')];return cards.length===9&&cards.filter(card=>!card.disabled).length===3&&cards.filter(card=>card.disabled).length===6&&cards.filter(card=>!card.disabled).every(card=>card.textContent.includes('校服'))&&panel.textContent.includes('7 个不同日期')&&panel.textContent.includes('模型仍待确认')&&new Set([...panel.querySelectorAll('.skin-preview img')].map(img=>img.getAttribute('src'))).size===7})()`);
   await capture('11c-scene-wardrobe');
   await click('[aria-label="关闭服装面板"]');
+  await click('[aria-label="人物场景选项"]');
+  await check('Scene options open in place without full settings',`Boolean(document.querySelector('.character-scene-menu'))&&!document.querySelector('.settings')`);
+  await key('Escape');
+  await check('Scene menu dismisses with Escape',`!document.querySelector('.character-scene-menu')`);
+  await check('Duration is absent from sidebar and character panel',`!document.querySelector('.stage-footer')&&!document.querySelector('.sidebar').textContent.includes('已陪伴')`);
 
   await check('Left character follows the collapsed sidebar',`document.querySelector('.avatar-stage').getBoundingClientRect().x<${expandedAvatarX}`);
   await click('[aria-label="人物停靠右侧"]');

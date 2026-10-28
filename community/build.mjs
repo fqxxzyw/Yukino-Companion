@@ -1,11 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {validateHelpContent} from './lib.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const output=path.resolve(root,'../build/community');
-const help=JSON.parse(await fs.readFile(path.join(root,'help-content.json'),'utf8'));
-if(!Array.isArray(help.sections)||!help.sections.length||help.sections.some(section=>!section.id||!section.title||typeof section.body!=='string'))throw Error('Community help content is missing or invalid');
-if(new Set(help.sections.map(x=>x.id)).size!==help.sections.length)throw Error('Help section IDs must be unique');
+validateHelpContent(JSON.parse(await fs.readFile(path.join(root,'help-content.json'),'utf8')));
 await fs.mkdir(output,{recursive:true});
 for(const file of ['index.html','style.css','app.mjs','lib.mjs','help-content.json'])await fs.copyFile(path.join(root,file),path.join(output,file));
 await fs.cp(path.join(root,'assets'),path.join(output,'assets'),{recursive:true});

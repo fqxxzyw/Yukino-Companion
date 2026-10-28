@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "clips": [
+    {
+      "id": "idle",
+      "src": "idle.webm",
+      "mime": "video/webm; codecs=\"vp9\"",
+      "alpha": true,
+      "width": 640,
+      "height": 640,
+      "subjectHeight": 543,
+      "fps": 24,
+      "durationMs": 4000.0,
+      "bytes": 382755,
+      "sha256": "f6cd4ac5c5f96effb17be12579e9382421748496a59be3debed3b52f4e73bdb7",
+      "loop": true,
+      "anchor": {
+        "x": 320,
+        "y": 600
+      },
+      "alphaProbe": {
+        "transparent": {
+          "x": 0,
+          "y": 0
+        },
+        "opaque": {
+          "x": 320,
+          "y": 250
+        }
+      },
+      "poses": {
+        "entry": "original-idle-loop-phase-0",
+        "exit": "original-idle-loop-phase-0"
+      },
+      "motionWindows": [],
+      "fallback": {
+        "spriteId": "idle",
+        "staticFrame": 0
+      },
+      "provenance": {
+        "source": "Actual verified Yukino07_CMUWalk14_V6_REVIEW.glb sha256 44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866; original Idle_Breathe",
+        "license": "Review derivative of existing project character; no new character-asset license asserted. CMU/cgspeed motion credit and use limits in SOURCE_AND_LICENSE.txt. Not a cleared production/re-distribution release."
+      }
+    },
+    {
+      "id": "walk_left",
+      "src": "walk_left.webm",
+      "mime": "video/webm; codecs=\"vp9\"",
+      "alpha": true,
+      "width": 640,
+      "height": 640,
+      "subjectHeight": 543,
+      "fps": 24,
+      "durationMs": 1458.3333333333333,
+      "bytes": 1789324,
+      "sha256": "f3a5b31e4b81c583a15e0cf22c828b37060225a17f06f1eaf420a82e89c22678",
+      "loop": true,
+      "anchor": {
+        "x": 320,
+        "y": 600
+      },
+      "alphaProbe": {
+        "transparent": {
+          "x": 0,
+          "y": 0
+        },
+        "opaque": {
+          "x": 329,
+          "y": 250
+        }
+      },
+      "poses": {
+        "entry": "original-v6-gait-phase-0-walk_left",
+        "exit": "original-v6-gait-phase-0-walk_left"
+      },
+      "motionWindows": [],
+      "fallback": {
+        "spriteId": "walk",
+        "staticFrame": 0
+      },
+      "provenance": {
+        "source": "Actual verified Yukino07_CMUWalk14_V6_REVIEW.glb sha256 44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866; CMU 07_04 slow walk, Bruce Hahne/cgspeed conversion, existing V6 retarget",
+        "license": "Review derivative of existing project character; no new character-asset license asserted. CMU/cgspeed motion credit and use limits in SOURCE_AND_LICENSE.txt. Not a cleared production/re-distribution release."
+      }
+    },
+    {
+      "id": "walk_right",
+      "src": "walk_right.webm",
+      "mime": "video/webm; codecs=\"vp9\"",
+      "alpha": true,
+      "width": 640,
+      "height": 640,
+      "subjectHeight": 543,
+      "fps": 24,
+      "durationMs": 1458.3333333333333,
+      "bytes": 1825941,
+      "sha256": "ea132b3fccc76b4a45b4407112bdca3d269f97871445064e5a67cf4cbeb19f41",
+      "loop": true,
+      "anchor": {
+        "x": 320,
+        "y": 600
+      },
+      "alphaProbe": {
+        "transparent": {
+          "x": 0,
+          "y": 0
+        },
+        "opaque": {
+          "x": 329,
+          "y": 250
+        }
+      },
+      "poses": {
+        "entry": "original-v6-gait-phase-0-walk_right",
+        "exit": "original-v6-gait-phase-0-walk_right"
+      },
+      "motionWindows": [],
+      "fallback": {
+        "spriteId": "walk",
+        "staticFrame": 0
+      },
+      "provenance": {
+        "source": "Actual verified Yukino07_CMUWalk14_V6_REVIEW.glb sha256 44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866; CMU 07_04 slow walk, Bruce Hahne/cgspeed conversion, existing V6 retarget",
+        "license": "Review derivative of existing project character; no new character-asset license asserted. CMU/cgspeed motion credit and use limits in SOURCE_AND_LICENSE.txt. Not a cleared production/re-distribution release."
+      }
+    }
+  ],
+  "staticPoster": {
+    "src": "idle_decoded_first_frame.png",
+    "bytes": 218576,
+    "sha256": "90df97de172febea5fd7fc0f46394d65b25218a0948e432175422f453639732a"
+  },
+  "preview": {
+    "characterId": "yukino",
+    "reviewOnly": true,
+    "sourceModelSha256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+    "supportedActions": [
+      "idle",
+      "walk_left",
+      "walk_right"
+    ],
+    "gait": {
+      "strideHeightRatio": 0.8338695104560107,
+      "durationMs": 1458.3333333333333,
+      "subjectHeight": 198
+    }
+  }
+}

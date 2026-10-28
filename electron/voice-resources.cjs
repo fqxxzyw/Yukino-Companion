@@ -82,6 +82,12 @@ class VoiceResources {
     if(this.controller)throw Error('已有资源下载进行中');
     const controller=new AbortController();this.controller=controller;
     const total=pack.files.reduce((n,f)=>n+f.bytes,0);let complete=0;
+    const files=pack.files.map(file=>({file:file.path,received:0,total:file.bytes,phase:'pending'}));
+    const fileProgress=(index,progress)=>{
+      const file=pack.files[index],received=progress.received??0;
+      files[index]={...files[index],phase:progress.phase,received};
+      this.emit({...progress,phase:progress.phase==='complete'?'checking':progress.phase,packId:id,file:file.path,fileIndex:index,fileCount:files.length,fileReceived:received,fileTotal:file.bytes,files:files.map(item=>({...item})),received:complete+received,total});
+    };
     try {
     if(pack.kind==='voice'&&id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot,{hash:true})){
       controller.signal.throwIfAborted();
@@ -89,30 +95,30 @@ class VoiceResources {
       return {gpt:safeDestination(this.bundledRoot,pack.paths.gpt),sovits:safeDestination(this.bundledRoot,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
     }
       await fs.mkdir(this.root,{recursive:true});
-      for(const file of pack.files){
+      for(const [index,file] of pack.files.entries()){
         controller.signal.throwIfAborted();
         const dest=safeDestination(this.root,file.path);
-        this.emit({phase:'checking',file:file.path,received:complete,total});
-        if(await verified(dest,file)){complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);controller.signal.throwIfAborted();continue}
+        fileProgress(index,{phase:'checking',received:0});
+        if(await verified(dest,file)){fileProgress(index,{phase:'complete',received:file.bytes,engine:'cache'});complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);controller.signal.throwIfAborted();continue}
         controller.signal.throwIfAborted();
-        const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<file.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');
+        const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<file.bytes*2+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');
         await fs.mkdir(path.dirname(dest),{recursive:true});
         if(file.algorithm==='sha256'){
           // Older releases used .part for contiguous HTTPS bytes. Adopt only a
           // regular file when the new HTTPS partial does not already exist.
           try{await fs.access(dest+'.https.partial');}catch(error){if(error.code!=='ENOENT')throw error;try{const legacy=await fs.lstat(dest+'.part');if(legacy.isFile()&&!legacy.isSymbolicLink()&&legacy.size<file.bytes)await fs.rename(dest+'.part',dest+'.https.partial');}catch(legacyError){if(legacyError.code!=='ENOENT')throw legacyError;}}
           controller.signal.throwIfAborted();
-          await downloadResource({url:file.url,sources:resourceSources(file.url,file.sources),dest,bytes:file.bytes,sha256:file.digest,fetcher:this.fetcher,signal:controller.signal,onProgress:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});
+          await downloadResource({url:file.url,sources:resourceSources(file.url,file.sources),dest,bytes:file.bytes,sha256:file.digest,fetcher:this.fetcher,signal:controller.signal,onProgress:progress=>fileProgress(index,progress)});
           controller.signal.throwIfAborted();complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);continue;
         }
-        await downloadGitBlob({file,dest,fetcher:this.fetcher,signal:controller.signal,notify:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});complete+=file.bytes;
+        await downloadGitBlob({file,dest,fetcher:this.fetcher,signal:controller.signal,notify:progress=>fileProgress(index,progress)});fileProgress(index,{phase:'complete',received:file.bytes,engine:'https'});complete+=file.bytes;
         await this.extract(file,dest,controller.signal,complete,total);
       }
       controller.signal.throwIfAborted();
-      this.emit({phase:'complete',received:total,total});
+      this.emit({phase:'complete',packId:id,files:files.map(item=>({...item})),received:total,total});
       if(pack.kind==='voice')return {gpt:safeDestination(this.root,pack.paths.gpt),sovits:safeDestination(this.root,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
       return {bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')};
-    }catch(e){this.emit({phase:controller.signal.aborted?'cancelled':'error',error:controller.signal.aborted?'已取消，保留可续传的临时文件':e.message,received:complete,total});throw e}
+    }catch(e){this.emit({...this.status,phase:controller.signal.aborted?'cancelled':'error',error:controller.signal.aborted?'已取消，保留可续传的临时文件':e.message,total});throw e}
     finally{if(this.controller===controller)this.controller=null}
   }
   async extract(file,archive,signal,received,total){
@@ -120,7 +126,7 @@ class VoiceResources {
     const item=file.extract,destination=safeDestination(this.root,item.path);
     if(await verified(destination,{bytes:item.bytes,algorithm:'sha256',digest:item.digest}))return;
     const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<item.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，无法解压语音权重');
-    this.emit({phase:'extracting',file:item.path,received,total});
+    this.emit({...this.status,phase:'extracting',file:item.path,received,total});
     await extractPinnedWeight({archive,member:item.member,destination,bytes:item.bytes,digest:item.digest,signal});
   }
   cancel(){this.controller?.abort()}

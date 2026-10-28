@@ -63,15 +63,74 @@ test('split image markers and URL prefixes cannot consume later spoken character
   }
 });
 
-test('session serializes synthesis AND playback; flushes final text once',async()=>{
+test('session prefetches only one sentence during playback and flushes final text once',async()=>{
   const {SpeechSession}=await import('../src/speech/session.mjs');
   const log=[], gate=deferred();
   const flow=new SpeechSession({bridge:{begin:async()=>{},stop:async()=>{},synthesize:async(id,text)=>{log.push('tts:'+text);return text}},
     player:{stop(){},play:async audio=>{log.push('play:'+audio);if(audio==='第一句。')await gate.promise}}});
   flow.start('a');flow.push('第一句。第二句。尾句');flow.finish();await wait();
-  assert.deepEqual(log,['tts:第一句。','play:第一句。']);gate.resolve();await wait();
+  assert.deepEqual(log,['tts:第一句。','play:第一句。','tts:第二句。']);gate.resolve();await wait();
   assert.deepEqual(log,['tts:第一句。','play:第一句。','tts:第二句。','play:第二句。','tts:尾句','play:尾句']);
   flow.finish();await wait();assert.equal(log.length,6);
+});
+
+test('streamed sentences arriving during playback fill one slot without parallel synthesis',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  const firstPlayback=deferred(),secondSynthesis=deferred(),thirdSynthesis=deferred();
+  const spoken=[],played=[],states=[];let active=0,maxActive=0;
+  const flow=new SpeechSession({onState:s=>states.push(s),
+    bridge:{begin:async()=>{},stop:async()=>{},synthesize:async(id,text)=>{
+      spoken.push(text);active++;maxActive=Math.max(maxActive,active);
+      if(text==='第二句。')await secondSynthesis.promise;
+      if(text==='第三句。')await thirdSynthesis.promise;
+      active--;return text;
+    }},player:{stop(){},play:async audio=>{played.push(audio);if(audio==='第一句。')await firstPlayback.promise}}});
+  flow.start('stream');flow.push('第一句。');await wait();
+  flow.push('第二句。第三句。');flow.finish();await wait();
+  assert.deepEqual(spoken,['第一句。','第二句。']);assert.deepEqual(played,['第一句。']);
+  assert.equal(states.at(-1).phase,'playing');assert.equal(maxActive,1);
+  firstPlayback.resolve();await wait();assert.deepEqual(played,['第一句。']);
+  secondSynthesis.resolve();await wait();assert.deepEqual(played,['第一句。','第二句。']);
+  assert.deepEqual(spoken,['第一句。','第二句。','第三句。']);assert.equal(maxActive,1);
+  thirdSynthesis.resolve();await wait();assert.deepEqual(played,['第一句。','第二句。','第三句。']);
+  assert.equal(flow.current,null);
+});
+
+test('cancel clears prepared audio and late lookahead cannot speak over a new session',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  for(const alreadyPrepared of [false,true]){
+    const lookahead=deferred(),spoken=[],played=[],stopped=[];let release;
+    const flow=new SpeechSession({bridge:{begin:async()=>{},stop:async id=>stopped.push(id),
+      synthesize:async(id,text)=>{spoken.push(text);return text==='旧第二句。'?lookahead.promise:text}},
+      player:{stop(){release?.()},play:async text=>{played.push(text);if(text==='旧第一句。')await new Promise(r=>{release=r})}}});
+    flow.start('old');flow.push('旧第一句。旧第二句。旧第三句。');flow.finish();await wait();
+    assert.deepEqual(spoken,['旧第一句。','旧第二句。']);
+    if(alreadyPrepared){lookahead.resolve('旧第二句。');await wait();}
+    flow.start('new');flow.push('新回复。');flow.finish();await wait();
+    lookahead.resolve('旧第二句。');await wait();
+    assert.deepEqual(played,['旧第一句。','新回复。']);assert.ok(stopped.includes('old'));
+    assert.ok(!spoken.includes('旧第三句。'));
+  }
+});
+
+test('lookahead rejection is observed while current audio finishes then reports a speech error',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  const playback=deferred(),states=[],played=[];
+  const flow=new SpeechSession({onState:s=>states.push(s),
+    bridge:{begin:async()=>{},stop:async()=>{},synthesize:async(id,text)=>{if(text==='第二句。')throw Error('lookahead failed');return text}},
+    player:{stop(){},play:async text=>{played.push(text);await playback.promise}}});
+  flow.start('a');flow.push('第一句。第二句。第三句。');flow.finish();await wait();
+  assert.equal(states.at(-1).phase,'playing');assert.deepEqual(played,['第一句。']);
+  playback.resolve();await wait();assert.equal(states.at(-1).error,'lookahead failed');
+  assert.equal(flow.current,null);assert.deepEqual(played,['第一句。']);
+});
+
+test('cancelling a pending begin never starts synthesis when initialization finishes',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  const begin=deferred(),spoken=[];
+  const flow=new SpeechSession({bridge:{begin:()=>begin.promise,stop:async()=>{},synthesize:async(id,text)=>spoken.push(text)},player:{stop(){},play:async()=>{}}});
+  flow.start('a');flow.push('第一句。第二句。');flow.finish();flow.cancel();begin.resolve();await wait();
+  assert.deepEqual(spoken,[]);assert.equal(flow.current,null);
 });
 
 test('stop rejects late audio and new session cannot play old results',async()=>{
@@ -96,6 +155,21 @@ test('bad configuration rejected without starting subprocesses',()=>{
 });
 
 function fakeProcess(){const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdin=new PassThrough();child.kills=0;child.kill=()=>{child.kills++};return child;}
+test('Python starts with ONNX telemetry disabled even when the parent opts in',()=>{
+  const previous=process.env.ORT_DISABLE_TELEMETRY;
+  process.env.ORT_DISABLE_TELEMETRY='0';
+  let options;
+  try {
+    const child=fakeProcess();
+    const worker=new WorkerClient({python:'/python',script:'/worker.py',cwd:'/',spawnImpl:(exe,args,opts)=>{options=opts;return child}});
+    assert.equal(options.env.ORT_DISABLE_TELEMETRY,'1');
+    assert.equal(process.env.ORT_DISABLE_TELEMETRY,'0');
+    worker.close();
+  } finally {
+    if(previous===undefined) delete process.env.ORT_DISABLE_TELEMETRY;
+    else process.env.ORT_DISABLE_TELEMETRY=previous;
+  }
+});
 test('worker protocol handles partial UTF-8, per-request IDs and no shell execution',async()=>{
   const child=fakeProcess();let options,argumentsUsed;const worker=new WorkerClient({python:'/python',script:'/worker.py',cwd:'/',spawnImpl:(exe,args,opts)=>{argumentsUsed=args;options=opts;return child}});
   let request;child.stdin.on('data',b=>{request=JSON.parse(b.toString())});

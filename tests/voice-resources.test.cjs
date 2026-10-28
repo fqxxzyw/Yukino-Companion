@@ -38,3 +38,11 @@ test('Git blob configuration files switch to a second pinned source and still ve
  const installer=new VoiceResources({root,catalog:{packs:{core:{files:[item]}}},fetcher:async url=>{requested.push(url);return url.includes('mirror')?new Response('unavailable',{status:503}):new Response(data);}});
  await installer.install();assert.deepEqual(requested,item.sources);assert.equal(await verified(path.join(root,item.path),item),true);
 });
+
+test('multi-file model progress retains independent rows and never reports pack complete early',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-file-progress-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data=[Buffer.from('first model data'),Buffer.from('second model data')],files=data.map((bytes,index)=>({...file(bytes),path:`model/file-${index}.bin`,url:`https://example.test/${index}`})),events=[];
+ const installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>new Response(data[Number(new URL(url).pathname.slice(1))])});await installer.install();
+ const second=events.find(event=>event.fileIndex===1&&event.fileReceived===0);assert.equal(second.files[0].phase,'complete');assert.equal(second.files[0].received,data[0].length);assert.equal(second.fileTotal,data[1].length);
+ assert.equal(events.filter(event=>event.phase==='complete').length,1);assert.ok(events.at(-1).files.every(row=>row.phase==='complete'&&row.received===row.total));
+});

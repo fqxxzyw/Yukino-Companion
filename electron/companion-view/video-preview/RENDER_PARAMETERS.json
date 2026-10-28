@@ -1,0 +1,60 @@
+{
+  "source": "Yukino07_CMUWalk14_V6_REVIEW.glb",
+  "source_sha256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+  "render_actual_glb": true,
+  "blender_version": "4.3.2",
+  "output_fps": 24,
+  "canvas": [
+    640,
+    640
+  ],
+  "anchor": [
+    320,
+    600
+  ],
+  "ortho_scale": 1.1799999475479126,
+  "camera_fixed": true,
+  "mirror": false,
+  "ground_wrapper_offset": 0.00067,
+  "source_fps": 30,
+  "world_background_visible": false,
+  "samples": 8,
+  "material_change": "render-only glTF single-sided outline Backfacing transparency",
+  "clips": [
+    {
+      "id": "idle",
+      "action": "Idle_Breathe",
+      "frameEnd": 120,
+      "count": 96,
+      "yaw": 0,
+      "output_duration_seconds": 4.0,
+      "source_duration_seconds": 4.0,
+      "source_frame_step": 1.25,
+      "elapsed_seconds": 54.18582201004028
+    },
+    {
+      "id": "walk_left",
+      "action": "Walk_Slow_Loop",
+      "frameEnd": 44,
+      "count": 35,
+      "yaw": -1.5992794405224835,
+      "output_duration_seconds": 1.4583333333333333,
+      "source_duration_seconds": 1.4666666666666666,
+      "source_frame_step": 1.2571428571428571,
+      "elapsed_seconds": 20.308319807052612
+    },
+    {
+      "id": "walk_right",
+      "action": "Walk_Slow_Loop",
+      "frameEnd": 44,
+      "count": 35,
+      "yaw": 1.5423132130673096,
+      "output_duration_seconds": 1.4583333333333333,
+      "source_duration_seconds": 1.4666666666666666,
+      "source_frame_step": 1.2571428571428571,
+      "elapsed_seconds": 18.46055316925049
+    }
+  ],
+  "rig_rotation_mode": "XYZ (set explicitly for genuine left/right orientations)",
+  "material_changes_saved_to_source": false
+}

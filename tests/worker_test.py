@@ -1,12 +1,16 @@
 """No weights required: configuration and actual worker protocol/error paths."""
 import importlib.util
+import builtins
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 import contextlib
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('worker', ROOT/'inference/worker.py')
@@ -28,10 +32,90 @@ class WorkerTests(unittest.TestCase):
             __version__ = 'test'
             class version: cuda = 'test'
             cuda = CUDA()
+            def get_num_threads(self): return 2
             def ones(self, *args, **kwargs): raise RuntimeError('driver mismatch')
         info = worker.device_info(Torch())
         self.assertFalse(info['cudaAvailable'])
         self.assertIn('driver mismatch', info['cudaError'])
+        self.assertEqual(info['cpuThreads'], 2)
+
+    def test_load_reports_effective_torch_threads_not_host_cpu_count(self):
+        # All inference dependencies are import-hook fakes: no SDK or weights load.
+        for requested, host, pipeline_threads, expected in [
+            (2, 64, None, 2), (128, 8, None, 8), (0, 8, None, 1), (2, 64, 3, 3),
+        ]:
+            with self.subTest(requested=requested, host=host, pipeline_threads=pipeline_threads), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                ffmpeg = base / 'ffmpeg'
+                ffmpeg.touch()
+                cfg = {'root': tmp, 'stateDir': tmp, 'device': 'cpu', 'cpuThreads': requested,
+                       'ffmpeg': str(ffmpeg), 'reference': str(base / 'reference.wav'),
+                       'version': 'v2', 'gpt': 'test.ckpt', 'sovits': 'test.pth',
+                       'bert': 'bert', 'hubert': 'hubert', 'textLang': 'all_ja', 'promptLang': 'ja'}
+                state = {'threads': host, 'at_pipeline': None}
+                def set_threads(value): state['threads'] = value
+                torch = SimpleNamespace(__version__='fake', version=SimpleNamespace(cuda=None),
+                                        cuda=SimpleNamespace(is_available=lambda: False),
+                                        get_num_threads=lambda: state['threads'],
+                                        set_num_threads=mock.Mock(side_effect=set_threads))
+                class TTSConfig:
+                    def __init__(self, values):
+                        self.__dict__.update(values['custom'])
+                        self.languages = ['all_ja', 'ja']
+                class TTS:
+                    def __init__(self, config):
+                        self.configs = config
+                        state['at_pipeline'] = state['threads']
+                        if pipeline_threads is not None:
+                            state['threads'] = pipeline_threads
+                    def set_ref_audio(self, reference): pass
+                portable = SimpleNamespace(FFMPEG_EXE=ffmpeg, activate=mock.Mock())
+                fakes = {
+                    'torch': torch,
+                    'tools': SimpleNamespace(portable_runtime=portable),
+                    'GPT_SoVITS.TTS_infer_pack.TTS': SimpleNamespace(TTS=TTS, TTS_Config=TTSConfig),
+                    'fast_langdetect': SimpleNamespace(infer=SimpleNamespace(
+                        LangDetector=lambda config: config, LangDetectConfig=lambda **values: values)),
+                    'soundfile': SimpleNamespace(info=lambda reference: SimpleNamespace(duration=4)),
+                }
+                def fake_import(name, *args, **kwargs):
+                    if name not in fakes:
+                        raise AssertionError('Unexpected dependency import: ' + name)
+                    return fakes[name]
+                with mock.patch.object(worker, 'validate_config', return_value=cfg), \
+                     mock.patch.object(os, 'chdir'), mock.patch.object(os, 'cpu_count', return_value=host), \
+                     mock.patch.object(sys, 'path', list(sys.path)), \
+                     mock.patch.object(sys, 'executable', str(base / 'python')), \
+                     mock.patch.dict(os.environ), mock.patch.object(builtins, '__import__', side_effect=fake_import):
+                    metadata = worker.Engine().load(cfg)
+                configured = max(1, min(requested, host))
+                torch.set_num_threads.assert_called_once_with(configured)
+                self.assertEqual(state['at_pipeline'], configured)
+                self.assertEqual(metadata['cpuThreads'], expected)
+
+    def test_telemetry_is_disabled_before_first_inference_dependency_import(self):
+        class FirstDependencyReached(RuntimeError): pass
+        real_import = builtins.__import__
+        attempted = []
+        def guarded_import(name, *args, **kwargs):
+            root = name.split('.')[0]
+            if root in sys.stdlib_module_names or root in sys.builtin_module_names:
+                return real_import(name, *args, **kwargs)
+            attempted.append(name)
+            self.assertEqual(name, 'torch')
+            self.assertEqual(os.environ.get('ORT_DISABLE_TELEMETRY'), '1')
+            raise FirstDependencyReached('No real inference SDK is imported')
+        isolated_spec = importlib.util.spec_from_file_location('worker_telemetry_test', ROOT / 'inference/worker.py')
+        isolated = importlib.util.module_from_spec(isolated_spec)
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.dict(os.environ, {'ORT_DISABLE_TELEMETRY': '0'}), \
+             mock.patch.object(os, 'chdir'), mock.patch.object(sys, 'path', list(sys.path)), \
+             mock.patch.object(builtins, '__import__', side_effect=guarded_import):
+            isolated_spec.loader.exec_module(isolated)
+            with mock.patch.object(isolated, 'validate_config', return_value={'root': tmp}):
+                with self.assertRaises(FirstDependencyReached):
+                    isolated.Engine().load({})
+        self.assertEqual(attempted, ['torch'])
 
     def test_missing_paths_fail_before_importing_models(self):
         with self.assertRaisesRegex(ValueError, '不存在'):

@@ -1,18 +1,29 @@
-name: Base application first, resources in the app
-on:
+name: 'Base installer: validate first, explicit publication only'
+'on':
   push:
-    branches: [release/0.4.0-base, 'verify/v0.4.0-base.*']
+    branches:
+      - release/0.4.0-base
+      - verify/v0.4.0-base.*
   workflow_dispatch:
     inputs:
       validate_release:
-        description: 'Only validate an existing base release (for example v0.4.0-base.3); leave empty to build'
+        description: Only validate an existing base release (for example v0.4.0-base.3); leave empty to build
         required: false
         type: string
         default: ''
+      confirm_publish:
+        description: Publish a new prerelease only after every validation gate succeeds
+        type: boolean
+        default: false
+      publish_resource_mirrors:
+        description: Also publish verified resource mirrors after validation (requires confirm_publish)
+        type: boolean
+        default: false
 permissions:
-  contents: write
+  contents: read
+  actions: read
 concurrency:
-  group: base-installer-${{ github.ref }}-${{ github.sha }}
+  group: base-installer-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   target:
@@ -37,17 +48,15 @@ jobs:
             echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
             echo 'validate_only=true' >> "$GITHUB_OUTPUT"
           else
+            echo "tag=v0.4.0-base.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
             echo 'validate_only=false' >> "$GITHUB_OUTPUT"
           fi
-  publish:
+  build:
     needs: target
     if: ${{ needs.target.outputs.validate_only != 'true' }}
     runs-on: windows-2022
-    timeout-minutes: 25
-    outputs:
-      tag: ${{ steps.release.outputs.tag }}
+    timeout-minutes: 40
     env:
-      GH_TOKEN: ${{ github.token }}
       YUKINO_BASE_BUILD: '1'
     steps:
       - uses: actions/checkout@v4
@@ -64,70 +73,49 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/mirror-resources.py --catalog-only --runtime-catalog
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build application without model weights or Python
+      - name: Build base app with character GLBs, without LLM/TTS weights or Python
         run: node scripts/build-base-app.cjs
       - name: Compile the native Chinese base installer
         run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/build-base-installer.ps1
-      - name: Publish the actual installer before post-release tests
-        id: release
+      - name: Bind candidate artifact to this exact source commit and run
         shell: bash
-        run: |
+        run: |-
           set -euo pipefail
-          release_tag="v0.4.0-base.${GITHUB_RUN_NUMBER}"
+          mkdir -p build
           python - <<'PY'
-          import hashlib,json,os
+          import json,os
+          from pathlib import Path
+          Path('build/candidate-source.json').write_text(json.dumps({'commit':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID']},indent=2)+'\n')
+          PY
+      - name: Write installer checksum before validation
+        shell: bash
+        run: |-
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
           from pathlib import Path
           p=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
-          h=hashlib.sha256(p.read_bytes()).hexdigest()
-          Path('release/SHA256SUMS.txt').write_text(h+'  '+p.name+'\n',encoding='utf8',newline='\n')
-          notes='''# Yukino Companion 0.4.0 · 基础安装版
-
-          优先下载 **[Yukino-Companion-0.4.0-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/__BASE_RELEASE_TAG__/Yukino-Companion-0.4.0-Base-Setup.exe)**。
-
-          - 安装程序只安装基础应用，安装过程中不下载模型、音色或环境。
-          - 首次打开软件后按需安装本地对话、翻译、音色、桌宠语音及公共环境，也可以跳过并配置 API 文字聊天。
-          - 安装界面重新排列为浅蓝/白色，修正中文编码，使用清晰的中文字体。
-          - 内置 aria2 多连接下载与断点续传；资源按独立文件校验，下载失败可切换固定备用源。实际提速由网络与服务器决定。
-          - 共享环境暂提供 CPU 下载路径；Windows 安装器尚未代码签名。
-          - [创作社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/) 已上线：二创、音色、建议与 Bug，投稿时跳转 GitHub 登录并确认。
-          - 场景背景扩散与签到、体力、好感基础状态已加入；换装、视线和灯光提供适配接口，等待正式 3D 资源。赞助权益与广告尚未上线。
-
-          独立资源镜像位于 [v0.4.0-resources.1](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-resources.1)。镜像尚未准备好时会回退原始固定来源。
-
-          验证状态：**已发布，发布后验证正在进行**。这是测试版，不代表所有硬件和模型质量已验收。
-          '''
-          notes=notes.replace('__BASE_RELEASE_TAG__','v0.4.0-base.'+os.environ['GITHUB_RUN_NUMBER'])
-          Path('release/RELEASE-NOTES.md').write_text(notes,encoding='utf8')
-          PY
-          gh release create "$release_tag" release/Yukino-Companion-0.4.0-Base-Setup.exe release/base-installer.json release/SHA256SUMS.txt build/base-package.json --title "Yukino Companion 0.4.0 · 基础安装版 ${GITHUB_RUN_NUMBER}" --notes-file release/RELEASE-NOTES.md --target "$GITHUB_SHA" --prerelease
-          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$release_tag" > release/published-base.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          local=json.loads(Path('release/base-installer.json').read_text(encoding='utf-8-sig'))
-          release=json.loads(Path('release/published-base.json').read_text(encoding='utf8'))
-          asset=next(x for x in release['assets'] if x['name']==local['file'])
-          if asset['size']!=local['bytes'] or asset.get('digest')!='sha256:'+local['sha256']:raise SystemExit('Published installer digest does not match the built EXE')
-          print('Actual published installer size and SHA-256 verified')
+          Path('release/SHA256SUMS.txt').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
           PY
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: base-installer-build-${{ github.run_number }}
-          path: |
+          name: base-candidate-${{ github.run_id }}
+          path: |-
             release/*
             build/base-package.json
-          if-no-files-found: warn
+            build/candidate-source.json
+          if-no-files-found: error
           retention-days: 30
-  post_validation:
-    needs: [target, publish]
-    if: ${{ always() && needs.target.result == 'success' && (needs.publish.result == 'success' || needs.target.outputs.validate_only == 'true') }}
+  validation:
+    needs:
+      - target
+      - build
+    if: ${{ always() && needs.target.result == 'success' && (needs.build.result == 'success' || needs.target.outputs.validate_only == 'true') }}
     runs-on: windows-2022
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ needs.target.outputs.tag || needs.publish.outputs.tag }}
+      RELEASE_TAG: ${{ needs.target.outputs.tag }}
       YUKINO_BASE_BUILD: '1'
     steps:
       - uses: actions/checkout@v4
@@ -158,6 +146,24 @@ jobs:
           if checksums!=[digest+'  '+file.name]:raise SystemExit('Published SHA256SUMS does not match the downloaded installer')
           print('Downloaded installer matches the manifest, SHA256SUMS and GitHub asset digest')
           PY
+        if: ${{ needs.target.outputs.validate_only == 'true' }}
+      - name: Download this run’s unpublished installer candidate
+        if: ${{ needs.target.outputs.validate_only != 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: base-candidate-${{ github.run_id }}
+          path: .
+      - name: Reject a candidate from a different commit or workflow run
+        shell: bash
+        run: |-
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          source=json.loads(Path('build/candidate-source.json').read_text())
+          if source!={'commit':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID']}:raise SystemExit('Candidate source/run mismatch')
+          PY
+        if: ${{ needs.target.outputs.validate_only != 'true' }}
       - name: Verify actual native Windows UI, install, upgrade and uninstall
         run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/smoke-base-installer.ps1
       - name: Verify the actual bundled aria2 binary with a real HTTPS download
@@ -171,36 +177,163 @@ jobs:
       - run: npm run build
       - run: npm run qa:ui
         timeout-minutes: 5
+      - name: Render all pinned character variants
+        run: npm run qa:models
+        timeout-minutes: 7
+      - name: Verify eight-weight GPU readbacks
+        run: npm run qa:skin8
+        timeout-minutes: 5
+      - name: Record successful pre-publication validation and exact candidate bytes
+        shell: bash
+        run: |-
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          files=[]
+          for folder in ['release']:
+              for p in sorted(Path(folder).iterdir()):
+                  if not p.is_file():continue
+                  if folder=='release' and not (p.suffix in ['.exe','.json','.zip'] or '.part' in p.name or p.name=='SHA256SUMS.txt'):continue
+                  if p.name.endswith('.part'):raise SystemExit('Incomplete transfer file')
+                  with p.open('rb') as stream: sha=hashlib.file_digest(stream,'sha256').hexdigest()
+                  files.append({'path':p.as_posix(),'bytes':p.stat().st_size,'sha256':sha})
+          p=Path('build/base-package.json')
+          with p.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+          files.append({'path':p.as_posix(),'bytes':p.stat().st_size,'sha256':sha})
+          if not any(item['path'].endswith('.exe') for item in files):raise SystemExit('No tested installer')
+          Path('build/prepublication-validation.json').write_text(json.dumps({'commit':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID'],'kind':'base','passed':True,'files':files},indent=2)+'\n')
+          PY
+        if: ${{ needs.target.outputs.validate_only != 'true' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: base-installer-review-${{ github.run_number }}
-          path: |
+          path: |-
             build/base-installer-review
             build/ui-review
+
+            build/model-ui-review
+            build/eight-weight-skinning-review
+            build/prepublication-validation.json
           if-no-files-found: warn
           retention-days: 30
-      - name: Record actual post-release validation status
-        if: always()
+      - name: Preserve successful validation stamp for the publication gate
+        if: ${{ success() && needs.target.outputs.validate_only != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: base-validation-${{ github.run_id }}
+          path: build/prepublication-validation.json
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    needs:
+      - target
+      - build
+      - validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_publish == true && needs.target.outputs.validate_only != 'true' && needs.build.result == 'success' && needs.validation.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.target.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: base-candidate-${{ github.run_id }}
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: base-validation-${{ github.run_id }}
+          path: build
+      - name: Reject a candidate from a different commit or workflow run
         shell: bash
-        env:
-          VALIDATION_RESULT: ${{ job.status }}
-        run: |
+        run: |-
           set -euo pipefail
-          gh release view "$RELEASE_TAG" --json body --jq .body > validation-notes.md
           python - <<'PY'
-          import os,re
+          import json,os
           from pathlib import Path
-          p=Path('validation-notes.md');text=p.read_text(encoding='utf8')
-          status='通过安装、下载器与源码回归检查，仍待用户实机验收' if os.environ['VALIDATION_RESULT']=='success' else '验证未通过，请查看运行日志；不能视为稳定版'
-          text=re.sub(r'验证状态：[^\n]*', '验证状态：**'+status+'**。这是测试版，仍需用户实机验收。',text,count=1)
-          text+='\n\n发布后验证结果：**'+status+'**。\n运行记录：https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n'
-          p.write_text(text,encoding='utf8')
+          source=json.loads(Path('build/candidate-source.json').read_text())
+          if source!={'commit':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID']}:raise SystemExit('Candidate source/run mismatch')
           PY
-          gh release edit "$RELEASE_TAG" --notes-file validation-notes.md
+      - name: Reverify the exact validated artifact before any Release mutation
+        shell: bash
+        run: |-
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          report=json.loads(Path('build/prepublication-validation.json').read_text())
+          if report.get('passed') is not True or report.get('commit')!=os.environ['GITHUB_SHA'] or report.get('runId')!=os.environ['GITHUB_RUN_ID']:raise SystemExit('Validation does not belong to this exact commit/run')
+          for item in report['files']:
+              p=Path(item['path'])
+              if p.is_absolute() or '..' in p.parts:raise SystemExit('Invalid validation path')
+              with p.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+              if p.stat().st_size!=item['bytes'] or sha!=item['sha256']:raise SystemExit('Validated candidate bytes changed: '+str(p))
+          print('Every candidate byte matches the successful validation record')
+          PY
+      - name: Stage a new draft, verify remote bytes, then publish the validated prerelease
+        shell: bash
+        run: |-
+          set -euo pipefail
+          # An existing tag is never reused or clobbered, even if its Release is absent.
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG"
+          tag_status=$?
+          set -e
+          if [[ "$tag_status" -eq 0 ]]; then echo 'Refusing to reuse an existing tag'; exit 1; fi
+          if [[ "$tag_status" -ne 2 ]]; then echo 'Unable to establish tag absence'; exit "$tag_status"; fi
+          python - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          report=json.loads(Path('build/prepublication-validation.json').read_text())
+          tag=os.environ['RELEASE_TAG'];repo=os.environ['GITHUB_REPOSITORY']
+          paths=[item['path'] for item in report['files']]
+          paths.append('build/prepublication-validation.json')
+          if len({Path(name).name for name in paths})!=len(paths):raise SystemExit('Duplicate Release asset basenames; no draft created')
+          notes=Path('build/validated-release-notes.md')
+          notes.write_text('''# Yukino Companion 0.4.0 · 基础安装版
+
+          本次发布前的源码回归、真实 Electron UI、角色 WebGL、八权重 WebGL 回读与 Windows 安装检查已通过；基础程序包含角色 GLB，LLM/TTS/公共运行环境仍按需下载。
+          WebGL 渲染器可能为软件实现；上述检查不代表物理 GPU 或完整语音链路验收。仍为未签名测试版，不等于用户显卡、多屏或人工音质/审美验收。01 的软件可选状态仍以模型清单为准。登录按用户决定暂缓。
+
+          构建：'''+os.environ['GITHUB_SHA']+'\n验证记录：https://github.com/'+repo+'/actions/runs/'+os.environ['GITHUB_RUN_ID']+'\n',encoding='utf8')
+          subprocess.run(['gh','release','create',tag,*paths,'--draft','--prerelease','--target',os.environ['GITHUB_SHA'],'--title','Yukino Companion 0.4.0 · 基础安装版 '+tag,'--notes-file',str(notes)],check=True)
+          remote=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          if remote.get('draft') is not True:raise SystemExit('Release must remain a private draft until all uploaded digests pass')
+          assets={item['name']:item for item in remote['assets']}
+          if len(assets)!=len(paths):raise SystemExit('Unexpected or duplicate draft assets')
+          for name in paths:
+              p=Path(name)
+              with p.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+              a=assets.get(p.name)
+              if not a or a['size']!=p.stat().st_size or a.get('digest')!='sha256:'+sha:raise SystemExit('Draft asset digest mismatch: '+p.name)
+          subprocess.run(['gh','release','edit',tag,'--draft=false','--prerelease'],check=True)
+          remote=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          if remote.get('draft') is not False:raise SystemExit('Publication not confirmed')
+          Path('build/published-release.json').write_text(json.dumps({'tag':tag,'commit':os.environ['GITHUB_SHA'],'url':remote['html_url'],'assets':list(assets)},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: base-publication-${{ github.run_id }}
+          path: |-
+            build/published-release.json
+            build/validated-release-notes.md
+          if-no-files-found: warn
   mirror_resources:
-    needs: target
-    if: ${{ needs.target.outputs.validate_only != 'true' }}
+    needs:
+      - target
+      - build
+      - validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_publish == true && inputs.publish_resource_mirrors == true && needs.target.outputs.validate_only != 'true' && needs.validation.result == 'success' }}
     concurrency:
       group: yukino-resource-mirrors-v0.4.0-resources.1
       cancel-in-progress: false
@@ -219,8 +352,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export MIRROR_CREATED=false
           if ! gh release view v0.4.0-resources.1 --json id >/dev/null 2>&1; then
-            gh release create v0.4.0-resources.1 --target "$GITHUB_SHA" --title 'Yukino Companion 0.4.0 · 独立模型与环境资源' --notes '每个大文件均为固定来源的独立镜像，应用下载后逐个校验。来源和许可信息见 resource-mirrors.json 与 RESOURCE-SOURCES.txt；translation__LICENSE.txt 保留翻译模型的许可。此发行页只存放资源，安装软件请使用基础版 Base-Setup.exe。' --prerelease
+            gh release create v0.4.0-resources.1 --target "$GITHUB_SHA" --title 'Yukino Companion 0.4.0 · 独立模型与环境资源' --draft --notes '每个大文件均为固定来源的独立镜像，应用下载后逐个校验。来源和许可信息见 resource-mirrors.json 与 RESOURCE-SOURCES.txt；translation__LICENSE.txt 保留翻译模型的许可。此发行页只存放资源，安装软件请使用基础版 Base-Setup.exe。' --prerelease
+            export MIRROR_CREATED=true
           fi
           python - <<'PY'
           import hashlib,json,os,subprocess
@@ -244,5 +379,14 @@ jobs:
           for item in json.loads((folder/'resource-mirrors.json').read_text(encoding='utf8'))['assets']:
               actual=remote[item['asset']]
               if actual['size']!=item['bytes'] or actual.get('digest')!='sha256:'+item['sha256']:raise SystemExit('Published resource digest mismatch')
-          print('Published all independent resources with matching GitHub asset digests')
+          for file in sorted(folder.iterdir()):
+              with file.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+              actual=remote.get(file.name)
+              if not actual or actual['size']!=file.stat().st_size or actual.get('digest')!='sha256:'+sha:raise SystemExit('Mirror metadata/license digest mismatch: '+file.name)
+          if os.environ['MIRROR_CREATED']=='true':
+              if published.get('draft') is not True:raise SystemExit('New mirrors must remain draft until verified')
+              subprocess.run(['gh','release','edit','v0.4.0-resources.1','--draft=false','--prerelease'],check=True)
+          print('All independent resources and metadata match GitHub asset digests')
           PY
+    permissions:
+      contents: write

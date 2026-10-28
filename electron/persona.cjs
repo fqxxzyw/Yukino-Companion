@@ -53,7 +53,10 @@ function isYukinoLocal(profile) {
 }
 
 function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
-  const state = migratePersonaState(rawState);
+  const selected = Array.isArray(rawState?.characters) ? rawState.characters.find(item => item.id === rawState.activeCharacter) : null;
+  const state = migratePersonaState(selected ? {...rawState,...Object.fromEntries(["persona","personaEnabled","personaPromptMode","memory","useMemory"].filter(key=>selected[key]!==undefined).map(key=>[key,selected[key]]))} : rawState);
+  const customCharacter = selected && selected.id !== "yukino";
+  if(customCharacter) state.personaEnabled = false;
   const local = isYukinoLocal(profile);
   const mode = local ? 'compact' : state.personaPromptMode;
   const limit = mode === 'compact' ? 5000 : 30000;
@@ -64,6 +67,7 @@ function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
   if (custom.length > customLimit) throw Error(`追加角色设定过长：${mode === 'compact' ? '精简档 / 本机模型' : '详细档'}最多 ${customLimit} 字符，请缩短或切换档位。`);
   if (memory.length > memoryLimit) throw Error(`启用的记忆过长：${mode === 'compact' ? '精简档 / 本机模型' : '详细档'}最多 ${memoryLimit} 字符，请精简本次记忆或关闭记忆发送。`);
   const parts = [];
+  if(customCharacter) parts.push('【当前角色】\n角色姓名：'+JSON.stringify(String(selected.name||'自定义角色').slice(0,60))+'。使用下面的角色设定交流，保持身份一致，不套用雪乃的姓名和背景。');
   if (state.personaEnabled) {
     const { manifest } = loadCharacterPack(root);
     if (!local) parts.push(`【Yukino 完整角色规范 ${manifest.version}】\n将以下规范作为同一个连续一致的人格。依据当前话题、情绪和已确认的关系自然回应，不根据聊天次数自动升级关系。`);

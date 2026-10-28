@@ -1,0 +1,8 @@
+'use strict';
+// Local progression is not DRM/account authorization. IPC nevertheless obeys the
+// same catalogue lock rules as the UI; editing local progress is not protected.
+const affinity={'02':40,'04':50,'05':60,'06':70};
+function validDate(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number(value.slice(0,4))<1)return false;const date=new Date(value+'T00:00:00.000Z');return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;}
+function usedDays(value){const input=value&&typeof value==='object'&&!Array.isArray(value)?value:{},raw=Array.isArray(value)?value:Array.isArray(input.dates)?input.dates:Array.isArray(input.usedDates)?input.usedDates:[];let through=input.version===1&&validDate(input.archivedThrough)?input.archivedThrough:'';const limit=through?Math.floor((Date.parse(through+'T00:00:00.000Z')-Date.parse('0001-01-01T00:00:00.000Z'))/86400000)+1:0;const archived=through&&Number.isSafeInteger(input.archivedCount)&&input.archivedCount>=0?Math.min(input.archivedCount,limit):0;if(!archived)through='';return new Set(raw.filter(validDate).filter(date=>!through||date>through)).size+archived;}
+function canUseSkin(entry,state={}){if(!entry?.ready||/hold/i.test(entry.status||'')||entry.hold)return false;const number=/^yukino-(0[1-7])(?:-|$)/.exec(entry.id)?.[1];if(number==='01'||number==='03')return usedDays(state.usedDates)>=7;if(affinity[number])return (Number.isFinite(state.relationship?.affection)?Math.max(0,Math.min(100,state.relationship.affection)):35)>=affinity[number];return !entry.id.startsWith('yukino-')||number==='07'}
+module.exports={canUseSkin,usedDays};

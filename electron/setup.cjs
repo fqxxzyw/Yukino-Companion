@@ -1,25 +1,63 @@
-// One shared installer, with separate and truthful model/runtime states.
+// One shared installer, with checks scoped to the currently selected features.
+const FEATURES=['chat','translation','voice','pet'];
+function selectedFeatures(features,{allowEmpty=true}={}) {
+  if(!Array.isArray(features)||(!allowEmpty&&!features.length)||features.some(id=>!FEATURES.includes(id)))throw Error('请选择要准备的本地功能。');
+  return [...new Set(features)];
+}
+function stepSelected(id,features){
+  if(!features)return true;
+  if(id==='runtime')return features.some(feature=>feature!=='pet');
+  return features.includes({voiceCore:'voice',voicePreset:'voice'}[id]||id);
+}
 class SetupService {
-  constructor({prepare=async()=>{},inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify=()=>{},cancel=()=>{}}){Object.assign(this,{prepare,inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify,cancelWork:cancel});this.phase='idle';this.active=null;this.progress=null;this.error=null;this.controller=null;this.features=null;this.scheduled=false;}
-  async status(){const status=await this.inspect();const selected=this.features;const ids={chat:'chat',translation:'translation',voiceCore:'voice',voicePreset:'voice',pet:'pet'};const steps=status.steps.map(step=>{if(selected&&((step.id==='runtime'&&!selected.some(id=>id!=='pet'))||(ids[step.id]&&!selected.includes(ids[step.id]))))return {...step,state:'skipped'};if(this.active===step.id&&this.controller&&this.phase==='installing')return {...step,state:this.progress?.phase||'installing',progress:this.progress,bytes:this.progress?.received||this.progress?.bytes||0,total:this.progress?.total||0};return step;});return {...status,steps,phase:this.phase,error:this.error,progress:this.progress,ready:steps.every(step=>['ready','skipped'].includes(step.state))};}
-  changed(){if(this.scheduled)return;this.scheduled=true;queueMicrotask(async()=>{this.scheduled=false;try{this.notify(await this.status());}catch{/* Startup diagnostics are reported by their owning service. */}});}
+  constructor({prepare=async()=>{},inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify=()=>{},cancel=()=>{}}){Object.assign(this,{prepare,inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify,cancelWork:cancel});this.phase='idle';this.active=null;this.progress=null;this.error=null;this.controller=null;this.features=null;this.scheduled=false;this.dirty=false;this.failedStep=null;this.revision=0;this.requestId=0;}
+  async status(options={}){
+    if(options?.features!==undefined&&!this.controller){
+      const features=selectedFeatures(options.features);
+      if(JSON.stringify(features)!==JSON.stringify(this.features)){this.features=features;this.revision++;this.phase='idle';this.error=null;this.failedStep=null;}
+    }
+    const revision=this.revision,requestId=++this.requestId,selected=this.features&&[...this.features];
+    const status=await this.inspect({features:selected});
+    // A pre-install/pre-selection disk check must not overwrite a later completed
+    // download. During installation the current live progress takes precedence.
+    if(revision!==this.revision&&!this.controller)return this.status();
+    const steps=status.steps.map(step=>{
+      if(!stepSelected(step.id,this.features))return {...step,state:'skipped'};
+      if(this.failedStep===step.id&&this.phase==='error')return {...step,state:'error',error:this.error,detail:this.error};
+      if(this.active===step.id&&this.controller&&this.phase==='installing'){
+        const progress=this.progress?.progress||this.progress;
+        return {...step,state:this.progress?.phase||'installing',progress,bytes:progress?.received??progress?.bytes??0,total:progress?.total||0};
+      }
+      return step;
+    });
+    return {...status,steps,features:this.features,revision:this.revision,requestId,phase:this.phase,error:this.error,progress:this.progress,ready:steps.every(step=>['ready','skipped'].includes(step.state))};
+  }
+  changed(){
+    this.revision++;this.dirty=true;if(this.scheduled)return;this.scheduled=true;
+    queueMicrotask(async()=>{
+      try{do{this.dirty=false;const status=await this.status();if(!this.dirty)this.notify(status);}while(this.dirty);}
+      catch{/* Startup diagnostics are reported by their owning service. */}
+      finally{this.scheduled=false;if(this.dirty)this.changed();}
+    });
+  }
   report(id,progress){if(this.controller&&this.active===id){this.progress=progress;this.changed();}}
   async install({runtimeFlavor='auto',features=['chat','translation','voice']}={}){
     if(this.controller)throw Error('首次配置正在进行，请稍候或先取消。');
-    if(!Array.isArray(features)||!features.length||features.some(x=>!['chat','translation','voice','pet'].includes(x)))throw Error('请选择要准备的本地功能。');
-    const controller=new AbortController();this.controller=controller;this.features=[...new Set(features)];this.phase='installing';this.error=null;
+    features=selectedFeatures(features,{allowEmpty:false});
+    const controller=new AbortController();this.controller=controller;this.features=features;this.phase='installing';this.error=null;this.failedStep=null;this.changed();
     const step=async(id,fn)=>{controller.signal.throwIfAborted();this.active=id;this.progress=null;this.changed();const result=await fn(controller.signal);controller.signal.throwIfAborted();return result;};
+    const inspect=()=>this.inspect({features});
     try{
       await this.prepare();controller.signal.throwIfAborted();
       if(features.some(id=>id!=='pet')){await step('runtime',()=>this.installRuntime(runtimeFlavor));await this.refresh();}controller.signal.throwIfAborted();
-      if(features.includes('chat'))await step('chat',async signal=>{if(this.installChat)await this.installChat(signal);const state=await this.inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');});
+      if(features.includes('chat'))await step('chat',async signal=>{if(this.installChat)await this.installChat(signal);const state=await inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');});
       if(features.includes('translation'))await step('translation',this.installTranslation);
-      if(features.includes('voice')){await step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);});await step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await this.inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');});}
+      if(features.includes('voice')){await step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);});await step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');});}
       if(features.includes('pet'))await step('pet',signal=>this.installPet(signal));
-      this.phase='ready';return await this.status();
-    }catch(error){this.phase=controller.signal.aborted?'cancelled':'error';this.error=controller.signal.aborted?'已取消准备，已完成的资源会保留。':error.message;throw Error(this.error);}
+      this.phase='ready';this.revision++;return await this.status();
+    }catch(error){this.failedStep=this.active;this.phase=controller.signal.aborted?'cancelled':'error';this.error=controller.signal.aborted?'已取消准备，已完成的资源会保留。':error.code==='ENOENT'?'所选功能的资源尚未安装，请重新准备该功能或检查设置中的文件位置。':error.message;throw Error(this.error);}
     finally{this.active=null;this.progress=null;if(this.controller===controller)this.controller=null;this.changed();}
   }
   cancel(){this.controller?.abort();this.cancelWork();}
 }
-module.exports={SetupService};
+module.exports={SetupService,selectedFeatures,stepSelected};

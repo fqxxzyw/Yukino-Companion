@@ -32,7 +32,9 @@ class ResourcePacks {
     try{
       active.throwIfAborted();const existing=await this.status(id);if(existing.installed)return existing;
       const pack=this.pack(id),destination=this.directory(id);await fs.mkdir(this.root,{recursive:true});
-      const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<pack.bytes+pack.maxUnpackedBytes+128*1024**2)throw Error('剩余磁盘空间不足，无法下载并解压所选资源');
+      // Verified chunks are removed before extraction; the peak is either two
+      // archive copies while merging, or archive + unpacked payload, not all three.
+      const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<pack.bytes+Math.max(pack.bytes,pack.maxUnpackedBytes)+128*1024**2)throw Error('剩余磁盘空间不足，无法下载、合并并解压所选资源');
       const archive=path.join(this.root,'downloads',id+'-'+pack.sha256.slice(0,16)+'.zip');
       await this.downloader({url:pack.url,sources:resourceSources(pack.url,pack.sources),dest:archive,bytes:pack.bytes,sha256:pack.sha256,fetcher:this.fetcher,signal:active,onProgress:progress=>this.notify(id,progress)});
       active.throwIfAborted();stage=path.join(this.root,'.stage-'+crypto.randomUUID());const extracted=path.join(stage,'payload');

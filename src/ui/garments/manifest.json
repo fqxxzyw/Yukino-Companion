@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "scope": "normal-bounded-pose-correctives",
+  "gpuValidated": false,
+  "models": [
+    {
+      "id": "yukino-01-garment-normal-v1",
+      "modelId": "01",
+      "assetSha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6",
+      "bytes": 16086864,
+      "profile": "profiles/01-normal.json",
+      "profileSha256": "76f90ecea5730809efa94fddb82947000e8ac3bf4a492deb792b2135a3dc505f",
+      "driverModule": "bounded-garment-driver.mjs",
+      "driverModuleSha256": "70ba36312a898df9b5306d376a1f11eeace754c32083ff014bcde308b17c013c",
+      "driverFactory": "createBoundedGarmentDriver",
+      "automaticTargets": [
+        "garment_swim_top_outer_compression_L",
+        "garment_swim_top_outer_compression_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_coverup_hand_pressure_L",
+        "garment_coverup_hand_pressure_R",
+        "garment_swim_bottom_side_pressure_L",
+        "garment_swim_bottom_side_pressure_R"
+      ],
+      "minimumReleaseTier": "GARMENT_READY_MODEL01_HAIR_HOLD_REMAINS",
+      "baselineId": "yukino-01-v1"
+    },
+    {
+      "id": "yukino-02-garment-normal-v1",
+      "modelId": "02",
+      "assetSha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581",
+      "bytes": 12334716,
+      "profile": "profiles/02-normal.json",
+      "profileSha256": "e505b645f7e7c82a364980dd3c903ca750fa38b70e68c34a8ef19cba02e94ee7",
+      "driverModule": "bounded-garment-driver.mjs",
+      "driverModuleSha256": "70ba36312a898df9b5306d376a1f11eeace754c32083ff014bcde308b17c013c",
+      "driverFactory": "createBoundedGarmentDriver",
+      "automaticTargets": [
+        "garment_cardigan_elbow_L",
+        "garment_cardigan_elbow_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_cardigan_underarm_L",
+        "garment_cardigan_underarm_R",
+        "garment_skirt_hand_pressure_L",
+        "garment_skirt_hand_pressure_R"
+      ],
+      "minimumReleaseTier": "BOUNDED_REVIEW_CANDIDATE",
+      "baselineId": "yukino-02-v1"
+    },
+    {
+      "id": "yukino-03-garment-normal-v1",
+      "modelId": "03",
+      "assetSha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec",
+      "bytes": 13284400,
+      "profile": "profiles/03-normal.json",
+      "profileSha256": "bb7fa27dcc67ae47d62cd0bae61636ac1c375dc06ee8fe7807c1876226d729ae",
+      "driverModule": "bounded-garment-driver.mjs",
+      "driverModuleSha256": "70ba36312a898df9b5306d376a1f11eeace754c32083ff014bcde308b17c013c",
+      "driverFactory": "createBoundedGarmentDriver",
+      "automaticTargets": [
+        "garment_shoulder_frill_compression_L",
+        "garment_shoulder_frill_compression_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_swim_side_pressure_L",
+        "garment_swim_side_pressure_R"
+      ],
+      "minimumReleaseTier": "BOUNDED_REVIEW_CANDIDATE",
+      "baselineId": "yukino-03-v1"
+    },
+    {
+      "id": "yukino-04-garment-normal-v1",
+      "modelId": "04",
+      "assetSha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6",
+      "bytes": 15118368,
+      "profile": "profiles/04-normal.json",
+      "profileSha256": "1ce63a6aa53ef3ef75cb712c2b4445fb462ad8793f60ad2d522bdd096f5f4a16",
+      "driverModule": "bounded-garment-driver.mjs",
+      "driverModuleSha256": "70ba36312a898df9b5306d376a1f11eeace754c32083ff014bcde308b17c013c",
+      "driverFactory": "createBoundedGarmentDriver",
+      "automaticTargets": [
+        "garment_kimono_inner_sleeve_fold_L",
+        "garment_kimono_inner_sleeve_fold_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_kimono_underarm_L",
+        "garment_kimono_underarm_R",
+        "garment_kimono_skirt_hand_pressure_L",
+        "garment_kimono_skirt_hand_pressure_R"
+      ],
+      "minimumReleaseTier": "BOUNDED_REVIEW_CANDIDATE",
+      "baselineId": "yukino-04-v1"
+    },
+    {
+      "id": "yukino-05-garment-normal-v1",
+      "modelId": "05",
+      "assetSha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62",
+      "bytes": 17068220,
+      "profile": "profiles/05-normal.json",
+      "profileSha256": "991ad0db2968b4098a51251473846054c952fba178f1737e34817c4a0bf0869d",
+      "driverModule": "bounded-garment-driver.mjs",
+      "driverModuleSha256": "70ba36312a898df9b5306d376a1f11eeace754c32083ff014bcde308b17c013c",
+      "driverFactory": "createBoundedGarmentDriver",
+      "automaticTargets": [
+        "garment_dress_side_hand_pressure_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_dress_side_hand_pressure_L",
+        "garment_dress_upper_side_compression_L",
+        "garment_dress_upper_side_compression_R"
+      ],
+      "minimumReleaseTier": "BOUNDED_REVIEW_WITH_CLOTH_LAYER_RISK",
+      "baselineId": "yukino-05-v1"
+    },
+    {
+      "id": "yukino-06-garment-normal-v1",
+      "modelId": "06",
+      "assetSha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f",
+      "bytes": 17045924,
+      "profile": "profiles/06-normal.json",
+      "profileSha256": "5bbc7fb33be6770fb4444abb648ab64607dffb040d483a93d8f0a4cc55ef0fdc",
+      "driverModule": "maid-contact-driver.mjs",
+      "driverModuleSha256": "9c0e5d36e6edcdc1ff58bc9ca2473ac700d5f7222e67b16849c756e4cf9c6a66",
+      "driverFactory": "createMaidContactDriver",
+      "automaticTargets": [
+        "garment_maid_skirt_hand_pressure_L",
+        "garment_maid_skirt_hand_pressure_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_maid_underarm_L",
+        "garment_maid_underarm_R",
+        "garment_maid_elbow_L",
+        "garment_maid_elbow_R"
+      ],
+      "minimumReleaseTier": "NORMAL6CLIP_REVIEW_READY_BLINK_MERGE_GPU_PENDING",
+      "baselineId": "yukino-06-v1"
+    },
+    {
+      "id": "yukino-07-garment-normal-v1",
+      "modelId": "07",
+      "assetSha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66",
+      "bytes": 12502896,
+      "profile": "profiles/07-normal.json",
+      "profileSha256": "b7d539d30fe210e94cb9c4e9954756d98b660c37ed7a9b9df21f06c7cc9a020b",
+      "driverModule": "garment-driver-v4.mjs",
+      "driverModuleSha256": "7ff9ee8b411383409d20e67d713f6fc2a5427b853afd3f1879e04ddfcb8eae65",
+      "driverFactory": "createGarmentDriver",
+      "automaticTargets": [
+        "garment_underarm_compress_L",
+        "garment_underarm_compress_R",
+        "garment_elbow_fold_L",
+        "garment_elbow_fold_R"
+      ],
+      "manualOnlyTargets": [
+        "garment_hand_contact_L",
+        "garment_hand_contact_R"
+      ],
+      "minimumReleaseTier": "NORMAL20CLIP_REVIEW_READY_OPTIONAL_PRESSURE_DIAGNOSTIC",
+      "baselineId": "yukino-07-dialogue19-preview"
+    }
+  ]
+}

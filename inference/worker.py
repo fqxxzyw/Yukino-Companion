@@ -10,6 +10,10 @@ import gc
 import io
 import json
 import os
+# ORT 1.31+ official native builds initialize 1DS during indirect imports.
+# Set the full opt-out before any third-party module (e.g. Lightning) loads;
+# disable_telemetry_events() alone can run after an initialization event.
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
 import re
 from pathlib import Path
 import shutil
@@ -53,7 +57,7 @@ def validate_config(config):
 
 def device_info(torch):
     result = {"torch": torch.__version__, "cudaBuild": torch.version.cuda,
-              "cudaAvailable": False, "devices": [], "cpuThreads": os.cpu_count() or 1}
+              "cudaAvailable": False, "devices": [], "cpuThreads": torch.get_num_threads()}
     try:
         if torch.cuda.is_available():
             # A driver string alone does not prove kernels can actually run.
@@ -96,9 +100,9 @@ class Engine:
         os.environ.setdefault("NLTK_DATA", str(runtime / "nltk_data"))
         import torch
         self.torch = torch
+        torch.set_num_threads(max(1, min(int(cfg.get("cpuThreads", 4)), os.cpu_count() or 1)))
         info = device_info(torch)
         device = "cpu" if force_cpu else select_device(cfg["device"], info)
-        torch.set_num_threads(max(1, min(int(cfg.get("cpuThreads", 4)), os.cpu_count() or 1)))
         # Upstream's portable build expects runtime/ffmpeg.exe even on other OSes.
         from tools import portable_runtime
         ffmpeg = cfg.get("ffmpeg") or (str(portable_runtime.FFMPEG_EXE) if portable_runtime.FFMPEG_EXE.is_file() else shutil.which("ffmpeg"))
@@ -141,7 +145,8 @@ class Engine:
                 gc.collect(); torch.cuda.empty_cache()
                 return self.load(cfg, force_cpu=True)
             raise
-        self.metadata = {**info, "device": str(self.pipeline.configs.device),
+        self.metadata = {**info, "cpuThreads": torch.get_num_threads(),
+                         "device": str(self.pipeline.configs.device),
                          "half": bool(self.pipeline.configs.is_half), "version": self.pipeline.configs.version,
                          "cpuFallback": force_cpu, "referenceSeconds": round(audio_info.duration, 2)}
         return self.metadata

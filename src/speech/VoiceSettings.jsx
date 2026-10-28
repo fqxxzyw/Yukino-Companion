@@ -1,3 +1,4 @@
+import {ResourceProgress} from '../ui/SetupWizard.jsx';
 import ResourceHelp from '../ui/ResourceHelp.jsx';
 import Select from '../ui/Select.jsx';
 import React, { useEffect, useState } from 'react';
@@ -34,9 +35,9 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
     {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">检查运行环境、公共模型与默认音色，缺少的组件会明确列出。可以跳过，稍后再来。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
     <div className="voice-status resource-card">
       <span className="card-kicker">01 · 运行资源</span><strong>{resources.bundled?'语音运行环境已就绪':'语音运行环境待准备'}</strong>
-      <span>{resources.bundled?'已找到 Python、语音推理组件和 FFmpeg。':'通过一键配置安装应用专用的 Python 与推理库；不会改动电脑上原有的 Python。'}</span>
-      <span>{resources.coreReady?'BERT 与 HuBERT 公共模型已安装。':'语音还需要约 802 MiB 的 BERT / HuBERT 公共模型。这是语音组件，不是本地对话或翻译模型。'}</span>
-      {resources.total>0&&<><progress max={resources.total} value={resources.received||0}/><span>{Math.round((resources.received||0)/1048576)} / {Math.round(resources.total/1048576)} MiB · {resources.phase==='complete'?'下载与校验完成':resources.file||resources.phase}</span></>}
+      <span>{resources.bundled?'已找到 Python、语音推理组件和 FFmpeg。':'应用专用 Python 与推理库为本地对话、翻译和声音提供运行环境。'}</span>
+      <span>{resources.coreReady?'BERT 与 HuBERT 公共模型已安装。':'BERT / HuBERT 是语音合成使用的文本与声音特征模型，下载约 802 MiB。'}</span>
+      {resources.total>0&&<><progress max={resources.total} value={resources.received||0}/><span>{Math.round((resources.received||0)/1048576)} / {Math.round(resources.total/1048576)} MiB · {resources.phase==='complete'?'下载与校验完成':resources.file||resources.phase}</span><ResourceProgress progress={resources}/></>}
       {resources.error&&<span>{resources.error}</span>}
       <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const paths=await api.voiceInstall('core');const next={...config,...paths};onChange(next);await api.voiceSave(next);await refresh();setNotice('公共模型已准备好；默认音色与参考声音配置完成后，首次朗读会自动加载。')})}>{resources.coreReady?'校验公共模型':'下载公共模型'}</button><button className="secondary" disabled={!downloading} onClick={()=>api?.voiceDownloadCancel().catch(e=>setNotice(cleanError(e)))}>取消下载</button></div>
     </div>
@@ -61,7 +62,7 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
     <label className="field">播放音量 · {Math.round(config.volume*100)}%<input type="range" min="0" max="1" step="0.05" value={config.volume} onChange={e=>patch({volume:Number(e.target.value)})}/></label>
     <fieldset disabled={working}>
       <details className="advanced-settings"><summary>更换自己的音色与参考声音</summary><span className="card-kicker">03 · 本地文件</span><h3>自定义音色</h3><p className="intro">保留你自己的训练成果，也可以切换上方下载的音色。</p>{['gpt','sovits','reference'].map(pathField)}
-      <label className="field">参考音频对应文本<textarea rows="3" maxLength={3000} value={config.promptText} onChange={e=>patch({promptText:e.target.value})} placeholder="填写参考音频实际说出的内容，不是待合成的回复。"/></label>
+      <label className="field">参考音频对应文本<textarea rows="3" maxLength={3000} value={config.promptText} onChange={e=>patch({promptText:e.target.value})} placeholder="填写参考音频中实际说出的内容。"/></label>
       <label className="field">参考音频语言<Select value={config.promptLang} onChange={e=>patch({promptLang:e.target.value})}>{langs.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select></label></details>
       <details className="advanced-settings"><summary>推理环境与基础模型路径</summary><p className="hint">一键配置会自动填入这些路径。使用自己的环境或模型目录时，再修改它们。</p>{['python','root','bert','hubert','ffmpeg'].map(pathField)}</details>
       <p className="hint">GPT .ckpt 与 SoVITS .pth 是两个模型。BERT / HuBERT 是公共基础资源；v3/v4/Pro/LoRA 等版本还可能需要对应底模或声码器。路径仅引用原文件，不复制权重。</p>

@@ -1,7 +1,7 @@
 name: Desktop integration checks (no packaging)
 on:
   push:
-    branches: [main, 'integration/**']
+    branches: [main, 'integration/**', 'fix/**']
   pull_request:
     paths:
       - 'electron/**'
@@ -12,6 +12,9 @@ on:
       - 'resources/**'
       - 'tests/**'
       - 'characters/**'
+      - 'public/**'
+      - 'model-window.html'
+      - 'vite.config.js'
       - 'package*.json'
       - '.github/workflows/**'
 permissions:
@@ -35,4 +38,32 @@ jobs:
       - run: npm test
       - run: python -m unittest discover -s tests -p '*_test.py'
       - run: npm run build
-      # The user's packaging pause remains active. No EXE or Release job here.
+        env:
+          YUKINO_BASE_BUILD: '1'
+      - name: Install Electron for isolated Windows renderer checks
+        id: electron_runtime
+        if: runner.os == 'Windows'
+        run: node node_modules/electron/install.js
+      - name: Check actual desktop UI with isolated synthetic settings
+        if: runner.os == 'Windows'
+        run: npm run qa:ui
+        timeout-minutes: 5
+      - name: Render digest-pinned character models with no network
+        if: runner.os == 'Windows'
+        run: npm run qa:models
+        timeout-minutes: 7
+      - name: Prove eight-weight WebGL shader paths with independent readbacks
+        if: always() && runner.os == 'Windows' && steps.electron_runtime.outcome == 'success'
+        run: npm run qa:skin8
+        timeout-minutes: 5
+      - name: Preserve Windows model and skinning renderer evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-model-renderer-${{ github.run_number }}
+          path: |
+            build/model-ui-review
+            build/eight-weight-skinning-review
+            build/ui-review
+          if-no-files-found: warn
+      # Source/renderer gate only. Packaging and Release publication remain separately reviewed.

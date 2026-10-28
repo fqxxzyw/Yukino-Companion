@@ -1,0 +1,30 @@
+Yukino 07 transparent-video REVIEW pack — provenance and rights boundary
+
+CHARACTER / PROJECT SOURCE
+The sole character source is the existing project asset:
+Yukino07_CMUWalk14_V6_REVIEW.glb
+SHA-256: 44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866
+The actual GLB was imported and rendered with Blender 4.3.2. No character asset, texture, image, motion video or code was copied from dsh-pet or another desktop-pet package. No source mesh, face, outfit, texture, bone, action or frozen application artifact was overwritten. This package is a rendered review derivative, not a claim to an independent license to the fictional character or permission for public redistribution/commercial use of all character assets. Character/IP clearance remains a separate production-release gate.
+
+IDLE
+Original source action: Idle_Breathe_Yukino_Rig. Source timeline: 0–120 at 30 fps, duration 4 seconds. Output: 96 directly evaluated/rendered frames at 24 fps. No new facial animation or expression edits.
+
+WALK
+Existing V6 Walk_Slow_Loop_Yukino_Rig, retargeted by the upstream project from CMU subject 07 trial 04 slow walk. Source V6 timeline: 0–44 at 30 fps, duration 1.4666666667 seconds. Output: 35 directly evaluated/rendered frames at 24 fps, duration 1.4583333333 seconds (1.0057142857× source speed; +0.5714%). One endpoint is omitted from encoding to avoid a duplicated loop hold. Left/right are separate 3D rotations of this same gait, NOT horizontal image flips.
+
+MOTION CREDIT / TERMS
+Carnegie Mellon University Graphics Lab Motion Capture Database; NSF EIA-0196217.
+Original data and current terms: https://mocap.cs.cmu.edu/
+CMU permits incorporation in commercially sold projects/products but does not permit direct resale of the motion data, including converted data. This preview contains only rendered character animation, not raw motion data.
+MotionBuilder-friendly BVH conversion: Bruce Hahne / cgspeed, 2010.
+Converter readme: https://sites.google.com/a/cgspeed.com/cgspeed/motion-capture/the-motionbuilder-friendly-bvh-conversion-release-of-cmus-motion-capture-database/readme-motionbuilder-2010-release
+The converter states that no additional restrictions are imposed on the conversion.
+Upstream acquisition reference (reference only, not redistributed): https://github.com/una-dinosauria/cmu-mocap/blob/master/data/007/07_04.bvh
+CMU primary page search-index content and the cgspeed primary readme were checked on 2026-10-27. Direct CMU fetch timed out; upstream MOTION_CREDIT.txt is also retained. No raw BVH, AMC or source mocap archive is included.
+
+RENDER / CODEC
+Blender 4.3.2 Cycles; fixed 640×640 orthographic camera; transparent film; RGBA PNG source frames; 8 samples, fixed random seed. Existing glTF single-sided outline behaviour is matched with an in-memory backfacing-transparent shader wrapper, as in upstream verified render. No new simulation, cloth, hair physics or collision correction. A constant +0.00067 model-unit floor wrapper offset follows the upstream V6 runtime metadata; periodic authored root motion is preserved, not re-normalized frame by frame.
+FFmpeg libvpx-vp9, lossless codec mode, yuva420p, no audio. YUV 4:2:0 chroma conversion still changes colour samples relative to the RGBA renders. Alpha verified by explicit libvpx-vp9 decoding to RGBA, not solely a container tag.
+
+LIMITATIONS
+This is a bounded independent review preview, not a production-ready release or a Windows/Electron performance result. Known upstream armhole/chest sewn-layer contacts and front-hairlock/lapel contacts remain; there is no whole-model intersection-free guarantee or dynamic hair/cloth simulation. Turning, idle/walk cross-transitions, coordinated desktop translation, DPI/multimonitor behaviour, real-time rendering quality and long-run CPU/GPU/memory remain untested here. Standalone HTML preview does not implement the app state machine.

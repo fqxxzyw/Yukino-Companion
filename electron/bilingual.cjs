@@ -61,7 +61,7 @@ class BilingualStream {
   }
 }
 
-async function completeBilingual({zh, ja}, {translate, signal, requestId, preferLocal = false}) {
+async function completeBilingual({zh, ja}, {translate, signal, requestId, preferLocal = false, translationSource = 'local'}) {
   signal?.throwIfAborted();
   zh = clean(zh); ja = clean(ja);
   if (!zh) throw Error('模型没有返回中文正文');
@@ -71,10 +71,10 @@ async function completeBilingual({zh, ja}, {translate, signal, requestId, prefer
     const translated = await translate({text: zh, source: 'zh', target: 'ja', requestId}, {signal});
     signal?.throwIfAborted();
     if (!hasKana(translated.text)) throw Error('翻译结果没有可确认的日文，请重试');
-    return {zh, ja: translated.text, translationStatus: 'ready', source: 'local', device: translated.device};
+    return {zh, ja: translated.text, translationStatus: 'ready', source: translated.source==='api'?'api':'local', device: translated.device};
   } catch (error) {
     if (signal?.aborted) throw error;
-    return {zh, ja: '', translationStatus: 'error', translationError: error.message || '日文翻译失败', source: 'local'};
+    return {zh, ja: '', translationStatus: 'error', translationError: error.message || '日文翻译失败', source: translationSource};
   }
 }
 

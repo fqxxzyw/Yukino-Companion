@@ -2,10 +2,10 @@ export const REPOSITORY = 'fqxxzyw/Yukino-Companion';
 export const GITHUB = `https://github.com/${REPOSITORY}`;
 export const API = `https://api.github.com/repos/${REPOSITORY}`;
 export const CATEGORIES = Object.freeze({
-  fiction: {label:'二创文章',prefix:'[二创]',template:'community-fiction.yml',icon:'book',description:'把想象写成故事，让喜欢有迹可循。'},
-  voice: {label:'音色分享',prefix:'[音色]',template:'community-voice.yml',icon:'wave',description:'分享训练成果、参考声音和使用心得。'},
-  idea: {label:'功能建议',prefix:'[建议]',template:'community-idea.yml',icon:'spark',description:'一起决定，她的下一步会是什么样子。'},
-  bug: {label:'问题反馈',prefix:'[Bug]',template:'community-bug.yml',icon:'bug',description:'记录遇到的问题，让每一次更新更可靠。'}
+  fiction: {label:'二创文章',prefix:'[二创]',template:'community-fiction.yml',icon:'book',description:'分享二创文章，注明简介、正文、来源与授权。'},
+  voice: {label:'音色分享',prefix:'[音色]',template:'community-voice.yml',icon:'wave',description:'分享 GPT-SoVITS 权重、参考音频、下载链接和使用说明。'},
+  idea: {label:'功能建议',prefix:'[建议]',template:'community-idea.yml',icon:'spark',description:'描述需要改进的功能、使用场景和预期行为。'},
+  bug: {label:'问题反馈',prefix:'[Bug]',template:'community-bug.yml',icon:'bug',description:'提供软件版本、复现步骤、错误信息和预期结果。'}
 });
 export function escapeHtml(value='') {return String(value).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 export function safeUrl(value) {
@@ -72,6 +72,21 @@ export function submissionUrl(category,title='') {
   return url.href;
 }
 export function issueUrl(number) {if(!Number.isSafeInteger(number)||number<1)throw Error('无效内容编号');return `${GITHUB}/issues/${number}`;}
+export function validateHelpContent(help) {
+  if(!help||typeof help.title!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(help.updatedAt)||!Array.isArray(help.sections)||!help.sections.length)throw Error('帮助文档格式不完整。');
+  const ids=new Set();
+  for(const section of help.sections){
+    if(!section||!/^[a-z][a-z0-9-]*$/.test(section.id)||ids.has(section.id)||!section.title||typeof section.summary!=='string'||typeof section.body!=='string'||!section.body.trim())throw Error('帮助章节格式不正确或编号重复。');
+    if(!Array.isArray(section.reference)||!section.reference.length||section.reference.some(item=>!item||typeof item.name!=='string'||!item.name.trim()||typeof item.value!=='string'||!item.value.trim()))throw Error('帮助章节缺少配置参考。');
+    ids.add(section.id);
+  }
+  if(!ids.has('download'))throw Error('帮助文档缺少下载故障处理入口。');
+  return help;
+}
+export function helpArticleHtml(article,updatedAt) {
+  const reference=(article.reference||[]).map(item=>`<dt>${escapeHtml(item.name)}</dt><dd>${escapeHtml(item.value)}</dd>`).join('');
+  return `<header class="help-article-heading"><p class="help-path">${escapeHtml(article.group||'帮助')} / <code>#help/${escapeHtml(article.id)}</code></p><h2>${escapeHtml(article.title)}</h2><p>${escapeHtml(article.summary||'')}</p><p class="help-updated">更新于 ${escapeHtml(updatedAt)}</p></header><dl class="help-reference" aria-label="功能参考">${reference}</dl>${markdown(article.body||'')}`;
+}
 export function apiPath(path) {
   const url=new URL(path,API+'/');if(url.origin!=='https://api.github.com'||!url.pathname.startsWith(`/repos/${REPOSITORY}/`))throw Error('无效 GitHub 请求地址');return url.href;
 }

@@ -7,10 +7,18 @@
 <main id="stage">
   <div id="bubble" class="bubble" hidden><div id="zh"></div><div id="ja" lang="ja"></div></div>
   <canvas id="pet" width="192" height="208" aria-label="雪乃桌宠，拖动移动，双击打开聊天，右键打开设置" role="img" tabindex="0"></canvas>
+  <div id="pet-video-layer" aria-hidden="true" hidden></div>
   <div id="model" class="model" hidden><div class="orb">Y</div><strong>人物模型位置</strong><span>3D 模型与动作正在准备</span><button id="model-open">打开对话</button></div>
+  <form id="pet-composer" class="pet-composer" aria-label="桌宠聊天">
+    <button id="pet-expand" type="button" class="pet-expand" aria-label="展开桌宠输入框" aria-expanded="false"></button>
+    <button id="pet-camera" type="button" class="composer-button" title="选择桌面画面（确认后发送）" aria-label="选择桌面画面（确认后发送）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="4"/></svg></button>
+    <input id="pet-input" type="text" maxlength="24000" autocomplete="off" aria-label="发送给角色的单行消息" placeholder="输入消息…"/>
+    <button id="pet-send" type="submit" class="composer-button send-button" aria-label="发送消息" title="发送消息">↑</button>
+  </form>
+  <p id="chat-status" class="chat-status" role="status" hidden></p>
   <div id="focus-badge" class="focus-badge" hidden></div>
   <section id="pet-menu" class="pet-menu" role="dialog" aria-modal="true" aria-label="桌宠设置" hidden>
-    <header><div><span class="eyebrow">YOUR QUIET COMPANION</span><h2>雪乃桌宠</h2></div><button id="menu-close" class="icon-button" aria-label="关闭桌宠设置">×</button></header>
+    <header><div><span class="eyebrow">桌面形象设置</span><h2>雪之下雪乃</h2></div><button id="menu-close" class="icon-button" aria-label="关闭桌宠设置">×</button></header>
     <div id="menu-body" class="menu-body"></div><p id="menu-error" class="menu-error" role="alert" hidden></p>
   </section>
 </main><script src="view.js"></script></body></html>
