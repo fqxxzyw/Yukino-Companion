@@ -1,7 +1,7 @@
 {
   "name": "yukino-companion",
   "version": "0.4.0",
-  "description": "Yukino Companion \u00b7 \u53cc\u8bed\u6570\u5b57\u89d2\u8272\u4e0e\u684c\u9762\u966a\u4f34",
+  "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
   "type": "module",
@@ -33,7 +33,8 @@
     "pretest": "npm run prepare:characters",
     "predev": "npm run prepare:characters",
     "review:blink": "electron scripts/open-blink-review.cjs",
-    "qa:blink": "electron scripts/open-blink-review.cjs --capture"
+    "qa:blink": "electron scripts/open-blink-review.cjs --capture",
+    "test:release": "node --test tests/release-automation/*.test.cjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",

@@ -71,7 +71,10 @@ def runtime_catalog(output):
     target.write_bytes(data)
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--catalog-only',action='store_true');parser.add_argument('--runtime-catalog',action='store_true');parser.add_argument('--output',type=Path,default=ROOT/'build/resource-mirror');args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--catalog-only',action='store_true');parser.add_argument('--runtime-catalog-only',action='store_true',help='Fetch the pinned runtime catalog without regenerating tracked resource sources');parser.add_argument('--runtime-catalog',action='store_true');parser.add_argument('--output',type=Path,default=ROOT/'build/resource-mirror');args=parser.parse_args()
+    if args.runtime_catalog_only:
+        runtime_catalog(ROOT/'build/base-resource-catalog')
+        return
     items=entries();mapping={'schemaVersion':1,'release':'v0.4.0-resources.1','sources':{item['url']:[MIRROR+item['asset'],item['url']] for item in items}}
     (ROOT/'resources/resource-download-sources.json').write_text(json.dumps(mapping,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     if args.runtime_catalog:runtime_catalog(ROOT/'build/base-resource-catalog')

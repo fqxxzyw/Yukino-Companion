@@ -1,4 +1,4 @@
-﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe')
+﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe',[string]$PayloadManifest='')
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $Installer=[IO.Path]::GetFullPath((Join-Path $root $Installer))
@@ -76,6 +76,11 @@ try{
  if(-not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
  $visible=$null;$gui=$null
  Install $target $true
+ if($PayloadManifest){
+  & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
+  if($LASTEXITCODE -ne 0){throw 'Installed payload does not match this build'}
+  $report.checks+='Every installed application payload byte matches the candidate SHA-256 manifest'
+ }
  foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/aria2/aria2c.exe','resources/runtime-catalog.json','yukino-base-installation.ini')){if(-not(Test-Path -LiteralPath (Join-Path $target $file))){throw "Installed file missing: $file"}}
  if(Get-ChildItem -LiteralPath $target -Recurse -File|Where-Object{$_.Extension -in @('.gguf','.ckpt','.pth','.ogg') -or $_.Name -eq 'python.exe'}){throw 'Base installation unexpectedly contains model/audio/environment payload'}
  $report.checks+='Published EXE installs into a Chinese path without acquiring model or Python resources'
@@ -112,6 +117,11 @@ try{
  $report.checks+='Actual installed application launches with an isolated profile, displays its main window and stays alive; screenshot captured; no model download or inference requested'
  $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
  Install $target $true
+ if($PayloadManifest){
+  & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
+  if($LASTEXITCODE -ne 0){throw 'Installed payload does not match this build'}
+  $report.checks+='Every installed application payload byte matches the candidate SHA-256 manifest'
+ }
  if((Get-Content -LiteralPath $sentinel -Raw) -ne 'keep me'){throw 'Upgrade modified personal files'}
  $report.checks+='Recognized base-app upgrade preserves added personal files'
  $unknown=Join-Path $temporary 'unknown personal folder';[void][IO.Directory]::CreateDirectory($unknown);[IO.File]::WriteAllText((Join-Path $unknown 'personal.txt'),'untouched')
