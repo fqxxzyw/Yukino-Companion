@@ -35,7 +35,13 @@ def publish(root=Path('.'), env=os.environ, gh=run_gh):
     notes = root/'build/candidate-release-notes.md'
     notes.write_text(f'''Windows 安装测试版，源码 `{commit}`。\n\n这是可安装的 Setup.exe，安装器内置现有七套人物服装、17 个视觉版本。01 的现有未通过/不可选状态保留。语言模型、翻译、音色和公共推理环境仍在应用内按需下载，安装过程不下载这些资源。108 项新动作不在本版内。\n\n**按用户要求先提供下载：安装、启动、升级、卸载和完整功能验收尚未完成。** 源码与包内模型摘要已核对，摘要不代表签名或安全扫描。安装器签名状态：`{source['signatureStatus']}`。不要将本测试版视为全部功能已验收。\n\n[本次构建及后续检查](https://github.com/{repo}/actions/runs/{run_id})。`SHA256SUMS.txt` 提供安装器摘要；其余附件记录源码和实际 payload。\n''', encoding='utf8')
     gh('release','create',tag,*map(str,paths),'--repo',repo,'--draft','--prerelease','--target',commit,'--title',f'Yukino Companion 0.4.0 Windows 安装测试版 · {run_id}（待验收）','--notes-file',str(notes))
-    remote = json.loads(gh('api',f'repos/{repo}/releases/tags/{tag}'))
+    # A draft may have no tag ref yet; lookup by tag can return 404.
+    releases = json.loads(gh('api',f'repos/{repo}/releases?per_page=100'))
+    matches = [item for item in releases if item.get('tag_name') == tag]
+    if len(matches) != 1:
+        raise ValueError('Cannot uniquely identify the newly created draft')
+    release_id = matches[0]['id']
+    remote = json.loads(gh('api',f'repos/{repo}/releases/{release_id}'))
     if remote.get('draft') is not True or remote.get('prerelease') is not True or remote.get('target_commitish') != commit:
         raise ValueError('Unexpected draft identity; leaving release unpromoted')
     assets = remote.get('assets', [])
@@ -44,8 +50,8 @@ def publish(root=Path('.'), env=os.environ, gh=run_gh):
     for item in assets:
         if {k:item.get(k) for k in ['size','digest']} != expected[item['name']]:
             raise ValueError('Remote candidate asset mismatch: '+item['name'])
-    gh('release','edit',tag,'--repo',repo,'--draft=false','--prerelease','--latest=false')
-    visible = json.loads(gh('api',f'repos/{repo}/releases/tags/{tag}'))
+    gh('api','--method','PATCH',f'repos/{repo}/releases/{release_id}','-F','draft=false','-F','prerelease=true','-f','make_latest=false')
+    visible = json.loads(gh('api',f'repos/{repo}/releases/{release_id}'))
     if visible.get('draft') is not False or visible.get('prerelease') is not True:
         raise ValueError('Prerelease visibility readback failed')
     result = {'tag':tag,'url':visible['html_url'],'commit':commit,'runId':run_id,'validation':'pending','files':expected}

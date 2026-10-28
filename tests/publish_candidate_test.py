@@ -25,8 +25,11 @@ class CandidatePublicationTest(unittest.TestCase):
             if self.scenario=='create-failure':raise RuntimeError('existing tag or failed creation')
             self.assertIn('--draft',args);self.assertIn('--prerelease',args);self.assertIn('a'*40,args)
             return ''
-        if args[:2]==('release','edit'):
-            self.promoted=True;self.assertIn('--latest=false',args);return ''
+        if args[:3]==('api','--method','PATCH'):
+            self.promoted=True;self.assertIn('make_latest=false',args);self.assertIn('draft=false',args);return '{}'
+        if args[0]=='api' and args[1].endswith('releases?per_page=100'):
+            return json.dumps([{'id':77,'tag_name':'v0.4.0-test.123'}])
+        self.assertEqual(args,('api','repos/synthetic/fixture/releases/77'))
         assets=[{'name':p.name,'size':p.stat().st_size,'digest':'sha256:'+module.sha(p)} for p in [*sorted((self.root/'release').iterdir()),self.root/'build/base-package.json',self.root/'build/base-payload.json']]
         if self.scenario=='digest-mismatch':assets[0]['digest']='sha256:'+'0'*64
         if self.scenario=='extra-asset':assets.append({'name':'unexpected','size':1,'digest':'none'})
