@@ -43,3 +43,10 @@ The separate 108-action update is not included. Physical audio/GPU, multi-monito
 long-running desktop pet behavior, actual user inference resources, the complete
 live dialogue → translation → voice → motion chain, and visual quality remain
 separate acceptance work. An installer candidate is not a claim that these passed.
+
+## Windows checkout correction
+
+The first Windows candidate run exposed CRLF conversion of digest-pinned JSON
+and modules, plus locale-dependent decoding of Python test input. `.gitattributes`
+now preserves LF source bytes on Windows; the Python compile gate explicitly
+decodes UTF-8. No model bytes, expected hashes or assertions were relaxed.
