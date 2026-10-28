@@ -70,3 +70,15 @@ test('short header reads are completed and early EOF cannot become zero-filled s
   assert.deepEqual(await readExact(handle,source.length,0),source);
   await assert.rejects(readExact(handle,source.length+1,0),/Truncated/);
 });
+
+test('ASAR visual verification reads nested assets on the host platform and still rejects wrong bytes',async t=>{
+  const {verifyBundledCharacters}=require('../scripts/build-base-app.cjs'),asar=require('@electron/asar'),crypto=require('node:crypto');
+  const directory=await fixture(t),stage=path.join(directory,'stage'),archive=path.join(directory,'app.asar');
+  await fs.mkdir(path.join(stage,'dist/characters'),{recursive:true});
+  const data=Buffer.from('synthetic visual bytes');await fs.writeFile(path.join(stage,'dist/characters/fixture.glb'),data);
+  await asar.createPackage(stage,archive);
+  const model={id:'fixture',bundled:true,url:'./characters/fixture.glb',bytes:data.length,sha256:crypto.createHash('sha256').update(data).digest('hex')};
+  assert.doesNotThrow(()=>verifyBundledCharacters(archive,[model]));
+  assert.throws(()=>verifyBundledCharacters(archive,[{...model,sha256:'0'.repeat(64)}]),/integrity failed/);
+  assert.throws(()=>verifyBundledCharacters(archive,[{...model,url:'./characters/missing.glb'}]),/Missing bundled character/);
+});

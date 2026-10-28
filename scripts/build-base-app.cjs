@@ -67,12 +67,22 @@ async function main(){
   await fs.rm(output,{recursive:true,force:true});await fs.rename(path.join(root,'build/base-electron/win-unpacked'),output);
   return verifyBaseApp(output);
 }
+function verifyBundledCharacters(archive,models){
+  const entries=new Set(asar.listPackage(archive).map(name=>name.replaceAll('\\','/'))),crypto=require('node:crypto');
+  for(const model of models.filter(item=>item.bundled)){
+    const file='dist/'+model.url.slice(2);
+    if(!entries.has('/'+file))throw Error('Missing bundled character '+model.id);
+    // ASAR's directory traversal uses the host path separator, including Windows.
+    const data=asar.extractFile(archive,path.join(...file.split('/')));
+    if(data.length!==model.bytes||crypto.createHash('sha256').update(data).digest('hex')!==model.sha256)throw Error('Bundled character integrity failed: '+model.id);
+  }
+}
 async function verifyBaseApp(output){
   const executable=await verifyWindowsExecutable(path.join(output,'Yukino Companion.exe'));
   const resources=path.join(output,'resources'),entries=asar.listPackage(path.join(resources,'app.asar')).map(x=>x.replaceAll('\\','/'));
   if(entries.some(x=>/\/assets\/voices\//.test(x)||/\.(gguf|ckpt|pth|safetensors|onnx)$/i.test(x)))throw Error('Heavy model/audio resources entered the base app');
-  const characterCatalog=require('../resources/character-models.json'),crypto=require('node:crypto');
-  for(const model of characterCatalog.models.filter(item=>item.bundled)){const file='dist/'+model.url.slice(2);if(!entries.includes('/'+file))throw Error('Missing bundled character '+model.id);const data=asar.extractFile(path.join(resources,'app.asar'),file);if(data.length!==model.bytes||crypto.createHash('sha256').update(data).digest('hex')!==model.sha256)throw Error('Bundled character integrity failed: '+model.id);}
+  const characterCatalog=require('../resources/character-models.json');
+  verifyBundledCharacters(path.join(resources,'app.asar'),characterCatalog.models);
   for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html'])if(!entries.includes('/'+file))throw Error('Missing application file '+file);
   for(const file of ['runtime-catalog.json','aria2/aria2c.exe','aria2/COPYING','aria2/LICENSE.OpenSSL','aria2/aria2-1.37.0.tar.xz','inference/worker.py','translation/worker.py','local-chat/desktop_worker.py'])await fs.access(path.join(resources,file));
   const bytes=await inspectDetachedResources(output);validateUnpackedBudget(bytes);
@@ -85,4 +95,4 @@ if(require.main===module){
   const work=args.length===0?main:args.length===2&&args[0]==='--verify-only'?()=>verifyBaseApp(path.resolve(args[1])):()=>Promise.reject(Error('Usage: node scripts/build-base-app.cjs [--verify-only DIRECTORY]'));
   work().catch(e=>{console.error(e);process.exitCode=1;});
 }
-module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBaseApp};
+module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBundledCharacters,verifyBaseApp};

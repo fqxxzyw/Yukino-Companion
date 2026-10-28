@@ -26,14 +26,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --no-audit --no-fund
-      - name: Public source regression
-        run: |
-          npm test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m unittest discover -s tests -p '*_test.py'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test community/tests/*.test.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prepare pinned download helper and application resource catalog
         run: |
           python scripts/prepare-aria2.py
@@ -50,16 +42,10 @@ jobs:
         run: git diff --exit-code
       - name: Compile real Setup.exe with the pinned signed Inno toolchain
         run: ./scripts/build-base-installer.ps1
-      - name: Install, launch, upgrade, verify payload and uninstall on this disposable worker
-        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json
-      - name: Verify bundled downloader over HTTPS
-        run: node scripts/smoke-aria2.cjs
-      - name: Record source and installer identity after native checks
+      - name: Record exact source and installer identity with native validation pending
         run: |
           $exe = Get-Item release/Yukino-Companion-0.4.0-Base-Setup.exe
           $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          $smoke = Get-Content build/base-installer-review/report.json -Raw | ConvertFrom-Json
-          if ($smoke.passed -ne $true) { throw 'Native installer validation did not pass' }
           $source = @{
             commit = $env:GITHUB_SHA
             tree = (git rev-parse 'HEAD^{tree}')
@@ -69,12 +55,12 @@ jobs:
             sha256 = $sha
             appAsarSha256 = (Get-FileHash build/base-app/resources/app.asar -Algorithm SHA256).Hash.ToLowerInvariant()
             signatureStatus = [string](Get-AuthenticodeSignature $exe.FullName).Status
-            nativeInstallLaunchUpgradeUninstall = $true
+            nativeInstallLaunchUpgradeUninstall = $false
             completeFeatureAcceptance = $false
           }
           $source | ConvertTo-Json -Depth 5 | Set-Content release/candidate-source.json -Encoding utf8
           "$sha  $($exe.Name)" | Set-Content release/SHA256SUMS.txt -Encoding utf8
-      - name: Upload tested installer and exact payload identity
+      - name: Upload built installer and exact payload identity
         uses: actions/upload-artifact@v4
         with:
           name: Yukino-Windows-Setup-${{ github.sha }}
@@ -87,6 +73,66 @@ jobs:
             build/base-payload.json
           if-no-files-found: error
           retention-days: 30
+  publish_test:
+    needs: candidate
+    if: github.ref == 'refs/heads/handoff/codex-current-20261028'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-Windows-Setup-${{ github.sha }}
+          path: .
+      - name: Publish this exact candidate as a pending-validation prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish-candidate.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-publication-${{ github.sha }}
+          path: build/candidate-publication.json
+          if-no-files-found: error
+  validation:
+    needs: publish_test
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-Windows-Setup-${{ github.sha }}
+          path: .
+      - name: Install, launch, upgrade, verify payload and uninstall on this disposable worker
+        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json
+      - name: Verify bundled downloader over HTTPS
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-aria2.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Public source regression
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p '*_test.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test community/tests/*.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve native screenshots and failure evidence
         if: always()
         uses: actions/upload-artifact@v4
