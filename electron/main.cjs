@@ -22,6 +22,7 @@ const {VoiceResources} = require('./voice-resources.cjs');
 const {bundledVoiceDefaults, mergeVoiceDefaults} = require('./bundled-voice.cjs');
 const {LocalChatService} = require('./local-chat.cjs');
 const {RuntimeManager} = require('./runtime-manager.cjs');
+const {managedRuntimeBinary}=require('./runtime-paths.cjs');
 const {SetupService} = require('./setup.cjs');
 const {ResourcePacks}=require('./resource-packs.cjs');
 const {resourceSources}=require('./resource-sources.cjs');
@@ -102,16 +103,19 @@ else {
     const modelDir=app.isPackaged?path.join(process.resourcesPath,'translation-models',translationManifest.directory):path.join(__dirname,'../translation/models',translationManifest.directory);
     const localModelDir=app.isPackaged?path.join(resourceRoot(),'local-model/yukino-1.5b-persona-q4'):path.join(__dirname,'../resources/local-model/yukino-1.5b-persona-q4');
     const localScript=app.isPackaged?path.join(process.resourcesPath,'local-chat/desktop_worker.py'):path.join(__dirname,'../model-service/desktop_worker.py');
+    const managedBinary=(saved,selected)=>managedRuntimeBinary(saved,selected,{dataRoot:app.getPath('userData'),resourceRoot:resourceRoot()});
     const bundleReady=(async()=>{
       const current=await runtime.current(),chatPack=await resourcePacks.status('chat');
       voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});
       const savedVoice=await read('speech.json',{}), savedTranslation=await read('translation.json',{}),savedLocal=await read('local-chat.json',{});
-      const python=current.python||voiceBundle.defaults.python||savedVoice.python||process.env.YUKINO_PYTHON||'';
+      const selectedPython=current.python||voiceBundle.defaults.python||process.env.YUKINO_PYTHON||'';
+      savedVoice.python=managedBinary(savedVoice.python,selectedPython);savedVoice.ffmpeg=managedBinary(savedVoice.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);
+      const python=selectedPython||savedVoice.python;
       translation=new TranslationService({script:workerPath('translation'),stateDir:location('translation-runtime'),modelDir,python,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('translation-status',status);setup?.report('translation',status);}});
-      translation.configure({...savedTranslation,python:savedTranslation.python||python,modelDir:savedTranslation.modelDir||modelDir});
+      translation.configure({...savedTranslation,python:managedBinary(savedTranslation.python,python),modelDir:savedTranslation.modelDir||modelDir});
       if(!(await translation.status()).modelInstalled&&savedTranslation.modelDir?.startsWith(path.join(location('translation-runtime'),'models')+path.sep))translation.configure({modelDir});
       localChat=new LocalChatService({script:localScript,stateDir:location('local-chat-runtime'),modelDir:localModelDir,python,notify:status=>send('local-chat-status',status)});
-      localChat.configure({...savedLocal,python:savedLocal.python||python,modelDir:savedLocal.modelDir||chatPack.root||localModelDir});
+      localChat.configure({...savedLocal,python:managedBinary(savedLocal.python,python),modelDir:savedLocal.modelDir||chatPack.root||localModelDir});
       makeVoiceResources();
       speech.configure(mergeVoiceDefaults(savedVoice,voiceBundle));
       return voiceBundle;
@@ -119,13 +123,14 @@ else {
     function makeVoiceResources(){
       voiceResources=new VoiceResources({root:voiceBundle.modelRoot,catalog:voiceCatalog,bundledRoot:path.join(resourceRoot(),'voice-models'),bundledPackId:voiceBundle.preset?.packId,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('voice-download',status);setup?.report(setup?.active==='voicePreset'?'voicePreset':'voiceCore',status);}});
     }
-    async function voiceConfig(){await bundleReady;return mergeVoiceDefaults(await read('speech.json',{}),voiceBundle);}
+    async function voiceConfig(){await bundleReady;const saved=await read('speech.json',{}),current=await runtime.current();saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);return mergeVoiceDefaults(saved,voiceBundle);}
     async function refreshRuntime(){
       const previous=voiceBundle,current=await runtime.current(),saved=await read('speech.json',{});
       voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});
-      for(const field of ['root','python','ffmpeg','bert','hubert'])if(!saved[field]||saved[field]===previous.defaults[field])saved[field]=voiceBundle.defaults[field];
+      for(const field of ['root','bert','hubert'])if(!saved[field]||saved[field]===previous.defaults[field])saved[field]=voiceBundle.defaults[field];
+      saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);
       const value=mergeVoiceDefaults(saved,voiceBundle);await write('speech.json',value);speech.configure(value);makeVoiceResources();
-      for(const service of [translation,localChat])if(!service.config.python||service.config.python===previous.defaults.python)service.configure({python:current.python||value.python});
+      for(const service of [translation,localChat])service.configure({python:managedBinary(service.config.python,current.python||value.python)});
       await write('translation.json',translation.config);await write('local-chat.json',localChat.config);
     }
     async function installChat(signal){
@@ -162,8 +167,8 @@ else {
       const presetReady=!voice.missing?.some(x=>['gpt','sovits','reference','promptText'].includes(x.key));
       return {runtimeFlavor:environment.flavor,runtimeVariants:environment.variants,device:environment.metadata?.gpuAvailable?'GPU':'CPU',steps:[
         {id:'runtime',...describe(runtimeCatalog.variants?.cpu?.parts||[]),state:environment.ready?'ready':'missing',detail:environment.ready?`公共推理环境已安装 · ${environment.flavor}`:'按需安装 Python 与推理依赖；仅桌宠不需要。'},
-        {id:'chat',downloadBytes:chatPack.downloadBytes,downloadSources:chatPack.downloadSources,helpUrl,state:local.modelInstalled?'ready':'missing',detail:local.modelInstalled?'角色权重已安装，首次发送时自动加载。':'安装已训练的角色模型，无需重新训练。'},
-        {id:'translation',...describe(translationManifest.files),state:translated.modelInstalled?'ready':'missing',detail:translated.modelInstalled?'中日翻译权重已安装，不会重复下载。':'需要准备中日翻译权重。'},
+        {id:'chat',downloadBytes:local.modelInstalled?0:chatPack.downloadBytes,downloadSources:chatPack.downloadSources,helpUrl,state:local.modelInstalled?(local.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:local.modelInstalled?(local.runtimeAvailable?'角色权重已安装，首次发送时自动加载验证。':'角色权重已安装，等待本地推理环境。'):'安装已训练的角色模型，无需重新训练。'},
+        {id:'translation',...describe(translationManifest.files),downloadBytes:translated.modelInstalled?0:describe(translationManifest.files).downloadBytes,state:translated.modelInstalled?(translated.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:translated.modelInstalled?(translated.runtimeAvailable?'中日翻译权重已安装，首次翻译时自动加载验证。':'中日翻译权重已安装，等待本地推理环境。'):'需要准备中日翻译权重。'},
         {id:'voiceCore',...describe(voiceCatalog.packs.core.files),state:coreReady||voices.coreReady?'ready':'missing',detail:'语音合成共用的 BERT 与 HuBERT 组件。'},
         {id:'voicePreset',...describe(voiceCatalog.packs[voiceCatalog.defaultVoicePack||'yukino-e2'].files),state:presetReady?'ready':'missing',detail:presetReady?'音色权重、日语参考声音及文本已配置。':'按需下载默认音色，并配置日语参考音频。'},
         {id:'pet',downloadBytes:pet.downloadBytes,downloadSources:pet.downloadSources,helpUrl,state:pet.installed?'ready':'missing',detail:'2,391 段桌宠预录语音；不依赖 Python。'}]};

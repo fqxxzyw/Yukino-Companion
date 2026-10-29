@@ -4,7 +4,7 @@ import Select from './Select.jsx';
 import ResourceHelp from './ResourceHelp.jsx';
 import {friendlyError} from './errors.mjs';
 const labels={runtime:'公共推理环境',chat:'雪乃本地对话模型',translation:'中日翻译模型',voiceCore:'语音公共模型',voicePreset:'默认雪乃音色与参考声音',pet:'桌宠预录语音'};
-const stateLabels={ready:'已准备好',missing:'需要准备',installing:'正在安装',downloading:'正在下载',checking:'正在检查',extracting:'正在解压',assembling:'正在整理',cancelled:'已取消',error:'需要处理',skipped:'已跳过',pending:'等待中',complete:'已准备好'};
+const stateLabels={ready:'已准备好',missing:'需要准备','waiting-runtime':'等待运行环境',installing:'正在安装',downloading:'正在下载',checking:'正在检查',extracting:'正在解压',assembling:'正在整理',cancelled:'已取消',error:'需要处理',skipped:'已跳过',pending:'等待中',complete:'已准备好'};
 const features=[['chat','本地对话','不用 API Key，在本机生成回复。',Monitor],['translation','日语翻译','缺少日文时，在本机补译。',Languages],['voice','语音合成','安装音色与语音公共模型。',AudioLines],['pet','桌宠语音','2,391 段预录声音，无需 Python。',Cat]];
 const busyStates=['checking','installing','downloading','extracting','assembling','running'];
 const featureFor={runtime:'runtime',chat:'chat',translation:'translation',voiceCore:'voice',voicePreset:'voice',pet:'pet'};

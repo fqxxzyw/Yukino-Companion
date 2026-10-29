@@ -157,13 +157,28 @@ test('first-use setup installs one shared runtime and keeps model/runtime states
   const app=await mainHarness({state,runtimeReady:false,voiceMissing:['bert','hubert']});
   const before=await app.invoke('setup-status');
   assert.equal(before.steps.find(item=>item.id==='runtime').state,'missing');
-  assert.equal(before.steps.find(item=>item.id==='chat').state,'ready');assert.equal(before.steps.find(item=>item.id==='translation').state,'ready');
+  assert.equal(before.steps.find(item=>item.id==='chat').state,'waiting-runtime');assert.equal(before.steps.find(item=>item.id==='translation').state,'waiting-runtime');
+  assert.equal(before.steps.find(item=>item.id==='chat').downloadBytes,0);assert.equal(before.steps.find(item=>item.id==='translation').downloadBytes,0);
   const after=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
   assert.equal(after.ready,true);assert.deepEqual(app.runtime.installs,['cpu']);assert.deepEqual(app.voiceInstallCalls,['core']);
   const local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status'),voice=await app.invoke('voice-settings');
   assert.equal(local.python,path.resolve('/embedded/python'));assert.equal(translation.config.python,local.python);assert.equal(voice.python,local.python);
   assert.equal(JSON.parse(app.storage.get('speech.json')).bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
   await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);
+});
+
+test('replaced app-managed Python paths follow the selected runtime across chat, translation and voice',async()=>{
+ const old=path.resolve('/virtual-user/runtime/old-runtime/python-runtime/python.exe'),files={'speech.json':JSON.stringify({python:old}),'translation.json':JSON.stringify({python:old}),'local-chat.json':JSON.stringify({python:old})};
+ const app=await mainHarness({state,runtimeReady:true,files});const expected=path.resolve('/embedded/python');
+ assert.equal((await app.invoke('voice-settings')).python,expected);assert.equal((await app.invoke('translation-status')).config.python,expected);assert.equal((await app.invoke('local-chat-settings')).python,expected);
+});
+
+test('missing app-managed Python is cleared until shared runtime installation completes',async()=>{
+ const old=path.resolve('/virtual-user/runtime/old-runtime/python-runtime/python.exe'),files={'speech.json':JSON.stringify({python:old}),'translation.json':JSON.stringify({python:old}),'local-chat.json':JSON.stringify({python:old})};
+ const app=await mainHarness({state,runtimeReady:false,files});
+ assert.equal((await app.invoke('voice-settings')).python,'');assert.equal((await app.invoke('translation-status')).config.python,'');assert.equal((await app.invoke('local-chat-settings')).python,'');
+ await app.invoke('setup-install',{features:['chat','translation','voice']});const expected=path.resolve('/embedded/python');
+ assert.equal((await app.invoke('voice-settings')).python,expected);assert.equal((await app.invoke('translation-status')).config.python,expected);assert.equal((await app.invoke('local-chat-settings')).python,expected);
 });
 
 test('setup exposes actual downloadable CPU-only or CPU/CUDA variants to the renderer',async()=>{

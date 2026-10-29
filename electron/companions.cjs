@@ -8,6 +8,7 @@ const petQuotes = require('./companion-view/quotes.json');
 const {CompanionReminderPolicy,validateReminderConfig}=require('./companion-reminders.cjs');
 const {speechSnapshot}=require('./speech-snapshot.cjs');
 const {verifyVideoPreviewPack,VIDEO_GAIT}=require('./companion-video-pack.cjs');
+const {validBody,clampSubject}=require('./companion-geometry.cjs');
 const MODES = new Set(['none', 'model', 'pet', 'both']);
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'model', 'pet', 'both']);
 const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,...PET_DEFAULTS });
@@ -24,7 +25,7 @@ function sanitizePreferences(value = {}, base = DEFAULTS) {
   const positions = {};
   for (const kind of ['pet', 'model']) {
     const p = next.positions?.[kind];
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) positions[kind] = { x: Math.round(p.x), y: Math.round(p.y) };
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) positions[kind] = { x: Math.round(p.x), y: Math.round(p.y), ...(validBody(p.body)?{body:validBody(p.body)}:{}) };
   }
   return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, animation: !!next.animation, positions };
 }
@@ -163,7 +164,7 @@ class CompanionManager {
     this.applyMode();
     for (const [kind, win] of this.windows) {
       const bounds = this.boundsFor(kind);
-      win.setBounds(bounds); win.setAlwaysOnTop(this.preferences.alwaysOnTop, 'floating'); this.sendState(win, kind);
+      if(this.drag?.kind!==kind)win.setBounds(bounds); win.setAlwaysOnTop(this.preferences.alwaysOnTop, 'floating'); this.sendState(win, kind);
     }
     for(const [kind,menu] of this.menus){const owner=this.windows.get(kind);if(!owner)continue;const anchor=owner.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:anchor.x+anchor.width/2,y:anchor.y+anchor.height/2}).workArea,bounds=adjacentMenuBounds(anchor,area);if(!bounds){this.closeMenu(kind);this.openMain();this.onOpenSettings('avatar');}else{menu.setBounds(bounds);menu.setAlwaysOnTop(this.preferences.alwaysOnTop,'floating');this.sendState(menu,kind,true);}}
     await this.persist(); this.emit(); return this.getState();
@@ -198,11 +199,13 @@ class CompanionManager {
     const area = (saved ? this.e.screen.getDisplayNearestPoint(saved) : this.e.screen.getPrimaryDisplay()).workArea;
     const {width,height}=viewportSize(kind,scale,area);
     const offset = this.preferences.mode === 'both' && kind === 'model' ? Math.round(230 * scale) : 0;
-    return clampBounds({ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: saved?.y ?? area.y + area.height - height, width, height }, area);
+    const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: saved?.y ?? area.y + area.height - height, width, height };
+    const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
+    return clampSubject(bounds,saved?.body,areas)||clampBounds(bounds,area);
   }
   applyMode() {
     const desired = kindsForMode(this.preferences.mode);
-    for (const [kind, win] of this.windows) if (!desired.includes(kind)) { this.windows.delete(kind); this.closeMenu(kind); win.destroy(); }
+    for (const [kind, win] of this.windows) if (!desired.includes(kind)) { if(this.drag?.kind===kind)this.drag=null; this.windows.delete(kind); this.closeMenu(kind); win.destroy(); }
     for (const kind of desired) if (!this.windows.has(kind)) this.createWindow(kind);
     this.refreshActivity(); this.updateTray();
   }
@@ -243,7 +246,7 @@ class CompanionManager {
     }
     if(action==='chat-stop'){await this.onChatStop();return true;}
     if(action==='vision-stop'){await this.onVisionStop();return true;}
-    if(action==='vision-open'){await this.onVision(win,kind);return true;}
+    if(action==='vision-open'){const opened=await this.onVision(win,kind);if(opened===false)throw Error('视觉窗口已关闭，请重新打开。');return true;}
     if (action === 'catalog') return {voices:(this.voiceCatalog?.files||[]).map(item=>item.file).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name))};
     if (action === 'voice-url') {if(this.speechBusy)throw Error('角色正在朗读，请等待或停止。');return this.voiceUrl(payload);}
     if (action === 'settings') { this.closeMenu(kind); this.openMain(); this.onOpenSettings('avatar'); return true; }
@@ -256,12 +259,13 @@ class CompanionManager {
     if (action === 'ready') { this.sendState(win, kind,isMenu); return true; }
     if (action === 'open-main') { this.openMain(); return true; }
     if (action === 'hit-test') { win.setIgnoreMouseEvents(payload === false, { forward: true }); return true; }
-    if (action === 'drag-start') { this.onUse(); this.walkFraction={x:0,y:0}; const point = this.e.screen.getCursorScreenPoint(); const [x,y] = win.getPosition(); this.closeMenu(kind); this.drag = { kind, point, x, y, width:win.getBounds().width, height:win.getBounds().height }; win.setIgnoreMouseEvents(false); return true; }
+    if (action === 'drag-start') { this.onUse(); this.walkFraction={x:0,y:0}; const point = this.e.screen.getCursorScreenPoint(); const [x,y] = win.getPosition(); this.closeMenu(kind); this.drag = { kind, point, x, y, width:win.getBounds().width, height:win.getBounds().height,body:validBody(payload?.body) }; win.setIgnoreMouseEvents(false); return true; }
     if (action === 'drag-move' && this.drag?.kind === kind) {
       const point = this.e.screen.getCursorScreenPoint(); const area = this.e.screen.getDisplayNearestPoint(point).workArea;
-      const bounds=clampBounds({x:this.drag.x+point.x-this.drag.point.x,y:this.drag.y+point.y-this.drag.point.y,width:this.drag.width,height:this.drag.height},area); moveWindow(win,bounds); return true;
+      const candidate={x:this.drag.x+point.x-this.drag.point.x,y:this.drag.y+point.y-this.drag.point.y,width:this.drag.width,height:this.drag.height};
+      const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];const bounds=clampSubject(candidate,this.drag.body,areas)||clampBounds(candidate,area);moveWindow(win,bounds); return true;
     }
-    if (['drag-end','drag-cancel'].includes(action) && this.drag?.kind === kind) { this.drag = null; const [x,y] = win.getPosition(); this.preferences.positions[kind] = { x,y }; const current=win.getBounds(),canonical=this.boundsFor(kind);if(current.width!==canonical.width||current.height!==canonical.height)win.setBounds(canonical);this.sendState(win,kind);await this.persist(); return true; }
+    if (['drag-end','drag-cancel'].includes(action) && this.drag?.kind === kind) { const body=this.drag.body;this.drag = null;const [x,y] = win.getPosition();this.preferences.positions[kind] = {x,y,...(body?{body}:{})};this.sendState(win,kind);await this.persist(); return true; }
     if (action === 'walk-step' && kind === 'pet' && !this.drag && this.preferences.animation && !this.preferences.interactionPaused && !this.preferences.quietMode && this.preferences.focusEnds<=Date.now() && !this.chatBusy && !this.menus.has(kind) && (payload === -1 || payload === 1 || (payload&&Number.isFinite(payload.x)&&Number.isFinite(payload.y)&&Math.abs(payload.x)<=1&&Math.abs(payload.y)<=1))) {
       const bounds = win.getBounds(); const area = this.e.screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }).workArea;
       const elapsed=typeof payload==='object'&&Number.isFinite(payload.elapsedMs)?Math.max(0,Math.min(100,payload.elapsedMs)):100;

@@ -75,7 +75,10 @@ test('actual React skin picker renders locks, real local previews, neutral fallb
  const fs=require('node:fs/promises'),os=require('node:os'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
  const {transformWithOxc}=await import('vite');const directory=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-skin-picker-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
  const source=await fs.readFile(path.resolve(__dirname,'../src/ui/SkinPicker.jsx'),'utf8');let {code}=await transformWithOxc(source,'SkinPicker.jsx');
- code=code.replace(/import "\.\/SkinPicker\.css";?/,'').replaceAll('"../companion/skin-unlocks.mjs"',JSON.stringify(pathToFileURL(modulePath).href)).replaceAll('"./skin-groups.mjs"',JSON.stringify(pathToFileURL(path.resolve(__dirname,'../src/ui/skin-groups.mjs')).href));
+ const selectSource=await fs.readFile(path.resolve(__dirname,'../src/ui/Select.jsx'),'utf8');let selectCode=(await transformWithOxc(selectSource,'Select.jsx')).code;
+ for(const name of ['react','react/jsx-runtime','react-dom','lucide-react'])selectCode=selectCode.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
+ const selectFile=path.join(directory,'Select.mjs');await fs.writeFile(selectFile,selectCode);
+ code=code.replace(/import "\.\/SkinPicker\.css";?/,'').replaceAll('"../companion/skin-unlocks.mjs"',JSON.stringify(pathToFileURL(modulePath).href)).replaceAll('"./skin-groups.mjs"',JSON.stringify(pathToFileURL(path.resolve(__dirname,'../src/ui/skin-groups.mjs')).href)).replaceAll('"./Select.jsx"',JSON.stringify(pathToFileURL(selectFile).href));
  for(const name of ['react','react/jsx-runtime','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
  const file=path.join(directory,'SkinPicker.mjs');await fs.writeFile(file,code);const {default:SkinPicker}=await import(pathToFileURL(file).href);
  const html=renderToStaticMarkup(React.createElement(SkinPicker,{models:[model('07'),model('02',{thumbnail:'./characters/actual-preview.png'}),model('03',{thumbnail:'https://remote.invalid/not-auto-loaded.png'}),model('01',{status:'HOLD'})],selectedId:'yukino-07-v1'}));

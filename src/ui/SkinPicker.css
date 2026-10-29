@@ -4,3 +4,7 @@
 .reduce .skin-card:hover:not(:disabled){transform:none}
 
 .skin-group{min-width:0;display:flex;flex-direction:column;gap:6px}.skin-group>.skin-card{width:100%;flex:1}.skin-version-select{display:grid;gap:4px;font-size:10px;color:var(--secondary,#536981)}.skin-version-select select{max-width:100%;width:100%;font-size:11px;padding:6px;border-radius:8px;border:1px solid var(--line,#d6e1ef);color:var(--text,#22354e);background:var(--surface,#fff)}.skin-version-select select:focus-visible{outline:2px solid var(--accent,#477fd1);outline-offset:2px}.skin-variant-warning{font-size:10px;line-height:1.5;color:var(--secondary,#536981)}
+
+/* Locked outfits remain visible so the complete wardrobe can be inspected. */
+.skin-preview.is-locked img{filter:saturate(.85);opacity:.88;transform:none}
+.skin-version-select .select-control{width:100%}.skin-version-select .select-trigger{min-height:30px;padding:5px 8px;font-size:11px}

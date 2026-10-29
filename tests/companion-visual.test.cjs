@@ -18,3 +18,17 @@ test('stale screen cleanup cannot hide camera-active global indicator or Stop af
 test('panel document reload revokes capture while subframe and same-document navigation do not reset consent',async t=>{const f=fixture();t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true}),entry=f.manager.entry;entry.win.webContents.emit('did-start-navigation',{isMainFrame:false,isSameDocument:false});entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:true});assert.equal(entry.camera.session.token,grant.token);entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(entry.camera.session,null);assert.equal(entry.active,false)});
 
 test('known built-in local text profile is blocked even when labeled API and visionEnabled',async t=>{const f=fixture();t.after(()=>f.manager.close());f.state.profiles[0]={id:'test',base:'http://127.0.0.1:8000/v1',model:'oregairu-small',visionEnabled:true};await f.manager.open(f.owner,'model');assert.equal((await f.call('info')).profile.visionEnabled,false);await assert.rejects(f.call('camera-start',{consent:true}),/本地文本/);await assert.rejects(f.call('screen-sources',{consent:true}),/本地文本/);assert.equal(f.captures(),0)});
+
+test('destroyed vision window revokes camera permission and can be reopened without touching destroyed webContents',async t=>{
+ const f=fixture();t.after(()=>f.manager.close());await f.manager.open(f.owner,'pet');
+ const entry=f.manager.entry,contents=entry.win.webContents;await f.call('camera-start',{consent:true});assert.equal(entry.gate.grants.size,1);
+ Object.defineProperty(entry.win,'webContents',{configurable:true,get(){if(this.destroyed)throw Error('Object has been destroyed');return contents;}});
+ assert.doesNotThrow(()=>entry.win.destroy());assert.equal(entry.gate.grants.size,0);assert.equal(entry.camera.session,null);assert.equal(f.manager.entry,null);
+ assert.equal(await f.manager.open(f.owner,'pet'),true);assert.notEqual(f.manager.entry,entry);
+});
+
+test('configuration change after a destroyed visual window cannot send on a dead webContents',async()=>{
+ const f=fixture();await f.manager.open(f.owner,'pet');const entry=f.manager.entry,contents=entry.win.webContents;
+ Object.defineProperty(entry.win,'webContents',{get(){if(this.destroyed)throw Error('Object has been destroyed');return contents;}});
+ entry.win.destroyed=true;f.state.profiles[0].model='different';assert.doesNotThrow(()=>f.manager.stateChanged(f.state));assert.doesNotThrow(()=>f.manager.close());
+});

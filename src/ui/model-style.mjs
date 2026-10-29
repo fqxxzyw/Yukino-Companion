@@ -12,9 +12,11 @@ export function applyRenderStyle(root,style='natural'){
  });
 }
 export function modelMaterials(mesh){const saved=styles.get(mesh),values=saved?[mesh.material,saved.original,saved.toon,saved.lit,...saved.retained]:[mesh.material];return values.flat().filter(Boolean)}
-export function cameraFrame(bounds,aspect,zoom=1){
+export function cameraFrame(bounds,aspect,zoom=1,yaw=0){
  const z=Math.max(1,Math.min(2.2,Number(zoom)||1)),{size,center}=bounds,vertical=THREE.MathUtils.degToRad(30),horizontal=2*Math.atan(Math.tan(vertical/2)*Math.max(.1,aspect));
- const base=Math.max(size.y/2/Math.tan(vertical/2),Math.hypot(size.x,size.z)/2/Math.tan(horizontal/2))*1.13+size.z/2;
+ const angle=THREE.MathUtils.degToRad(Number.isFinite(yaw)?yaw:0),cos=Math.abs(Math.cos(angle)),sin=Math.abs(Math.sin(angle));
+ const width=size.x*cos+size.z*sin,depth=size.x*sin+size.z*cos;
+ const base=Math.max(size.y/2/Math.tan(vertical/2),width/2/Math.tan(horizontal/2))*1.13+depth/2;
  const lift=size.y*.26*((z-1)/1.2),distance=Math.max(size.z*.7+.35,base/z);
  return {zoom:z,target:new THREE.Vector3(center.x,center.y+lift,center.z),position:new THREE.Vector3(center.x,center.y+lift,center.z+distance),near:Math.max(.001,distance/100),far:Math.max(20,distance*20)};
 }

@@ -7,6 +7,7 @@ const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { UsageTracker } = require('../electron/usage.cjs');
 const { CompanionManager, sanitizePreferences, clampBounds, viewportSize, adjacentMenuBounds } = require('../electron/companions.cjs');
+const {covered,clampSubject}=require('../electron/companion-geometry.cjs');
 
 function clock(start = Date.UTC(2026,9,25,10)) {
   let wall = start, mono = 0;
@@ -172,6 +173,26 @@ test('repeated drag keeps canonical dimensions and full movement range; cancella
  }
  assert.equal(positionCalls,40);assert.equal(resizeCalls,0);
  const before={...win.bounds};cursor={x:0,y:0};assert.equal(await f.manager.viewCall(event,'drag-move'),false);assert.deepEqual(win.bounds,before);
+});
+
+test('drag constrains the visible pet instead of its transparent margins and preserves its actual release position',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
+ const body={x:.2,y:.3,width:.6,height:.5};let cursor={x:0,y:0};f.screen.getCursorScreenPoint=()=>cursor;
+ await f.manager.viewCall(event,'drag-start',{body});cursor={x:-10000,y:-10000};await f.manager.viewCall(event,'drag-move');
+ const atEdge={...win.bounds};assert.ok(atEdge.x<0);assert.ok(atEdge.y<0);
+ assert.ok(Math.abs(atEdge.x+body.x*atEdge.width)<=.5);assert.ok(Math.abs(atEdge.y+body.y*atEdge.height)<=.5);
+ await f.manager.setPreferences({soundVolume:.5});assert.deepEqual(win.bounds,atEdge,'unrelated settings do not interrupt drag');
+ await f.manager.viewCall(event,'drag-end');assert.deepEqual(win.bounds,atEdge,'release does not reposition the pet');
+ assert.deepEqual(f.manager.preferences.positions.pet,{x:atEdge.x,y:atEdge.y,body});assert.deepEqual(f.manager.boundsFor('pet'),atEdge);
+});
+
+test('visible drag bounds can cross an adjacent monitor seam but avoid gaps',()=>{
+ const areas=[{x:0,y:0,width:100,height:100},{x:100,y:0,width:100,height:100}],body={x:.2,y:.2,width:.6,height:.6};
+ assert.equal(covered({x:80,y:20,width:40,height:40},areas),true);
+ const seam={x:70,y:0,width:100,height:100};assert.deepEqual(clampSubject(seam,body,areas),seam);
+ const gap=[areas[0],{x:120,y:0,width:100,height:100}];assert.equal(covered({x:80,y:20,width:40,height:40},gap),false);
+ const fixed=clampSubject(seam,body,gap);assert.equal(covered({x:fixed.x+20,y:fixed.y+20,width:60,height:60},gap),true);
+ assert.equal(clampSubject(seam,{x:-1,y:0,width:2,height:1},areas),null);
 });
 
 test('elapsed-time walking has equivalent speed at 10 and 60 updates per second',async t=>{
