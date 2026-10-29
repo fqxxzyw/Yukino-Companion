@@ -35,8 +35,8 @@ test('revalidation is read-only and binds the exact previously published install
   assert.deepEqual(verify.permissions,{contents:'read',actions:'read'});
   assert.equal(verify.jobs.validation['runs-on'],'windows-2022');
   const steps=verify.jobs.validation.steps,download=steps.find(s=>s.uses==='actions/download-artifact@v4');
-  assert.equal(download.with['run-id'],40851833722);
-  assert.match(steps.find(s=>s.name==='Bind the downloaded installer to the exact published candidate').run,/1172190ce36032f85491db8966a2f336ffe03ef46d677f6b41cef15f8c0911fd/);
+  assert.equal(download.with['run-id'],40856946334);
+  assert.match(steps.find(s=>s.name==='Bind the downloaded installer to the exact published candidate').run,/b22423d646d4927ce106d8f5156f6cc48128e271a3a29b102bf33ea2e984bae5/);
   assert.ok(steps.some(s=>s.run?.includes('smoke-base-installer.ps1 -PayloadManifest')));
   assert.equal(steps.find(s=>s.name==='Preserve native screenshots and failure evidence').if,'always()');
 });

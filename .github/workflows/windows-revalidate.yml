@@ -27,8 +27,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@v4
         with:
-          name: Yukino-Windows-Setup-8dee5c95512df806753d65a588f865d58a6ad711
-          run-id: 40851833722
+          name: Yukino-Windows-Setup-14a81ee5986fafc06ead2598ec7c242224073b5d
+          run-id: 40856946334
           github-token: ${{ github.token }}
           path: .
       - name: Bind the downloaded installer to the exact published candidate
@@ -40,7 +40,7 @@ jobs:
           source=json.loads(Path('release/candidate-source.json').read_text(encoding='utf-8-sig'))
           exe=Path('release/Yukino-Companion-0.4.0-Base-Setup.exe')
           with exe.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
-          if source['commit']!='8dee5c95512df806753d65a588f865d58a6ad711' or source['runId']!='40851833722' or source['sha256']!=digest or source['bytes']!=exe.stat().st_size or digest!='1172190ce36032f85491db8966a2f336ffe03ef46d677f6b41cef15f8c0911fd':
+          if source['commit']!='14a81ee5986fafc06ead2598ec7c242224073b5d' or source['runId']!='40856946334' or source['sha256']!=digest or source['bytes']!=exe.stat().st_size or digest!='b22423d646d4927ce106d8f5156f6cc48128e271a3a29b102bf33ea2e984bae5':
               raise SystemExit('Downloaded installer does not match the published candidate')
           PY
       - name: Install, render default model, upgrade and uninstall exact published installer
