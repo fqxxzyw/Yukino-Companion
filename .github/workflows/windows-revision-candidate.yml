@@ -99,6 +99,7 @@ jobs:
           $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($source.commit -ne $env:GITHUB_SHA -or $source.runId -ne $env:GITHUB_RUN_ID -or $source.tree -ne (git rev-parse 'HEAD^{tree}') -or $source.bytes -ne $exe.Length -or $source.sha256 -ne $sha) { throw 'Candidate identity mismatch' }
       - name: Install, launch, upgrade, verify payload and uninstall
+        timeout-minutes: 10
         shell: pwsh
         run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json -VerifyCurrentFeatures
       - name: Preserve native smoke evidence

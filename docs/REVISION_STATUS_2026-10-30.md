@@ -127,6 +127,11 @@ contrary to the revision requirement. The installed-window check now requires
 the menu inside the panel and tests a bounded, independently scrollable long
 reply with fixed controls; a new run must execute the remaining upgrade and
 uninstall checks before those can be reported for the revised installer.
+The subsequent candidate [`40969274761`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40969274761)
+built and its source and installer digest matched, but its native smoke remained
+in progress beyond the expected duration. A bounded workflow step, renderer
+connection timeout, overall check watchdog and stage markers were added; this
+does not determine the cause of the stall or claim a successful installation.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
