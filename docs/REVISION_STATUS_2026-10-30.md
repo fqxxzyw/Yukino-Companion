@@ -107,6 +107,18 @@ a 15 ms idle timeout and the second source did not finish under CI load. The
 test now gives the successful source 500 ms while still requiring the first
 source to time out and checking the fallback bytes and progress. That change
 does not alter the production download timeout or close the eight-weight gap.
+After the test adjustment, the Windows source/interface workflow
+[`40965754603`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40965754603)
+passed; the paired integration run
+[`40965754778`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40965754778)
+passed 17 model render variants but again failed its eight-weight WebGL step.
+
+`windows-revision-candidate.yml` builds an unpublished candidate on the
+revision branch and separately tests its native installation against the exact
+source and payload manifest. It has read-only repository permissions and
+uploads only the permitted extractable EXE and manifests, not standalone model
+files. Its presence is not evidence that a candidate was built or installed;
+check the actual workflow run and keep final publication gated on acceptance.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
