@@ -63,6 +63,13 @@ phases and a final rendered model. A Linux software-rendering rerun completed
 all 17 model versions and synthetic audio-clock checks. This does not close the
 Windows failures or prove trained-voice synthesis.
 
+`windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
+runner. It prepares the published runtime and pinned resources concurrently,
+then calls `verify-offline-chain.cjs` with the real services and preserves only
+the report and newly synthesized WAVs. It does not upload model weights or
+prove physical playback, GPU use, or mouth/body synchronization. Starting the
+job is not evidence that the real chain completed; check its result and report.
+
 ## Outstanding acceptance work
 
 Do not mark the full revision plan or product complete. In particular:
