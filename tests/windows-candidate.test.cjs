@@ -29,3 +29,14 @@ test('requested build then prerelease then native validation order preserves exa
   assert.ok(source.indexOf('scripts/verify-installed-window.cjs')<source.indexOf(' Stop-InstalledApp\n $stderrFile'));
   assert.match(source,/Error occurred in handler for/);
 });
+
+test('revalidation is read-only and binds the exact previously published installer',()=>{
+  const verify=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/windows-revalidate.yml'),'utf8'));
+  assert.deepEqual(verify.permissions,{contents:'read',actions:'read'});
+  assert.equal(verify.jobs.validation['runs-on'],'windows-2022');
+  const steps=verify.jobs.validation.steps,download=steps.find(s=>s.uses==='actions/download-artifact@v4');
+  assert.equal(download.with['run-id'],40851833722);
+  assert.match(steps.find(s=>s.name==='Bind the downloaded installer to the exact published candidate').run,/1172190ce36032f85491db8966a2f336ffe03ef46d677f6b41cef15f8c0911fd/);
+  assert.ok(steps.some(s=>s.run?.includes('smoke-base-installer.ps1 -PayloadManifest')));
+  assert.equal(steps.find(s=>s.name==='Preserve native screenshots and failure evidence').if,'always()');
+});

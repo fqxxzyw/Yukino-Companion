@@ -2,7 +2,13 @@ name: Windows installer candidate
 'on':
   push:
     branches: [handoff/codex-current-20261028]
-    paths-ignore: ['docs/**', '**.md']
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/windows-candidate.yml'
+      - '.github/workflows/windows-revalidate.yml'
+      - 'scripts/verify-installed-window.cjs'
+      - 'tests/windows-candidate.test.cjs'
   workflow_dispatch:
 permissions:
   contents: read

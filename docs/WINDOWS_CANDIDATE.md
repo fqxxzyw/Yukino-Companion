@@ -50,3 +50,10 @@ Hashes do not establish code signing, malware scanning or feature acceptance.
   SHA-256 checks; user-imported files continue to use strict file identity.
   Installed-app validation now checks actual IPC model loading and a rendered
   frame, and preserves an additional screenshot after dismissing setup.
+
+The 8dee5c9 installer was published and its installed renderer reported the
+expected default model and a completed frame. The first verification process then
+hung while closing its debugging connection; that run was cancelled. A read-only
+revalidation workflow binds to the already published run, commit, size and
+SHA-256, and reruns installation, rendered-model, upgrade and uninstall checks
+with a corrected short-lived verifier. It never creates a second Release.

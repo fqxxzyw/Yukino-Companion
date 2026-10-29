@@ -26,5 +26,5 @@ async function verify(profile){
     throw Error('Installed character did not render: '+JSON.stringify(last));
   }finally{socket.close();}
 }
-if(require.main===module)verify(process.argv[2]).catch(error=>{console.error(error.message);process.exitCode=1;});
+if(require.main===module)verify(process.argv[2]).then(()=>process.stdout.write('',()=>process.exit(0)),error=>{console.error(error.message);process.stderr.write('',()=>process.exit(1));});
 module.exports={verify};
