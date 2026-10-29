@@ -5,6 +5,7 @@ name: Verify published Windows candidate independently
     paths:
       - '.github/workflows/windows-quick-verify.yml'
       - 'scripts/smoke-quick-installer.ps1'
+      - 'tests/voice-resources.test.cjs'
 permissions:
   contents: read
   actions: read
@@ -55,4 +56,26 @@ jobs:
           node scripts/smoke-aria2.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/smoke-aria2-parts.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  source_regression:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Run public source, Python and community tests
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p '*_test.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test community/tests/*.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

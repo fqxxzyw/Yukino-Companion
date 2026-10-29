@@ -6,6 +6,7 @@ const os=require('node:os');
 const {createHash}=require('node:crypto');
 const {VoiceResources,verified,safeDestination}=require('../electron/voice-resources.cjs');
 function file(data,algorithm='sha256'){const hash=createHash(algorithm);if(algorithm==='sha1')hash.update(`blob ${data.length}\0`);hash.update(data);return {path:'model/config.json',url:'https://example.test/model',bytes:data.length,algorithm,digest:hash.digest('hex')}}
+function rendezvous(expected){let count=0,release;const gate=new Promise(resolve=>release=resolve);return async()=>{if(++count===expected)release();let timer;try{await Promise.race([gate,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('并发下载未同时启动')),10000);})]);}finally{clearTimeout(timer);}};}
 async function setup(t,data,fetcher){const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-download-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const item=file(data);return {root,item,installer:new VoiceResources({root,catalog:{packs:{core:{files:[item],label:'test'}}},fetcher})}}
 test('model downloads verify digest, atomically publish, and skip verified files',async t=>{
  const data=Buffer.from('verified data');let calls=0;const {root,item,installer}=await setup(t,data,async()=>{calls++;return new Response(data)});
@@ -56,7 +57,7 @@ test('Git blob configuration files switch to a second pinned source and still ve
 test('multi-file model progress retains independent rows and never reports pack complete early',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-file-progress-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const data=[Buffer.from('first model data'),Buffer.from('second model data')],files=data.map((bytes,index)=>({...file(bytes),path:`model/file-${index}.bin`,url:`https://example.test/${index}`})),events=[];let active=0,maximum=0;
- const installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>{active++;maximum=Math.max(active,maximum);await new Promise(resolve=>setTimeout(resolve,10));active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});await installer.install();
+ const meet=rendezvous(2),installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>{active++;maximum=Math.max(active,maximum);await meet();active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});await installer.install();
  assert.equal(maximum,2,'both independent weight files run concurrently');assert.ok(events.some(event=>event.fileIndex===1&&event.files.length===2));
  assert.equal(events.filter(event=>event.phase==='complete').length,1);assert.ok(events.at(-1).files.every(row=>row.phase==='complete'&&row.received===row.total));
 });
@@ -64,6 +65,6 @@ test('public speech components and a selected voice pack can download together',
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-voice-parallel-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const data=[Buffer.from('public component'),Buffer.from('trained gpt'),Buffer.from('trained sovits')],records=data.map((bytes,index)=>({...file(bytes),path:`file-${index}`,url:`https://example.test/${index}`}));
  const catalog={packs:{core:{kind:'core',files:[records[0]]},voice:{kind:'voice',version:'v1',files:records.slice(1),paths:{gpt:'file-1',sovits:'file-2'}}}};let active=0,maximum=0;
- const installer=new VoiceResources({root,catalog,fetcher:async url=>{active++;maximum=Math.max(active,maximum);await new Promise(resolve=>setTimeout(resolve,12));active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});
+ const meet=rendezvous(3),installer=new VoiceResources({root,catalog,fetcher:async url=>{active++;maximum=Math.max(active,maximum);await meet();active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});
  const [core,voice]=await Promise.all([installer.install('core'),installer.install('voice')]);assert.equal(maximum,3);assert.equal(voice.gpt,path.join(root,'file-1'));assert.equal(voice.sovits,path.join(root,'file-2'));assert.ok(core.bert);assert.equal(installer.controller,null);
 });

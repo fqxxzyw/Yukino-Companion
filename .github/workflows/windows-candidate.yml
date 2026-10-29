@@ -11,6 +11,7 @@ name: Windows installer candidate
       - '.github/workflows/windows-quick-verify.yml'
       - 'scripts/smoke-quick-installer.ps1'
       - 'tests/windows-candidate.test.cjs'
+      - 'tests/voice-resources.test.cjs'
   workflow_dispatch:
 permissions:
   contents: read
