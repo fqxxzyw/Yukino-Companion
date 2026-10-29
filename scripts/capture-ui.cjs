@@ -339,6 +339,12 @@ async function run() {
   await check('Compact right docking preserves minimum chat width',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.x>c.x&&a.width>=168&&c.width>=310;})()`);
   await click('[aria-label="设置"]');await settle();
   await capture('13-compact-settings');
+  await click('[aria-label="关闭设置"]');await settle();
+  await click('[aria-label="打开服装面板"]');
+  await click('.wardrobe-panel .skin-card:not(:disabled)');
+  await waitFor(`document.querySelector('.contact-avatar img')?.getAttribute('src')?.includes('yukino-07.png')&&document.querySelector('.message-avatar img')?.getAttribute('src')?.includes('yukino-07.png')`,'contact and chat avatars using the selected outfit');
+  await check('Selected outfit appears in both contact and chat avatars',`[...document.querySelectorAll('.contact-avatar img')].length>=2&&[...document.querySelectorAll('.contact-avatar img')].every(img=>img.complete&&img.naturalWidth>0)`);
+  await capture('14-current-outfit-avatars');
   report.success=report.errors.length===0&&report.blockedRequests.length===0;
   if(!report.success)throw Error('Visual QA produced renderer errors or attempted network requests.');
 }

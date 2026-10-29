@@ -33,15 +33,18 @@ the changes described here. Keep the history and release assets intact.
 - Vision configuration has a direct settings route and return link. Changing
   the destination revokes active capture/send consent and requires a new
   preview. This is bounded image sampling, not continuous video calling.
+- Contact and chat avatars use the selected built-in outfit's pinned local
+  preview. Imported models without a safe local preview show a neutral fallback;
+  live snapshots for imported or visually modified versions remain outstanding.
 - Decorative setup and community copy was shortened. A wardrobe button press
   no longer overrides the vertical centering transform, which previously
   moved the button away from the pointer before release.
 
 ## Local evidence
 
-The source regression ran with 749 Node tests, 66 Python tests and 19 community
+The source regression ran with 755 Node tests, 66 Python tests and 19 community
 tests passing. The production build completed. Electron 45 on Linux with
-software rendering completed 84 main-interface checks, pet-menu checks and a
+software rendering completed 86 main-interface checks, pet-menu checks and a
 moving-background glass comparison. This is supplemental to Windows; the
 headless pet run explicitly skipped native desktop-window movement.
 
@@ -89,6 +92,13 @@ misunderstood who was going to rest; response quality is not accepted by this
 smoke test. The current branch starts voice preparation during the response,
 with cancellation guards. Its real performance and subjective quality must be
 measured separately before claiming an improvement.
+
+[`40954487007`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40954487007)
+completed the same real CPU chain with voice loading overlapped. Its first WAV
+was ready after 45.89 seconds and the second turn after 6.11 seconds. These are
+separate hosted runs, not a controlled hardware benchmark or a measurement of
+speaker latency. Generated WAVs and the exact report were preserved separately;
+playback, listening quality and synchronization remain unverified.
 
 ## Outstanding acceptance work
 

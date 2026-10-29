@@ -21,3 +21,9 @@ test('opening a conversation switches to its owner and never crosses character h
  const next=selectCharacterConversation(state,'alice','b');assert.equal(next.activeCharacter,'alice');assert.equal(next.activeConversation,'b');assert.equal(next.persona,'她的设定');
  assert.equal(selectCharacterConversation(state,'alice','a'),state);assert.equal(selectCharacterConversation(state,'missing','a'),state);
 });
+test('contacts use the selected local outfit preview for each character and reject remote thumbnails',async t=>{
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{ContactAvatar}=await component(t);
+ const models=[{id:'school',thumbnail:'./characters/thumbnails/yukino-07.png'},{id:'dress',thumbnail:'./characters/thumbnails/yukino-05.png'},{id:'external',thumbnail:'https://example.test/track.png'}];
+ const render=modelId=>renderToStaticMarkup(React.createElement(ContactAvatar,{character:{id:'yukino',modelId},models}));
+ assert.match(render('school'),/yukino-07\.png/);assert.match(render('dress'),/yukino-05\.png/);assert.doesNotMatch(render('external'),/example\.test/);assert.doesNotMatch(render('missing'),/<img/);
+});
