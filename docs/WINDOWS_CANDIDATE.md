@@ -57,3 +57,21 @@ hung while closing its debugging connection; that run was cancelled. A read-only
 revalidation workflow binds to the already published run, commit, size and
 SHA-256, and reruns installation, rendered-model, upgrade and uninstall checks
 with a corrected short-lived verifier. It never creates a second Release.
+
+## Published candidate revalidation result
+
+On 2026-10-29, the Windows revalidation run `40853118595` succeeded against
+`v0.4.0-test.40851833722`. Installer SHA-256:
+`1172190ce36032f85491db8966a2f336ffe03ef46d677f6b41cef15f8c0911fd`.
+The installer source was `8dee5c95512df806753d65a588f865d58a6ad711`;
+the revalidation scripts used `974894a569a91076207c3a9db38a0458c8f42d0d`.
+
+The disposable Windows 2022 worker installed to a Chinese path, launched the
+installed app, loaded and rendered the default `yukino-07-v1` model, checked
+101 installed payload files after installation and upgrade, rejected an unknown
+nonempty target, and confirmed uninstall preserved a personal file. The official
+aria2 binary also completed a small HTTPS download and hash check. Node 706,
+Python 65, and community 19 public tests passed. The screenshot was inspected.
+Other character visuals, actual inference, audio devices, physical GPU and full
+resource downloads remain unverified. The installer is unsigned and has not had
+an independent malware scan.
