@@ -46,8 +46,22 @@ moving-background glass comparison. This is supplemental to Windows; the
 headless pet run explicitly skipped native desktop-window movement.
 
 The Windows workflow added on this branch runs source, build and Electron
-checks without publishing artifacts. A workflow file or queued run is not a
-passing Windows result. The new code has not yet produced a tested installer.
+checks without publishing artifacts. Run
+[`40940785377`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40940785377)
+passed the Windows source/build, interface, pet and moving-backdrop checks;
+ten Python cases were skipped on that Windows runner. No installer was built.
+
+The independent Windows integration run
+[`40940785351`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40940785351)
+rendered all seven base models but failed while waiting for the walk14 preview;
+the eight-weight WebGL step timed out after five minutes. Its renderer was
+Microsoft Basic Render Driver, not a verified physical GPU. These failures are
+not covered by the successful Windows source/interface job and remain open.
+The model capture now records its last state and waits for a visible frame when
+an entering model is still outside the window; it still requires genuine gait
+phases and a final rendered model. A Linux software-rendering rerun completed
+all 17 model versions and synthetic audio-clock checks. This does not close the
+Windows failures or prove trained-voice synthesis.
 
 ## Outstanding acceptance work
 
