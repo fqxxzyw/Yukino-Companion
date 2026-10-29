@@ -46,3 +46,16 @@ test('failed selected resource remains a red-cross state and missing paths are a
  const setup=new SetupService({inspect:async()=>({steps:[{id:'pet',state:'missing'}]}),installPet:async()=>{const error=Error('ENOENT /private/path');error.code='ENOENT';throw error;}});
  await assert.rejects(setup.install({features:['pet']}),/资源尚未安装/);const state=await setup.status();assert.equal(state.steps[0].state,'error');assert.doesNotMatch(state.error,/ENOENT|private/);
 });
+test('setup downloads independent features concurrently while voice waits for the shared runtime',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),started=[],ready=new Set();
+ const pause=async name=>{started.push(name);await gate;ready.add(name);};
+ const setup=new SetupService({inspect:async()=>({steps:['runtime','chat','translation','pet','voiceCore','voicePreset'].map(id=>({id,state:ready.has(id)?'ready':'missing'}))}),installRuntime:()=>pause('runtime'),refresh:async()=>{},installChat:()=>pause('chat'),installTranslation:()=>pause('translation'),installPet:()=>pause('pet'),installVoice:async()=>{started.push('voiceCore');ready.add('voiceCore');return {};},saveVoice:async()=>{},installVoicePreset:async()=>{started.push('voicePreset');ready.add('voicePreset');}});
+ const job=setup.install({features:['chat','translation','voice','pet']});await new Promise(setImmediate);
+ assert.deepEqual(new Set(started),new Set(['runtime','chat','translation','pet']));assert.equal(setup.activeSteps.size,4);release();
+ assert.equal((await job).ready,true);assert.ok(started.indexOf('voiceCore')>started.indexOf('runtime'));
+});
+test('setup starts speech core and selected voice together after the runtime is ready',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),started=[],ready=new Set(['runtime']);
+ const setup=new SetupService({inspect:async()=>({steps:['runtime','voiceCore','voicePreset'].map(id=>({id,state:ready.has(id)?'ready':'missing'}))}),installRuntime:async()=>{},refresh:async()=>{},installVoice:async()=>{started.push('voiceCore');await gate;ready.add('voiceCore');return {};},saveVoice:async()=>{},installVoicePreset:async()=>{started.push('voicePreset');await gate;ready.add('voicePreset');}});
+ const job=setup.install({features:['voice']});await new Promise(setImmediate);assert.deepEqual(new Set(started),new Set(['voiceCore','voicePreset']));release();assert.equal((await job).ready,true);
+});

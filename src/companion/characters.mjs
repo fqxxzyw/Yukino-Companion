@@ -18,6 +18,11 @@ export function selectCharacter(state,id){
  if(!state.characters.some(item=>item.id===id))return state;
  return normalizeCharacters({...state,activeCharacter:id,activeConversation:null});
 }
+export function selectCharacterConversation(state,id,conversationId){
+ const conversation=state.conversations?.find(item=>item.id===conversationId&&item.characterId===id);
+ if(!conversation||!state.characters?.some(item=>item.id===id))return state;
+ return {...selectCharacter(state,id),activeConversation:conversationId};
+}
 export function createCharacter(state,{name,persona='',modelId=''}){
  name=name?.trim();if(!name||name.length>60)throw Error('请填写 1–60 字符的角色姓名。');
  if(typeof persona!=='string'||persona.length>6000)throw Error('角色设定最多 6000 字符。');

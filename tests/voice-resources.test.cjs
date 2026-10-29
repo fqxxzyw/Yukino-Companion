@@ -41,8 +41,15 @@ test('Git blob configuration files switch to a second pinned source and still ve
 
 test('multi-file model progress retains independent rows and never reports pack complete early',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-file-progress-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
- const data=[Buffer.from('first model data'),Buffer.from('second model data')],files=data.map((bytes,index)=>({...file(bytes),path:`model/file-${index}.bin`,url:`https://example.test/${index}`})),events=[];
- const installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>new Response(data[Number(new URL(url).pathname.slice(1))])});await installer.install();
- const second=events.find(event=>event.fileIndex===1&&event.fileReceived===0);assert.equal(second.files[0].phase,'complete');assert.equal(second.files[0].received,data[0].length);assert.equal(second.fileTotal,data[1].length);
+ const data=[Buffer.from('first model data'),Buffer.from('second model data')],files=data.map((bytes,index)=>({...file(bytes),path:`model/file-${index}.bin`,url:`https://example.test/${index}`})),events=[];let active=0,maximum=0;
+ const installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>{active++;maximum=Math.max(active,maximum);await new Promise(resolve=>setTimeout(resolve,10));active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});await installer.install();
+ assert.equal(maximum,2,'both independent weight files run concurrently');assert.ok(events.some(event=>event.fileIndex===1&&event.files.length===2));
  assert.equal(events.filter(event=>event.phase==='complete').length,1);assert.ok(events.at(-1).files.every(row=>row.phase==='complete'&&row.received===row.total));
+});
+test('public speech components and a selected voice pack can download together',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-voice-parallel-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data=[Buffer.from('public component'),Buffer.from('trained gpt'),Buffer.from('trained sovits')],records=data.map((bytes,index)=>({...file(bytes),path:`file-${index}`,url:`https://example.test/${index}`}));
+ const catalog={packs:{core:{kind:'core',files:[records[0]]},voice:{kind:'voice',version:'v1',files:records.slice(1),paths:{gpt:'file-1',sovits:'file-2'}}}};let active=0,maximum=0;
+ const installer=new VoiceResources({root,catalog,fetcher:async url=>{active++;maximum=Math.max(active,maximum);await new Promise(resolve=>setTimeout(resolve,12));active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});
+ const [core,voice]=await Promise.all([installer.install('core'),installer.install('voice')]);assert.equal(maximum,3);assert.equal(voice.gpt,path.join(root,'file-1'));assert.equal(voice.sovits,path.join(root,'file-2'));assert.ok(core.bert);assert.equal(installer.controller,null);
 });

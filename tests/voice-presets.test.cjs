@@ -34,6 +34,12 @@ test('downloaded common runtime is discovered without requiring a preinstalled P
  await write(runtime,'inference-engine/yukino-runtime.json',JSON.stringify({revision:'a'.repeat(40)}));await write(runtime,'inference-engine/GPT_SoVITS/TTS_infer_pack/TTS.py');
  const result=await bundledVoiceDefaults({resourceRoot:resources,dataRoot:data});assert.equal(result.bundled,true);assert.equal(result.defaults.python,path.join(runtime,'python-runtime/python.exe'));assert.equal(result.preset,null);
 });
+test('base app reuses its verified small reference audio without inventing prompt text',async t=>{
+ const root=await fixture(t),resources=path.join(root,'resources'),data=path.join(root,'data'),reference=path.join(resources,'voice-presets/yukino-reference.wav');
+ await fs.mkdir(path.dirname(reference),{recursive:true});await fs.copyFile(path.resolve(__dirname,'../resources/voice-presets/yukino-reference.wav'),reference);
+ const result=await bundledVoiceDefaults({resourceRoot:resources,dataRoot:data});assert.equal(result.defaults.reference,reference);assert.equal(result.defaults.promptText,'');
+ await fs.writeFile(reference,'bad reference');assert.equal((await bundledVoiceDefaults({resourceRoot:resources,dataRoot:data})).defaults.reference,'');
+});
 
 test('voice readiness distinguishes runtime, public weights, trained pair and reference without starting inference',async t=>{
  const root=await fixture(t),config={...DEFAULTS,promptText:'こんにちは。'};
@@ -42,7 +48,8 @@ test('voice readiness distinguishes runtime, public weights, trained pair and re
  for(const key of ['bert','hubert']){config[key]=path.join(root,key);await write(config[key],'config.json');await write(config[key],'pytorch_model.bin');await write(config[key],key==='bert'?'tokenizer.json':'preprocessor_config.json');}
  assert.equal((await voiceReadiness(config)).configured,true);
  await fs.rm(path.join(config.bert,'pytorch_model.bin'));const status=await voiceReadiness(config);assert.equal(status.configured,false);assert.deepEqual(status.missing.map(x=>x.key),['bert']);assert.match(status.message,/BERT 公共模型/);
- config.reference='';config.promptText='';const missing=await voiceReadiness(config);assert.deepEqual(missing.missing.map(x=>x.key),['reference','bert','promptText']);
+ config.reference='';config.promptText='';const missing=await voiceReadiness(config);assert.deepEqual(missing.missing.map(x=>x.key),['reference','bert']);
+ config.version='v3';assert.deepEqual((await voiceReadiness(config)).missing.map(x=>x.key),['reference','bert','promptText']);
 });
 
 test('first speech automatically loads prepared config and incomplete setup never starts a worker',async t=>{

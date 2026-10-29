@@ -137,7 +137,7 @@ test('legacy encrypted keys migrate using the persisted profile origin and orpha
 
 test('voice begin applies merged defaults after saving and unloading, with no manual load',async()=>{
   const app=await mainHarness({state});
-  const defaults=await app.invoke('voice-settings');assert.ok(defaults.gpt.endsWith('default.ckpt'));assert.ok(defaults.reference.endsWith('ref.wav'));assert.ok(defaults.promptText);
+  const defaults=await app.invoke('voice-settings');assert.ok(defaults.gpt.endsWith('default.ckpt'));assert.ok(defaults.reference.endsWith('ref.wav'));assert.equal(defaults.promptText,'');
   const status=await app.invoke('voice-status');assert.equal(status.configured,true);
   await app.invoke('voice-save',{...defaults,enabled:true});await app.invoke('voice-unload');
   const count=app.voiceActions.length;await app.invoke('voice-begin','first-voice');
@@ -229,7 +229,7 @@ test('cancelling while voice readiness is pending cannot start a core download',
   const app=await mainHarness({state,voiceMissing:['bert','hubert']});
   const readiness=app.voice.readiness.bind(app.voice);
   app.voice.readiness=async(...args)=>{
-    if(app.setup.active==='voiceCore'){
+    if(app.setup.activeSteps.has('voiceCore')){
       // Both the progress inspection and the actual installation preflight can
       // inspect resources. Hold both so cancellation happens inside preflight.
       pending++;if(pending>=2)entered.resolve();await gate.promise;
@@ -245,18 +245,32 @@ test('cancelling while voice readiness is pending cannot start a core download',
   assert.equal((await app.invoke('setup-status')).phase,'cancelled');
 });
 
-test('first-use default voice preparation preserves custom reference-only and transcript-only choices',async()=>{
- for(const saved of [{reference:path.resolve('/custom/my-reference.wav')},{promptText:'私が選んだ文章です。'}]){
-  const app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify(saved)}});
-  await assert.rejects(app.invoke('setup-install',{features:['voice']}),/自定义参考/);
-  const after=JSON.parse(app.storage.get('speech.json'));for(const [field,value]of Object.entries(saved))assert.equal(after[field],value);
-  assert.equal(app.voiceInstallCalls.includes('yukino-e2'),false);
- }
+test('default weight download preserves a custom reference and never pairs a text-only custom prompt with unrelated audio',async()=>{
+ const reference=path.resolve('/custom/my-reference.wav'),app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({reference})}});
+ await app.invoke('setup-install',{features:['voice']});assert.equal(JSON.parse(app.storage.get('speech.json')).reference,reference);assert.ok(app.voiceInstallCalls.includes('yukino-e2'));
+ const promptText='私が選んだ文章です。',textOnly=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({promptText})}});
+ await assert.rejects(textOnly.invoke('setup-install',{features:['voice']}),/自定义参考文本/);assert.equal(JSON.parse(textOnly.storage.get('speech.json')).promptText,promptText);assert.equal(textOnly.voiceInstallCalls.includes('yukino-e2'),false);
 });
 test('an app-managed default voice pair can be repaired without being mistaken for custom weights',async()=>{
  const saved={gpt:path.resolve('/embedded/models/yukino-v1/gpt-e2.ckpt'),sovits:path.resolve('/embedded/models/yukino-v1/sovits-e1-s3561.pth')};
  const app=await mainHarness({state,voiceMissing:['gpt'],referenceFixture:true,files:{'speech.json':JSON.stringify(saved)}});
- const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.phase,'ready');assert.ok(app.voiceInstallCalls.includes('yukino-e2'));assert.match(JSON.parse(app.storage.get('speech.json')).reference,/voice-presets[/\\]yukino-reference\.wav$/);
+ const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.phase,'ready');assert.ok(app.voiceInstallCalls.includes('yukino-e2'));assert.equal(JSON.parse(app.storage.get('speech.json')).reference,path.resolve('/embedded/voice-models/ref.wav'));
+});
+test('background voice installation commits selected paths without relying on the settings panel',async()=>{
+ const app=await mainHarness({state}),result=await app.invoke('voice-install','yukino-e2',{apply:true}),saved=JSON.parse(app.storage.get('speech.json'));
+ assert.equal(result.applied,true);assert.equal(saved.gpt,result.gpt);assert.equal(saved.sovits,result.sovits);assert.equal(saved.promptText,'');assert.ok(app.sent.some(x=>x.channel==='voice-config-updated'));
+});
+test('concurrent voice core and selected weights both persist without overwriting one another',async()=>{
+ const gate=deferred(),entered=deferred(),started=new Set();const app=await mainHarness({state,voiceMissing:['bert','gpt'],voiceInstallBarrier:async id=>{started.add(id);if(started.size===2)entered.resolve();await gate.promise;}});
+ const job=app.invoke('setup-install',{features:['voice']});await entered.promise;gate.resolve();const result=await job;assert.equal(result.ready,true);
+ const saved=JSON.parse(app.storage.get('speech.json'));assert.equal(saved.gpt,path.resolve('/embedded/voice-models/default.ckpt'));assert.equal(saved.sovits,path.resolve('/embedded/voice-models/default.pth'));assert.equal(saved.bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
+});
+test('a background voice download cannot overwrite a newer local voice selection',async()=>{
+ const app=await mainHarness({state}),owner=app.voiceDownloads.at(-1);let release;owner.install=()=>new Promise(resolve=>release=resolve);
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true});await new Promise(setImmediate);
+ const custom={...await app.invoke('voice-settings'),gpt:path.resolve('/custom/voice.ckpt'),sovits:path.resolve('/custom/voice.pth')};await app.invoke('voice-save',custom);
+ release({gpt:path.resolve('/downloaded/voice.ckpt'),sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});
+ const result=await pending;assert.equal(result.applied,false);const saved=JSON.parse(app.storage.get('speech.json'));assert.equal(saved.gpt,custom.gpt);assert.equal(saved.sovits,custom.sovits);
 });
 test('default voice download progress is routed to its active setup step',async()=>{
  const app=await mainHarness({state});app.setup.controller=new AbortController();app.setup.phase='installing';app.setup.active='voicePreset';

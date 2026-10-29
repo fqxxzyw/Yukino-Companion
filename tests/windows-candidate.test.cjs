@@ -22,11 +22,14 @@ test('requested build then prerelease then native validation order preserves exa
   assert.match(build.find(s=>s.name?.startsWith('Record exact source')).run,/nativeInstallLaunchUpgradeUninstall = \$false/);
   const validation=workflow.jobs.validation.steps;
   assert.ok(validation.some(s=>s.run?.includes('smoke-base-installer.ps1 -PayloadManifest build/base-payload.json')));
+  assert.ok(validation.some(s=>s.run?.includes('-VerifyCurrentFeatures')));
+  assert.ok(validation.some(s=>s.run?.includes('node scripts/smoke-aria2-parts.cjs')));
   assert.equal(validation.find(s=>s.name==='Preserve native screenshots and failure evidence').if,'always()');
   const source=fs.readFileSync(path.join(root,'scripts/smoke-base-installer.ps1'),'utf8');
   assert.equal((source.match(/base-payload\.cjs/g)||[]).length,2);
   assert.ok(source.indexOf('Installed payload does not match this build')<source.indexOf('$report.passed=$true'));
   assert.ok(source.indexOf('scripts/verify-installed-window.cjs')<source.indexOf(' Stop-InstalledApp\n $stderrFile'));
+  assert.match(source,/scripts\/verify-current-window\.cjs/);
   assert.match(source,/Error occurred in handler for/);
 });
 

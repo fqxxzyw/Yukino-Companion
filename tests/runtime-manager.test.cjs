@@ -37,7 +37,7 @@ async function temporary(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'yukino-runtime-test-'));
   t.after(() => fs.rm(root,{recursive:true,force:true})); return root;
 }
-async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',gpuAvailable:true,translationGpuBuild:true})}), fetcher, notify} = {}) {
+async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',gpuAvailable:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify} = {}) {
   const temp = await temporary(t), resourceRoot = path.join(temp,'resources'), dataRoot = path.join(temp,'data');
   await fs.mkdir(resourceRoot,{recursive:true});
   const entries = [{name:'python-runtime/python.exe',data:'synthetic Python fixture'}, {name:'python-runtime/ffmpeg.exe',data:'synthetic ffmpeg'}, {name:'python-runtime/yukino-runtime-build.json',data:JSON.stringify({flavor})}];
@@ -45,7 +45,7 @@ async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify(
   const pack = {id:`runtime-${flavor}`,archiveSha256:digest(archive),unpackedBytes:entries.reduce((sum,e)=>sum+Buffer.byteLength(e.data),0),parts:chunks.map((chunk,index)=>({path:`runtime.zip.part${index+1}`,url:`https://github.com/fqxxzyw/Yukino-Companion/releases/download/test/runtime.zip.part${index+1}`,algorithm:'sha256',digest:digest(chunk),bytes:chunk.length}))};
   const catalog = {schemaVersion:1,version:'test-1',variants:{[flavor]:pack}}, catalogPath = path.join(temp,'runtime.json'), calls = [];
   await fs.writeFile(catalogPath,JSON.stringify(catalog));
-  const manager = new RuntimeManager({dataRoot,resourceRoot,catalogPath,platform:'win32',run,notify,fetcher:async(url,options)=>{
+  const manager = new RuntimeManager({dataRoot,resourceRoot,catalogPath,platform:'win32',run,hardwareRun,notify,fetcher:async(url,options)=>{
     calls.push(url); if(fetcher)return fetcher(url,options);
     const index=pack.parts.findIndex(part=>part.url===url); assert.ok(index>=0,'only declared runtime files may be downloaded');
     return new Response(chunks[index]);
@@ -173,6 +173,11 @@ test('hardware auto-selection uses an argument-vector probe and falls back to CP
   assert.equal(await detectNvidia('win32',async()=>({stdout:'AMD Radeon'})),false);
   assert.equal(await detectNvidia('win32',async()=>{throw Error('missing utility');}),false);
   assert.throws(()=>safeEntry('/tmp/test','../escape'));
+});
+test('hardware detection reports NVIDIA even before Python or a CUDA runtime is installed',async t=>{
+ let checks=0;const env=await fixture(t,{flavor:'cpu',hardwareRun:async()=>{checks++;return {stdout:'NVIDIA GeForce RTX 3060'};}});
+ const status=await env.manager.status();assert.equal(status.ready,false);assert.equal(status.hardware.checked,true);assert.equal(status.hardware.nvidia,true);assert.deepEqual(status.variants,['cpu']);
+ await env.manager.status();assert.equal(checks,1,'repeated status checks reuse the hardware probe');
 });
 
 test('cancel during hardware selection does not start a download after the probe returns',async t=>{

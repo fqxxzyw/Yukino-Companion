@@ -14,12 +14,13 @@ const langs = [['zh','中英混合'],['ja','日英混合'],['en','英语'],['aut
 export default function VoiceSettings({api,config,onChange,status,onPreview,onStop,onOpenSetup}) {
   const [notice,setNotice]=useState(''),[working,setWorking]=useState(false),[hardware,setHardware]=useState(null),[sample,setSample]=useState('こんにちは。今日は何を話しましょうか。');
   const [resources,setResources]=useState({phase:'idle'}),[selectedPack,setSelectedPack]=useState('yukino-e2');
-  const downloading=['checking','downloading','extracting'].includes(resources.phase);
+  const downloading=resources.activePacks?.length>0||['checking','downloading','extracting','merging','assembling'].includes(resources.phase);
   const selectedInfo=(resources.packs||[]).find(pack=>pack.id===selectedPack);
   const selectedBundled=Boolean(selectedInfo?.bundled);
   const cleanError=error=>String(error?.message||error||'操作未完成，请重试。').replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i,'').replace(/^Error:\s*/i,'');
   const refresh=async()=>{if(api?.voiceResources)setResources(await api.voiceResources());};
-  const readyReference=Boolean(config.reference&&config.promptText.trim());
+  const needsTranscript=['v3','v4','v5dev','v5turbo'].includes(config.version);
+  const readyReference=Boolean(config.reference&&(!needsTranscript||config.promptText.trim()));
   useEffect(()=>{if(!api)return;api.voiceResources().then(setResources).catch(e=>setNotice(cleanError(e)));return api.onVoiceDownload(status=>setResources(old=>({...old,...status})))},[api]);
   const patch = value => onChange({...config,...value,textLang:'all_ja'});
   async function action(fn) {
@@ -31,7 +32,7 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
   async function save() { await api.voiceSave({...config,textLang:'all_ja'}); setNotice('配置已保存；模型、语言、语速等推理设置修改后需重新加载。'); }
   return <>
     <ResourceHelp api={api}/>
-    <p className="intro">用她的声音读出日语回复。默认音色与参考声音随安装包提供，也可以换成你的训练成果。</p>
+    <p className="intro">用她的声音读出日语回复。音色模型按需下载，也可以选择自己的本地权重。</p>
     {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">检查运行环境、公共模型与默认音色，缺少的组件会明确列出。可以跳过，稍后再来。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
     <div className="voice-status resource-card">
       <span className="card-kicker">01 · 运行资源</span><strong>{resources.bundled?'语音运行环境已就绪':'语音运行环境待准备'}</strong>
@@ -39,18 +40,18 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
       <span>{resources.coreReady?'BERT 与 HuBERT 公共模型已安装。':'BERT / HuBERT 是语音合成使用的文本与声音特征模型，下载约 802 MiB。'}</span>
       {resources.total>0&&<><progress max={resources.total} value={resources.received||0}/><span>{Math.round((resources.received||0)/1048576)} / {Math.round(resources.total/1048576)} MiB · {resources.phase==='complete'?'下载与校验完成':resources.file||resources.phase}</span><ResourceProgress progress={resources}/></>}
       {resources.error&&<span>{resources.error}</span>}
-      <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const paths=await api.voiceInstall('core');const next={...config,...paths};onChange(next);await api.voiceSave(next);await refresh();setNotice('公共模型已准备好；默认音色与参考声音配置完成后，首次朗读会自动加载。')})}>{resources.coreReady?'校验公共模型':'下载公共模型'}</button><button className="secondary" disabled={!downloading} onClick={()=>api?.voiceDownloadCancel().catch(e=>setNotice(cleanError(e)))}>取消下载</button></div>
+      <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall('core',{apply:true});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'公共模型已校验并选用；首次朗读时自动加载。':'公共模型已下载；期间设置已变更，未覆盖你的选择。')})}>{resources.coreReady?'校验公共模型':'下载公共模型'}</button><button className="secondary" disabled={!downloading} onClick={()=>api?.voiceDownloadCancel().catch(e=>setNotice(cleanError(e)))}>取消下载</button></div>
     </div>
     <div className="voice-status resource-card">
       <span className="card-kicker">02 · 选择她的声音</span><strong>音色与参考声音</strong>
-      <span>内置 GPT e2 与 SoVITS e1 作为默认声音。其他轮次可以按需下载；训练轮次不代表音质排名。</span>
+      <span>默认声音使用 GPT e2 与 SoVITS e1，需按需下载。其他轮次可以选择；训练轮次不代表音质排名。</span>
       <label className="field">音色模型<Select value={selectedPack} onChange={e=>setSelectedPack(e.target.value)}>
         {(resources.packs||[]).filter(p=>p.kind==='voice').map(p=><option value={p.id} key={p.id}>{p.label}{p.bundled?' · 已内置':p.installed?' · 已下载':''}</option>)}
         {!(resources.packs||[]).some(p=>p.kind==='voice')&&<option value="yukino-e2">雪乃 · 默认 GPT e2 / SoVITS e1（v1）</option>}
       </Select></label>
-      <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{onStop();await api.voiceUnload();const paths=await api.voiceInstall(selectedPack);const next={...config,...paths,textLang:'all_ja'};onChange(next);await api.voiceSave(next);await refresh();setNotice('音色已校验并选中；已配置参考声音时可直接试听。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用此音色':'下载并选用此音色'}</button></div>
-      <span>内置音色无需重复下载。其他 GPT 轮次约 148 MiB；仍可在下方导入自己的 .ckpt / .pth。</span>
-      <span>{resources.preset?'已提供默认参考声音 · '+resources.preset.durationSeconds.toFixed(2)+' 秒日语。可在高级选项更换音频与对应文本。':readyReference?'已选择参考音频与对应文本，可保留你自己的配置。':'尚未找到参考声音。请使用一键配置，或在下方选择 3–10 秒参考音频及对应文本。'}</span>
+      <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'音色已校验并选中；准备好参考声音后首次朗读自动加载。':'音色已下载；期间设置已变更，未覆盖你的选择。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用此音色':'下载并选用此音色'}</button></div>
+      <span>已下载的音色无需重复下载。也可以在下方选择本机已有的 .ckpt / .pth。</span>
+      <span>{resources.preset?'已提供默认参考声音 · '+resources.preset.durationSeconds.toFixed(2)+' 秒日语。可在高级选项更换。':readyReference?'已选择参考音频，可保留你自己的配置。':'请选择 3–10 秒参考音频；v1/v2 的参考文本可留空。'}</span>
     </div>
     <div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
       {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · 显存不足，已回退 CPU':''}</span>}
@@ -80,7 +81,8 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
       </div>
       <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();await save();await api.voiceLoad({...config,textLang:'all_ja'});setNotice('权重与参考音频已加载，可以试听。')})}>加载 / 重新加载</button></div>
     </fieldset>
-    {!readyReference&&<p className="notice">尚未选择参考音频或填写对应原文，暂时不能加载与试听。参考音频语言请按音频实际内容选择。</p>}
+    {!readyReference&&<p className="notice">请选择参考音频{needsTranscript?'并填写对应原文':''}，才能加载与试听。</p>}
+    {!needsTranscript&&<p className="hint">当前版本可不填参考文本；参考音频仍是声音合成必需项。填写与音频一致的文本可能改善效果。</p>}
     {hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
     <section className="settings-card"><h3>试听声音</h3><p className="intro">听听她的声音，再调整到你喜欢的语速与音量。</p><label className="field">日语试听文本<input maxLength={200} value={sample} onChange={e=>setSample(e.target.value)}/></label>
     <div className="button-row"><button className="primary" disabled={working||!sample.trim()||downloading} onClick={()=>action(async()=>{if(!readyReference){onOpenSetup?.();setNotice('请先准备参考声音，也可以使用一键配置。');return;}await api.voiceSave({...config,textLang:'all_ja'});onPreview({text:sample,language:'ja'});})}>试听</button><button className="secondary" onClick={onStop}>停止朗读</button><button className="secondary" onClick={()=>action(async()=>{onStop();await api.voiceUnload();setNotice('已卸载模型并释放推理进程。')})}>卸载模型</button></div></section>

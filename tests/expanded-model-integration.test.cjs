@@ -88,6 +88,15 @@ test('actual ModelWindow cancels the old load immediately while the newer catalo
  releaseCatalog({models:[{id:'old'},{id:'new'}]});await h.settle();assert.equal(runtime.entry?.id,'new');
 });
 
+test('desktop model reply is inside its drag header and defaults to Chinese',async t=>{
+ let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
+ receive({character:{id:'a',name:'雪乃'},preferences:{},reply:{zh:'你好，今天辛苦了。',ja:'こんにちは。'}});h.render();await h.settle();
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const header=walk(h.tree).find(node=>node.type==='header'),replies=walk(h.tree).filter(node=>node.props?.className==='model-reply');
+ assert.equal(replies.length,1);assert.ok(walk(header).includes(replies[0]));assert.equal(replies[0].props.children,'你好，今天辛苦了。');
+ receive({character:{id:'a',name:'雪乃'},preferences:{bubbleLanguage:'ja'},reply:{zh:'你好',ja:'こんにちは。'}});h.render();await h.settle();assert.equal(walk(h.tree).find(node=>node.props?.className==='model-reply').props.children,'こんにちは。');
+});
+
 test('a pointer captured before gait and a render-delayed reset button cannot change the locked view',async t=>{
  let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[{id:'school'}]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();receive({character:{id:'a',modelId:'school'},preferences:{}});h.render();await h.settle();
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[],host=walk(h.tree).find(node=>node.props?.className==='model-window-canvas'),reset=walk(h.tree).find(node=>node.props?.['aria-label']==='恢复全身正面');

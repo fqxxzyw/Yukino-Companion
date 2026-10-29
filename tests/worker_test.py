@@ -121,6 +121,18 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '不存在'):
             worker.validate_config({})
 
+    def test_prompt_text_is_optional_for_v1_but_required_for_vocoder_versions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = root/'engine'; (engine/'GPT_SoVITS/TTS_infer_pack').mkdir(parents=True)
+            (engine/'GPT_SoVITS/TTS_infer_pack/TTS.py').write_text('fixture')
+            for name in ['bert','hubert','state']: (root/name).mkdir()
+            for name in ['gpt.ckpt','sovits.pth','reference.wav']: (root/name).write_bytes(b'fixture')
+            cfg={'root':str(engine),'gpt':str(root/'gpt.ckpt'),'sovits':str(root/'sovits.pth'),'reference':str(root/'reference.wav'),'bert':str(root/'bert'),'hubert':str(root/'hubert'),'stateDir':str(root/'state'),'version':'v1','device':'cpu','textLang':'all_ja','promptLang':'all_ja','promptText':''}
+            self.assertEqual(worker.validate_config(cfg)['promptText'],'')
+            cfg['version']='v3'
+            with self.assertRaisesRegex(ValueError,'参考音频实际说出'): worker.validate_config(cfg)
+
     def test_protocol_survives_error_without_stdout_pollution(self):
         commands = [{'id':'a','method':'unknown'}, {'id':'b','method':'synthesize','text':'hello'}]
         result = subprocess.run([sys.executable, str(ROOT/'inference/worker.py')],

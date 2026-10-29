@@ -31,7 +31,7 @@ class TranslationService {
   }
   configure(input) {
     const config = validateConfig({ ...this.config, ...input });
-    if (JSON.stringify(config) !== JSON.stringify(this.config)) { this.cancel(); this.config = config; }
+    if (JSON.stringify(config) !== JSON.stringify(this.config)) { if(config.modelDir!==this.config.modelDir)this.cancel();else this.cancelRequests(); this.config = config; }
     return { ...this.config };
   }
   update(phase, extra = {}) { this.phase = phase; this.error = extra.error || null; this.notify({ type: 'translation', phase, ...extra }); }
@@ -180,9 +180,12 @@ class TranslationService {
   }
   cancel(requestId) {
     if (!requestId) {
-      if (this.installToken) this.installToken.cancelled = true;
-      this.installer?.cancel();
+      this.cancelInstall();
     }
+    this.cancelRequests(requestId);
+  }
+  cancelInstall(){if(this.installToken)this.installToken.cancelled=true;this.installer?.cancel();}
+  cancelRequests(requestId){
     for (const [id, token] of this.pending) if (!requestId || id === requestId) token.cancelled = true;
     if (!requestId || this.active?.requestId === requestId) {
       this.worker?.close(abortError()); this.worker = null; this.loadedConfig = '';

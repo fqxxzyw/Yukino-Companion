@@ -185,6 +185,12 @@ test('drag constrains the visible pet instead of its transparent margins and pre
  await f.manager.viewCall(event,'drag-end');assert.deepEqual(win.bounds,atEdge,'release does not reposition the pet');
  assert.deepEqual(f.manager.preferences.positions.pet,{x:atEdge.x,y:atEdge.y,body});assert.deepEqual(f.manager.boundsFor('pet'),atEdge);
 });
+test('Windows move-induced window size drift is corrected without resizing normal moves',async t=>{
+ const f=await fixture(t);await f.manager.setMode('model');const win=f.manager.windows.get('model'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};let cursor={x:20,y:20};f.screen.getCursorScreenPoint=()=>cursor;const original={...win.bounds};
+ const move=win.setPosition.bind(win);win.setPosition=(x,y)=>{move(x,y);win.bounds.width+=9;win.bounds.height+=5;};
+ await f.manager.viewCall(event,'drag-start');cursor={x:80,y:75};await f.manager.viewCall(event,'drag-move');assert.equal(win.bounds.width,original.width);assert.equal(win.bounds.height,original.height);
+ await f.manager.viewCall(event,'drag-end');assert.equal(win.bounds.width,original.width);assert.equal(win.bounds.height,original.height);
+});
 
 test('visible drag bounds can cross an adjacent monitor seam but avoid gaps',()=>{
  const areas=[{x:0,y:0,width:100,height:100},{x:100,y:0,width:100,height:100}],body={x:.2,y:.2,width:.6,height:.6};

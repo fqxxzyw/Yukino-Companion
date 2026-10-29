@@ -9,7 +9,8 @@ const defaultCatalog=require('../resources/resource-packs.json');
 async function hashFile(file,signal){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}return hash.digest('hex');}
 async function manifests(root,depth=0){let result=[];for(const item of await fs.readdir(root,{withFileTypes:true})){if(item.isSymbolicLink())throw Error('资源目录不支持链接');const target=path.join(root,item.name);if(item.isDirectory()&&depth<2)result.push(...await manifests(target,depth+1));else if(item.isFile()&&item.name==='manifest.json')result.push(target);}return result;}
 class ResourcePacks {
-  constructor({dataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.controller=null;this.petCheck=null;}
+  constructor({dataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.controllers=new Map();this.petCheck=null;}
+  get controller(){return this.controllers.values().next().value||null;}
   pack(id){const pack=this.catalog?.packs?.[id];if(!['chat','pet'].includes(id)||!pack||!Number.isSafeInteger(pack.bytes)||pack.bytes<1||!/^[a-f0-9]{64}$/.test(pack.sha256)||!Number.isSafeInteger(pack.maxUnpackedBytes)||pack.maxUnpackedBytes<pack.bytes||pack.maxUnpackedBytes>8*1024**3)throw Error('资源清单无效');return pack;}
   directory(id){return path.join(this.root,id+'-'+this.pack(id).sha256.slice(0,16));}
   async status(id){
@@ -27,8 +28,8 @@ class ResourcePacks {
     return {id,installed,root,downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
   }
   async install(id,{signal}={}){
-    if(this.controller)throw Error('资源正在安装，请等待或先取消');
-    const controller=new AbortController();this.controller=controller;const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();const active=controller.signal;let stage;
+    if(this.controllers.has(id))throw Error('此资源正在安装，请等待或先取消');
+    const controller=new AbortController();this.controllers.set(id,controller);const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();const active=controller.signal;let stage;
     try{
       active.throwIfAborted();const existing=await this.status(id);if(existing.installed)return existing;
       const pack=this.pack(id),destination=this.directory(id);await fs.mkdir(this.root,{recursive:true});
@@ -58,8 +59,8 @@ class ResourcePacks {
       // Never recursively replace an existing directory containing user files.
       try{await fs.access(destination);throw Error('资源目录已存在但不完整，请在帮助文档中查看修复方法；原文件已保留');}catch(error){if(error.code!=='ENOENT')throw error;}
       await fs.rename(stage,destination);stage=null;const result=await this.status(id);if(!result.installed)throw Error('资源安装后的检查未通过');this.notify(id,{phase:'ready',bytes:pack.bytes,total:pack.bytes});return result;
-    }finally{signal?.removeEventListener('abort',cancel);if(this.controller===controller)this.controller=null;if(stage)await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
+    }finally{signal?.removeEventListener('abort',cancel);if(this.controllers.get(id)===controller)this.controllers.delete(id);if(stage)await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
   }
-  cancel(){this.controller?.abort();}
+  cancel(){for(const controller of this.controllers.values())controller.abort();}
 }
 module.exports={ResourcePacks,hashFile};

@@ -7,6 +7,20 @@ const crypto = require('node:crypto');
 const {spawn} = require('node:child_process');
 const {resourceParts,PART_BYTES}=require('./resource-sources.cjs');
 const active = new Set();
+// Share the process/connection budget across concurrent resource downloads.
+// Allow the currently published resource packs to run their parts together,
+// while malformed or future huge catalogues cannot spawn unbounded processes.
+const MAX_PART_DOWNLOADS=64;let runningParts=0;const waitingParts=[];
+async function acquirePart(signal){
+ check(signal);
+ if(runningParts<MAX_PART_DOWNLOADS){runningParts++;return;}
+ await new Promise((resolve,reject)=>{
+  const item={resolve:()=>{signal?.removeEventListener('abort',abort);runningParts++;resolve();}};
+  const abort=()=>{const i=waitingParts.indexOf(item);if(i>=0)waitingParts.splice(i,1);reject(signal.reason||Error('下载已取消'));};
+  waitingParts.push(item);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
+ });
+}
+function releasePart(){runningParts--;const item=waitingParts.shift();if(item)item.resolve();}
 
 function check(signal) { signal?.throwIfAborted(); }
 function httpsUrl(value) {
@@ -42,7 +56,7 @@ function buildAria2Args({url, temporary, sha256, timeoutMs=30000}) {
   // --max-redirect is NOT an aria2 1.37 option. Invalid flags silently defeat acceleration.
   return ['--no-conf=true','--no-netrc=true','--enable-rpc=false','--check-certificate=true',
     '--follow-metalink=false','--follow-torrent=false','--enable-dht=false','--enable-dht6=false','--bt-enable-lpd=false',
-    '--max-connection-per-server=8','--split=8','--min-split-size=8M','--continue=true','--check-integrity=true',
+    '--max-connection-per-server=8','--split=8','--min-split-size=1M','--continue=true','--check-integrity=true',
     '--auto-save-interval=1','--file-allocation=none','--allow-overwrite=true','--auto-file-renaming=false',
     '--max-tries=2','--retry-wait=2',`--connect-timeout=${Math.min(15,seconds)}`,`--timeout=${seconds}`,
     '--summary-interval=1','--human-readable=false','--enable-color=false','--console-log-level=warn',
@@ -53,7 +67,8 @@ function parseProgress(text,total) {
   const matches = [...text.matchAll(/\[#\w+\s+(\d+(?:\.\d+)?)(B|KiB|MiB|GiB)?\/(\d+(?:\.\d+)?)(B|KiB|MiB|GiB)?[^\r\n]*?DL:(\d+(?:\.\d+)?)(B|KiB|MiB|GiB)?/g)];
   if (!matches.length) return null;
   const row = matches.at(-1), units={B:1,KiB:1024,MiB:1024**2,GiB:1024**3};
-  return {received:Math.min(total,Number(row[1])*(units[row[2]]||1)),total,speedBytesPerSecond:Number(row[5])*(units[row[6]]||1)};
+  const connections=/\bCN:(\d+)/.exec(row[0]);
+  return {received:Math.min(total,Number(row[1])*(units[row[2]]||1)),total,speedBytesPerSecond:Number(row[5])*(units[row[6]]||1),...(connections?{connections:Number(connections[1])}:{})};
 }
 async function runAria2({executable,url,temporary,sha256,bytes,timeoutMs,signal,emit,spawnProcess}) {
   check(signal);
@@ -152,15 +167,15 @@ async function downloadParts({parts,dest,bytes,sha256,signal,notify,...options})
     while(next<parts.length&&!controller.signal.aborted){
       const index=next++,part=parts[index];
       try{
-        const result=await downloadResource({...options,url:part.url,parts:null,dest:path.join(directory,part.name),bytes:part.bytes,sha256:part.sha256,signal:controller.signal,onProgress:progress=>{rows[index]={...rows[index],...progress,total:part.bytes};publish();}});
+        await acquirePart(controller.signal);let result;
+        try{result=await downloadResource({...options,url:part.url,parts:null,dest:path.join(directory,part.name),bytes:part.bytes,sha256:part.sha256,signal:controller.signal,onProgress:progress=>{rows[index]={...rows[index],...progress,total:part.bytes};publish();}});}finally{releasePart();}
         resumed ||= result.resumed||result.engine==='cache';rows[index]={...rows[index],phase:'complete',received:part.bytes,speedBytesPerSecond:0};publish();
       }catch(error){firstError ||= error;controller.abort(error);}
     }
   }
   try{
-    // Bound both process and HTTP fan-out: three actual GitHub assets, each aria2
-    // process using at most eight range connections. Finished parts survive retry.
-    await Promise.all(Array.from({length:Math.min(3,parts.length)},worker));
+    // Each real part uses aria2's own range connections; completed parts survive retry.
+    await Promise.all(Array.from({length:Math.min(MAX_PART_DOWNLOADS,parts.length)},worker));
     check(signal);if(firstError)throw firstError;
     publish({phase:'merging',received:bytes,mergedBytes:0});
     const hash=crypto.createHash('sha256');let length=0;

@@ -12,7 +12,7 @@ const speechModule = require('../../electron/speech.cjs');
 const {mergeVoiceDefaults} = require('../../electron/bundled-voice.cjs');
 const localModule = require('../../electron/local-chat.cjs');
 
-async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], bundleGate, packaged = false, referenceFixture=false, files = {}} = {}) {
+async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=false, files = {}} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
   const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[];
@@ -59,6 +59,8 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
       return {text:'ローカルで翻訳しました。',source:'zh',target:'ja',device:'cpu'};
     }
     cancel(id){cancelled.push(id);}
+    cancelRequests(id){this.cancel(id);}
+    cancelInstall(){}
     dispose(){this.cancel();}
     async install(){return this.status();}
   }
@@ -85,7 +87,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   class MockSpeech {
     constructor(options){this.options=options;this.config=null;this.status={phase:'unloaded',configured:true,needsSetup:false,missing:[]};}
     configure(config){this.config=speechModule.validateSettings(config);voiceActions.push({method:'configure',config:this.config});return this.config;}
-    async readiness(config=this.config){voiceActions.push({method:'readiness',config});const missing=Object.entries(speechModule.CONFIG_LABELS).filter(([key])=>!config?.[key]||(missingVoiceFields.has(key)&&!installedCorePaths.has(config[key]))).map(([key,label])=>({key,label}));return this.status={...this.status,configured:missing.length===0,needsSetup:missing.length>0,missing};}
+    async readiness(config=this.config){voiceActions.push({method:'readiness',config});const missing=Object.entries(speechModule.CONFIG_LABELS).filter(([key])=>(key!=='promptText'||['v3','v4','v5dev','v5turbo'].includes(config?.version))&&(!config?.[key]||(missingVoiceFields.has(key)&&!installedCorePaths.has(config[key])))).map(([key,label])=>({key,label}));return this.status={...this.status,configured:missing.length===0,needsSetup:missing.length>0,missing};}
     async prepare(config){this.configure(config);return this.load(config);}
     async load(config){this.configure(config);voiceActions.push({method:'load'});this.status={...this.status,phase:'ready'};return this.status;}
     begin(id){voiceActions.push({method:'begin',id,config:this.config});if(!this.config)throw Error('Voice configuration must be applied before begin');this.session=id;}
@@ -99,7 +101,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
     constructor(options){this.options=options;this.root=options.root;this.status={phase:'idle'};this.installs=[];voiceDownloads.push(this);}
     summary(){return {...this.status,root:this.root,packs:[{id:'core',kind:'core',installed:coreInstalled},{id:'yukino-e2',kind:'voice',bundled:true,installed:true}],coreReady:coreInstalled};}
     async inspect(){return this.summary();}
-    async install(id='core'){this.installs.push(id);voiceInstallCalls.push(id);const paths=id==='core'?{bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')}:{gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),version:'v1',textLang:'all_ja'};if(id==='core'){coreInstalled=true;Object.values(paths).forEach(value=>installedCorePaths.add(value));}else{missingVoiceFields.delete('gpt');missingVoiceFields.delete('sovits');}return paths;}
+    async install(id='core'){this.installs.push(id);voiceInstallCalls.push(id);if(voiceInstallBarrier)await voiceInstallBarrier(id);const paths=id==='core'?{bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')}:{gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),version:'v1',textLang:'all_ja'};if(id==='core'){coreInstalled=true;Object.values(paths).forEach(value=>installedCorePaths.add(value));}else{missingVoiceFields.delete('gpt');missingVoiceFields.delete('sovits');}return paths;}
     cancel(){this.cancelled=true;}
   }
   class MockCompanions {
@@ -127,7 +129,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
     require:name=>{
       if(name==='electron')return fakeElectron;
       if(name==='node:fs/promises')return virtualFS;
-      if(name==='./bundled-voice.cjs')return {mergeVoiceDefaults,bundledVoiceDefaults:async()=>{if(bundleGate)await bundleGate;return ({defaults:{...speechModule.DEFAULTS,python:runtime?.ready===false?'':path.resolve('/embedded/python'),root:runtime?.ready===false?'':path.resolve('/embedded/voice'),bert:path.resolve('/embedded/bert'),hubert:path.resolve('/embedded/hubert'),gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),reference:path.resolve('/embedded/voice-models/ref.wav'),promptText:'一つ思うところがあるのだけれど、いいかしら。',promptLang:'all_ja'},modelRoot:path.resolve('/embedded/models'),bundled:runtime?.ready!==false,preset:{packId:'yukino-e2',durationSeconds:3.083}})}};
+      if(name==='./bundled-voice.cjs')return {mergeVoiceDefaults,bundledVoiceDefaults:async()=>{if(bundleGate)await bundleGate;return ({defaults:{...speechModule.DEFAULTS,python:runtime?.ready===false?'':path.resolve('/embedded/python'),root:runtime?.ready===false?'':path.resolve('/embedded/voice'),bert:path.resolve('/embedded/bert'),hubert:path.resolve('/embedded/hubert'),gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),reference:path.resolve('/embedded/voice-models/ref.wav'),promptText:'',promptLang:'all_ja'},modelRoot:path.resolve('/embedded/models'),bundled:runtime?.ready!==false,preset:{packId:'yukino-e2',durationSeconds:3.083}})}};
       if(name==='./speech.cjs')return {...speechModule,SpeechService:class extends MockSpeech{constructor(options){super(options);voice=this;}}};
       if(name==='./voice-resources.cjs')return {VoiceResources:MockVoiceResources};
       if(name==='./local-chat.cjs')return {...localModule,LocalChatService:class extends MockLocalChat{constructor(options){super(options);local=this;}}};

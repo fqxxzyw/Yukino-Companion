@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('desktop', {
   characterModelImport:id=>invoke('character-model-import',id), characterModelData:id=>invoke('character-model-data',id), characterDocument:()=>invoke('character-document'), characterPreview:()=>invoke('character-preview'),
   characterModelCatalog:()=>invoke('character-model-catalog'), characterModelInspect:()=>invoke('character-model-inspect'), characterModelConfirm:options=>invoke('character-model-confirm',options), characterModelCancel:()=>invoke('character-model-cancel'),
   onChunk:fn=>subscribe('chunk',fn), onError:fn=>subscribe('app-error',fn),
-  voiceResources:()=>invoke('voice-resources'), voiceInstall:id=>invoke('voice-install',id),
+  voiceResources:()=>invoke('voice-resources'), voiceInstall:(id,options)=>invoke('voice-install',id,options), onVoiceConfig:fn=>subscribe('voice-config-updated',fn),
   voiceDownloadCancel:()=>invoke('voice-download-cancel'), onVoiceDownload:fn=>subscribe('voice-download',fn),
   voiceSettings:()=>invoke('voice-settings'), voiceSave:config=>invoke('voice-save',config),
   voiceStatus:()=>invoke('voice-status'), voiceProbe:config=>invoke('voice-probe',config),

@@ -54,6 +54,10 @@ function adjacentMenuBounds(anchor, area) {
 function moveWindow(win, bounds) {
   // Position-only API avoids native/DPI resize feedback during repeated dragging.
   win.setPosition(bounds.x,bounds.y,false);
+  // Some Windows/DPI combinations resize transparent windows during a move.
+  // Correct only an actual size drift, never resize on an ordinary drag.
+  const actual=win.getBounds();
+  if(actual.width!==bounds.width||actual.height!==bounds.height)win.setBounds(bounds,false);
 }
 
 

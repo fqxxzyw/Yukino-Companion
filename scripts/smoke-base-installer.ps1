@@ -1,4 +1,4 @@
-﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe',[string]$PayloadManifest='')
+﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe',[string]$PayloadManifest='',[switch]$VerifyCurrentFeatures)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $Installer=[IO.Path]::GetFullPath((Join-Path $root $Installer))
@@ -113,6 +113,11 @@ try{
  if($installedApp.MainWindowTitle -ne 'Yukino Companion' -or $appText -match 'JavaScript error|Uncaught Exception'){throw 'Installed application shows an error dialog'}
  & node (Join-Path $root 'scripts/verify-installed-window.cjs') (Join-Path $profile 'Chromium')
  if($LASTEXITCODE -ne 0){throw 'The installed application did not render its bundled character'}
+ if($VerifyCurrentFeatures){
+  & node (Join-Path $root 'scripts/verify-current-window.cjs') (Join-Path $profile 'Chromium')
+  if($LASTEXITCODE -ne 0){throw 'The installed character, desktop header or visual companion check failed'}
+  $report.checks+='Installed rounded panel, contact list, fixed desktop header and visual companion shell checked on the running app'
+ }
  [void](Capture $installedApp.MainWindowHandle 'app-character')
  $report.checks+='Actual installed main renderer loaded the default bundled character and completed a WebGL frame'
  Stop-InstalledApp

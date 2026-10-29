@@ -50,8 +50,10 @@ def validate_config(config):
     if cfg.get("textLang") not in LANGUAGES or cfg.get("promptLang") not in LANGUAGES:
         raise ValueError("请选择支持的文本与参考音频语言")
     cfg["textLang"] = "all_ja"
-    if not isinstance(cfg.get("promptText"), str) or not cfg["promptText"].strip() or len(cfg["promptText"]) > 3000:
-        raise ValueError("请填写参考音频实际说出的文本（最多 3000 字符）")
+    if not isinstance(cfg.get("promptText"), str) or len(cfg["promptText"]) > 3000:
+        raise ValueError("参考文本必须为字符串，最多 3000 字符")
+    if cfg["version"] in {"v3", "v4", "v5dev", "v5turbo"} and not cfg["promptText"].strip():
+        raise ValueError("此版本需要填写参考音频实际说出的文本")
     return cfg
 
 

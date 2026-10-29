@@ -126,6 +126,11 @@ test('request-specific chat cancellation does not cancel a separate translation 
   const operation=f.service.install();await gate.entered;f.service.cancel('one-chat-request');gate.release(true);
   assert.equal((await operation).modelInstalled,true);assert.equal(f.service.installToken,null);
 });
+test('stopping all chat requests and changing the shared Python do not cancel a background model download',async t=>{
+ const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});const operation=f.service.install();await gate.entered;
+ f.service.cancelRequests();f.service.configure({python:path.resolve('/new/shared/python')});gate.release(true);
+ assert.equal((await operation).modelInstalled,true);assert.equal(f.service.installToken,null);
+});
 test('failed translation installation releases the entire lifecycle guard',async t=>{
   const f=await installFixture(t,{verifyFile:async()=>{throw Error('cannot read model')}});
   await assert.rejects(f.service.install(),/cannot read model/);assert.equal(f.service.installToken,null);assert.equal(f.service.phase,'error');

@@ -124,12 +124,14 @@ jobs:
           name: Yukino-Windows-Setup-${{ github.sha }}
           path: .
       - name: Install, launch, upgrade, verify payload and uninstall on this disposable worker
-        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json
+        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json -VerifyCurrentFeatures
       - name: Verify bundled downloader over HTTPS
         run: |
           python scripts/prepare-aria2.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/smoke-aria2.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-aria2-parts.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Public source regression
         run: |

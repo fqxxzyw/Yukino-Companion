@@ -1,5 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {ArrowLeftToLine, ArrowRightToLine, GripHorizontal, RotateCcw, SlidersHorizontal, Snowflake, Shirt, X} from 'lucide-react';
+import {GripHorizontal, RotateCcw, SlidersHorizontal, Snowflake, Shirt, X} from 'lucide-react';
 import {SCENES,presentationConfig,gazeTarget,smoothGaze,AvatarPresentationController} from './avatar-presentation.mjs';
 import PetAvatar from './PetAvatar.jsx';
 import SkinPicker from './SkinPicker.jsx';
@@ -33,7 +33,6 @@ export default function CharacterPanel({side, width, onChange, onSettings, usage
   function dress(id){onModelChange?.(id)}
   useEffect(() => () => { gesture.current = null;snap.current.cancel(); }, []);
   useLayoutEffect(()=>{if(reducedMotion)snap.current.cancel();if(!dragging&&snapFrom.current){const from=snapFrom.current;snapFrom.current=null;snap.current.settle(panel.current,from,reducedMotion)}},[side,dragging,width,reducedMotion]);
-  function dock(next){if(next===side)return;snapFrom.current=panel.current.getBoundingClientRect();snap.current.cancel();onChange({side:next})}
   function start(event, kind) {
     if (event.button !== 0) return;
     if (kind === 'move' && event.target.closest('button,input,label,select,.character-scene-menu')) return;
@@ -75,7 +74,6 @@ export default function CharacterPanel({side, width, onChange, onSettings, usage
         <span className="character-grip" aria-label="拖动人物面板"><GripHorizontal size={16}/></span><button type="button" className="icon" aria-label="恢复全身正面" title="恢复全身正面" disabled={changing} onClick={()=>changeView({zoom:1,yaw:0})}><RotateCcw size={15}/></button>
         <div className="character-menu-anchor" ref={menuRef}><button type="button" className="icon" aria-label="人物场景选项" title="人物场景选项" aria-expanded={menuOpen} onClick={()=>setMenuOpen(value=>!value)}><SlidersHorizontal size={16}/></button>{menuOpen&&<div className="character-scene-menu"><strong>人物场景</strong><div className="scene-picker">{Object.entries(SCENES).map(([id,scene])=><button type="button" key={id} className={display.scene===id?'selected':''} aria-pressed={display.scene===id} onClick={()=>onPresentationChange?.({...display,scene:id})}>{scene.label}</button>)}</div><label><span>日光</span><Select value={display.timeOfDay} onChange={event=>onPresentationChange?.({...display,timeOfDay:event.target.value})}><option value="morning">清晨 · 暖光</option><option value="noon">正午 · 日光</option><option value="evening">傍晚 · 暖霞</option></Select></label><label><span>渲染风格</span><Select value={display.renderStyle} onChange={event=>onPresentationChange?.({...display,renderStyle:event.target.value})}><option value="lit">补光渲染</option><option value="natural">原始材质（保留 unlit）</option><option value="toon">赛璐璐分层（预览）</option></Select></label><label><span>环境扩展至整个窗口</span><input type="checkbox" checked={display.spread} onChange={event=>onPresentationChange?.({...display,spread:event.target.checked})}/></label><label><span>头部跟随</span><input type="checkbox" checked={display.gaze} onChange={event=>onPresentationChange?.({...display,gaze:event.target.checked})}/></label><button className="text-link" onClick={()=>{setMenuOpen(false);onSettings()}}>更多形象设置</button></div>}</div>
       </div>
-      <div className="character-dock-tools" aria-label="人物停靠位置"><button className="icon" type="button" title="停靠左侧" aria-label="人物停靠左侧" aria-pressed={side==='left'} onClick={()=>dock('left')}><ArrowLeftToLine size={15}/></button><button className="icon" type="button" title="停靠右侧" aria-label="人物停靠右侧" aria-pressed={side==='right'} onClick={()=>dock('right')}><ArrowRightToLine size={15}/></button></div>
       {dragging&&<div className={"character-dock-cue "+target} role="status">{target==='left'?'← 松开后停靠左侧':'松开后停靠右侧 →'}</div>}
       <button type="button" className="wardrobe-toggle" aria-label="打开服装面板" aria-expanded={wardrobe} onClick={()=>setWardrobe(old=>!old)}><Shirt size={17}/></button>
       {wardrobe&&<aside className="wardrobe-panel" aria-label="服装"><header><strong>服装</strong><button type="button" className="icon" aria-label="关闭服装面板" onClick={()=>setWardrobe(false)}><X size={15}/></button></header><SkinPicker models={availableOutfits} relationship={relationship} usedDates={usedDates} selectedId={modelId} onSelect={dress} busy={changing} compact/>{outfitError&&<p role="alert">{outfitError}</p>}</aside>}

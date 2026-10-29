@@ -10,7 +10,7 @@ function stepSelected(id,features){
   return features.includes({voiceCore:'voice',voicePreset:'voice'}[id]||id);
 }
 class SetupService {
-  constructor({prepare=async()=>{},inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify=()=>{},cancel=()=>{}}){Object.assign(this,{prepare,inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify,cancelWork:cancel});this.phase='idle';this.active=null;this.progress=null;this.error=null;this.controller=null;this.features=null;this.scheduled=false;this.dirty=false;this.failedStep=null;this.revision=0;this.requestId=0;}
+  constructor({prepare=async()=>{},inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify=()=>{},cancel=()=>{}}){Object.assign(this,{prepare,inspect,installRuntime,refresh,installChat,installPet,installVoicePreset,installTranslation,installVoice,saveVoice,notify,cancelWork:cancel});this.phase='idle';this.active=null;this.activeSteps=new Set();this.progressByStep=new Map();this.progress=null;this.error=null;this.controller=null;this.features=null;this.scheduled=false;this.dirty=false;this.failedStep=null;this.revision=0;this.requestId=0;}
   async status(options={}){
     if(options?.features!==undefined&&!this.controller){
       const features=selectedFeatures(options.features);
@@ -24,9 +24,9 @@ class SetupService {
     const steps=status.steps.map(step=>{
       if(!stepSelected(step.id,this.features))return {...step,state:'skipped'};
       if(this.failedStep===step.id&&this.phase==='error')return {...step,state:'error',error:this.error,detail:this.error};
-      if(this.active===step.id&&this.controller&&this.phase==='installing'){
-        const progress=this.progress?.progress||this.progress;
-        return {...step,state:this.progress?.phase||'installing',progress,bytes:progress?.received??progress?.bytes??0,total:progress?.total||0};
+      if((this.activeSteps.has(step.id)||this.active===step.id)&&this.controller&&this.phase==='installing'){
+        const current=this.progressByStep.get(step.id)||(this.active===step.id?this.progress:null),progress=current?.progress||current;
+        return {...step,state:current?.phase||'installing',progress,bytes:progress?.received??progress?.bytes??0,total:progress?.total||0};
       }
       return step;
     });
@@ -40,23 +40,31 @@ class SetupService {
       finally{this.scheduled=false;if(this.dirty)this.changed();}
     });
   }
-  report(id,progress){if(this.controller&&this.active===id){this.progress=progress;this.changed();}}
+  report(id,progress){if(this.controller&&(this.activeSteps.has(id)||this.active===id)){this.progressByStep.set(id,progress);this.progress=progress;this.changed();}}
   async install({runtimeFlavor='auto',features=['chat','translation','voice']}={}){
     if(this.controller)throw Error('首次配置正在进行，请稍候或先取消。');
     features=selectedFeatures(features,{allowEmpty:false});
     const controller=new AbortController();this.controller=controller;this.features=features;this.phase='installing';this.error=null;this.failedStep=null;this.changed();
-    const step=async(id,fn)=>{controller.signal.throwIfAborted();this.active=id;this.progress=null;this.changed();const result=await fn(controller.signal);controller.signal.throwIfAborted();return result;};
+    let firstFailure=null;
+    const step=async(id,fn)=>{
+      controller.signal.throwIfAborted();this.activeSteps.add(id);this.active=id;this.progressByStep.delete(id);this.changed();
+      try{const result=await fn(controller.signal);controller.signal.throwIfAborted();return result;}
+      catch(error){if(!controller.signal.aborted){firstFailure=error;this.failedStep=id;controller.abort();this.cancelWork();}throw error;}
+      finally{this.activeSteps.delete(id);this.progressByStep.delete(id);if(this.active===id)this.active=[...this.activeSteps].at(-1)||null;this.changed();}
+    };
     const inspect=()=>this.inspect({features});
     try{
       await this.prepare();controller.signal.throwIfAborted();
-      if(features.some(id=>id!=='pet')){await step('runtime',()=>this.installRuntime(runtimeFlavor));await this.refresh();}controller.signal.throwIfAborted();
-      if(features.includes('chat'))await step('chat',async signal=>{if(this.installChat)await this.installChat(signal);const state=await inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');});
-      if(features.includes('translation'))await step('translation',this.installTranslation);
-      if(features.includes('voice')){await step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);});await step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');});}
-      if(features.includes('pet'))await step('pet',signal=>this.installPet(signal));
+      const runtimeTask=features.some(id=>id!=='pet')?step('runtime',async()=>{await this.installRuntime(runtimeFlavor);controller.signal.throwIfAborted();await this.refresh();}):Promise.resolve();
+      const tasks=[runtimeTask];
+      if(features.includes('chat'))tasks.push(step('chat',async signal=>{if(this.installChat)await this.installChat(signal);await runtimeTask;signal.throwIfAborted();const state=await inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');}));
+      if(features.includes('translation'))tasks.push(step('translation',this.installTranslation));
+      if(features.includes('pet'))tasks.push(step('pet',signal=>this.installPet(signal)));
+      if(features.includes('voice'))tasks.push((async()=>{await runtimeTask;controller.signal.throwIfAborted();const voiceTasks=[step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);}),step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');})];const finished=await Promise.allSettled(voiceTasks);if(finished.some(item=>item.status==='rejected'))throw firstFailure||finished.find(item=>item.status==='rejected').reason;})());
+      await Promise.allSettled(tasks);if(firstFailure)throw firstFailure;controller.signal.throwIfAborted();
       this.phase='ready';this.revision++;return await this.status();
-    }catch(error){this.failedStep=this.active;this.phase=controller.signal.aborted?'cancelled':'error';this.error=controller.signal.aborted?'已取消准备，已完成的资源会保留。':error.code==='ENOENT'?'所选功能的资源尚未安装，请重新准备该功能或检查设置中的文件位置。':error.message;throw Error(this.error);}
-    finally{this.active=null;this.progress=null;if(this.controller===controller)this.controller=null;this.changed();}
+    }catch(error){if(!this.failedStep)this.failedStep=this.active;const cancelled=controller.signal.aborted&&!firstFailure;this.phase=cancelled?'cancelled':'error';this.error=cancelled?'已取消准备，已完成的资源会保留。':error.code==='ENOENT'?'所选功能的资源尚未安装，请重新准备该功能或检查设置中的文件位置。':error.message;throw Error(this.error);}
+    finally{this.active=null;this.activeSteps.clear();this.progressByStep.clear();this.progress=null;if(this.controller===controller)this.controller=null;this.changed();}
   }
   cancel(){this.controller?.abort();this.cancelWork();}
 }
