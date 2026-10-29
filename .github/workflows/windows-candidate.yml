@@ -13,7 +13,9 @@ name: Windows installer candidate
 permissions:
   contents: read
 concurrency:
-  group: windows-candidate-${{ github.ref }}
+  # Each exact source commit owns its installer and prerelease. An older native
+  # validation must not block a newer user-requested candidate from building.
+  group: windows-candidate-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   candidate:

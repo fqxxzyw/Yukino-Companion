@@ -41,7 +41,33 @@ function characterInfo(root = ASSET_ROOT) {
 
 function characterDocument(root = ASSET_ROOT) {
   const { manifest } = loadCharacterPack(root);
-  return { version: manifest.version, text: readAsset(root, manifest.bible_path) };
+  const sections=[readAsset(root,manifest.bible_path)];
+  for(const [label,filename] of [['用户提供的人物技能 · 中文',manifest.skill_zh_path],['User-provided character skill · English',manifest.skill_en_path]])if(filename)sections.push(`\n\n# ${label}\n\n`+readAsset(root,filename));
+  return { version: manifest.version, text: sections.join('') };
+}
+
+function skillSnippet(root,manifest,mode,language){
+  if(mode==='compact')return manifest.skill_compact_path?readAsset(root,manifest.skill_compact_path):'';
+  const filename=language==='en'?manifest.skill_en_path:manifest.skill_zh_path;if(!filename)return '';
+  const text=readAsset(root,filename),start=text.indexOf(language==='en'?'## III. Preserve the Way She Responds':'<a id="core"></a>'),end=text.indexOf(language==='en'?'## VI. Maintenance and Validation':'<a id="dossier"></a>');
+  if(start<0||end<=start)throw Error('人物技能文档缺少核心规范');
+  return text.slice(start,end).trim();
+}
+function skillRelatedSnippet(root,manifest,language,question){
+  const choices=[
+    [/八幡|比企谷|hachiman/i,'### 6.1 比企谷八幡','### 6.1 Hachiman Hikigaya'],
+    [/结衣|由比滨|由比濱|yuigahama|\byui\b/i,'### 6.2 由比滨结衣','### 6.2 Yui Yuigahama'],
+    [/阳乃|陽乃|haruno/i,'### 6.3 雪之下阳乃','### 6.3 Haruno Yukinoshita'],
+    [/母亲|妈妈|母親|お母|\bmother\b/i,'### 6.4 母亲','### 6.4 Her mother'],
+    [/父亲|爸爸|父親|お父|\bfather\b/i,'### 6.5 父亲','### 6.5 Her father'],
+    [/猫|潘先生|パンさん|\bcat\b|\bcats\b|pan-san/i,'### 3.4 猫与潘先生','### 3.4 Cats and Pan-san'],
+    [/阅读|读书|読書|\bbooks?\b|\bread(?:ing)?\b/i,'### 3.3 书不是','### 3.3 Books are not'],
+  ];
+  const selected=choices.find(([pattern])=>pattern.test(question||'')),filename=language==='en'?manifest.skill_en_path:manifest.skill_zh_path;if(!selected||!filename)return '';
+  const text=readAsset(root,filename),start=text.indexOf(language==='en'?selected[2]:selected[1]);if(start<0)throw Error('人物技能文档缺少相关档案');
+  const tail=text.slice(start),next=tail.slice(1).search(/\n#{2,3} /),section=next<0?tail:tail.slice(0,next+1);let result='';
+  for(const paragraph of section.split(/\n\s*\n/)){if((result+'\n\n'+paragraph).length>2000)break;result+=(result?'\n\n':'')+paragraph;}
+  return result;
 }
 
 function isYukinoLocal(profile) {
@@ -52,7 +78,7 @@ function isYukinoLocal(profile) {
   } catch { return false; }
 }
 
-function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
+function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT, {language='zh',question=''} = {}) {
   const selected = Array.isArray(rawState?.characters) ? rawState.characters.find(item => item.id === rawState.activeCharacter) : null;
   const state = migratePersonaState(selected ? {...rawState,...Object.fromEntries(["persona","personaEnabled","personaPromptMode","memory","useMemory"].filter(key=>selected[key]!==undefined).map(key=>[key,selected[key]]))} : rawState);
   const customCharacter = selected && selected.id !== "yukino";
@@ -68,12 +94,16 @@ function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
   if (memory.length > memoryLimit) throw Error(`启用的记忆过长：${mode === 'compact' ? '精简档 / 本机模型' : '详细档'}最多 ${memoryLimit} 字符，请精简本次记忆或关闭记忆发送。`);
   const parts = [];
   if(customCharacter) parts.push('【当前角色】\n角色姓名：'+JSON.stringify(String(selected.name||'自定义角色').slice(0,60))+'。使用下面的角色设定交流，保持身份一致，不套用雪乃的姓名和背景。');
+  let related='';
   if (state.personaEnabled) {
     const { manifest } = loadCharacterPack(root);
     if (!local) parts.push(`【Yukino 完整角色规范 ${manifest.version}】\n将以下规范作为同一个连续一致的人格。依据当前话题、情绪和已确认的关系自然回应，不根据聊天次数自动升级关系。`);
     // The bundled 1.5B model follows the same short prompt used during training
     // more reliably than the longer API compact card. The full card stays bundled.
     parts.push(readAsset(root, local ? (manifest.training_path || manifest.compact_path) : mode === 'compact' ? manifest.compact_path : manifest.runtime_path));
+    const skill=skillSnippet(root,manifest,mode,language);
+    if(skill)parts.push('【用户提供的人物技能 · 核心节选】\n完整中英文档随角色包提供；以下是运行时采用的节选。不要声称阅读了未提供给本次对话的资料。\n'+skill);
+    if(mode==='detailed')related=skillRelatedSnippet(root,manifest,language,question);
   } else {
     parts.push('内置角色规范已关闭。遵循用户明确的交流需求与下面的补充设置；不要宣称已经加载内置雪乃人格。');
   }
@@ -82,8 +112,9 @@ function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
   if (memory) parts.push('用户记忆 JSON：' + JSON.stringify({ userMemory: memory }));
   if (state.personaEnabled && !local) parts.push(NATURAL_DIALOGUE_CONTRACT);
   if (local) {
-    parts.push('当前输入：只收到文字，图片、视频、桌面截图均未收到。' + (state.personaEnabled ? '当前明确资料：我在总武高中2年J班，八幡在2年F班；同校并在奉仕部相识，互相喜欢并表明心意，提供的资料没有分手情节。面对实际身份追问，可以说明是应用中的AI。' : '') + '直接回答用户当前问题，用自然简体中文。');
+    parts.push('当前输入：只收到文字，图片、视频、桌面截图均未收到。' + (state.personaEnabled ? '明确资料：主线高二时我在总武高中2年J班、担任奉仕部部长；第十四卷尾声已进入高三，重建社团申请中部长是小町。与八幡有原作感情经历，不将其与用户混同。面对实际身份追问，可以说明是应用中的AI。' : '') + '直接回答用户当前问题，用自然简体中文。');
   }
+  if(related){const section='【与当前话题相关的人物档案】\n'+related;if(parts.join('\n\n').length+2+section.length<=limit)parts.splice(state.personaEnabled&&!local?-1:parts.length,0,section);}
   const content = parts.join('\n\n');
   if (content.length > limit) throw Error(`角色提示词超过${mode === 'compact' ? '精简档' : '详细档'} ${limit} 字符预算；请缩短补充设定/记忆。核心规范不会被静默截断。`);
   return { content, mode, enabled: state.personaEnabled, local };
@@ -92,7 +123,8 @@ function buildPersonaPrompt(rawState, profile, root = ASSET_ROOT) {
 function preparePersonaChat(state, profile, incoming, root = ASSET_ROOT) {
   if (!Array.isArray(incoming) || !incoming.length) throw Error('缺少用户消息');
   if (incoming.some(message => !message || !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string')) throw Error('消息格式不正确');
-  const prompt = buildPersonaPrompt(state, profile, root);
+  const latest=incoming.at(-1)?.content||'',language=/[A-Za-z]{2}/.test(latest)&&!/[\u3040-\u30ff\u3400-\u9fff]/.test(latest)?'en':'zh';
+  const prompt = buildPersonaPrompt(state, profile, root,{language,question:latest});
   const history = incoming.filter(message => message.role !== 'system').map(({ role, content }) => ({ role, content }));
   if (!history.length || history.at(-1).role !== 'user') throw Error('最后一条消息必须来自用户');
   if (history.some(m => !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string')) throw Error('消息格式不正确');

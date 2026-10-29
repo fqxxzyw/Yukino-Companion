@@ -16,6 +16,8 @@ function verifyCharacterPackage(archive) {
   const manifest = JSON.parse(read('manifest.json'));
   if (manifest.schema_version !== 2 || manifest.id !== 'yukino') throw Error('角色包 manifest 不兼容');
   const required = [manifest.runtime_path, manifest.compact_path, manifest.bible_path, manifest.training_path, manifest.evidence_path];
+  const skills=[manifest.skill_zh_path,manifest.skill_en_path,manifest.skill_compact_path];
+  if(skills.some(Boolean)){if(skills.some(value=>!value))throw Error('人物技能资源清单不完整');required.push(...skills);}
   required.forEach(read);
   const listed = asar.listPackage(archive).map(item => item.replaceAll('\\', '/').replace(/^\//, ''));
   if (listed.some(item => /^characters\/yukino\/(?:stages\/|core\.md$|(?:compact|training)\/(?:early|middle|late)\.md$)/.test(item))) throw Error('打包产物含旧版分阶段资源，请清理后重新构建');

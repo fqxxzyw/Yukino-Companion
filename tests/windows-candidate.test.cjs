@@ -4,6 +4,7 @@ const root=path.resolve(__dirname,'..'),workflow=yaml.load(fs.readFileSync(path.
 test('only explicit test release jobs can write; build and native validation remain read-only',()=>{
   assert.deepEqual(workflow.permissions,{contents:'read'});
   assert.deepEqual(workflow.on.push.branches,['handoff/codex-current-20261028']);
+  assert.match(workflow.concurrency.group,/github\.sha/);
   assert.equal(workflow.jobs.candidate['runs-on'],'windows-2022');
   assert.deepEqual(workflow.jobs.publish_test.permissions,{contents:'write'});
   assert.deepEqual(workflow.jobs.mark_prior_test.permissions,{contents:'write'});

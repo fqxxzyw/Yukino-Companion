@@ -169,6 +169,26 @@ test('bundled unified character resources fit both request budgets with user sup
   assert.ok(!('default_stage' in manifest));
 });
 
+test('user supplied Chinese and English skills remain available and their matching core guides the next reply',()=>{
+ const zh=preparePersonaChat({},remote,[{role:'user',content:'你好'}]).messages[0].content;
+ const en=preparePersonaChat({},remote,[{role:'user',content:'Hello, how are you?'}]).messages[0].content;
+ assert.match(zh,/用户提供的人物技能/);assert.match(zh,/抓住她的反应方式/);assert.doesNotMatch(zh,/## III\. Preserve the Way She Responds/);
+ assert.match(en,/## III\. Preserve the Way She Responds/);assert.doesNotMatch(en,/抓住她的反应方式/);
+ const zhTopic=preparePersonaChat({},remote,[{role:'user',content:'你和八幡的关系怎样？'}]).messages[0].content;assert.match(zhTopic,/### 6\.1 比企谷八幡/);
+ const enTopic=preparePersonaChat({},remote,[{role:'user',content:'Tell me about Hachiman'}]).messages[0].content;assert.match(enTopic,/### 6\.1 Hachiman Hikigaya/);
+ const localPrompt=buildPersonaPrompt({},local).content;assert.match(localPrompt,/用户提供的中英文雪乃人物技能/);assert.match(localPrompt,/尾声已进入高三/);
+ const doc=characterDocument().text;assert.match(doc,/完整中文单文件版/);assert.match(doc,/User-provided character skill · English/);assert.match(doc,/## III\. Preserve the Way She Responds/);
+ const custom=buildPersonaPrompt({personaEnabled:false,persona:'自定义角色'},remote).content;assert.doesNotMatch(custom,/用户提供的人物技能/);
+ const long=buildPersonaPrompt({persona:'设'.repeat(6000),useMemory:true,memory:'忆'.repeat(12000)},remote,undefined,{language:'en'});assert.ok(long.content.length<=30000);
+});
+
+test('the asar character verifier requires both user skill documents when the manifest declares them',async t=>{
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'yukino-skill-package-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));const source=path.join(temp,'source');
+ fs.mkdirSync(path.join(source,'characters'),{recursive:true});fs.cpSync(path.join(__dirname,'../characters/yukino'),path.join(source,'characters/yukino'),{recursive:true});fs.mkdirSync(path.join(source,'electron'));for(const file of ['persona.cjs','main.cjs','preload.cjs'])fs.writeFileSync(path.join(source,'electron',file),'// runtime');
+ const archive=path.join(temp,'complete.asar');await finished(await asar.createPackage(source,archive));assert.equal(verifyCharacterPackage(archive).resources,9);
+ fs.rmSync(path.join(source,'characters/yukino/SKILL_EN.md'));const broken=path.join(temp,'missing.asar');await finished(await asar.createPackage(source,broken));assert.throws(()=>verifyCharacterPackage(broken),/SKILL_EN/);
+});
+
 test('main-process IPC compiles persisted settings before the real HTTP transport', async () => {
   const {mainHarness} = require('./helpers/main-harness.cjs');
   const {BILINGUAL_INSTRUCTION} = require('../electron/bilingual.cjs');

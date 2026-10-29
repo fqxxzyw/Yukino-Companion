@@ -2,10 +2,13 @@
   "schema_version": 2,
   "id": "yukino",
   "name": "雪之下雪乃",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "bible_path": "CHARACTER.md",
   "runtime_path": "runtime.md",
   "compact_path": "compact.md",
   "training_path": "training.md",
-  "evidence_path": "evidence.md"
+  "evidence_path": "evidence.md",
+  "skill_zh_path": "SKILL_ZH.md",
+  "skill_en_path": "SKILL_EN.md",
+  "skill_compact_path": "skill-compact.md"
 }
