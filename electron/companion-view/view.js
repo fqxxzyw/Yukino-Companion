@@ -33,7 +33,7 @@ async function syncVideoPreview(){
  })();
  return videoLoading;
 }
-let composing=false,dockHover=false,dockFocus=false,dockTimer=null,speechBusy=false;
+let composing=false,dockHover=false,dockFocus=false,dockTimer=null,speechBusy=false,statusError=null;
 const expandButton=document.getElementById('pet-expand');
 function updateDock(){clearTimeout(dockTimer);const open=dockHover||dockFocus||input.value||chatBusy||submitting||visionActive;const apply=value=>{composer.classList.toggle('expanded',value);expandButton.setAttribute('aria-expanded',String(value));expandButton.tabIndex=value?-1:0;for(const el of[input,cameraButton,sendButton])el.tabIndex=value?0:-1;};if(open)apply(true);else dockTimer=setTimeout(()=>apply(false),320);}
 let drawRequest=0;
@@ -59,9 +59,9 @@ function resetMotion(){
 }
 motionPreference.addEventListener('change',resetMotion);
 function canAutoplay(){return !document.hidden&&!playbackPaused&&(!videoRequested()||previewActive())&&!menuView&&!menuOpen&&!dockHover&&!dockFocus&&!chatBusy&&!submitting&&!input.matches(':focus')&&!motionPreference.matches&&settings.animation&&!settings.interactionPaused&&!settings.quietMode&&!focus.active&&!dragging&&!down&&menu.hidden;}
-function showError(error){const message=String(error?.message||error||'桌宠操作未完成');if(menuView){menuError.textContent=message;menuError.hidden=false;}else{chatStatus.textContent=message;chatStatus.hidden=false;}}
-function renderChat(){updateDock();input.disabled=chatBusy||submitting;sendButton.disabled=!chatBusy&&(submitting||!input.value.trim());sendButton.textContent=chatBusy?'■':'↑';sendButton.title=chatBusy?'停止回复':'发送消息';sendButton.setAttribute('aria-label',sendButton.title);cameraButton.disabled=!visionActive&&(chatBusy||submitting);cameraButton.classList.toggle('vision-active',visionActive);cameraButton.title=visionActive?'视觉陪伴进行中 · 点击停止':'屏幕 / 摄像头（默认关闭）';cameraButton.setAttribute('aria-label',cameraButton.title);composer.classList.toggle('busy',chatBusy);if(chatBusy){chatStatus.textContent='正在回复 · 点击停止按钮可取消';chatStatus.hidden=false;}else if(chatStatus.textContent.startsWith('正在回复')){chatStatus.hidden=true;}}
-async function submitChat(event){event?.preventDefault();if(composing)return;if(chatBusy){await call('chat-stop').catch(showError);return;}const text=input.value.trim();if(!text||submitting)return;submitting=true;renderChat();try{await call('chat-submit',text);input.value='';}catch(error){showError(error);}finally{submitting=false;renderChat();}}
+function showError(error,kind='operation'){const message=String(error?.message||error||'桌宠操作未完成');if(menuView){menuError.textContent=message;menuError.hidden=false;}else{statusError={kind,message};renderChat();}}
+function renderChat(){updateDock();input.disabled=chatBusy||submitting;sendButton.disabled=!chatBusy&&(submitting||!input.value.trim());sendButton.textContent=chatBusy?'■':'↑';sendButton.title=chatBusy?'停止回复':'发送消息';sendButton.setAttribute('aria-label',sendButton.title);cameraButton.disabled=!visionActive&&(chatBusy||submitting);cameraButton.classList.toggle('vision-active',visionActive);cameraButton.title=visionActive?'视觉陪伴进行中 · 点击停止':'屏幕 / 摄像头（默认关闭）';cameraButton.setAttribute('aria-label',cameraButton.title);composer.classList.toggle('busy',chatBusy);if(chatBusy){chatStatus.textContent='正在回复 · 点击停止按钮可取消';chatStatus.hidden=false;}else if(statusError){chatStatus.textContent=statusError.message;chatStatus.hidden=false;}else{chatStatus.textContent='';chatStatus.hidden=true;}}
+async function submitChat(event){event?.preventDefault();if(composing)return;if(chatBusy){await call('chat-stop').catch(error=>showError(error,'chat'));return;}const text=input.value.trim();if(!text||submitting)return;submitting=true;renderChat();try{await call('chat-submit',text);input.value='';}catch(error){showError(error,'chat');}finally{submitting=false;renderChat();}}
 function stopAudio(){voiceGeneration++;if(audio){audio.pause();audio.src='';audio=null;}}
 async function playVoice(manual=false){
  if(speechBusy)return;
@@ -114,7 +114,7 @@ function renderMenu(){
  if(kind==='pet'){
   const grid=document.createElement('div');grid.className='menu-grid';section.append(grid);
   for(const [name,label]of[['greet','打个招呼'],['head-tilt','歪头看看'],['jump','原地跳一下'],['walk','安静地散步'],['sit','坐下来休息'],['voice','随机试听语音']]){const button=actionButton(grid,label,()=>call('action',name).then(closeMenu));button.disabled=settings.petRenderer==='video-preview'&&lastCharacterId==='yukino'&&['greet','head-tilt','jump','sit'].includes(name);}
-  section=group('桌宠渲染');const renderer=document.createElement('select');renderer.setAttribute('aria-label','桌宠渲染模式');for(const [value,label]of[['sprite','原 Q 版 · 默认'],['video-preview','连续动画预览 · 3D 预渲染']]){const option=document.createElement('option');option.value=value;option.textContent=label;option.disabled=value==='video-preview'&&lastCharacterId!=='yukino';renderer.append(option);}renderer.value=settings.petRenderer||'sprite';renderer.addEventListener('change',()=>call('prefs',{petRenderer:renderer.value}).catch(showError));section.append(renderer);const previewNote=document.createElement('p');previewNote.className='menu-note';previewNote.textContent='预览仅限雪乃：24 fps 待机与左右散步，不是原 Q 版新素材。暂不支持挥手、摸头动作、抱起姿态、跳跃和坐下；拖动与聊天保留。转身/停步及 Windows 实机效果待验收。';section.append(previewNote);
+  section=group('桌宠渲染');const renderer=document.createElement('select');renderer.setAttribute('aria-label','桌宠渲染模式');for(const [value,label]of[['sprite','原 Q 版 · 默认'],['video-preview','连续动画预览 · 3D 预渲染']]){const option=document.createElement('option');option.value=value;option.textContent=label;option.disabled=value==='video-preview'&&lastCharacterId!=='yukino';renderer.append(option);}renderer.value=settings.petRenderer||'sprite';renderer.addEventListener('change',()=>call('prefs',{petRenderer:renderer.value}).catch(showError));section.append(renderer);const previewNote=document.createElement('p');previewNote.className='menu-note';previewNote.textContent='连续动画预览支持雪乃待机和左右散步；挥手、摸头、跳跃和坐下暂不可用。';section.append(previewNote);
   section=group('日常陪伴');toggle(section,'播放动画','animation');toggle(section,'暂停互动','interactionPaused');toggle(section,'安静模式','quietMode');
   section=group('语录与提醒');toggle(section,'随机语录','randomQuotes');toggle(section,'互动语录','interactionQuotes');toggle(section,'深夜提醒','nightReminders');toggle(section,'显示气泡','showBubbles');
   const note=document.createElement('p');note.className='menu-note';note.textContent='原桌宠语录为中文；聊天回复使用你选择的气泡语言。';section.append(note);
@@ -122,7 +122,7 @@ function renderMenu(){
   section=group('专注计时');if(focus.active)actionButton(section,'取消本次专注',()=>call('action','focus-cancel'));else for(const minutes of[25,50])actionButton(section,`${minutes} 分钟`,()=>call('action',`focus-${minutes}`).then(closeMenu));
  }
  section=group('休息提醒');toggle(section,'久坐休息提醒（默认关闭）','breakReminders');const reminderSelect=document.createElement('select');reminderSelect.setAttribute('aria-label','休息提醒间隔');for(const minutes of[30,45,60,90,120]){const option=document.createElement('option');option.value=minutes;option.textContent=minutes+' 分钟';reminderSelect.append(option)}reminderSelect.value=settings.breakIntervalMinutes||60;reminderSelect.addEventListener('change',()=>call('prefs',{breakIntervalMinutes:Number(reminderSelect.value)}).catch(showError));section.append(reminderSelect);
- section=group('展示与启动');range(section,'形象大小','scale',.6,2,.05);range(section,'透明度','opacity',.35,1,.05);toggle(section,'总在最前','alwaysOnTop');const startup=toggle(section,'开机启动','startup');startup.disabled=!startupAvailable;
+  section=group('展示与启动');range(section,'形象大小','scale',.6,2,.05);range(section,'透明度','opacity',.35,1,.05);toggle(section,'总在最前','alwaysOnTop');toggle(section,'人物鼠标穿透','mouseThrough');const startup=toggle(section,'开机启动','startup');startup.disabled=!startupAvailable;
  section=group('聊天输入');const placement=document.createElement('label');placement.className='menu-toggle';placement.textContent='输入框位置';const select=document.createElement('select');select.setAttribute('aria-label','输入框位置');for(const [value,label]of[['below','形象下方'],['above','形象上方']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}select.value=settings.inputPosition||'below';select.addEventListener('change',()=>call('prefs',{inputPosition:select.value}).catch(showError));placement.append(select);section.append(placement);
  section=group('更多');actionButton(section,'打开完整设置',()=>call('settings'));actionButton(section,'隐藏到托盘',()=>call('hide'));actionButton(section,'完全退出',()=>call('quit'),'danger');menuBody.scrollTop=scroll;
 }
@@ -153,7 +153,7 @@ function draw(time){
 }
 api?.onState(state=>{speechBusy=state.speechBusy===true;if(speechBusy)stopAudio();
  const identity=state.character?.id||'yukino';
- if(lastCharacterId&&identity!==lastCharacterId){characterRevision++;localQuote=null;localQuoteUntil=0;remoteReply=null;lastReply='';stopAudio();resetMotion();}
+ if(lastCharacterId&&identity!==lastCharacterId){characterRevision++;localQuote=null;localQuoteUntil=0;remoteReply=null;lastReply='';if(statusError?.kind==='chat')statusError=null;stopAudio();resetMotion();}
  lastCharacterId=identity;
  if(state.voiceRevision!==voiceRevision){voiceRevision=state.voiceRevision;refreshVoiceCatalog();}
  const rendererChanged=settings.petRenderer!==state.preferences.petRenderer;kind=state.kind;settings=state.preferences;playbackPaused=state.playbackPaused===true;if(rendererChanged)resetMotion();const title=state.character?.name||'雪之下雪乃';document.querySelector('.pet-menu h2').textContent=title;input.placeholder=`和${title}说话…`;canvas.setAttribute('aria-label',`${title}桌宠，拖动移动，双击打开聊天，右键打开设置`);chatBusy=!!state.chatBusy;visionActive=!!state.visionActive;startupAvailable=!!state.startupAvailable;focus=state.focus||{active:false};
@@ -168,9 +168,10 @@ api?.onState(state=>{speechBusy=state.speechBusy===true;if(speechBusy)stopAudio(
  const signature=JSON.stringify(settings);if(signature!==lastSettings&&!menu.hidden)renderMenu();lastSettings=signature;
  if(!initialized){initialized=true;if(menuView)openMenu();else if(kind==='pet')quote('Greeting');}
 });
-api?.onAction(({name,message})=>{if(name==='chat-error')showError(message);else act(name)});
+api?.onAction(({name,message,kind})=>{if(name==='chat-error')showError(message,kind||'chat');else if(name==='capability-recovered'){if(statusError?.kind===kind){statusError=null;renderChat();}}else act(name)});
 function hitTest(event){
  if(dragging||menuView||!menu.hidden||event.target.closest('button,input,select,.pet-composer,.chat-status,.bubble,.model'))return true;
+ if(settings.mouseThrough)return false;
  const videoHit=previewActive()?videoPreview.hitTest(event.clientX,event.clientY):null;if(videoHit!==null)return videoHit;
  const box=canvas.getBoundingClientRect(),x=Math.floor((event.clientX-box.left)*192/box.width),y=Math.floor((event.clientY-box.top)*208/box.height);
  return !canvas.hidden&&x>=0&&x<192&&y>=0&&y<208&&ctx.getImageData(x,y,1,1).data[3]>15;

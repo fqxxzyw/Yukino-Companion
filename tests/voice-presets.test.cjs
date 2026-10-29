@@ -30,9 +30,12 @@ test('reference metadata verifies audio bytes and rejects traversal or stale ref
 
 test('downloaded common runtime is discovered without requiring a preinstalled Python',async t=>{
  const root=await fixture(t),resources=path.join(root,'resources'),data=path.join(root,'data'),runtime=path.join(data,'runtime/current');
+ const before=await bundledVoiceDefaults({resourceRoot:resources,dataRoot:data});
  await write(runtime,'python-runtime/python.exe');await write(runtime,'python-runtime/ffmpeg.exe');
  await write(runtime,'inference-engine/yukino-runtime.json',JSON.stringify({revision:'a'.repeat(40)}));await write(runtime,'inference-engine/GPT_SoVITS/TTS_infer_pack/TTS.py');
  const result=await bundledVoiceDefaults({resourceRoot:resources,dataRoot:data});assert.equal(result.bundled,true);assert.equal(result.defaults.python,path.join(runtime,'python-runtime/python.exe'));assert.equal(result.preset,null);
+ assert.equal(result.modelRoot,path.join(data,'speech-models'));
+ assert.equal(before.modelRoot,result.modelRoot);
 });
 test('base app reuses its verified small reference audio without inventing prompt text',async t=>{
  const root=await fixture(t),resources=path.join(root,'resources'),data=path.join(root,'data'),reference=path.join(resources,'voice-presets/yukino-reference.wav');

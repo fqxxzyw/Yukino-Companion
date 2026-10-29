@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld('desktop', {
   onChunk:fn=>subscribe('chunk',fn), onError:fn=>subscribe('app-error',fn),
   voiceResources:()=>invoke('voice-resources'), voiceInstall:(id,options)=>invoke('voice-install',id,options), onVoiceConfig:fn=>subscribe('voice-config-updated',fn),
   voiceDownloadCancel:()=>invoke('voice-download-cancel'), onVoiceDownload:fn=>subscribe('voice-download',fn),
-  voiceSettings:()=>invoke('voice-settings'), voiceSave:config=>invoke('voice-save',config),
+  voiceSettings:()=>invoke('voice-settings'), voiceSave:config=>invoke('voice-save',config), voicePatch:patch=>invoke('voice-patch',patch),
   voiceStatus:()=>invoke('voice-status'), voiceProbe:config=>invoke('voice-probe',config),
   voiceLoad:config=>invoke('voice-load',config), voiceUnload:()=>invoke('voice-unload'),
   voiceBegin:id=>invoke('voice-begin',id), voiceSynthesize:(id,text)=>invoke('voice-synthesize',id,text),

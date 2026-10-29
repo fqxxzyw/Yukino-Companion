@@ -44,6 +44,16 @@ test('all eight actual release parts start concurrently and retain independent v
  let active=0,maximum=0;await downloadResource({...f,parts,fetcher:async url=>{active++;maximum=Math.max(maximum,active);await new Promise(resolve=>setTimeout(resolve,15));active--;return ok(parts[Number(new URL(url).pathname.slice(1))].chunk);}});
  assert.equal(maximum,8);assert.deepEqual(await fs.readFile(f.dest),data);
 });
+test('all 75 current-catalog-sized parts can start before any part completes',async t=>{
+ const f=await fixture(t),content=Buffer.from(Array.from({length:75},(_,i)=>i)),hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+ const parts=Array.from(content,(byte,i)=>({name:`piece-${i}`,url:`https://example.test/${i}`,bytes:1,sha256:hash(Buffer.from([byte]))}));
+ let started=0,release,releaseReason='';const barrier=new Promise(resolve=>{release=resolve});
+ const timeout=setTimeout(()=>{releaseReason||='timeout';release();},5000);t.after(()=>clearTimeout(timeout));
+ const result=await downloadResource({...f,parts,bytes:content.length,sha256:hash(content),fetcher:async url=>{
+  const n=Number(new URL(url).pathname.slice(1));if(++started===parts.length){releaseReason||='all-started';release();}await barrier;return ok(Buffer.from([content[n]]));
+ }});
+ assert.equal(releaseReason,'all-started');assert.equal(started,75);assert.equal(result.engine,'multipart');assert.deepEqual(await fs.readFile(f.dest),content);
+});
 test('verified parts survive cancellation and retry fetches only unfinished parts',async t=>{
  const f=await fixture(t),parts=splitFixture(data),controller=new AbortController();let cancelled=false;
  await assert.rejects(downloadResource({...f,parts,signal:controller.signal,onProgress:event=>{if(event.parts?.[0].phase==='complete'&&!cancelled){cancelled=true;controller.abort();}},fetcher:async url=>url.endsWith('/0')?ok(parts[0].chunk):new Promise(()=>{})}),error=>error.name==='AbortError');
