@@ -33,6 +33,9 @@ try{
  & node (Join-Path $root 'scripts/base-payload.cjs') verify $target (Join-Path $root 'build/base-payload.json')
  if($LASTEXITCODE -ne 0){throw 'Installed payload digest verification failed'}
  Record 'Setup.exe installed; every installed payload file matches the recorded manifest'
+ & node (Join-Path $root 'scripts/verify-character-package.cjs') (Join-Path $target 'resources/app.asar')
+ if($LASTEXITCODE -ne 0){throw 'Installed character and bilingual skill package verification failed'}
+ Record 'Installed character package contains the complete Chinese and English skill documents'
  $exe=Join-Path $target 'Yukino Companion.exe';if(-not(Test-Path $exe)){throw 'Installed program missing'}
  $roaming=Join-Path $profile 'Roaming';$local=Join-Path $profile 'Local';[void][IO.Directory]::CreateDirectory($roaming);[void][IO.Directory]::CreateDirectory($local)
  $start=New-Object Diagnostics.ProcessStartInfo;$start.FileName=$exe;$start.WorkingDirectory=$target;$start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
