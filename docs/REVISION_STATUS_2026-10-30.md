@@ -119,6 +119,14 @@ source and payload manifest. It has read-only repository permissions and
 uploads only the permitted extractable EXE and manifests, not standalone model
 files. Its presence is not evidence that a candidate was built or installed;
 check the actual workflow run and keep final publication gated on acceptance.
+Candidate run [`40967422342`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40967422342)
+built an installer with seven visual outfits and verified 101 installed payload
+files, then launched and rendered the default model. Its native smoke failed
+because the old layout assertion required the action menu outside the panel,
+contrary to the revision requirement. The installed-window check now requires
+the menu inside the panel and tests a bounded, independently scrollable long
+reply with fixed controls; a new run must execute the remaining upgrade and
+uninstall checks before those can be reported for the revised installer.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
