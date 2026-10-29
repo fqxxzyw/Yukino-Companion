@@ -1,6 +1,6 @@
 'use strict';
 const api=window.companion,canvas=document.getElementById('pet'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-const bubble=document.getElementById('bubble'),zh=document.getElementById('zh'),ja=document.getElementById('ja'),model=document.getElementById('model');
+const bubble=document.getElementById('bubble'),bubbleBody=document.getElementById('bubble-body'),bubbleLatest=document.getElementById('bubble-latest'),zh=document.getElementById('zh'),ja=document.getElementById('ja'),model=document.getElementById('model');
 const composer=document.getElementById('pet-composer'),input=document.getElementById('pet-input'),sendButton=document.getElementById('pet-send'),cameraButton=document.getElementById('pet-camera'),chatStatus=document.getElementById('chat-status');
 const menu=document.getElementById('pet-menu'),menuBody=document.getElementById('menu-body'),menuError=document.getElementById('menu-error'),focusBadge=document.getElementById('focus-badge');
 const clips={
@@ -33,7 +33,7 @@ async function syncVideoPreview(){
  })();
  return videoLoading;
 }
-let composing=false,dockHover=false,dockFocus=false,dockTimer=null,speechBusy=false,statusError=null;
+let composing=false,dockHover=false,dockFocus=false,dockTimer=null,speechBusy=false,statusError=null,bubbleHover=false,bubbleKey='';
 const expandButton=document.getElementById('pet-expand');
 function updateDock(){clearTimeout(dockTimer);const open=dockHover||dockFocus||input.value||chatBusy||submitting||visionActive;const apply=value=>{composer.classList.toggle('expanded',value);expandButton.setAttribute('aria-expanded',String(value));expandButton.tabIndex=value?-1:0;for(const el of[input,cameraButton,sendButton])el.tabIndex=value?0:-1;};if(open)apply(true);else dockTimer=setTimeout(()=>apply(false),320);}
 let drawRequest=0;
@@ -58,7 +58,8 @@ function resetMotion(){
  const image=images.base;if(image.complete&&image.naturalWidth){ctx.clearRect(0,0,192,208);ctx.drawImage(image,0,0,192,208,0,0,192,208);lastDraw='base:0:0';}else lastDraw='';
 }
 motionPreference.addEventListener('change',resetMotion);
-function canAutoplay(){return !document.hidden&&!playbackPaused&&(!videoRequested()||previewActive())&&!menuView&&!menuOpen&&!dockHover&&!dockFocus&&!chatBusy&&!submitting&&!input.matches(':focus')&&!motionPreference.matches&&settings.animation&&!settings.interactionPaused&&!settings.quietMode&&!focus.active&&!dragging&&!down&&menu.hidden;}
+function bubbleInteracting(){const selection=window.getSelection();return bubbleHover||bubble.contains(document.activeElement)||!!(selection?.rangeCount&&!selection.isCollapsed&&bubble.contains(selection.anchorNode));}
+function canAutoplay(){return !document.hidden&&!playbackPaused&&(!videoRequested()||previewActive())&&!menuView&&!menuOpen&&!dockHover&&!dockFocus&&!bubbleInteracting()&&!chatBusy&&!submitting&&!input.matches(':focus')&&!motionPreference.matches&&settings.animation&&!settings.interactionPaused&&!settings.quietMode&&!focus.active&&!dragging&&!down&&menu.hidden;}
 function showError(error,kind='operation'){const message=String(error?.message||error||'桌宠操作未完成');if(menuView){menuError.textContent=message;menuError.hidden=false;}else{statusError={kind,message};renderChat();}}
 function renderChat(){updateDock();input.disabled=chatBusy||submitting;sendButton.disabled=!chatBusy&&(submitting||!input.value.trim());sendButton.textContent=chatBusy?'■':'↑';sendButton.title=chatBusy?'停止回复':'发送消息';sendButton.setAttribute('aria-label',sendButton.title);cameraButton.disabled=!visionActive&&(chatBusy||submitting);cameraButton.classList.toggle('vision-active',visionActive);cameraButton.title=visionActive?'视觉陪伴进行中 · 点击停止':'屏幕 / 摄像头（默认关闭）';cameraButton.setAttribute('aria-label',cameraButton.title);composer.classList.toggle('busy',chatBusy);if(chatBusy){chatStatus.textContent='正在回复 · 点击停止按钮可取消';chatStatus.hidden=false;}else if(statusError){chatStatus.textContent=statusError.message;chatStatus.hidden=false;}else{chatStatus.textContent='';chatStatus.hidden=true;}}
 async function submitChat(event){event?.preventDefault();if(composing)return;if(chatBusy){await call('chat-stop').catch(error=>showError(error,'chat'));return;}const text=input.value.trim();if(!text||submitting)return;submitting=true;renderChat();try{await call('chat-submit',text);input.value='';}catch(error){showError(error,'chat');}finally{submitting=false;renderChat();}}
@@ -72,16 +73,22 @@ async function playVoice(manual=false){
  try{const url=await call('voice-url',voiceFiles[next]);if(sequence!==voiceGeneration)return;if(typeof url!=='string'||!url.startsWith('file:'))throw Error('语音地址未准备');audio=new Audio(url);audio.volume=settings.soundVolume;await audio.play()}catch(error){if(sequence!==voiceGeneration)return;stopAudio();if(manual)showError('声音暂时无法播放，请检查系统输出设备。');}
  nextVoice=performance.now()+45000+Math.random()*45000;
 }
+function updateBubbleLatest(){bubbleLatest.hidden=bubbleBody.scrollHeight-bubbleBody.clientHeight-bubbleBody.scrollTop<=12;}
 function renderBubble(){
  if(menuView||!settings.showBubbles||settings.quietMode){bubble.hidden=true;return;}
- if(localQuote){zh.textContent=localQuote;ja.textContent='';bubble.hidden=false;return;}
- if(!remoteReply||(!remoteReply.zh&&!remoteReply.ja)){bubble.hidden=true;return;}
- zh.textContent=settings.bubbleLanguage==='ja'&&remoteReply.ja?'':remoteReply.zh;
- ja.textContent=settings.bubbleLanguage==='zh'?(remoteReply.zh?'':remoteReply.ja):(remoteReply.ja||'（当前仅有中文内容）');bubble.hidden=false;
+ if(!localQuote&&(!remoteReply||(!remoteReply.zh&&!remoteReply.ja))){bubble.hidden=true;bubbleKey='';return;}
+ const key=localQuote?'quote:'+localQuote:'reply:'+(remoteReply.id||''),same=key===bubbleKey;
+ const nextZh=localQuote|| (settings.bubbleLanguage==='ja'&&remoteReply.ja?'':remoteReply.zh);
+ const nextJa=localQuote?'':settings.bubbleLanguage==='zh'?(remoteReply.zh?'':remoteReply.ja):(remoteReply.ja||'（当前仅有中文内容）');
+ const oldTop=bubbleBody.scrollTop,atBottom=bubbleBody.scrollHeight-bubbleBody.clientHeight-oldTop<=12;
+ bubble.hidden=false;
+ if(zh.textContent!==nextZh)zh.textContent=nextZh;
+ if(ja.textContent!==nextJa)ja.textContent=nextJa;
+ bubbleKey=key;bubbleBody.scrollTop=same?(atBottom?bubbleBody.scrollHeight:oldTop):0;updateBubbleLatest();
 }
 async function quote(trigger,action=clipName){
- if(menuView||!settings.showBubbles||settings.quietMode)return false;
- const revision=characterRevision;const entry=await safely('quote',{trigger,action});if(revision!==characterRevision||!entry?.Text)return false;
+ if(menuView||!settings.showBubbles||settings.quietMode||bubbleInteracting())return false;
+ const revision=characterRevision;const entry=await safely('quote',{trigger,action});if(revision!==characterRevision||!entry?.Text||bubbleInteracting())return false;
  localQuote=entry.Text;localQuoteUntil=performance.now()+Math.min(18000,Math.max(5000,entry.Text.length*180));renderBubble();return true;
 }
 function startWalk(manual=false){
@@ -130,7 +137,7 @@ function openMenu(){stopWalk();if(!dragging)play('idle');if(!menuView){safely('m
 function closeMenu(){if(menuView){safely('menu-close');return;}menu.hidden=true;document.body.classList.remove('menu-active');nextDecision=performance.now()+12000;canvas.focus();}
 function draw(time){
  drawRequest=0;if(disposed||menuView||document.hidden||playbackPaused)return;
- if(localQuote&&time>localQuoteUntil){localQuote=null;renderBubble();}
+ if(localQuote&&time>localQuoteUntil&&!bubbleInteracting()){localQuote=null;renderBubble();}
  if(kind==='pet'&&images.base.complete&&images.base.naturalWidth){
   if(canAutoplay()){
    if(sitUntil&&time>sitUntil){sitUntil=0;play('idle');}
@@ -223,6 +230,7 @@ function updateCursorTimer(){const enabled=!menuView&&!document.hidden&&!playbac
 updateCursorTimer();
 function refreshVoiceCatalog(){return call('catalog').then(catalog=>{voiceFiles=(catalog?.voices||[]).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name));lastVoice=-1;if(!menu.hidden)renderMenu()}).catch(()=>{});}
 composer.addEventListener('pointerenter',()=>{dockHover=true;stopWalk();updateDock()});composer.addEventListener('pointerleave',()=>{dockHover=false;updateDock()});composer.addEventListener('focusin',()=>{dockFocus=true;updateDock()});composer.addEventListener('focusout',event=>{if(!composer.contains(event.relatedTarget)){dockFocus=false;updateDock()}});function focusDockInput(){composer.classList.add('expanded');input.focus()}expandButton.addEventListener('click',focusDockInput);expandButton.addEventListener('focus',focusDockInput);
+bubble.addEventListener('pointerenter',()=>{bubbleHover=true;stopWalk()});bubble.addEventListener('pointerleave',()=>{bubbleHover=false});bubbleBody.addEventListener('scroll',updateBubbleLatest);bubbleLatest.addEventListener('click',()=>{bubbleBody.scrollTop=bubbleBody.scrollHeight;updateBubbleLatest();bubbleBody.focus()});
 composer.addEventListener('submit',submitChat);input.addEventListener('input',renderChat);input.addEventListener('compositionstart',()=>{composing=true});input.addEventListener('compositionend',()=>{composing=false});input.addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.isComposing||composing||event.keyCode===229))event.preventDefault();});
 cameraButton.addEventListener('click',()=>{if(visionActive){call('vision-stop').catch(showError);return;}chatStatus.textContent='在独立视觉面板选择屏幕或摄像头；确认前不采集、不发送。';chatStatus.hidden=false;call('vision-open').catch(showError);});
 window.addEventListener('blur',()=>{if(down||dragging){clearDragFrame();down=null;dragging=false;safely('drag-cancel');play('idle');}});

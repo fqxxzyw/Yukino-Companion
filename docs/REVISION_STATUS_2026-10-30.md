@@ -11,7 +11,10 @@ the changes described here. Keep the history and release assets intact.
 - Desktop-pet walking uses the same visible-body bounds as dragging and rejects
   corrections that would move opposite to the requested gait. Long bilingual
   replies are no longer truncated by the companion manager; the model window
-  keeps controls fixed while its reply body scrolls.
+  keeps controls fixed while its reply body scrolls. The pet bubble sizes to its
+  content up to a limit, scrolls only its body, preserves reading position when
+  the same reply changes, and has a separate return-to-latest button. A local
+  quote cannot replace the reply while the user is reading/selecting it.
 - Optional mouse-through has explicit controls and preserves interaction with
   the desktop controls. The model hit test uses actual Three.js mesh geometry;
   transparent texture cutouts and native desktop behavior require further QA.
@@ -48,7 +51,10 @@ The source regression ran with 755 Node tests, 66 Python tests and 19 community
 tests passing. The production build completed. Electron 45 on Linux with
 software rendering completed 86 main-interface checks, pet-menu checks and a
 moving-background glass comparison. This is supplemental to Windows; the
-headless pet run explicitly skipped native desktop-window movement.
+headless pet run explicitly skipped native desktop-window movement. The latest
+pet renderer run passed 15 checks (including long reply, reading position,
+independent font size at 2× character scale, and menu checks) and saved 5
+screenshots; one native movement check was skipped in that headless run.
 
 The Windows workflow added on this branch runs source, build and Electron
 checks without publishing artifacts. Run
@@ -80,6 +86,10 @@ again passed those model renders and again failed the eight-weight step. Its
 separate Windows interface/source workflow
 [`40958215259`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40958215259)
 passed; these runs predate the latest composer and scene-menu material changes.
+The later Windows source/interface workflow
+[`40960266721`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40960266721)
+passed after the composer and scene-menu material changes, but predates the
+pet long-reply changes described above.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
@@ -111,6 +121,9 @@ playback, listening quality and synchronization remain unverified.
 ## Outstanding acceptance work
 
 Do not mark the full revision plan or product complete. In particular:
+
+[`REVISION_QA_MATRIX_2026-10-30.md`](REVISION_QA_MATRIX_2026-10-30.md) records
+the documented T01–T64 acceptance cases with evidence and remaining gaps.
 
 - Test native Windows desktop hit testing, dragging/flicker, multi-monitor DPI,
   both gait directions, long-message scrolling and actual graphics performance.
