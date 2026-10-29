@@ -465,6 +465,12 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 @media(prefers-reduced-transparency:reduce){.character-panel::before{backdrop-filter:none;background:var(--surface)}}
 .glass-filter-definitions{position:absolute;pointer-events:none}
 
+/* The composer and scene menu sample the live application backdrop too. Text
+   remains on a separate foreground layer and the tint preserves contrast. */
+.composer{background:linear-gradient(145deg,#ffffff20,transparent 46%),color-mix(in srgb,var(--surface) 91%,transparent);backdrop-filter:blur(10px) saturate(1.12);backdrop-filter:url(#yukino-glass-refraction) blur(8px) saturate(1.12);box-shadow:inset 0 1px 1px #ffffff55,0 12px 38px var(--shadow),0 2px 5px var(--shadow)}
+.character-scene-menu{background:linear-gradient(145deg,#ffffff24,transparent 50%),color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(12px) saturate(1.12);backdrop-filter:url(#yukino-glass-refraction) blur(10px) saturate(1.12);box-shadow:inset 0 1px 1px #ffffff55,0 16px 40px #233d6925}
+@media(prefers-reduced-transparency:reduce){.composer,.character-scene-menu{background:var(--surface)!important;backdrop-filter:none}}
+
 .contact-group{margin-bottom:4px}.contact-row{display:flex;align-items:center;min-width:0;border-radius:12px}.contact-row:hover{background:var(--hover)}.contact-row.selected{background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .contact-expand{width:28px;height:42px;flex:none;display:grid;place-items:center;color:var(--secondary)}.contact-select{display:flex;align-items:center;gap:9px;min-width:0;flex:1;padding:7px 8px;text-align:left;color:var(--text);border-radius:10px}.contact-avatar{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:10px;overflow:hidden;background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent-text)}.contact-avatar img{display:block;width:100%;height:100%;object-fit:cover;object-position:center top;transform:scale(2.6);transform-origin:50% 8%}.contact-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.contact-select small{color:var(--secondary);font-size:10px}.contact-conversations{padding-left:27px}.contact-conversations .history-row>button:first-child{padding:9px 7px;font-size:11px}.contact-conversations .empty-history{padding:4px 8px;font-size:11px}.collapsed .contact-select{justify-content:center;padding:7px 0}.collapsed .contact-avatar{width:32px;height:32px}
 

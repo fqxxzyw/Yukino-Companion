@@ -15,12 +15,14 @@ the changes described here. Keep the history and release assets intact.
 - Optional mouse-through has explicit controls and preserves interaction with
   the desktop controls. The model hit test uses actual Three.js mesh geometry;
   transparent texture cutouts and native desktop behavior require further QA.
-- The main-window character frame is thinner. Its rim applies a displacement
-  filter to the live **application** backdrop, with a moving highlight, reduced
-  transparency fallback, and a background/blur transition during panel drag.
-  `scripts/verify-glass-ui.cjs` compares the actual renderer against a synthetic
-  moving stripe background and ordinary blur. It does not sample windows behind
-  the Electron window or establish production GPU performance.
+- The main-window character frame is thinner. Its rim, the composer and the
+  scene menu apply a displacement filter to the live **application** backdrop,
+  with a moving rim highlight, reduced-transparency fallback, and a
+  background/blur transition during panel drag. `scripts/verify-glass-ui.cjs`
+  compares both the rim and composer against a synthetic moving stripe background
+  and ordinary blur. This is an initial material, not completed liquid-glass
+  acceptance: it does not sample windows behind the Electron window or establish
+  production GPU performance, contrast across themes, or motion quality.
 - Concurrent setup downloads use a stable managed voice-model root and merge
   results through serialized writes. UI saves send only edited fields, so stale
   form data cannot replace freshly installed weights. Selecting weights,
@@ -72,6 +74,12 @@ all 17 model versions, walking phases and synthetic audio-clock checks passed.
 The earlier runner inherited system reduced motion; the motion-specific test
 now explicitly emulates normal motion in its isolated window. The independent
 eight-weight WebGL step still failed/timed out on the basic software driver.
+The later exact-branch run
+[`40958215186`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40958215186)
+again passed those model renders and again failed the eight-weight step. Its
+separate Windows interface/source workflow
+[`40958215259`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40958215259)
+passed; these runs predate the latest composer and scene-menu material changes.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
