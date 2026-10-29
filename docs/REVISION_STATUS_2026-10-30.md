@@ -90,6 +90,14 @@ The later Windows source/interface workflow
 [`40960266721`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40960266721)
 passed after the composer and scene-menu material changes, but predates the
 pet long-reply changes described above.
+With the pet changes, Windows source, build, interface, glass and 16 pet checks
+passed in [`40961966554`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40961966554);
+the pet test includes one native window movement, not repeated dragging or a
+multi-monitor test. Python skipped ten cases. The paired integration run
+[`40961966637`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40961966637)
+again passed the model render step but failed the eight-weight step.
+Future revision UI jobs preserve only synthetic window screenshots and reports
+as time-limited workflow artifacts, never model binaries or user profiles.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,

@@ -40,3 +40,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run qa:pet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # These windows use isolated synthetic fixtures and capture only their own
+      # contents. Never publish assets, model files, user data, or the profile.
+      - name: Preserve interface evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-revision-ui-evidence
+          path: |
+            build/glass-review/*.png
+            build/glass-review/report.json
+            build/ui-review/*.png
+            build/ui-review/report.json
+            build/pet-ui-review/*.png
+            build/pet-ui-review/report.json
+          if-no-files-found: warn
+          retention-days: 14

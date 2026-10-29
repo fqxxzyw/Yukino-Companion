@@ -8,8 +8,8 @@ pre-revision Windows test installer is built from `3f7eb207`, not this branch.
 Evidence labels used below:
 
 - **UI**: isolated Electron renderer on Windows and supplemental Linux,
-  synthetic state and no real API/device. Latest pre-pet-change Windows run:
-  [40960266721](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40960266721).
+  synthetic state and no real API/device. Windows run after the pet changes:
+  [40961966554](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40961966554).
 - **PET**: production pet renderer/preload/manager with synthetic content and
   temporary preferences. Linux headless cannot prove native desktop movement;
   the Windows job checks one native move, not multi-monitor or repeated drag.
@@ -19,7 +19,7 @@ Evidence labels used below:
   used the real production services, pinned models and a Windows CPU runner.
   They generated WAVs; the runner had network access and no listening or
   playback/synchronization acceptance was performed.
-- **RENDER**: [40958215186](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40958215186)
+- **RENDER**: [40961966637](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40961966637)
   rendered 17 model variants on Microsoft Basic Render Driver. Its independent
   eight-weight WebGL step timed out/failed; this is not physical GPU evidence.
 - **INSTALL**: the pre-revision installer was installed and upgraded on a
