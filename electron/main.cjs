@@ -1,6 +1,6 @@
 const {canUseSkin}=require('./skin-policy.cjs');
 const electron = require('electron');
-const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net} = electron;
+const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard} = electron;
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {chat, endpoint} = require('./chat.cjs');
@@ -34,7 +34,7 @@ const {CompanionManager} = require('./companions.cjs');
 const voiceCatalog = require('../resources/voice-models.json');
 const translationManifest = require('../translation/model-manifest.json');
 const outputInstruction = local => local ? '请用简体中文自然回答。不要自行附加其他语言翻译。' : BILINGUAL_INSTRUCTION;
-let win, controller, speech, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks, voiceConfigRevision=0;
+let win, controller, speech, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks;
 let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false, flushResolver;
 function flushRenderer() {
   if(!win || win.isDestroyed()) return Promise.resolve();
@@ -182,7 +182,7 @@ else {
         {id:'chat',downloadBytes:local.modelInstalled?0:chatPack.downloadBytes,downloadSources:chatPack.downloadSources,helpUrl,state:local.modelInstalled?(local.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:local.modelInstalled?(local.runtimeAvailable?'角色权重已安装，首次发送时自动加载验证。':'角色权重已安装，等待本地推理环境。'):'安装已训练的角色模型，无需重新训练。'},
         {id:'translation',...describe(translationManifest.files),downloadBytes:translated.modelInstalled?0:describe(translationManifest.files).downloadBytes,state:translated.modelInstalled?(translated.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:translated.modelInstalled?(translated.runtimeAvailable?'中日翻译权重已安装，首次翻译时自动加载验证。':'中日翻译权重已安装，等待本地推理环境。'):'需要准备中日翻译权重。'},
         {id:'voiceCore',...describe(voiceCatalog.packs.core.files),state:coreReady||voices.coreReady?'ready':'missing',detail:'语音合成共用的 BERT 与 HuBERT 组件。'},
-        {id:'voicePreset',...describe(voiceCatalog.packs[voiceCatalog.defaultVoicePack||'yukino-e2'].files),state:presetReady?'ready':'missing',detail:presetReady?'音色权重、日语参考声音及文本已配置。':'按需下载默认音色，并配置日语参考音频。'},
+        {id:'voicePreset',...describe(voiceCatalog.packs[voiceCatalog.defaultVoicePack||'yukino-e2'].files),state:presetReady?'ready':'missing',detail:presetReady?'音色权重与日语参考声音已配置。':'按需下载默认音色，参考声音自动准备。'},
         {id:'pet',downloadBytes:pet.downloadBytes,downloadSources:pet.downloadSources,helpUrl,state:pet.installed?'ready':'missing',detail:'2,391 段桌宠预录语音；不依赖 Python。'}]};
     },installRuntime:flavor=>runtime.install(flavor),refresh:refreshRuntime,installChat,installPet,installVoicePreset,
       installTranslation:async()=>{const status=await translation.install();await write('translation.json',status.config);return status;},
@@ -193,6 +193,7 @@ else {
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
     handle('flush-complete', id=>{if(flushResolver?.id===id)flushResolver.resolve();});
+    handle('copy-text', value=>{if(typeof value!=='string'||value.length>200000)throw Error('复制内容无效');clipboard.writeText(value);return true;});
     handle('load', async () => {
       const saved = await read('state.json',null);stateSignature=visualSignature(saved);
       await updateCompanionCharacter(saved);
@@ -299,10 +300,10 @@ else {
 
     handle('voice-settings',voiceConfig);
     handle('voice-resources',async()=>{await bundleReady;return {...await voiceResources.inspect(),bundled:voiceBundle.bundled,preset:voiceBundle.preset};});
-    handle('voice-install',async(id='core',options={})=>{await bundleReady;if(typeof options?.apply!=='boolean'&&options?.apply!==undefined)throw Error('无效音色选择');const revision=voiceConfigRevision,owner=voiceResources,paths=await owner.install(id);let applied=false;if(options?.apply){const value=await updateVoice(saved=>{if(revision!==voiceConfigRevision)return null;voiceConfigRevision++;return mergeVoiceDefaults({...saved,...paths},voiceBundle);});if(value){voiceStart.cancel();speech.configure(value);send('voice-config-updated',value);applied=true;}}return {...paths,applied};});
+    handle('voice-install',async(id='core',options={})=>{await bundleReady;if(typeof options?.apply!=='boolean'&&options?.apply!==undefined||options?.component!==undefined&&(!['gpt','sovits'].includes(options.component)||id==='core'))throw Error('无效音色选择');const before=await voiceConfig(),owner=voiceResources,paths=await owner.install(id,{component:options.component});let applied=false;if(options?.apply){const value=await updateVoice(saved=>{const current=mergeVoiceDefaults(saved,voiceBundle);if(Object.keys(paths).some(key=>current[key]!==before[key]))return null;return mergeVoiceDefaults({...saved,...paths},voiceBundle);});if(value){voiceStart.cancel();speech.configure(value);send('voice-config-updated',value);applied=true;}}return {...paths,applied};});
     handle('voice-download-cancel',()=>voiceResources?.cancel());
     handle('voice-save',async raw=>{
-      const value=validateSettings(raw);voiceConfigRevision++;const previous=await read('speech.json',{});
+      const value=validateSettings(raw);const previous=await read('speech.json',{});
       const ignored=new Set(['enabled','volume']);
       if(Object.keys(value).some(k=>!ignored.has(k)&&value[k]!==previous[k])) { voiceStart.cancel(); speech.unload(); }
       await write('speech.json',value);if(translation&&!translation.config.python&&value.python)translation.configure({python:value.python});return value;

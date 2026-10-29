@@ -4,6 +4,7 @@ const path = require('node:path');
 const {mainHarness} = require('./helpers/main-harness.cjs');
 const profile = {id:'provider',base:'https://example.test/v1',model:'provider-model'};
 const state = {profiles:[profile],activeProfile:profile.id,conversations:[],persona:'',translationMode:'api'};
+test('clipboard copies reply text through the authorized native main window',async()=>{const app=await mainHarness({state});assert.equal(await app.invoke('copy-text','中文 / 日本語'),true);assert.deepEqual(app.copied,['中文 / 日本語']);await assert.rejects(app.invoke('copy-text',{text:'invalid'}),/复制内容无效/);await assert.rejects(app.handlers.get('copy-text')({sender:{},senderFrame:{}},'forged'),/不允许/);});
 const request = {id:'message',profileId:profile.id,messages:[{role:'user',content:'今天也辛苦了。'}]};
 const deferred = () => {let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 
@@ -271,6 +272,12 @@ test('a background voice download cannot overwrite a newer local voice selection
  const custom={...await app.invoke('voice-settings'),gpt:path.resolve('/custom/voice.ckpt'),sovits:path.resolve('/custom/voice.pth')};await app.invoke('voice-save',custom);
  release({gpt:path.resolve('/downloaded/voice.ckpt'),sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});
  const result=await pending;assert.equal(result.applied,false);const saved=JSON.parse(app.storage.get('speech.json'));assert.equal(saved.gpt,custom.gpt);assert.equal(saved.sovits,custom.sovits);
+});
+test('downloading one voice file preserves a separately selected local file',async()=>{
+ const app=await mainHarness({state}),owner=app.voiceDownloads.at(-1);let release;owner.install=(_id,options)=>new Promise(resolve=>{assert.equal(options.component,'sovits');release=resolve;});
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true,component:'sovits'});await new Promise(setImmediate);
+ const custom={...await app.invoke('voice-settings'),gpt:path.resolve('/custom/voice.ckpt')};await app.invoke('voice-save',custom);
+ release({sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});const result=await pending,saved=JSON.parse(app.storage.get('speech.json'));assert.equal(result.applied,true);assert.equal(saved.gpt,custom.gpt);assert.equal(saved.sovits,result.sovits);
 });
 test('default voice download progress is routed to its active setup step',async()=>{
  const app=await mainHarness({state});app.setup.controller=new AbortController();app.setup.phase='installing';app.setup.active='voicePreset';

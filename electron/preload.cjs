@@ -14,7 +14,7 @@ function subscribe(channel, fn) {
 }
 contextBridge.exposeInMainWorld('desktop', {
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
-  load:()=>invoke('load'), save:state=>invoke('save',state), saveKey:(id,key,base)=>invoke('key',id,key,base),
+  load:()=>invoke('load'), save:state=>invoke('save',state), saveKey:(id,key,base)=>invoke('key',id,key,base), copyText:value=>invoke('copy-text',value),
   apiProviders:()=>invoke('api-providers'), apiModels:request=>invoke('api-models',request),
   setupStatus:options=>invoke('setup-status',options), setupInstall:options=>invoke('setup-install',options), setupCancel:()=>invoke('setup-cancel'),
   onSetupStatus:fn=>subscribe('setup-status',fn),

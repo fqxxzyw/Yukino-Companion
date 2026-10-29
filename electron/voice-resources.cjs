@@ -74,14 +74,20 @@ class VoiceResources {
       const pack=this.catalog.packs[item.id];
       item.bundled=pack.kind==='voice'&&item.id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot);
       item.installed=item.bundled||await this.packAvailable(pack,this.root);
+      if(pack.kind==='voice'&&pack.paths){item.components={};for(const key of ['gpt','sovits']){const files=pack.files.filter(file=>file.path===pack.paths[key]||file.extract?.path===pack.paths[key]);const component={...pack,files};item.components[key]=files.length>0&&(await this.packAvailable(component,this.root)||item.id===this.bundledPackId&&await this.packAvailable(component,this.bundledRoot));}}
     }
     summary.coreReady=Boolean(summary.packs.find(pack=>pack.id==='core')?.installed);
     return summary;
   }
-  async install(id='core') {
-    const pack=this.catalog.packs[id];if(!pack)throw Error('未知公共模型组件');
-    if(this.controllers.has(id)||pack.kind==='voice'&&[...this.controllers.keys()].some(key=>this.catalog.packs[key]?.kind==='voice'))throw Error('此音色资源正在下载，请等待或先取消');
-    const controller=new AbortController();this.controllers.set(id,controller);
+  async install(id='core',{component}={}) {
+    const original=this.catalog.packs[id];if(!original)throw Error('未知公共模型组件');
+    if(component!==undefined&&(!['gpt','sovits'].includes(component)||original.kind!=='voice'||!original.paths?.[component]))throw Error('未知音色模型文件');
+    const pack=component?{...original,files:original.files.filter(file=>file.path===original.paths[component]||file.extract?.path===original.paths[component])}:original;
+    if(!pack.files.length)throw Error('音色文件不在下载清单中');
+    const key=component?`${id}:${component}`:id,targets=new Set(pack.files.flatMap(file=>[safeDestination(this.root,file.path),...(file.extract?[safeDestination(this.root,file.extract.path)]:[])]).map(value=>value.toLowerCase()));
+    if(this.controllers.has(key)||[...this.controllers.values()].some(other=>[...targets].some(target=>other.targets?.has(target))))throw Error('此音色资源正在下载，请等待或先取消');
+    const controller=new AbortController();controller.targets=targets;this.controllers.set(key,controller);
+    const voicePaths=root=>({...Object.fromEntries((component?[component]:['gpt','sovits']).map(name=>[name,safeDestination(root,pack.paths[name])])),version:pack.version,textLang:'all_ja'});
     const total=pack.files.reduce((n,f)=>n+f.bytes,0);let failure=null;
     const files=pack.files.map(file=>({file:file.path,received:0,total:file.bytes,phase:'pending'}));
     const fileProgress=(index,progress)=>{
@@ -92,9 +98,9 @@ class VoiceResources {
     try {
     if(pack.kind==='voice'&&id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot,{hash:true})){
       controller.signal.throwIfAborted();
-      this.controllers.delete(id);
+      this.controllers.delete(key);
       this.emit({phase:'complete',source:'bundled',packId:id,received:0,total:0});
-      return {gpt:safeDestination(this.bundledRoot,pack.paths.gpt),sovits:safeDestination(this.bundledRoot,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
+      return voicePaths(this.bundledRoot);
     }
       await fs.mkdir(this.root,{recursive:true});
       const destinations=pack.files.map(file=>safeDestination(this.root,file.path));
@@ -130,11 +136,11 @@ class VoiceResources {
       await Promise.all(Array.from({length:Math.min(24,pack.files.length)},worker));
       if(failure)throw failure;
       controller.signal.throwIfAborted();
-      this.controllers.delete(id);this.emit({phase:'complete',packId:id,files:files.map(item=>({...item})),received:total,total});
-      if(pack.kind==='voice')return {gpt:safeDestination(this.root,pack.paths.gpt),sovits:safeDestination(this.root,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
+      this.controllers.delete(key);this.emit({phase:'complete',packId:id,files:files.map(item=>({...item})),received:total,total});
+      if(pack.kind==='voice')return voicePaths(this.root);
       return {bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')};
-    }catch(e){const cancelled=controller.signal.aborted&&!failure;this.controllers.delete(id);this.emit({...this.status,packId:id,phase:cancelled?'cancelled':'error',error:cancelled?'已取消，保留可续传的临时文件':e.message,total});throw e}
-    finally{if(this.controllers.get(id)===controller)this.controllers.delete(id);}
+    }catch(e){const cancelled=controller.signal.aborted&&!failure;this.controllers.delete(key);this.emit({...this.status,packId:id,phase:cancelled?'cancelled':'error',error:cancelled?'已取消，保留可续传的临时文件':e.message,total});throw e}
+    finally{if(this.controllers.get(key)===controller)this.controllers.delete(key);}
   }
   async extract(file,archive,signal,report=()=>{}){
     if(!file.extract)return;

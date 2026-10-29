@@ -11,6 +11,20 @@ test('model downloads verify digest, atomically publish, and skip verified files
  const data=Buffer.from('verified data');let calls=0;const {root,item,installer}=await setup(t,data,async()=>{calls++;return new Response(data)});
  await installer.install();assert.equal(await verified(path.join(root,item.path),item),true);await installer.install();assert.equal(calls,1);
 });
+test('GPT and SoVITS can be downloaded and selected independently',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-weights-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const data={gpt:Buffer.from('a GPT checkpoint'),sovits:Buffer.from('a SoVITS checkpoint')},requests=[];
+ const records=Object.entries(data).map(([key,value])=>({...file(value),path:`voice/${key}`,url:`https://example.test/${key}`}));
+ const catalog={packs:{voice:{kind:'voice',version:'v1',paths:{gpt:'voice/gpt',sovits:'voice/sovits'},files:records}}};
+ const installer=new VoiceResources({root,catalog,fetcher:async url=>{const key=url.split('/').at(-1);requests.push(key);return new Response(data[key]);}});
+ const gpt=await installer.install('voice',{component:'gpt'});assert.ok(gpt.gpt);assert.equal(gpt.sovits,undefined);assert.deepEqual(requests,['gpt']);assert.deepEqual((await installer.inspect()).packs[0].components,{gpt:true,sovits:false});
+ const sovits=await installer.install('voice',{component:'sovits'});assert.ok(sovits.sovits);assert.equal(sovits.gpt,undefined);assert.deepEqual(requests,['gpt','sovits']);assert.deepEqual((await installer.inspect()).packs[0].components,{gpt:true,sovits:true});
+ await assert.rejects(installer.install('voice',{component:'other'}),/未知/);
+});
+test('separate GPT and SoVITS downloads can overlap without sharing a destination',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-parallel-weights-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const data={gpt:Buffer.from('one'),sovits:Buffer.from('two')},started=[];let release;const gate=new Promise(resolve=>release=resolve);
+ const files=Object.entries(data).map(([key,value])=>({...file(value),path:`voice/${key}`,url:`https://example.test/${key}`}));const installer=new VoiceResources({root,catalog:{packs:{voice:{kind:'voice',version:'v1',paths:{gpt:'voice/gpt',sovits:'voice/sovits'},files}}},fetcher:async url=>{const key=url.split('/').at(-1);started.push(key);await gate;return new Response(data[key]);}});
+ const a=installer.install('voice',{component:'gpt'}),b=installer.install('voice',{component:'sovits'});for(let i=0;i<100&&started.length<2;i++)await new Promise(resolve=>setTimeout(resolve,5));assert.deepEqual(new Set(started),new Set(['gpt','sovits']));release();await Promise.all([a,b]);
+});
 test('bad hashes never become installed files',async t=>{
  const data=Buffer.from('abcd');const {root,item,installer}=await setup(t,data,async()=>new Response('efgh'));
  await assert.rejects(installer.install(),/校验/);await assert.rejects(fs.access(path.join(root,item.path)));assert.equal(installer.status.phase,'error');

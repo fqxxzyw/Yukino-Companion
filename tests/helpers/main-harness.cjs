@@ -15,7 +15,7 @@ const localModule = require('../../electron/local-chat.cjs');
 async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=false, files = {}} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
-  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[];
+  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[],copied=[];
   const missingVoiceFields=new Set(voiceMissing),installedCorePaths=new Set();let coreInstalled=voiceMissing.length===0;
   const storage = new Map(Object.entries({'state.json':JSON.stringify(state),...files}));
   const dataRoot = path.resolve('/virtual-user');
@@ -117,7 +117,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   const app = new EventEmitter();app.isPackaged=packaged;app.requestSingleInstanceLock=()=>true;
   app.whenReady=()=>Promise.resolve();app.getPath=()=>dataRoot;app.quit=()=>{app.quitCalled=true;};
   const fakeElectron = {
-    app,BrowserWindow:MockWindow,ipcMain:{handle:(name,callback)=>handlers.set(name,callback)},
+    app,BrowserWindow:MockWindow,ipcMain:{handle:(name,callback)=>handlers.set(name,callback)},clipboard:{writeText:value=>copied.push(value)},
     safeStorage:{isEncryptionAvailable:()=>true,getSelectedStorageBackend:()=> 'gnome_libsecret',encryptString:value=>Buffer.from('sealed:'+value),decryptString:value=>{const text=value.toString();if(!text.startsWith('sealed:'))throw Error('Invalid sealed test key');return text.slice(7);}},shell:{openExternal:async()=>{}},session:{defaultSession:{setPermissionRequestHandler(){}}},
     dialog:{showErrorBox:(_title,message)=>errors.push(message),showOpenDialog:async()=>({canceled:true,filePaths:[]})},
     net:{fetch:async(url,options={})=>{network.push({url,options});if(options.method==='GET'&&String(url).includes('/models'))return Response.json({data:[{id:'test-chat-model',name:'Test chat model'}]});throw Error('unexpected network call');}},
@@ -151,6 +151,6 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   if(errors.length)throw Error('main initialization failed: '+errors.join('; '));
   if(!handlers.has('community'))throw Error('main did not register startup IPC');
   const window=windows[0],event={sender:window.webContents,senderFrame:window.webContents.mainFrame};
-  return {handlers,sent,requests,transport,translated,cancelled,storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
+  return {handlers,sent,requests,transport,translated,cancelled,storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,copied,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
 }
 module.exports={mainHarness};

@@ -29,6 +29,8 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
     try { await fn(); } catch(e) { setNotice(cleanError(e)); } finally { setWorking(false); }
   }
   const pathField = key => <label className="field" key={key}>{pathLabels[key]}<div className="voice-path"><input value={config[key]} onChange={e=>patch({[key]:e.target.value})} placeholder="选择本机文件或目录"/><button type="button" className="secondary" onClick={()=>action(async()=>{const selected=await api.voicePick(key);if(selected)patch({[key]:selected})})}>浏览</button></div></label>;
+  const chooseWeight=key=>action(async()=>{const selected=await api.voicePick(key);if(selected){const latest=await api.voiceSettings();const saved=await api.voiceSave({...latest,[key]:selected,textLang:'all_ja'});onChange(saved);setNotice('已选择本地音色文件；首次朗读时自动加载。')}});
+  const downloadWeight=key=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true,component:key});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'文件已校验并选用；两个模型和运行资源齐全后可试听。':'文件已下载；期间该选择已改变，未覆盖你的设置。')});
   async function save() { await api.voiceSave({...config,textLang:'all_ja'}); setNotice('配置已保存；模型、语言、语速等推理设置修改后需重新加载。'); }
   return <>
     <ResourceHelp api={api}/>
@@ -43,15 +45,15 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
       <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall('core',{apply:true});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'公共模型已校验并选用；首次朗读时自动加载。':'公共模型已下载；期间设置已变更，未覆盖你的选择。')})}>{resources.coreReady?'校验公共模型':'下载公共模型'}</button><button className="secondary" disabled={!downloading} onClick={()=>api?.voiceDownloadCancel().catch(e=>setNotice(cleanError(e)))}>取消下载</button></div>
     </div>
     <div className="voice-status resource-card">
-      <span className="card-kicker">02 · 选择她的声音</span><strong>音色与参考声音</strong>
-      <span>默认声音使用 GPT e2 与 SoVITS e1，需按需下载。其他轮次可以选择；训练轮次不代表音质排名。</span>
+      <span className="card-kicker">02 · 选择她的声音</span><strong>选择两个音色模型文件</strong>
+      <span>两个文件可分别下载，也可以各自选择本机已有文件；默认雪乃声音使用 GPT e2 和 SoVITS e1。</span>
       <label className="field">音色模型<Select value={selectedPack} onChange={e=>setSelectedPack(e.target.value)}>
         {(resources.packs||[]).filter(p=>p.kind==='voice').map(p=><option value={p.id} key={p.id}>{p.label}{p.bundled?' · 已内置':p.installed?' · 已下载':''}</option>)}
         {!(resources.packs||[]).some(p=>p.kind==='voice')&&<option value="yukino-e2">雪乃 · 默认 GPT e2 / SoVITS e1（v1）</option>}
       </Select></label>
-      <div className="button-row"><button className="primary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'音色已校验并选中；准备好参考声音后首次朗读自动加载。':'音色已下载；期间设置已变更，未覆盖你的选择。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用此音色':'下载并选用此音色'}</button></div>
-      <span>已下载的音色无需重复下载。也可以在下方选择本机已有的 .ckpt / .pth。</span>
-      <span>{resources.preset?'已提供默认参考声音 · '+resources.preset.durationSeconds.toFixed(2)+' 秒日语。可在高级选项更换。':readyReference?'已选择参考音频，可保留你自己的配置。':'请选择 3–10 秒参考音频；v1/v2 的参考文本可留空。'}</span>
+      {['gpt','sovits'].map(key=><div className="field" key={key}><strong>{pathLabels[key]}</strong><div className="voice-path"><input readOnly aria-label={pathLabels[key]} value={config[key]} placeholder="尚未选择"/><button type="button" className="secondary" disabled={working} onClick={()=>chooseWeight(key)}>选择本地文件</button><button type="button" className="primary" disabled={working||downloading} onClick={()=>downloadWeight(key)}>{selectedInfo?.components?.[key]?'使用已下载文件':'下载此文件'}</button></div></div>)}
+      <div className="button-row"><button className="secondary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true});onChange(await api.voiceSettings());await refresh();setNotice(result.applied?'两个音色文件已校验并选用，首次朗读时自动加载。':'文件已下载；期间选择已改变，未覆盖你的设置。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用这组音色':'同时下载这组音色'}</button></div>
+      <span>{readyReference?'参考声音已自动准备；通常不需要选择或填写参考文本。':'默认参考声音尚未就绪，请先检查 / 一键配置。'}</span>
     </div>
     <div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
       {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · 显存不足，已回退 CPU':''}</span>}
@@ -62,7 +64,7 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
     <label className="row"><div><strong>自动朗读新回复</strong><small>中文回复先完成日语翻译再朗读。气泡显示语言不会改变语音语言。</small></div><input type="checkbox" role="switch" checked={config.enabled} onChange={e=>patch({enabled:e.target.checked})}/></label>
     <label className="field">播放音量 · {Math.round(config.volume*100)}%<input type="range" min="0" max="1" step="0.05" value={config.volume} onChange={e=>patch({volume:Number(e.target.value)})}/></label>
     <fieldset disabled={working}>
-      <details className="advanced-settings"><summary>更换自己的音色与参考声音</summary><span className="card-kicker">03 · 本地文件</span><h3>自定义音色</h3><p className="intro">保留你自己的训练成果，也可以切换上方下载的音色。</p>{['gpt','sovits','reference'].map(pathField)}
+      <details className="advanced-settings"><summary>高级：更换参考声音</summary><p className="hint">默认使用自动配置的参考声音；只有需要自定义时才修改。</p>{pathField('reference')}
       <label className="field">参考音频对应文本<textarea rows="3" maxLength={3000} value={config.promptText} onChange={e=>patch({promptText:e.target.value})} placeholder="填写参考音频中实际说出的内容。"/></label>
       <label className="field">参考音频语言<Select value={config.promptLang} onChange={e=>patch({promptLang:e.target.value})}>{langs.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select></label></details>
       <details className="advanced-settings"><summary>推理环境与基础模型路径</summary><p className="hint">一键配置会自动填入这些路径。使用自己的环境或模型目录时，再修改它们。</p>{['python','root','bert','hubert','ffmpeg'].map(pathField)}</details>
@@ -81,7 +83,7 @@ export default function VoiceSettings({api,config,onChange,status,onPreview,onSt
       </div>
       <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();await save();await api.voiceLoad({...config,textLang:'all_ja'});setNotice('权重与参考音频已加载，可以试听。')})}>加载 / 重新加载</button></div>
     </fieldset>
-    {!readyReference&&<p className="notice">请选择参考音频{needsTranscript?'并填写对应原文':''}，才能加载与试听。</p>}
+    {!readyReference&&<p className="notice">{needsTranscript?'当前模型版本需要参考音频及对应原文，请在高级选项中配置。':'默认参考声音尚未就绪，请先检查 / 一键配置。'}</p>}
     {!needsTranscript&&<p className="hint">当前版本可不填参考文本；参考音频仍是声音合成必需项。填写与音频一致的文本可能改善效果。</p>}
     {hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
     <section className="settings-card"><h3>试听声音</h3><p className="intro">听听她的声音，再调整到你喜欢的语速与音量。</p><label className="field">日语试听文本<input maxLength={200} value={sample} onChange={e=>setSample(e.target.value)}/></label>
