@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('desktop', {
   voiceSettings:()=>invoke('voice-settings'), voiceSave:config=>invoke('voice-save',config), voicePatch:patch=>invoke('voice-patch',patch),
   voiceStatus:()=>invoke('voice-status'), voiceProbe:config=>invoke('voice-probe',config),
   voiceLoad:config=>invoke('voice-load',config), voiceUnload:()=>invoke('voice-unload'),
-  voiceBegin:id=>invoke('voice-begin',id), voiceSynthesize:(id,text)=>invoke('voice-synthesize',id,text),
+  voiceBegin:id=>invoke('voice-begin',id), voicePrewarm:id=>invoke('voice-prewarm',id), voiceSynthesize:(id,text)=>invoke('voice-synthesize',id,text),
   voiceStop:id=>invoke('voice-stop',id), voicePick:kind=>invoke('voice-pick',kind),
   onVoiceStatus:fn=>subscribe('voice-status',fn),
   translate:request=>invoke('translate',request), translationStatus:()=>invoke('translation-status'),

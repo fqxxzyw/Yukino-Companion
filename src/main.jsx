@@ -49,7 +49,7 @@ function openSetup(features){setSetupFeatures(features||(['local'].includes(moda
 function copyReply(message){const value=messageCopy(message,message.bubbleLanguage||s.bubbleLanguage);Promise.resolve().then(()=>api?.copyText?api.copyText(value):navigator.clipboard.writeText(value)).catch(()=>setError('复制失败，请检查系统剪贴板是否可用。'))}
 useEffect(()=>()=>clearTimeout(modalTimer.current),[]);
 if(!playerRef.current)playerRef.current=new AudioPlayer();
-if(!speechRef.current)speechRef.current=new SpeechSession({japaneseOnly:true,bridge:{begin:id=>api?.voiceBegin(id),synthesize:(id,text)=>api.voiceSynthesize(id,text),stop:id=>api?.voiceStop(id)},player:playerRef.current,onState:state=>setSpeechState({...state,error:state.error?friendlyError(state.error,'语音没有准备好，请打开声音设置。'):undefined})});
+if(!speechRef.current)speechRef.current=new SpeechSession({japaneseOnly:true,bridge:{begin:id=>api?.voiceBegin(id),prewarm:id=>api?.voicePrewarm(id),synthesize:(id,text)=>api.voiceSynthesize(id,text),stop:id=>api?.voiceStop(id)},player:playerRef.current,onState:state=>setSpeechState({...state,error:state.error?friendlyError(state.error,'语音没有准备好，请打开声音设置。'):undefined})});
 function stopSpeech(){captionSource.current=null;captionWork.current=null;previewSequence.current++;if(previewRequest.current){api?.translationCancel?.(previewRequest.current).catch(()=>{});previewRequest.current=null}speechRef.current.cancel();api?.voiceStop().catch(()=>{})}
 async function voicePrepared({automatic=false,isCurrent=()=>true}={}){const config=await saveVoice(),status=await api.voiceStatus();if(!isCurrent())return false;setVoiceStatus(status);const missing=status.needsSetup??['python','root','gpt','sovits','reference','bert','hubert','promptText'].some(key=>!config[key]);if(missing){setSpeechState({phase:'error',error:friendlyError(status.message||'语音资源尚未准备好，请完成声音配置。')});if(!automatic)setModal('voice');else api?.companionChatError?.({kind:'voice',message:'语音资源尚未准备，提醒文字已显示。'}).catch(()=>{});return false;}return true;}
 function prepareSpeech(id){if(!api)return;playerRef.current.unlock().catch(e=>setSpeechState({phase:'error',error:'无法播放声音：'+e.message}));speechRef.current.start(id)}
@@ -130,6 +130,9 @@ async function send(text=draft,{requestId}={}){
  const skinId=conversationSkin(text,models,{relationship:s.relationship,usedDates:s.usedDates},{enabled:s.conversationSkinSwitch!==false});
  const next={...s,...(skinId?{characters:s.characters.map(item=>item.id===s.activeCharacter?{...item,modelId:skinId}:item)}:{}),usedDates:recordUsedDate(s.usedDates,{type:'message'}).state,activeConversation:cid,conversations:conversation?s.conversations.map(c=>c.id===cid?{...c,messages:[...c.messages,...append]}:c):[{id:cid,characterId:s.activeCharacter,title:text.trim().slice(0,24),messages:append},...s.conversations]};
  setS(next);setBusy(true);setDraft('');setError('');pinned.current=true;activeRequest.current={id,cid};stopSpeech();const voiceGeneration=previewSequence.current;if(voiceRef.current.enabled)playerRef.current.unlock().catch(()=>{});
+ // Prepare the speech worker while the reply and translation are being made.
+ // A stopped or replaced request may never create a late voice session.
+ const voicePreparation=voiceRef.current.enabled?(async()=>{try{await saveVoice();if(activeRequest.current?.id!==id||voiceGeneration!==previewSequence.current||!voiceRef.current.enabled)return false;prepareSpeech(id);return true}catch(error){if(activeRequest.current?.id===id&&voiceGeneration===previewSequence.current)setSpeechState({phase:'error',error:friendlyError(error)});return false}})():Promise.resolve(false);
  try{
   await api.save(next);const history=(conversation?.messages||[]).filter(m=>m.content&&m.status!=='error').slice(-40).map(({role,content,zh})=>({role,content:zh||content}));
   const result=await api.send({id,mode:s.chatMode,profileId:profile.id,messages:[...history,{role:'user',content:text.trim()}]});
@@ -137,9 +140,9 @@ async function send(text=draft,{requestId}={}){
   const bilingual=result?.bilingual;mark(result?.stopped?'stopped':'done',bilingual?{...bilingual,content:bilingual.zh}:{});
   if(!result?.stopped)setS(current=>({...current,relationship:advanceRelationship(current.relationship,{type:'message',id,now:Date.now()})}));
   if(!result?.stopped&&voiceRef.current.enabled&&voiceGeneration===previewSequence.current){
-   if(bilingual?.ja&&bilingual.translationStatus==='ready'){prepareSpeech(id);speechRef.current.push(bilingual.ja);speechRef.current.finish()}
-   else setSpeechState({phase:'error',error:'日文尚未准备好，已保留中文回复，暂不朗读。'});
-  }
+   if(bilingual?.ja&&bilingual.translationStatus==='ready'){const prepared=await voicePreparation;if(prepared&&activeRequest.current?.id===id&&voiceGeneration===previewSequence.current&&voiceRef.current.enabled&&speechRef.current.current?.id===id){speechRef.current.push(bilingual.ja);speechRef.current.finish()}}
+   else{stopSpeech();setSpeechState({phase:'error',error:'日文尚未准备好，已保留中文回复，暂不朗读。'});}
+  }else if(speechRef.current.current?.id===id)stopSpeech();
  }catch(e){stopSpeech();const message=friendlyError(e,'回复没有完成，请检查模型设置。');setError(message);if(requestId)api?.companionChatError?.(message).catch(()=>{});mark('error')}finally{if(activeRequest.current?.id===id){activeRequest.current=null;setBusy(false)}}
  function mark(status,extra={}){setS(p=>({...p,conversations:p.conversations.map(c=>c.id===cid?{...c,messages:c.messages.map(m=>m.id===id?{...m,...extra,status}:m)}:c)}))}
 }

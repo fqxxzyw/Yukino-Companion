@@ -63,12 +63,32 @@ phases and a final rendered model. A Linux software-rendering rerun completed
 all 17 model versions and synthetic audio-clock checks. This does not close the
 Windows failures or prove trained-voice synthesis.
 
+In the later Windows run
+[`40948587343`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40948587343),
+all 17 model versions, walking phases and synthetic audio-clock checks passed.
+The earlier runner inherited system reduced motion; the motion-specific test
+now explicitly emulates normal motion in its isolated window. The independent
+eight-weight WebGL step still failed/timed out on the basic software driver.
+
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
 then calls `verify-offline-chain.cjs` with the real services and preserves only
 the report and newly synthesized WAVs. It does not upload model weights or
 prove physical playback, GPU use, or mouth/body synchronization. Starting the
 job is not evidence that the real chain completed; check its result and report.
+
+The unmodified published CPU runtime in
+[`40948841125`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40948841125)
+completed two real local generation → Japanese translation → trained-voice
+synthesis turns without an API request, producing three newly generated WAVs.
+The runner had network access, so this is not a disconnected-network test.
+The cold first WAV took 60.05 seconds, including 33.60 seconds loading voice;
+the second turn reused the voice worker and took 5.55 seconds to its first WAV.
+These are generation timings, not measured time to audible playback. One reply
+misunderstood who was going to rest; response quality is not accepted by this
+smoke test. The current branch starts voice preparation during the response,
+with cancellation guards. Its real performance and subjective quality must be
+measured separately before claiming an improvement.
 
 ## Outstanding acceptance work
 

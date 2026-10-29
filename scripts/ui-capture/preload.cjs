@@ -57,7 +57,7 @@ contextBridge.exposeInMainWorld('desktop',{
   voiceInstall:noNetwork,voiceDownloadCancel:no,onVoiceDownload:fn=>on('voice-download',fn),
   voiceSettings:async()=>copy(voice),voiceSave:async value=>{voice=copy(value);return copy(voice);},voicePatch:async value=>{voice={...voice,...copy(value)};return copy(voice);},
   voiceStatus:async()=>voiceStatus(),voiceProbe:async()=>({torch:'界面测试',cudaAvailable:false,devices:[]}),
-  voiceLoad:noNetwork,voiceUnload:no,voiceBegin:no,voiceSynthesize:noNetwork,voiceStop:no,voicePick:async()=>null,
+  voiceLoad:noNetwork,voiceUnload:no,voiceBegin:no,voicePrewarm:no,voiceSynthesize:noNetwork,voiceStop:no,voicePick:async()=>null,
   onVoiceStatus:fn=>on('voice-status',fn),
   translate:async()=>({text:ja,source:'zh',target:'ja',device:'qa-fixture'}),
   translationStatus:async()=>copy(translation),translationSave:async config=>{translation.config=copy(config);return copy(translation);},

@@ -328,6 +328,7 @@ else {
     handle('voice-load',config=>{voiceStart.cancel();return speech.load(config);});
     handle('voice-unload',()=>{voiceStart.cancel();return speech.unload();});
     handle('voice-begin',id=>voiceStart.begin(id));
+    handle('voice-prewarm',async id=>{if(!id||speech.session!==id)throw Error('语音会话已过期');await speech.ensureLoaded();if(speech.session!==id)throw Error('语音会话已过期');return true;});
     handle('voice-synthesize',async(id,text)=>{const audio=await speech.synthesize(id,text);companions?.clearCapabilityError?.('voice');return audio;});
     handle('voice-stop',id=>voiceStart.stop(id));
     handle('voice-pick',async kind=>{

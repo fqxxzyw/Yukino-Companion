@@ -81,3 +81,13 @@ test('real main renderer navigation, loss and close invalidate pending begin',as
     assert.ok(!app.voiceActions.slice(baseline).some(item=>item.method==='begin'),event);
   }
 });
+
+test('prewarming is tied to the active voice session and stop invalidates a late load',async()=>{
+  const app=await mainHarness({state}),loading=deferred(),entered=deferred();
+  await assert.rejects(app.invoke('voice-prewarm','missing'),/过期/);
+  await app.invoke('voice-begin','current');
+  app.voice.ensureLoaded=async()=>{entered.resolve();return loading.promise;};
+  const warming=app.invoke('voice-prewarm','current'),rejected=assert.rejects(warming,/过期/);await entered.promise;
+  await app.invoke('voice-stop','current');loading.resolve({phase:'ready'});await rejected;
+  assert.equal(app.voice.session,null);
+});

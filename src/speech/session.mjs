@@ -10,7 +10,10 @@ export class SpeechSession {
     this.cancel();
     const job = { id, stream: this.japaneseOnly ? new JapaneseSentenceStream() : new SentenceStream(), queue: [], final: false, running: false, playing: false, next: null, count: 0 };
     this.current = job;
-    job.ready = Promise.resolve(this.bridge.begin(id));
+    job.ready = Promise.resolve(this.bridge.begin(id)).then(() => {
+      if (this.current !== job) return;
+      return this.bridge.prewarm?.(id);
+    });
     job.ready.catch(e => { if (this.current === job) this.fail(job, e); });
     this.onState({ phase: 'waiting', id });
   }

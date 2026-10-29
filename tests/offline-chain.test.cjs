@@ -30,10 +30,11 @@ function wav(sample = 8000) {
 
 test('offline-chain CLI rejects missing paths, unknown and duplicate options and ambiguous devices', () => {
   assert.deepEqual(parseArgs(['--help']), { help: true });
-  for (const invalid of [[], args(['--download', 'true']), args(['--device', 'auto']), args(['--threads', '0']), args(['--timeout', '901']), args(['--deadline', 'NaN']), args(['--max-tokens', '31']), args(['--python', '/duplicate'])]) assert.throws(() => parseArgs(invalid));
+  for (const invalid of [[], args(['--download', 'true']), args(['--device', 'auto']), args(['--threads', '0']), args(['--timeout', '901']), args(['--deadline', 'NaN']), args(['--max-tokens', '31']), args(['--python', '/duplicate']),args(['--prewarm-voice','maybe'])]) assert.throws(() => parseArgs(invalid));
   const options = parseArgs(args(['--prompt', '第一轮。', '--prompt', '第二轮。', '--device', 'cpu', '--model-archive', './verified.zip']));
   assert.deepEqual(options.prompts, ['第一轮。', '第二轮。']); assert.equal(options.threads, 4);
   assert.ok(path.isAbsolute(options['model-archive'])); assert.equal(parseArgs(args([])).prompts.length, 2);
+  assert.equal(parseArgs(args(['--prewarm-voice','true']))['prewarm-voice'],true);assert.equal(parseArgs(args([]))['prewarm-voice'],false);
 });
 
 test('resource manifest paths cannot escape the explicit root', () => {

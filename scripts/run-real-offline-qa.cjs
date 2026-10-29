@@ -36,7 +36,7 @@ async function run(){
  await fs.writeFile(path.join(voiceRoot,'preset.json'),JSON.stringify({...metadata,files},null,2));
  const chatPack=packs.pack('chat'),archive=path.join(packs.root,'downloads',`chat-${chatPack.sha256.slice(0,16)}.zip`);
  const output=path.join(root,'build/offline-qa/evidence');await fs.mkdir(path.dirname(output),{recursive:true});
- const args=[path.join(root,'scripts/verify-offline-chain.cjs'),'--python',runtimeStatus.python,'--model',chat.root,'--model-archive',archive,'--translation',translated.modelDir,'--engine',path.join(runtimeStatus.root,'inference-engine'),'--voice',voiceRoot,'--core',voiceRoot,'--ffmpeg',runtimeStatus.ffmpeg,'--output',output,'--device','cpu','--max-tokens','32'];
+ const args=[path.join(root,'scripts/verify-offline-chain.cjs'),'--python',runtimeStatus.python,'--model',chat.root,'--model-archive',archive,'--translation',translated.modelDir,'--engine',path.join(runtimeStatus.root,'inference-engine'),'--voice',voiceRoot,'--core',voiceRoot,'--ffmpeg',runtimeStatus.ffmpeg,'--output',output,'--device','cpu','--max-tokens','32','--prewarm-voice','true'];
  console.log('Starting real local generation, translation and trained-voice synthesis.');
  const child=spawn(process.execPath,args,{cwd:root,stdio:'inherit',shell:false,windowsHide:true});
  const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(value,signal)=>signal?reject(Error('Verification process stopped: '+signal)):resolve(value));});

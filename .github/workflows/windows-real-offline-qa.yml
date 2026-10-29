@@ -1,7 +1,7 @@
 name: Verify real offline CPU voice chain
 on:
   push:
-    branches: [verify/offline-chain-20261030]
+    branches: [verify/offline-chain-20261030, verify/offline-chain-prewarm-20261030]
   workflow_dispatch:
 permissions:
   contents: read
