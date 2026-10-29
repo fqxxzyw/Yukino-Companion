@@ -1,0 +1,58 @@
+name: Verify published Windows candidate independently
+'on':
+  push:
+    branches: [handoff/codex-current-20261028]
+    paths:
+      - '.github/workflows/windows-quick-verify.yml'
+      - 'scripts/smoke-quick-installer.ps1'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-Windows-Setup-3f7eb207d7bb15ede50bce1f9165da7778bc18e0
+          run-id: 40913001300
+          github-token: ${{ github.token }}
+          path: .
+      - name: Install, compare payload, launch and check this exact candidate
+        run: ./scripts/smoke-quick-installer.ps1
+      - name: Preserve independent validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-quick-windows-40913001300
+          path: build/quick-installer-review
+          if-no-files-found: warn
+  downloader:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check real aria2 over HTTPS and simultaneous pinned parts
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-aria2.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-aria2-parts.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

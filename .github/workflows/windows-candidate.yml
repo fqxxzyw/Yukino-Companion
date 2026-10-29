@@ -8,6 +8,8 @@ name: Windows installer candidate
       - '.github/workflows/windows-candidate.yml'
       - '.github/workflows/windows-revalidate.yml'
       - 'scripts/verify-installed-window.cjs'
+      - '.github/workflows/windows-quick-verify.yml'
+      - 'scripts/smoke-quick-installer.ps1'
       - 'tests/windows-candidate.test.cjs'
   workflow_dispatch:
 permissions:

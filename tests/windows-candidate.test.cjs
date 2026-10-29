@@ -44,3 +44,9 @@ test('revalidation is read-only and binds the exact previously published install
   assert.ok(steps.some(s=>s.run?.includes('smoke-base-installer.ps1 -PayloadManifest')));
   assert.equal(steps.find(s=>s.name==='Preserve native screenshots and failure evidence').if,'always()');
 });
+test('independent native check binds the newest exact candidate and keeps bounded failures visible',()=>{
+ const quick=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/windows-quick-verify.yml'),'utf8'));assert.deepEqual(quick.permissions,{contents:'read',actions:'read'});
+ const steps=quick.jobs.installer.steps,download=steps.find(s=>s.uses==='actions/download-artifact@v4');assert.equal(download.with['run-id'],40913001300);assert.match(download.with.name,/3f7eb207d7bb15ede50bce1f9165da7778bc18e0/);
+ assert.equal(steps.find(s=>s.name==='Preserve independent validation evidence').if,'always()');for(const job of Object.values(quick.jobs))for(const step of job.steps)assert.notEqual(step['continue-on-error'],true);
+ const script=fs.readFileSync(path.join(root,'scripts/smoke-quick-installer.ps1'),'utf8');assert.match(script,/Get-FileHash/);assert.match(script,/base-payload\.cjs/);assert.match(script,/verify-installed-window\.cjs/);assert.match(script,/verify-current-window\.cjs/);assert.match(script,/WaitForExit\(120000\)/);assert.match(script,/Uninstall did not preserve/);
+});
