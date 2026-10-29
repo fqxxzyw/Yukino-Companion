@@ -112,3 +112,20 @@ test('accepted synthetic rigged/static GLBs parse in the actual Three loader wit
  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
  for(const rigged of [true,false]){const f=fixture({rigged,morph:true,animation:true}),diagnostics=inspectGlb(f.data),gltf=await new GLTFLoader().parseAsync(f.data.buffer.slice(f.data.byteOffset,f.data.byteOffset+f.data.byteLength),'');let bones=0,skinned=0;gltf.scene.traverse(item=>{if(item.isBone)bones++;if(item.isSkinnedMesh){skinned++;assert.equal(item.geometry.attributes.skinWeight.count,3);assert.equal(item.skeleton.bones.length,1);}});assert.equal(bones,diagnostics.bones);assert.equal(skinned,rigged?1:0);assert.equal(gltf.animations.length,1);}
 });
+
+test('packaged ASAR built-ins tolerate virtual inode differences but still verify bytes; imports stay strict',async t=>{
+ const f=await temporary(t),root=path.join(f.root,'packaged-resources'),directory=path.join(root,'app.asar','dist','characters'),file=path.join(directory,'fixture.glb');
+ await fs.mkdir(directory,{recursive:true});await fs.writeFile(file,f.data);
+ const entry={id:'builtin-asar-fixture',ready:true,url:'./characters/fixture.glb',bytes:f.data.length,sha256:require('node:crypto').createHash('sha256').update(f.data).digest('hex')};
+ const store=new CharacterModelStore({dataRoot:path.join(f.root,'data'),builtinRoot:path.join(root,'app.asar','dist'),builtins:{models:[entry]}});
+ const oldLstat=fs.lstat,oldResources=process.resourcesPath,oldElectron=Object.getOwnPropertyDescriptor(process.versions,'electron');
+ Object.defineProperty(process.versions,'electron',{value:'test-electron',configurable:true});process.resourcesPath=root;
+ fs.lstat=async function(name,...args){const stat=await oldLstat.call(this,name,...args);return path.resolve(name)===file?new Proxy(stat,{get(target,key,receiver){return key==='ino'?target.ino+1:Reflect.get(target,key,receiver)}}):stat;};
+ try{
+  assert.deepEqual(Buffer.from(await store.read(entry.id)),f.data);
+  await assert.rejects(store.inspectFile(file),/文件在检查时发生变化/);
+  process.resourcesPath=path.join(root,'wrong-root');await assert.rejects(store.read(entry.id),/文件在检查时发生变化/);
+  process.resourcesPath=root;const altered=Buffer.from(f.data);altered[altered.length-1]^=1;await fs.writeFile(file,altered);
+  await assert.rejects(store.read(entry.id),/完整性检查失败/);
+ }finally{fs.lstat=oldLstat;process.resourcesPath=oldResources;if(oldElectron)Object.defineProperty(process.versions,'electron',oldElectron);else delete process.versions.electron;}
+});

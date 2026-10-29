@@ -141,3 +141,17 @@ jobs:
           path: build/base-installer-review
           if-no-files-found: warn
           retention-days: 30
+  mark_prior_test:
+    needs: publish_test
+    if: github.ref == 'refs/heads/handoff/codex-current-20261028'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Identify the earlier test build with the confirmed ASAR model defect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/mark-prior-test.py

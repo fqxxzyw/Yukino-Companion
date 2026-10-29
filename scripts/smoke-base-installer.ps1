@@ -92,7 +92,7 @@ try{
  $start=New-Object Diagnostics.ProcessStartInfo
  $start.FileName=Join-Path $target 'Yukino Companion.exe';$start.WorkingDirectory=$target
  $start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
- $start.Arguments='--user-data-dir="'+(Join-Path $profile 'Chromium')+'" --enable-logging=stderr --no-first-run'
+ $start.Arguments='--user-data-dir="'+(Join-Path $profile 'Chromium')+'" --enable-logging=stderr --no-first-run --remote-debugging-port=0'
  $start.EnvironmentVariables['APPDATA']=$roaming;$start.EnvironmentVariables['LOCALAPPDATA']=$local
  $installedApp=New-Object Diagnostics.Process;$installedApp.StartInfo=$start
  if(-not $installedApp.Start()){throw 'Installed application could not start'}
@@ -111,9 +111,13 @@ try{
  if($installedApp.HasExited -or $installedApp.MainWindowHandle -eq 0){throw 'Installed application did not remain running'}
  $appText=Capture $installedApp.MainWindowHandle 'app-first-launch'
  if($installedApp.MainWindowTitle -ne 'Yukino Companion' -or $appText -match 'JavaScript error|Uncaught Exception'){throw 'Installed application shows an error dialog'}
+ & node (Join-Path $root 'scripts/verify-installed-window.cjs') (Join-Path $profile 'Chromium')
+ if($LASTEXITCODE -ne 0){throw 'The installed application did not render its bundled character'}
+ [void](Capture $installedApp.MainWindowHandle 'app-character')
+ $report.checks+='Actual installed main renderer loaded the default bundled character and completed a WebGL frame'
  Stop-InstalledApp
  $stderrFile=Join-Path $output 'app-first-launch.stderr.log'
- if((Test-Path -LiteralPath $stderrFile) -and (Get-Content -LiteralPath $stderrFile -Raw) -match 'A JavaScript error occurred|Uncaught Exception|Cannot find module|Uncaught (Error|TypeError|ReferenceError|SyntaxError)|UnhandledPromiseRejection'){throw 'Installed application logged an uncaught JavaScript error'}
+ if((Test-Path -LiteralPath $stderrFile) -and (Get-Content -LiteralPath $stderrFile -Raw) -match 'A JavaScript error occurred|Uncaught Exception|Cannot find module|Uncaught (Error|TypeError|ReferenceError|SyntaxError)|UnhandledPromiseRejection|Error occurred in handler for ''character-model-data'''){throw 'Installed application logged an uncaught JavaScript error'}
  $report.checks+='Actual installed application launches with an isolated profile, displays its main window and stays alive; screenshot captured; no model download or inference requested'
  $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
  Install $target $true

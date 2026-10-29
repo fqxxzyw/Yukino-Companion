@@ -1,14 +1,16 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),yaml=require('js-yaml');
 const root=path.resolve(__dirname,'..'),workflow=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/windows-candidate.yml'),'utf8'));
-test('only the explicit test prerelease job can write; build and native validation remain read-only',()=>{
+test('only explicit test release jobs can write; build and native validation remain read-only',()=>{
   assert.deepEqual(workflow.permissions,{contents:'read'});
   assert.deepEqual(workflow.on.push.branches,['handoff/codex-current-20261028']);
   assert.equal(workflow.jobs.candidate['runs-on'],'windows-2022');
   assert.deepEqual(workflow.jobs.publish_test.permissions,{contents:'write'});
+  assert.deepEqual(workflow.jobs.mark_prior_test.permissions,{contents:'write'});
+  assert.equal(workflow.jobs.mark_prior_test.needs,'publish_test');
   assert.equal(workflow.jobs.publish_test.if,"github.ref == 'refs/heads/handoff/codex-current-20261028'");
   for(const [name,job] of Object.entries(workflow.jobs)){
-    if(name!=='publish_test')assert.equal(job.permissions,undefined);
+    if(!['publish_test','mark_prior_test'].includes(name))assert.equal(job.permissions,undefined);
     for(const step of job.steps){assert.notEqual(step['continue-on-error'],true);assert.doesNotMatch(step.run||'',/git push|--no-sandbox|ExecutionPolicy Bypass|release delete|--clobber/);}
   }
 });
@@ -24,4 +26,6 @@ test('requested build then prerelease then native validation order preserves exa
   const source=fs.readFileSync(path.join(root,'scripts/smoke-base-installer.ps1'),'utf8');
   assert.equal((source.match(/base-payload\.cjs/g)||[]).length,2);
   assert.ok(source.indexOf('Installed payload does not match this build')<source.indexOf('$report.passed=$true'));
+  assert.ok(source.indexOf('scripts/verify-installed-window.cjs')<source.indexOf(' Stop-InstalledApp\n $stderrFile'));
+  assert.match(source,/Error occurred in handler for/);
 });

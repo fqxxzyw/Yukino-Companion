@@ -8,8 +8,8 @@ Inference weights, voices and runtimes remain opt-in application downloads.
 
 At the user's explicit request, the order is **build → test prerelease → native
 validation**. The release prominently identifies installation and feature
-acceptance as pending. Only the separate prerelease job has repository write
-permission, restricted to the handoff branch. It creates a unique draft, verifies
+acceptance as pending. The separate prerelease job and a narrowly scoped job marking an earlier
+defective test release have repository write permission only on the handoff branch. It creates a unique draft, verifies
 every uploaded asset's size and SHA-256, and exposes it as a non-latest prerelease.
 It cannot replace assets, remove releases, mirror resources or delete branches.
 Existing publication workflows and their stricter gates remain unchanged.
@@ -44,3 +44,9 @@ The separate 108-action update is excluded. Physical audio/GPU, multiple monitor
 long-term desktop-pet use, actual downloaded inference resources, complete live
 conversation → translation → voice → motion, and visual quality remain pending.
 Hashes do not establish code signing, malware scanning or feature acceptance.
+
+- The first published candidate exposed a real ASAR inode mismatch on startup.
+  Packaged built-ins now permit virtual inode differences but retain size and
+  SHA-256 checks; user-imported files continue to use strict file identity.
+  Installed-app validation now checks actual IPC model loading and a rendered
+  frame, and preserves an additional screenshot after dismissing setup.
