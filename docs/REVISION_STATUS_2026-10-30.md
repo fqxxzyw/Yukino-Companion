@@ -98,6 +98,15 @@ multi-monitor test. Python skipped ten cases. The paired integration run
 again passed the model render step but failed the eight-weight step.
 Future revision UI jobs preserve only synthetic window screenshots and reports
 as time-limited workflow artifacts, never model binaries or user profiles.
+The next documentation/workflow-only commit passed the separate Windows revision
+checks in [`40963958613`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40963958613),
+including evidence upload. Its paired integration run
+[`40963958602`](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/40963958602)
+failed before model rendering because a synthetic download fallback test used
+a 15 ms idle timeout and the second source did not finish under CI load. The
+test now gives the successful source 500 ms while still requiring the first
+source to time out and checking the fallback bytes and progress. That change
+does not alter the production download timeout or close the eight-weight gap.
 
 `windows-real-offline-qa.yml` is a separate CPU-only attempt on an isolated
 runner. It prepares the published runtime and pinned resources concurrently,
