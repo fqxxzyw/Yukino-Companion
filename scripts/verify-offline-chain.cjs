@@ -28,7 +28,8 @@ const SOURCE_FILES = [
 const HELP = `Verify real local generation → translation → trained voice synthesis.
 Required: ${PATH_OPTIONS.map(key => '--' + key + ' PATH').join(' ')}
 Optional: --model-archive PATH, --prompt TEXT (repeatable), --threads 4,
-          --timeout 600, --deadline 3600, --max-tokens 96, --device cpu|cuda
+          --timeout 600, --deadline 3600, --max-tokens 96, --device cpu|cuda,
+          --prewarm-voice true|false
 Supply --model-archive when using the pinned Release quantization instead of
 the source example. Resources must already exist. The prepared engine must
 contain yukino-runtime.json. --output must be a new directory.
@@ -38,8 +39,8 @@ not establish audio-device playback, mouth/body synchronization or Windows QA.
 
 function parseArgs(args) {
   if (args.length === 1 && args[0] === '--help') return { help: true };
-  const options = { threads: 4, timeout: 600, deadline: 3600, 'max-tokens': 96, device: 'cpu', prompts: [] };
-  const known = new Set([...PATH_OPTIONS, 'model-archive', 'prompt', 'threads', 'timeout', 'deadline', 'max-tokens', 'device']);
+  const options = { threads: 4, timeout: 600, deadline: 3600, 'max-tokens': 96, device: 'cpu', 'prewarm-voice': 'false', prompts: [] };
+  const known = new Set([...PATH_OPTIONS, 'model-archive', 'prompt', 'threads', 'timeout', 'deadline', 'max-tokens', 'device', 'prewarm-voice']);
   const seen = new Set();
   for (let index = 0; index < args.length; index += 2) {
     const name = args[index]?.slice(2), value = args[index + 1];
@@ -61,6 +62,8 @@ function parseArgs(args) {
     if (!Number.isInteger(options[key]) || options[key] < minimum || options[key] > maximum) throw Error(`--${key} must be an integer in ${minimum}–${maximum}`);
   }
   if (!['cpu', 'cuda'].includes(options.device)) throw Error('--device must be cpu or cuda; automatic fallback is not used');
+  if (!['true','false'].includes(options['prewarm-voice'])) throw Error('--prewarm-voice must be true or false');
+  options['prewarm-voice'] = options['prewarm-voice'] === 'true';
   if (!options.prompts.length) options.prompts = ['今天我有一点累，请用两句很短的话回应我。', '我准备休息一会儿，请用两句很短的话回应我。'];
   return options;
 }
@@ -246,6 +249,11 @@ async function run(options) {
     for (const [index, prompt] of options.prompts.entries()) {
       controller.signal.throwIfAborted(); const id = `chain-${index + 1}`, turnStarted = performance.now();
       const turn = { id, prompt, completed: false, segments: [] }; report.turns.push(turn);
+      const previousWorker = speech.worker;
+      // Compare the same real services with voice loading overlapping response
+      // generation. The output still does not prove speaker playback.
+      const warmStart=performance.now();
+      const warming=options['prewarm-voice']?speech.ensureLoaded().then(value=>({value,seconds:Number(((performance.now()-warmStart)/1000).toFixed(3))}),error=>({error})):null;
       const prepared = preparePersonaChat({}, { model: 'oregairu-small', base: 'http://127.0.0.1' }, [{ role: 'user', content: prompt }]);
       prepared.messages[0].content += '\n\n请用简体中文自然回答。不要自行附加其他语言翻译。'; turn.effectiveMessages = prepared.messages;
       let chunk = '', stage = performance.now();
@@ -260,8 +268,8 @@ async function run(options) {
       if (bilingual.translationStatus !== 'ready' || !bilingual.ja || turn.translationInput !== bilingual.zh) throw Error(bilingual.translationError || 'Translation did not use this generated reply');
       report.verification.sameReplyTranslated = true; await save();
       const segments = new JapaneseSentenceStream().push(bilingual.ja, true); if (!segments.length) throw Error('Production sentence filtering produced no speech');
-      const previousWorker = speech.worker; stage = performance.now(); const loaded = await speech.ensureLoaded();
-      turn.voiceLoadSeconds = Number(((performance.now() - stage) / 1000).toFixed(3)); turn.voiceLoadMetadata = loaded.metadata;
+      stage = performance.now();const warmResult=warming?await warming:{value:await speech.ensureLoaded()};if(warmResult.error)throw warmResult.error;const loaded=warmResult.value;
+      turn.voiceLoadSeconds = warming?warmResult.seconds:Number(((performance.now() - stage) / 1000).toFixed(3));turn.voicePrewarmed=Boolean(warming);turn.voiceLoadMetadata = loaded.metadata;
       turn.reusedVoiceWorker = Boolean(previousWorker && speech.worker === previousWorker); turn.voiceWorkerPid = speech.worker.child.pid; speech.begin(id);
       for (const [segmentIndex, text] of segments.entries()) {
         controller.signal.throwIfAborted(); stage = performance.now();

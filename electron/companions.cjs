@@ -11,7 +11,7 @@ const {verifyVideoPreviewPack,VIDEO_GAIT}=require('./companion-video-pack.cjs');
 const {validBody,clampSubject}=require('./companion-geometry.cjs');
 const MODES = new Set(['none', 'model', 'pet', 'both']);
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'model', 'pet', 'both']);
-const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,...PET_DEFAULTS });
+const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,...PET_DEFAULTS });
 function sanitizePreferences(value = {}, base = DEFAULTS) {
   const next = { ...base, ...value };
   if(!['sprite','video-preview'].includes(next.petRenderer))throw Error('无效的桌宠渲染模式');
@@ -19,6 +19,7 @@ function sanitizePreferences(value = {}, base = DEFAULTS) {
   if (!CLOSE_ACTIONS.has(next.closeAction)) throw Error('无效的关闭行为');
   if (!['zh', 'ja', 'both'].includes(next.bubbleLanguage)) throw Error('无效的气泡语言');
   if(!['above','below'].includes(next.inputPosition))throw Error('无效的输入框位置');
+  if(typeof next.mouseThrough!=='boolean')throw Error('无效的鼠标穿透设置');
   if (!['left', 'right'].includes(next.position)) throw Error('无效的人物位置');
   if (!Number.isFinite(next.scale) || next.scale < .6 || next.scale > 2) throw Error('桌宠缩放应在 0.6–2 倍之间');
   const reminder=validateReminderConfig({enabled:next.breakReminders,intervalMinutes:next.breakIntervalMinutes});
@@ -27,7 +28,7 @@ function sanitizePreferences(value = {}, base = DEFAULTS) {
     const p = next.positions?.[kind];
     if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) positions[kind] = { x: Math.round(p.x), y: Math.round(p.y), ...(validBody(p.body)?{body:validBody(p.body)}:{}) };
   }
-  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, animation: !!next.animation, positions };
+  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, mouseThrough:next.mouseThrough, animation: !!next.animation, positions };
 }
 function kindsForMode(mode) { return mode === 'both' ? ['model', 'pet'] : mode === 'none' ? [] : [mode]; }
 function clampBounds(bounds, area) {
@@ -168,7 +169,9 @@ class CompanionManager {
     this.applyMode();
     for (const [kind, win] of this.windows) {
       const bounds = this.boundsFor(kind);
-      if(this.drag?.kind!==kind)win.setBounds(bounds); win.setAlwaysOnTop(this.preferences.alwaysOnTop, 'floating'); this.sendState(win, kind);
+      const current=win.getBounds();
+      if(this.drag?.kind!==kind&&['x','y','width','height'].some(key=>current[key]!==bounds[key]))win.setBounds(bounds);
+      win.setAlwaysOnTop(this.preferences.alwaysOnTop, 'floating'); this.sendState(win, kind);
     }
     for(const [kind,menu] of this.menus){const owner=this.windows.get(kind);if(!owner)continue;const anchor=owner.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:anchor.x+anchor.width/2,y:anchor.y+anchor.height/2}).workArea,bounds=adjacentMenuBounds(anchor,area);if(!bounds){this.closeMenu(kind);this.openMain();this.onOpenSettings('avatar');}else{menu.setBounds(bounds);menu.setAlwaysOnTop(this.preferences.alwaysOnTop,'floating');this.sendState(menu,kind,true);}}
     await this.persist(); this.emit(); return this.getState();
@@ -188,12 +191,15 @@ class CompanionManager {
   resetSpeechClock(){this.speechSequence=-1;this.clearSpeechSnapshot();}
   setMouthLevel(level){const win=this.windows.get('model');if(win&&!win.isDestroyed())win.webContents.send('companion-mouth',level);}
   setVisionActive(value){this.visionActive=value===true;for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
-  showError(message){const value=typeof message==='string'?message.slice(0,400):'请求没有完成';for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'chat-error',message:value});}
+  showError(input){const kind=input&&typeof input==='object'&&input.kind==='voice'?'voice':'chat',message=typeof input==='string'?input:input?.message;const value=typeof message==='string'?message.slice(0,400):'请求没有完成';for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'chat-error',kind,message:value});}
+  clearCapabilityError(kind){if(!['chat','voice'].includes(kind))return;for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'capability-recovered',kind});}
   setSpeechBusy(value){this.speechBusy=value===true;for(const [kind,win] of this.windows){if(this.speechBusy)win.webContents.send('companion-action',{name:'audio-stop'});this.sendState(win,kind);}}
   setChatBusy(value) { this.chatBusy=value===true; for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
   setMode(mode) { return this.setPreferences({ mode }); }
   showReply(reply) {
-    this.reply = { zh: typeof reply?.zh === 'string' ? reply.zh.slice(0, 1800) : '', ja: typeof reply?.ja === 'string' ? reply.ja.slice(0, 1800) : '', id: typeof reply?.id === 'string' ? reply.id : '' };
+    // Chat already has its own 160k generation limit; never truncate a reply
+    // when forwarding it to the desktop windows. Their body scrolls separately.
+    this.reply = { zh: typeof reply?.zh === 'string' ? reply.zh : '', ja: typeof reply?.ja === 'string' ? reply.ja : '', id: typeof reply?.id === 'string' ? reply.id : '' };
     for (const [kind, win] of this.windows) this.sendState(win, kind);
   }
   clearReply() { this.reply = null; for (const [kind, win] of this.windows) this.sendState(win, kind); }
@@ -254,7 +260,7 @@ class CompanionManager {
     if (action === 'catalog') return {voices:(this.voiceCatalog?.files||[]).map(item=>item.file).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name))};
     if (action === 'voice-url') {if(this.speechBusy)throw Error('角色正在朗读，请等待或停止。');return this.voiceUrl(payload);}
     if (action === 'settings') { this.closeMenu(kind); this.openMain(); this.onOpenSettings('avatar'); return true; }
-    if (action === 'prefs') { const allowed=['animation','interactionPaused','quietMode','randomQuotes','interactionQuotes','nightReminders','showBubbles','soundEnabled','soundVolume','opacity','scale','alwaysOnTop','startup','bubbleLanguage','inputPosition','breakReminders','breakIntervalMinutes','petRenderer']; const patch=Object.fromEntries(Object.entries(payload||{}).filter(([key])=>allowed.includes(key))); return this.setPreferences(patch); }
+    if (action === 'prefs') { const allowed=['animation','interactionPaused','quietMode','randomQuotes','interactionQuotes','nightReminders','showBubbles','soundEnabled','soundVolume','opacity','scale','alwaysOnTop','mouseThrough','startup','bubbleLanguage','inputPosition','breakReminders','breakIntervalMinutes','petRenderer']; const patch=Object.fromEntries(Object.entries(payload||{}).filter(([key])=>allowed.includes(key))); return this.setPreferences(patch); }
     if (action === 'action'){this.onUse();return this.performAction(payload);}
     if (action === 'quote') return this.pickQuote(payload);
     if (action === 'cursor') { const cursor=this.e.screen.getCursorScreenPoint();const bounds=win.getBounds();return {x:cursor.x-bounds.x,y:cursor.y-bounds.y}; }
@@ -262,7 +268,7 @@ class CompanionManager {
     if (action === 'quit') {this.quit();return true;}
     if (action === 'ready') { this.sendState(win, kind,isMenu); return true; }
     if (action === 'open-main') { this.openMain(); return true; }
-    if (action === 'hit-test') { win.setIgnoreMouseEvents(payload === false, { forward: true }); return true; }
+    if (action === 'hit-test') { if(typeof payload!=='boolean')throw Error('无效的命中状态');if(this.drag?.kind===kind&&!payload)return true;win.setIgnoreMouseEvents(!payload, { forward: true }); return true; }
     if (action === 'drag-start') { this.onUse(); this.walkFraction={x:0,y:0}; const point = this.e.screen.getCursorScreenPoint(); const [x,y] = win.getPosition(); this.closeMenu(kind); this.drag = { kind, point, x, y, width:win.getBounds().width, height:win.getBounds().height,body:validBody(payload?.body) }; win.setIgnoreMouseEvents(false); return true; }
     if (action === 'drag-move' && this.drag?.kind === kind) {
       const point = this.e.screen.getCursorScreenPoint(); const area = this.e.screen.getDisplayNearestPoint(point).workArea;
@@ -280,9 +286,22 @@ class CompanionManager {
       const travel=videoPreview?VIDEO_GAIT.strideHeightRatio*VIDEO_GAIT.subjectHeight*viewportScale*elapsed/VIDEO_GAIT.durationMs:30*this.preferences.scale*elapsed/1000;
       this.walkFraction ||= {x:0,y:0};this.walkFraction.x+=travel*(typeof payload==='number'?payload:payload.x);this.walkFraction.y+=travel*(typeof payload==='number'?0:payload.y);
       const dx=Math.trunc(this.walkFraction.x),dy=Math.trunc(this.walkFraction.y);this.walkFraction.x-=dx;this.walkFraction.y-=dy;
-      const next = clampBounds({ ...bounds, x:bounds.x+dx,y:bounds.y+dy }, area);
       if(!dx&&!dy)return true;
-      if (next.x === bounds.x && next.y === bounds.y) {this.walkFraction={x:0,y:0};return false;} moveWindow(win,next); this.preferences.positions[kind] = { x: next.x, y: next.y }; return true;
+      // Dragging permits transparent window margins outside a display while the
+      // visible figure stays on screen. Walking must use that same body, or a
+      // full-window clamp can abruptly move the pet opposite its gait.
+      const body=validBody(this.preferences.positions[kind]?.body);
+      const areas=this.e.screen.getAllDisplays?.().map(display=>display.workArea)||[area];
+      const candidate={...bounds,x:bounds.x+dx,y:bounds.y+dy};
+      const next=clampSubject(candidate,body,areas)||clampBounds(candidate,area);
+      const movedX=next.x-bounds.x,movedY=next.y-bounds.y;
+      // A correction across a display gap or stale saved geometry must never
+      // turn a left/right or vertical step into movement in another direction.
+      if((dx===0?movedX!==0:movedX*dx<0||Math.abs(movedX)>Math.abs(dx))||
+         (dy===0?movedY!==0:movedY*dy<0||Math.abs(movedY)>Math.abs(dy))){
+        this.walkFraction={x:0,y:0};return false;
+      }
+      if (next.x === bounds.x && next.y === bounds.y) {this.walkFraction={x:0,y:0};return false;} moveWindow(win,next); this.preferences.positions[kind] = { x: next.x, y: next.y, ...(body?{body}:{}) }; return true;
     }
     if (action === 'menu') { this.contextMenu(kind, win); return true; }
     return false;
@@ -358,6 +377,7 @@ class CompanionManager {
     this.tray?.setContextMenu(this.e.Menu.buildFromTemplate([
       { label: '打开对话', click: () => this.openMain() },
       ...[['none','隐藏桌面形象'],['model','只显示人物模型'],['pet','只显示桌宠'],['both','同时显示两种形象']].map(([mode,label]) => ({ label,type: 'radio',checked: this.preferences.mode === mode,click: () => this.setMode(mode).catch(this.onError) })),
+      {label:'人物鼠标穿透',type:'checkbox',checked:this.preferences.mouseThrough,click:item=>this.setPreferences({mouseThrough:!!item.checked}).catch(this.onError)},
       { type: 'separator' }, { label: '完全退出',click: () => this.quit() },
     ]));
   }

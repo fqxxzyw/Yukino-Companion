@@ -1,0 +1,58 @@
+name: Check desktop revision on Windows
+on:
+  push:
+    branches: [fix/liquid-glass-pet-voice-20261030]
+  pull_request:
+    branches: [handoff/codex-current-20261028]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Source and Python regression
+        shell: pwsh
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p '*_test.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test community/tests/*.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run build
+      - name: Electron interface and glass checks
+        shell: pwsh
+        run: |
+          npx electron scripts/verify-glass-ui.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run qa:ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run qa:pet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # These windows use isolated synthetic fixtures and capture only their own
+      # contents. Never publish assets, model files, user data, or the profile.
+      - name: Preserve interface evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-revision-ui-evidence
+          path: |
+            build/glass-review/*.png
+            build/glass-review/report.json
+            build/ui-review/*.png
+            build/ui-review/report.json
+            build/pet-ui-review/*.png
+            build/pet-ui-review/report.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -10,7 +10,9 @@ const active = new Set();
 // Share the process/connection budget across concurrent resource downloads.
 // Allow the currently published resource packs to run their parts together,
 // while malformed or future huge catalogues cannot spawn unbounded processes.
-const MAX_PART_DOWNLOADS=64;let runningParts=0;const waitingParts=[];
+// The current catalog has 75 parts in total. Keep a bounded shared budget large
+// enough for every published part to start together, even across resources.
+const MAX_PART_DOWNLOADS=128;let runningParts=0;const waitingParts=[];
 async function acquirePart(signal){
  check(signal);
  if(runningParts<MAX_PART_DOWNLOADS){runningParts++;return;}

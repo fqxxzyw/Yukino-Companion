@@ -58,6 +58,7 @@ function Stop-InstalledApp {
 $gui=$null;$visible=$null
 try{
  if(-not(Test-Path -LiteralPath $Installer -PathType Leaf)){throw 'Published installer is missing'}
+ Write-Host 'Native smoke: open installer pages'
  $gui=Start-Process -FilePath $Installer -ArgumentList '/SP-' -PassThru
  $deadline=[DateTime]::UtcNow.AddSeconds(30)
  do{$visible=Get-Process | Where-Object{$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -eq '安装 Yukino Companion'} | Select-Object -First 1;if(-not $visible){Start-Sleep -Milliseconds 150}}while(-not $visible -and [DateTime]::UtcNow -lt $deadline)
@@ -75,6 +76,7 @@ try{
  Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue
  if(-not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
  $visible=$null;$gui=$null
+ Write-Host 'Native smoke: install and verify payload'
  Install $target $true
  if($PayloadManifest){
   & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
@@ -94,6 +96,7 @@ try{
  $start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
  $start.Arguments='--user-data-dir="'+(Join-Path $profile 'Chromium')+'" --enable-logging=stderr --no-first-run --remote-debugging-port=0'
  $start.EnvironmentVariables['APPDATA']=$roaming;$start.EnvironmentVariables['LOCALAPPDATA']=$local
+ Write-Host 'Native smoke: launch installed application'
  $installedApp=New-Object Diagnostics.Process;$installedApp.StartInfo=$start
  if(-not $installedApp.Start()){throw 'Installed application could not start'}
  $appStdout=$installedApp.StandardOutput.ReadToEndAsync();$appStderr=$installedApp.StandardError.ReadToEndAsync()
@@ -111,9 +114,11 @@ try{
  if($installedApp.HasExited -or $installedApp.MainWindowHandle -eq 0){throw 'Installed application did not remain running'}
  $appText=Capture $installedApp.MainWindowHandle 'app-first-launch'
  if($installedApp.MainWindowTitle -ne 'Yukino Companion' -or $appText -match 'JavaScript error|Uncaught Exception'){throw 'Installed application shows an error dialog'}
+ Write-Host 'Native smoke: verify installed renderer'
  & node (Join-Path $root 'scripts/verify-installed-window.cjs') (Join-Path $profile 'Chromium')
  if($LASTEXITCODE -ne 0){throw 'The installed application did not render its bundled character'}
  if($VerifyCurrentFeatures){
+  Write-Host 'Native smoke: verify current interface and companion'
   & node (Join-Path $root 'scripts/verify-current-window.cjs') (Join-Path $profile 'Chromium')
   if($LASTEXITCODE -ne 0){throw 'The installed character, desktop header or visual companion check failed'}
   $report.checks+='Installed rounded panel, contact list, fixed desktop header and visual companion shell checked on the running app'
@@ -125,6 +130,7 @@ try{
  if((Test-Path -LiteralPath $stderrFile) -and (Get-Content -LiteralPath $stderrFile -Raw) -match 'A JavaScript error occurred|Uncaught Exception|Cannot find module|Uncaught (Error|TypeError|ReferenceError|SyntaxError)|UnhandledPromiseRejection|Error occurred in handler for ''character-model-data'''){throw 'Installed application logged an uncaught JavaScript error'}
  $report.checks+='Actual installed application launches with an isolated profile, displays its main window and stays alive; screenshot captured; no model download or inference requested'
  $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
+ Write-Host 'Native smoke: upgrade and reverify payload'
  Install $target $true
  if($PayloadManifest){
   & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
@@ -134,6 +140,7 @@ try{
  if((Get-Content -LiteralPath $sentinel -Raw) -ne 'keep me'){throw 'Upgrade modified personal files'}
  $report.checks+='Recognized base-app upgrade preserves added personal files'
  $unknown=Join-Path $temporary 'unknown personal folder';[void][IO.Directory]::CreateDirectory($unknown);[IO.File]::WriteAllText((Join-Path $unknown 'personal.txt'),'untouched')
+ Write-Host 'Native smoke: reject unknown directory and uninstall'
  Install $unknown $false
  if((Get-Content -LiteralPath (Join-Path $unknown 'personal.txt') -Raw) -ne 'untouched'){throw 'Unknown directory was modified'}
  $report.checks+='Unknown nonempty installation directory rejected'

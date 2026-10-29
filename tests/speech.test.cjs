@@ -133,6 +133,23 @@ test('cancelling a pending begin never starts synthesis when initialization fini
   assert.deepEqual(spoken,[]);assert.equal(flow.current,null);
 });
 
+test('voice prewarming starts before text arrives and cancellation cannot revive it',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  const warmed=deferred(),events=[];
+  const flow=new SpeechSession({bridge:{begin:async id=>events.push('begin:'+id),prewarm:async id=>{events.push('warm:'+id);await warmed.promise;},stop:async id=>events.push('stop:'+id),synthesize:async(id,text)=>{events.push('synthesize:'+text);return text;}},player:{stop(){},play:async text=>events.push('play:'+text)}});
+  flow.start('voice');await wait();assert.deepEqual(events,['begin:voice','warm:voice']);
+  flow.push('第一句。');flow.finish();await wait();assert.deepEqual(events,['begin:voice','warm:voice']);
+  flow.cancel();warmed.resolve();await wait();assert.deepEqual(events,['begin:voice','warm:voice','stop:voice']);assert.equal(flow.current,null);
+});
+
+test('warmed voice is reused for the first queued sentence without a second start',async()=>{
+  const {SpeechSession}=await import('../src/speech/session.mjs');
+  const warmed=deferred(),events=[];
+  const flow=new SpeechSession({bridge:{begin:async()=>events.push('begin'),prewarm:async()=>{events.push('warm');await warmed.promise;},stop:async()=>{},synthesize:async(_id,text)=>{events.push('synthesize');return text;}},player:{stop(){},play:async()=>events.push('play')}});
+  flow.start('voice');await wait();flow.push('第一句。');flow.finish();warmed.resolve();await wait();
+  assert.deepEqual(events,['begin','warm','synthesize','play']);assert.equal(flow.current,null);
+});
+
 test('stop rejects late audio and new session cannot play old results',async()=>{
   const {SpeechSession}=await import('../src/speech/session.mjs');
   const old=deferred(),played=[],stopped=[];

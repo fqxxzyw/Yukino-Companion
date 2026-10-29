@@ -261,6 +261,18 @@ test('background voice installation commits selected paths without relying on th
  const app=await mainHarness({state}),result=await app.invoke('voice-install','yukino-e2',{apply:true}),saved=JSON.parse(app.storage.get('speech.json'));
  assert.equal(result.applied,true);assert.equal(saved.gpt,result.gpt);assert.equal(saved.sovits,result.sovits);assert.equal(saved.promptText,'');assert.ok(app.sent.some(x=>x.channel==='voice-config-updated'));
 });
+test('a pending volume change cannot overwrite newly installed voice weights',async()=>{
+ const app=await mainHarness({state}),before=await app.invoke('voice-settings');
+ const owner=app.voiceDownloads.at(-1);let release;owner.install=()=>new Promise(resolve=>release=resolve);
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true});await new Promise(setImmediate);
+ release({gpt:path.resolve('/downloaded/voice.ckpt'),sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});
+ assert.equal((await pending).applied,true);
+ const saved=await app.invoke('voice-patch',{volume:0.35});
+ assert.notEqual(saved.gpt,before.gpt);assert.equal(saved.gpt,path.resolve('/downloaded/voice.ckpt'));assert.equal(saved.sovits,path.resolve('/downloaded/voice.pth'));assert.equal(saved.volume,0.35);
+ assert.equal(JSON.parse(app.storage.get('speech.json')).gpt,saved.gpt);
+ await assert.rejects(app.invoke('voice-patch',{unexpected:true}),/无效语音设置/);
+ await assert.rejects(app.invoke('voice-patch',{volume:2}),/超出范围/);
+});
 test('concurrent voice core and selected weights both persist without overwriting one another',async()=>{
  const gate=deferred(),entered=deferred(),started=new Set();const app=await mainHarness({state,voiceMissing:['bert','gpt'],voiceInstallBarrier:async id=>{started.add(id);if(started.size===2)entered.resolve();await gate.promise;}});
  const job=app.invoke('setup-install',{features:['voice']});await entered.promise;gate.resolve();const result=await job;assert.equal(result.ready,true);

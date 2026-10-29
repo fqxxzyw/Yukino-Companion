@@ -1,0 +1,114 @@
+name: Build and inspect Windows revision candidate
+on:
+  push:
+    branches: [fix/liquid-glass-pet-voice-20261030]
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare pinned build resources
+        shell: pwsh
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/mirror-resources.py --runtime-catalog-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build application and record installed payload
+        shell: pwsh
+        run: |
+          node scripts/build-base-app.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/base-payload.cjs record build/base-app build/base-payload.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build extractable installer
+        shell: pwsh
+        run: ./scripts/build-base-installer.ps1
+      - name: Bind installer to source and mark validation pending
+        shell: pwsh
+        run: |
+          $exe = Get-Item release/Yukino-Companion-0.4.0-Base-Setup.exe
+          $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $source = @{
+            commit = $env:GITHUB_SHA
+            tree = (git rev-parse 'HEAD^{tree}')
+            runId = $env:GITHUB_RUN_ID
+            installer = $exe.Name
+            bytes = $exe.Length
+            sha256 = $sha
+            signatureStatus = [string](Get-AuthenticodeSignature $exe.FullName).Status
+            nativeInstallLaunchUpgradeUninstall = $false
+            completeFeatureAcceptance = $false
+          }
+          $source | ConvertTo-Json -Depth 5 | Set-Content release/candidate-source.json -Encoding utf8
+          "$sha  $($exe.Name)" | Set-Content release/SHA256SUMS.txt -Encoding utf8
+      # Only the permitted installer and manifests are uploaded. No standalone
+      # visual models, user data or downloaded inference weights are included.
+      - name: Preserve unpublished candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-revision-candidate-${{ github.sha }}
+          path: |
+            release/Yukino-Companion-0.4.0-Base-Setup.exe
+            release/base-installer.json
+            release/candidate-source.json
+            release/SHA256SUMS.txt
+            build/base-package.json
+            build/base-payload.json
+          if-no-files-found: error
+          retention-days: 30
+  native_smoke:
+    needs: candidate
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-${{ github.sha }}
+          path: .
+      - name: Verify exact source and installer bytes
+        shell: pwsh
+        run: |
+          $source = Get-Content release/candidate-source.json -Raw | ConvertFrom-Json
+          $exe = Get-Item release/Yukino-Companion-0.4.0-Base-Setup.exe
+          $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($source.commit -ne $env:GITHUB_SHA -or $source.runId -ne $env:GITHUB_RUN_ID -or $source.tree -ne (git rev-parse 'HEAD^{tree}') -or $source.bytes -ne $exe.Length -or $source.sha256 -ne $sha) { throw 'Candidate identity mismatch' }
+      - name: Install, launch, upgrade, verify payload and uninstall
+        timeout-minutes: 10
+        shell: pwsh
+        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json -VerifyCurrentFeatures
+      - name: Preserve native smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-revision-native-smoke-${{ github.sha }}
+          path: |
+            build/base-installer-review/*.png
+            build/base-installer-review/report.json
+          if-no-files-found: warn
+          retention-days: 30

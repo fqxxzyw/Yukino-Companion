@@ -55,10 +55,25 @@ test('preferences validate modes, close decisions, language and bounded scale', 
   assert.throws(() => sanitizePreferences({ mode:'http://example.org' }));
   assert.throws(() => sanitizePreferences({ closeAction:'none' }));
   assert.throws(() => sanitizePreferences({ scale:100 }));
+  assert.equal(sanitizePreferences().mouseThrough,false);
+  assert.throws(() => sanitizePreferences({mouseThrough:'true'}));
   assert.deepEqual(clampBounds({ x:-900,y:2000,width:330,height:410 },{ x:0,y:0,width:1920,height:1040 }),{ x:0,y:630,width:330,height:410 });
 });
+test('mouse-through preference persists and hit tests cannot break an active drag',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet');
+ const event={sender:win.webContents,senderFrame:win.webContents.mainFrame},calls=[];
+ win.setIgnoreMouseEvents=(ignored,opts)=>calls.push({ignored,opts});
+ await f.manager.viewCall(event,'prefs',{mouseThrough:true});
+ assert.equal(f.manager.getState().mouseThrough,true);
+ assert.equal(JSON.parse(await fs.readFile(path.join(f.manager.dataDir,'companions.json'),'utf8')).mouseThrough,true);
+ await f.manager.viewCall(event,'hit-test',false);assert.deepEqual(calls.at(-1),{ignored:true,opts:{forward:true}});
+ await f.manager.viewCall(event,'drag-start');assert.equal(calls.at(-1).ignored,false);
+ const count=calls.length;await f.manager.viewCall(event,'hit-test',false);assert.equal(calls.length,count);
+ await f.manager.viewCall(event,'drag-end');await f.manager.viewCall(event,'hit-test',true);assert.equal(calls.at(-1).ignored,false);
+ await assert.rejects(f.manager.viewCall(event,'hit-test','false'),/命中/);
+});
 class FakeWindow extends EventEmitter {
-  constructor(opts = {}) { super(); this.bounds = { x:0,y:0,width:330,height:410,...opts }; this.visible = true; this.destroyed = false; this.webContents = new EventEmitter(); this.webContents.mainFrame = {}; this.webContents.send = () => {}; this.webContents.setWindowOpenHandler = () => {}; }
+  constructor(opts = {}) { super(); this.bounds = { x:opts.x??0,y:opts.y??0,width:opts.width??330,height:opts.height??410 }; this.visible = true; this.destroyed = false; this.webContents = new EventEmitter(); this.webContents.mainFrame = {}; this.webContents.send = () => {}; this.webContents.setWindowOpenHandler = () => {}; }
   isDestroyed() { return this.destroyed; } isVisible() { return this.visible; } isMinimized() { return false; }
   show() { this.visible=true; this.emit('show'); } showInactive() { this.show(); } hide() { this.visible=false; this.emit('hide'); }
   restore() {} focus() {} setAlwaysOnTop() {} setIgnoreMouseEvents() {}
@@ -185,6 +200,28 @@ test('drag constrains the visible pet instead of its transparent margins and pre
  await f.manager.viewCall(event,'drag-end');assert.deepEqual(win.bounds,atEdge,'release does not reposition the pet');
  assert.deepEqual(f.manager.preferences.positions.pet,{x:atEdge.x,y:atEdge.y,body});assert.deepEqual(f.manager.boundsFor('pet'),atEdge);
 });
+test('walking after an edge drag never jumps opposite the chosen gait or forgets visible-body bounds',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');
+ const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
+ const body={x:.2,y:.3,width:.6,height:.5};let cursor={x:0,y:0};f.screen.getCursorScreenPoint=()=>cursor;
+ await f.manager.viewCall(event,'drag-start',{body});cursor={x:-10000,y:0};await f.manager.viewCall(event,'drag-move');await f.manager.viewCall(event,'drag-end');
+ const left=win.bounds.x;assert.ok(left<0);
+ assert.equal(await f.manager.viewCall(event,'walk-step',{x:-1,y:0,elapsedMs:100}),false);
+ assert.equal(win.bounds.x,left,'left gait at the edge must not jump right');
+ assert.equal(await f.manager.viewCall(event,'walk-step',{x:1,y:0,elapsedMs:100}),true);
+ assert.equal(win.bounds.x,left+3);assert.deepEqual(f.manager.preferences.positions.pet.body,body);
+ await f.manager.viewCall(event,'drag-start',{body});cursor={x:10000,y:0};await f.manager.viewCall(event,'drag-move');await f.manager.viewCall(event,'drag-end');
+ const right=win.bounds.x;assert.ok(right+win.bounds.width>f.workArea.width);
+ assert.equal(await f.manager.viewCall(event,'walk-step',{x:1,y:0,elapsedMs:100}),false);
+ assert.equal(win.bounds.x,right,'right gait at the edge must not jump left');
+ assert.equal(await f.manager.viewCall(event,'walk-step',{x:-1,y:0,elapsedMs:100}),true);
+ assert.equal(win.bounds.x,right-3);assert.deepEqual(f.manager.preferences.positions.pet.body,body);
+});
+test('walking with stale window geometry stops instead of teleporting to a work-area edge',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
+ win.setPosition(-90,100);f.manager.preferences.positions.pet={x:-90,y:100};
+ for(const direction of [-1,1]){assert.equal(await f.manager.viewCall(event,'walk-step',{x:direction,y:0,elapsedMs:100}),false);assert.equal(win.bounds.x,-90);}
+});
 test('Windows move-induced window size drift is corrected without resizing normal moves',async t=>{
  const f=await fixture(t);await f.manager.setMode('model');const win=f.manager.windows.get('model'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};let cursor={x:20,y:20};f.screen.getCursorScreenPoint=()=>cursor;const original={...win.bounds};
  const move=win.setPosition.bind(win);win.setPosition=(x,y)=>{move(x,y);win.bounds.width+=9;win.bounds.height+=5;};
@@ -260,6 +297,10 @@ test('changing character identity clears the prior bubble and resets model mouth
  assert.equal(JSON.stringify(states).includes('属于旧角色的回复'),false);
 });
 
+test('desktop replies preserve long bilingual text instead of silently truncating it',async t=>{
+ const f=await fixture(t);await f.manager.setMode('both');const zh='完整中文🙂'.repeat(500),ja='日本語の本文。'.repeat(500);
+ f.manager.showReply({id:'long',zh,ja});assert.equal(f.manager.reply.zh,zh);assert.equal(f.manager.reply.ja,ja);
+});
 test('same character wardrobe and display-name changes keep its reply and do not reset mouth',async t=>{
  const f=await fixture(t);await f.manager.setMode('both');
  f.manager.setCharacter({id:'same-character',name:'角色',modelId:'outfit-one'});
@@ -278,18 +319,28 @@ async function rendererHarness(){
  const vm=require('node:vm');let now=1000,stateListener,actionListener;const calls=[],painted=[],frames=[],timers=[],windowEvents=new Map(),mediaEvents=new Map();
  const classList=()=>({add(){},remove(){},toggle(){}});
  const context2d={clearRect(){},drawImage(...args){painted.push(args);},getImageData(){return {data:new Uint8Array([0,0,0,255])};}};
- function element(id=''){return {id,hidden:['bubble','pet-menu','model','chat-status','menu-error','focus-badge'].includes(id),value:'',textContent:'',style:{setProperty(){}},classList:classList(),dataset:{},events:new Map(),getContext:()=>context2d,setAttribute(){},getBoundingClientRect:()=>({left:70,top:180,x:70,y:180,width:192,height:208}),addEventListener(name,fn){this.events.set(name,fn);},matches:()=>false,closest:()=>null,focus(){},blur(){},append(){},replaceChildren(){},querySelectorAll:()=>[],hasPointerCapture:()=>false};}
+ function element(id=''){return {id,hidden:['bubble','pet-menu','model','chat-status','menu-error','focus-badge'].includes(id),value:'',textContent:'',scrollHeight:0,clientHeight:0,scrollTop:0,style:{setProperty(){}},classList:classList(),dataset:{},events:new Map(),getContext:()=>context2d,setAttribute(){},getBoundingClientRect:()=>({left:70,top:180,x:70,y:180,width:192,height:208}),addEventListener(name,fn){this.events.set(name,fn);},matches:()=>false,closest:()=>null,contains:()=>false,focus(){},blur(){},append(){},replaceChildren(){},querySelectorAll:()=>[],hasPointerCapture:()=>false};}
  const nodes=new Map();const get=id=>{if(!nodes.has(id))nodes.set(id,element(id));return nodes.get(id);};
  const media={matches:false,addEventListener:(name,fn)=>mediaEvents.set(name,fn),removeEventListener:(name,fn)=>{if(mediaEvents.get(name)===fn)mediaEvents.delete(name);}};
  let quoteResult=null,cursorResult={x:170,y:220};
  const bridge={onState:fn=>stateListener=fn,onAction:fn=>actionListener=fn,call:async(action,payload)=>{calls.push({action,payload});if(action==='catalog')return {voices:[]};if(action==='quote')return quoteResult;if(action==='cursor')return cursorResult;return true;}};
- const sandbox={console,URLSearchParams,Date,Math,Uint8Array,Promise,location:{search:''},performance:{now:()=>now},innerWidth:330,innerHeight:458,matchMedia:()=>media,Image:class{constructor(){this.complete=true;this.naturalWidth=4096;}},Audio:class{pause(){}},setTimeout:()=>1,clearTimeout(){},setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},requestAnimationFrame:fn=>frames.push(fn),document:{getElementById:get,querySelector:()=>get('menu-title'),createElement:tag=>element(tag),createTextNode:text=>({textContent:text}),body:element('body'),documentElement:element('html')},window:{companion:bridge,addEventListener:(name,fn)=>windowEvents.set(name,fn)}};
+ const sandbox={console,URLSearchParams,Date,Math,Uint8Array,Promise,location:{search:''},performance:{now:()=>now},innerWidth:330,innerHeight:458,matchMedia:()=>media,Image:class{constructor(){this.complete=true;this.naturalWidth=4096;}},Audio:class{pause(){}},setTimeout:()=>1,clearTimeout(){},setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},requestAnimationFrame:fn=>frames.push(fn),document:{getElementById:get,querySelector:()=>get('menu-title'),createElement:tag=>element(tag),createTextNode:text=>({textContent:text}),body:element('body'),documentElement:element('html')},window:{companion:bridge,getSelection:()=>({rangeCount:0,isCollapsed:true}),addEventListener:(name,fn)=>windowEvents.set(name,fn)}};
  const context=vm.createContext(sandbox);vm.runInContext(await fs.readFile(path.join(__dirname,'../electron/companion-view/view.js'),'utf8'),context);
  const evaluate=code=>vm.runInContext(code,context);
  const state={kind:'pet',character:{id:'original',name:'原角色'},preferences:{...sanitizePreferences(),soundEnabled:false,randomQuotes:false,nightReminders:false},reply:null,focus:{active:false},voiceRevision:0};
  stateListener(state);await Promise.resolve();await Promise.resolve();
- return {calls,painted,media,mediaEvents,nodes,state,evaluate,emit:value=>stateListener(value),act:name=>actionListener({name}),setTime:value=>now=value,setReduced:value=>{media.matches=value;mediaEvents.get('change')?.({matches:value});},setQuote:value=>quoteResult=value,setCursor:value=>cursorResult=value,cursor:()=>timers[0](),frame:time=>{now=time;frames.shift()?.(time);},unload:()=>windowEvents.get('beforeunload')()};
+ return {calls,painted,media,mediaEvents,nodes,state,evaluate,emit:value=>stateListener(value),act:name=>actionListener({name}),action:value=>actionListener(value),setTime:value=>now=value,setReduced:value=>{media.matches=value;mediaEvents.get('change')?.({matches:value});},setQuote:value=>quoteResult=value,setCursor:value=>cursorResult=value,cursor:()=>timers[0](),frame:time=>{now=time;frames.shift()?.(time);},unload:()=>windowEvents.get('beforeunload')()};
 }
+
+test('only successful validation of the matching capability clears its desktop error',async()=>{
+ const h=await rendererHarness();h.action({name:'chat-error',kind:'voice',message:'语音未就绪'});
+ assert.equal(h.nodes.get('chat-status').textContent,'语音未就绪');
+ h.action({name:'capability-recovered',kind:'chat'});assert.equal(h.nodes.get('chat-status').textContent,'语音未就绪');
+ h.action({name:'capability-recovered',kind:'voice'});assert.equal(h.nodes.get('chat-status').hidden,true);
+ h.action({name:'chat-error',kind:'chat',message:'对话未就绪'});h.emit({...h.state,chatBusy:true});h.emit({...h.state,chatBusy:false});
+ assert.equal(h.nodes.get('chat-status').textContent,'对话未就绪','starting a request is not a successful validation');
+ h.action({name:'capability-recovered',kind:'chat'});assert.equal(h.nodes.get('chat-status').hidden,true);h.unload();
+});
 
 test('live OS reduced-motion change paints neutral idle immediately and blocks new motion/gaze',async()=>{
  const h=await rendererHarness();h.act('jump');h.frame(1000);h.frame(1250);assert.equal(h.evaluate('clipName'),'jump');assert.ok(h.evaluate('frame')>0);

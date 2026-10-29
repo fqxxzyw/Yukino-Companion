@@ -14,6 +14,15 @@ test('local text profile cannot start camera, and panel geometry stays on the se
 
 test('authenticated startup info and stop work before ready-to-show, but capture still needs visibility',async t=>{const f=fixture();t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');f.manager.entry.win.visible=false;assert.equal((await f.call('info')).profile.model,'vision-model');await assert.rejects(f.call('camera-start',{consent:true}),/不允许/);assert.equal(await f.call('stop'),true);assert.equal(f.profiles.length,0)});
 
+test('visual configuration navigation stops capture and refreshed profile requires new consent',async t=>{
+ const f=fixture();t.after(()=>f.manager.close());let opened=0;f.manager.onConfigure=()=>opened++;
+ await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true});assert.ok(grant.token);
+ await f.call('configure');assert.equal(opened,1);assert.equal(f.manager.entry.camera.session,null);assert.equal(f.manager.entry.gate.grants.size,0);
+ f.state.profiles[0].model='new-vision-model';f.manager.stateChanged(f.state);
+ assert.equal((await f.call('info')).profile.model,'new-vision-model');assert.equal(f.manager.entry.camera.session,null);
+ await assert.rejects(f.call('camera-frame',{token:grant.token,consent:true,image:'data:image/png;base64,c3ludGhldGlj'}),/过期|停止|预览|会话/);
+});
+
 test('stale screen cleanup cannot hide camera-active global indicator or Stop affordance',async t=>{const f=fixture(),active=[];f.manager.onActive=value=>active.push(value);t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true});assert.equal(active.at(-1),true);await f.call('screen-stop');assert.equal(active.at(-1),true);assert.equal(f.manager.entry.camera.session.token,grant.token);await f.call('camera-stop',{token:grant.token});assert.equal(active.at(-1),false)});
 
 test('panel document reload revokes capture while subframe and same-document navigation do not reset consent',async t=>{const f=fixture();t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true}),entry=f.manager.entry;entry.win.webContents.emit('did-start-navigation',{isMainFrame:false,isSameDocument:false});entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:true});assert.equal(entry.camera.session.token,grant.token);entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(entry.camera.session,null);assert.equal(entry.active,false)});

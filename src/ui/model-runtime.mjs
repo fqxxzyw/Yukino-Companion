@@ -7,6 +7,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {SCENES,AvatarPresentationController} from './avatar-presentation.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
 import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
+import {modelHitTest} from './model-hit-test.mjs';
 import {createEnvironment,disposeEnvironment,sunlightConfig} from './procedural-scenes.mjs';
 import {walkingContract,travelDistance,makeWalkingPlan,sampleWalkingPlan} from './walking-transition.mjs';
 export function reviewBlinkModelAllowed(entry,optIn){return optIn===true&&entry?.reviewOnly===true&&entry.id===BLINK_REVIEW_MODEL.id&&entry.sha256===BLINK_REVIEW_V5.assetSha256;}
@@ -44,6 +45,7 @@ export class GlbAvatarRenderer{
   this.contextLost=event=>{event.preventDefault();this.resetBlink();this.resetGarment();this.onStatus({phase:'error',message:'图形设备暂不可用，请重新选择模型或重启应用。'})};this.gl.domElement.addEventListener('webglcontextlost',this.contextLost);
  }
  resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;if(this.walkingMotion)this.resetTransition({finish:true});this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.fitCamera();}
+ hitTest(x,y){return modelHitTest({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,raycaster:this.hitRaycaster||=new THREE.Raycaster()});}
  fitCamera(){if(!this.bounds)return;const frame=cameraFrame(this.bounds,this.camera.aspect,this.zoom,this.yaw);this.camera.position.copy(frame.position);this.camera.lookAt(frame.target);this.camera.near=frame.near;this.camera.far=frame.far;this.camera.updateProjectionMatrix();}
  setView({zoom=this.zoom,yaw=this.yaw}={}){if(this.walkingMotion||this.walkExitHeld)return {zoom:this.zoom,yaw:this.yaw};this.zoom=Math.max(1,Math.min(2.2,Number(zoom)||1));this.yaw=Number.isFinite(yaw)?((yaw+180)%360+360)%360-180:0;if(!this.walkingMotion&&!this.walkExitHeld){if(this.pivot)this.pivot.rotation.y=THREE.MathUtils.degToRad(this.yaw);this.fitCamera();}return {zoom:this.zoom,yaw:this.yaw};}
 

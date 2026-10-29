@@ -55,12 +55,15 @@ class SetupService {
     const inspect=()=>this.inspect({features});
     try{
       await this.prepare();controller.signal.throwIfAborted();
-      const runtimeTask=features.some(id=>id!=='pet')?step('runtime',async()=>{await this.installRuntime(runtimeFlavor);controller.signal.throwIfAborted();await this.refresh();}):Promise.resolve();
+      const runtimeTask=features.some(id=>id!=='pet')?step('runtime',async signal=>{await this.installRuntime(runtimeFlavor);signal.throwIfAborted();await this.refresh(signal);}):Promise.resolve();
       const tasks=[runtimeTask];
       if(features.includes('chat'))tasks.push(step('chat',async signal=>{if(this.installChat)await this.installChat(signal);await runtimeTask;signal.throwIfAborted();const state=await inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');}));
       if(features.includes('translation'))tasks.push(step('translation',this.installTranslation));
       if(features.includes('pet'))tasks.push(step('pet',signal=>this.installPet(signal)));
-      if(features.includes('voice'))tasks.push((async()=>{await runtimeTask;controller.signal.throwIfAborted();const voiceTasks=[step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);}),step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');})];const finished=await Promise.allSettled(voiceTasks);if(finished.some(item=>item.status==='rejected'))throw firstFailure||finished.find(item=>item.status==='rejected').reason;})());
+      if(features.includes('voice')){
+        tasks.push(step('voiceCore',async signal=>{const paths=await this.installVoice(signal);signal.throwIfAborted();return this.saveVoice(paths);}));
+        tasks.push(step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');}));
+      }
       await Promise.allSettled(tasks);if(firstFailure)throw firstFailure;controller.signal.throwIfAborted();
       this.phase='ready';this.revision++;return await this.status();
     }catch(error){if(!this.failedStep)this.failedStep=this.active;const cancelled=controller.signal.aborted&&!firstFailure;this.phase=cancelled?'cancelled':'error';this.error=cancelled?'已取消准备，已完成的资源会保留。':error.code==='ENOENT'?'所选功能的资源尚未安装，请重新准备该功能或检查设置中的文件位置。':error.message;throw Error(this.error);}

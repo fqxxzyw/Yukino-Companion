@@ -16,7 +16,7 @@ function updateVisionIndicator(){companions?.setVisionActive?.(mainVisionActive|
 let characterModels,modelPickEpoch=0,modelPickerOpen=false;
 const translationRequests=new Map();
 const {isYukinoLocal,migratePersonaState, characterInfo, characterDocument, buildPersonaPrompt, preparePersonaChat} = require('./persona.cjs');
-const {SpeechService, validateSettings} = require('./speech.cjs');
+const {SpeechService, validateSettings, DEFAULTS: VOICE_DEFAULTS} = require('./speech.cjs');
 const {VoiceSessionStart} = require('./voice-session-start.cjs');
 const {VoiceResources} = require('./voice-resources.cjs');
 const {bundledVoiceDefaults, mergeVoiceDefaults} = require('./bundled-voice.cjs');
@@ -131,12 +131,16 @@ else {
       voiceResources=new VoiceResources({root:voiceBundle.modelRoot,catalog:voiceCatalog,bundledRoot:path.join(resourceRoot(),'voice-models'),bundledPackId:voiceBundle.preset?.packId,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('voice-download',status);setup?.report(status.packId==='core'?'voiceCore':status.packId?'voicePreset':setup?.active==='voicePreset'?'voicePreset':'voiceCore',status);}});
     }
     async function voiceConfig(){await bundleReady;const saved=await read('speech.json',{}),current=await runtime.current();saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);if(saved.promptText===defaultVoicePreset.promptText&&[voiceBundle.defaults.reference,path.join(location('voice-presets'),'yukino-reference.wav')].includes(saved.reference))saved.promptText='';return mergeVoiceDefaults(saved,voiceBundle);}
-    async function refreshRuntime(){
-      const previous=voiceBundle,current=await runtime.current(),saved=await read('speech.json',{});
-      voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});
-      for(const field of ['root','bert','hubert'])if(!saved[field]||saved[field]===previous.defaults[field])saved[field]=voiceBundle.defaults[field];
-      saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);
-      const value=mergeVoiceDefaults(saved,voiceBundle);await write('speech.json',value);speech.configure(value);makeVoiceResources();
+    async function refreshRuntime(signal){
+      const previous=voiceBundle,current=await runtime.current();
+      const nextBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});signal?.throwIfAborted();voiceBundle=nextBundle;
+      const value=await updateVoice(saved=>{
+        signal?.throwIfAborted();
+        for(const field of ['root','bert','hubert'])if(!saved[field]||saved[field]===previous.defaults[field])saved[field]=voiceBundle.defaults[field];
+        saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);
+        return mergeVoiceDefaults(saved,voiceBundle);
+      });
+      signal?.throwIfAborted();speech.configure(value);send('voice-config-updated',value);makeVoiceResources();
       for(const service of [translation,localChat])service.configure({python:managedBinary(service.config.python,current.python||value.python)});
       await write('translation.json',translation.config);await write('local-chat.json',localChat.config);
     }
@@ -159,7 +163,7 @@ else {
       if(!saved.reference&&saved.promptText?.trim())throw Error('已填写自定义参考文本，请选择与其匹配的参考音频。');
       if(saved.reference&&readiness.missing?.some(item=>item.key==='reference'))throw Error('已选择的参考音频不存在，请重新选择；原设置已保留。');
       const paths=needsWeights?await voiceResources.install(voiceCatalog.defaultVoicePack||'yukino-e2'):{};signal.throwIfAborted();
-      let reference=saved.reference;
+      let reference=saved.reference||config.reference;
       if(!reference){const source=app.isPackaged?path.join(resourceRoot(),'voice-presets',defaultVoicePreset.reference.sourcePath):path.join(__dirname,'../resources/voice-presets',defaultVoicePreset.reference.sourcePath);
        const bytes=await fs.readFile(source);if(bytes.length!==defaultVoicePreset.reference.bytes||require('node:crypto').createHash('sha256').update(bytes).digest('hex')!==defaultVoicePreset.reference.sha256)throw Error('默认参考音频校验失败');
        const refDir=location('voice-presets');await fs.mkdir(refDir,{recursive:true});reference=path.join(refDir,'yukino-reference.wav');await fs.writeFile(reference+'.tmp',bytes);signal.throwIfAborted();await fs.rename(reference+'.tmp',reference);}
@@ -167,7 +171,7 @@ else {
        if(needsWeights&&(!isManaged('gpt',latest.gpt)||!isManaged('sovits',latest.sovits)))throw Error('下载期间已选择自定义音色，未覆盖你的选择。');
        if(!latest.reference&&latest.promptText?.trim())throw Error('已填写自定义参考文本，请选择与其匹配的参考音频。');
        return mergeVoiceDefaults({...latest,...paths,reference:latest.reference||reference,promptText:latest.promptText||'',promptLang:latest.promptLang||defaultVoicePreset.promptLang},voiceBundle);
-      });speech.configure(value);
+      });speech.configure(value);send('voice-config-updated',value);
     }
     setup=new SetupService({prepare:()=>bundleReady,notify:status=>send('setup-status',status),inspect:async({features=null}={})=>{
       await bundleReady;
@@ -186,7 +190,7 @@ else {
         {id:'pet',downloadBytes:pet.downloadBytes,downloadSources:pet.downloadSources,helpUrl,state:pet.installed?'ready':'missing',detail:'2,391 段桌宠预录语音；不依赖 Python。'}]};
     },installRuntime:flavor=>runtime.install(flavor),refresh:refreshRuntime,installChat,installPet,installVoicePreset,
       installTranslation:async()=>{const status=await translation.install();await write('translation.json',status.config);return status;},
-      installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();if(!status.missing?.some(item=>['bert','hubert'].includes(item.key)))return {paths:{},expected:config};const paths=await voiceResources.install('core');const missing=new Set(status.missing?.map(item=>item.key));return {paths:Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key))),expected:config};},saveVoice:async result=>{const config=await updateVoice(latest=>{const current=mergeVoiceDefaults(latest,voiceBundle),paths=Object.fromEntries(Object.entries(result.paths||{}).filter(([key])=>current[key]===result.expected?.[key]));return mergeVoiceDefaults({...latest,...paths},voiceBundle);});speech.configure(config);},
+      installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();if(!status.missing?.some(item=>['bert','hubert'].includes(item.key)))return {paths:{},expected:config};const paths=await voiceResources.install('core');const missing=new Set(status.missing?.map(item=>item.key));return {paths:Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key))),expected:config};},saveVoice:async result=>{const config=await updateVoice(latest=>{const current=mergeVoiceDefaults(latest,voiceBundle),paths=Object.fromEntries(Object.entries(result.paths||{}).filter(([key])=>current[key]===result.expected?.[key]));return mergeVoiceDefaults({...latest,...paths},voiceBundle);});speech.configure(config);send('voice-config-updated',config);},
       cancel:()=>{runtime.cancel();translation?.cancelInstall();voiceResources?.cancel();resourcePacks?.cancel();}});
     bundleReady.catch(error=>send('app-error',{message:error.message}));
     companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:openMain,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'}),onChat:text=>companionChatRequests.submit(text),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind)=>companionVisual?.open(owner,kind),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
@@ -243,7 +247,7 @@ else {
       endpoint(profile.base); return {profile,key:await key(id,profile.base),state:migratePersonaState(state)};
     }
     vision=new VisionSession({capturer:electron.desktopCapturer,resolveProfile:async id=>{const settings=await config(id);if(settings.state.chatMode==='local'||isYukinoLocal(settings.profile))throw Error('本地文本模型不能识别图片，请选择视觉 API。');return settings;},transport:chat,notify:state=>{send('vision-status',state);mainVisionActive=state.active===true;updateVisionIndicator()}});
-    companionVisual=new CompanionVisual({electron,readState:()=>read('state.json',{}),resolveProfile:config,onStop:()=>send('companion-caption-stop',{source:'visual'}),onActive:active=>{companionVisionActive=active;updateVisionIndicator();},onResult:(result,characterId)=>{if(companions.character?.id===characterId){companions.showReply({id:require('node:crypto').randomUUID(),zh:result.text,ja:''});if(result.readAloud===true)send('companion-caption',{text:result.text,characterId,source:'visual'});}}});
+    companionVisual=new CompanionVisual({electron,readState:()=>read('state.json',{}),resolveProfile:config,onConfigure:()=>{openMain();send('open-settings','api');},onStop:()=>send('companion-caption-stop',{source:'visual'}),onActive:active=>{companionVisionActive=active;updateVisionIndicator();},onResult:(result,characterId)=>{if(companions.character?.id===characterId){companions.showReply({id:require('node:crypto').randomUUID(),zh:result.text,ja:''});if(result.readAloud===true)send('companion-caption',{text:result.text,characterId,source:'visual'});}}});
     handle('vision-sources',options=>vision.sources(options));
     handle('vision-analyze',options=>vision.analyze(options));
     handle('vision-watch',options=>vision.startWatch(options));
@@ -282,6 +286,7 @@ else {
         const bilingual = await completeBilingual(pair,{requestId:id,signal:ctrl.signal,preferLocal:localTranslation,translationSource:localTranslation?'local':'api',translate:async (request,options)=>{if(!localTranslation)return translateWithApi({...settings,...request,...options,transport:chat});await bundleReady;return translation.translate(request,options);}});
         ctrl.signal.throwIfAborted();
         companions.showReply({id,...bilingual});
+        companions.clearCapabilityError?.('chat');
         return {ok:true,bilingual};
       } catch(error) {
         if(ctrl.signal.aborted) return {stopped:true}; throw error;
@@ -302,18 +307,29 @@ else {
     handle('voice-resources',async()=>{await bundleReady;return {...await voiceResources.inspect(),bundled:voiceBundle.bundled,preset:voiceBundle.preset};});
     handle('voice-install',async(id='core',options={})=>{await bundleReady;if(typeof options?.apply!=='boolean'&&options?.apply!==undefined||options?.component!==undefined&&(!['gpt','sovits'].includes(options.component)||id==='core'))throw Error('无效音色选择');const before=await voiceConfig(),owner=voiceResources,paths=await owner.install(id,{component:options.component});let applied=false;if(options?.apply){const value=await updateVoice(saved=>{const current=mergeVoiceDefaults(saved,voiceBundle);if(Object.keys(paths).some(key=>current[key]!==before[key]))return null;return mergeVoiceDefaults({...saved,...paths},voiceBundle);});if(value){voiceStart.cancel();speech.configure(value);send('voice-config-updated',value);applied=true;}}return {...paths,applied};});
     handle('voice-download-cancel',()=>voiceResources?.cancel());
-    handle('voice-save',async raw=>{
-      const value=validateSettings(raw);const previous=await read('speech.json',{});
+    async function saveVoiceSettings(raw, partial=false){
+      await bundleReady;
+      if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('无效语音配置');
+      if(partial&&Object.keys(raw).some(key=>!Object.hasOwn(VOICE_DEFAULTS,key)))throw Error('无效语音设置');
+      const requested=partial?raw:validateSettings(raw);let previous;
+      const value=await updateVoice(saved=>{
+        previous=mergeVoiceDefaults(saved,voiceBundle);
+        return validateSettings(partial?{...previous,...requested}:requested);
+      });
       const ignored=new Set(['enabled','volume']);
-      if(Object.keys(value).some(k=>!ignored.has(k)&&value[k]!==previous[k])) { voiceStart.cancel(); speech.unload(); }
-      await write('speech.json',value);if(translation&&!translation.config.python&&value.python)translation.configure({python:value.python});return value;
-    });
+      if(Object.keys(value).some(key=>!ignored.has(key)&&value[key]!==previous[key])){voiceStart.cancel();speech.unload();}
+      if(translation&&!translation.config.python&&value.python)translation.configure({python:value.python});
+      return value;
+    }
+    handle('voice-save',raw=>saveVoiceSettings(raw));
+    handle('voice-patch',raw=>saveVoiceSettings(raw,true));
     handle('voice-status',async()=>speech.readiness(await voiceConfig()));
     handle('voice-probe',config=>speech.probe(config));
     handle('voice-load',config=>{voiceStart.cancel();return speech.load(config);});
     handle('voice-unload',()=>{voiceStart.cancel();return speech.unload();});
     handle('voice-begin',id=>voiceStart.begin(id));
-    handle('voice-synthesize',(id,text)=>speech.synthesize(id,text));
+    handle('voice-prewarm',async id=>{if(!id||speech.session!==id)throw Error('语音会话已过期');await speech.ensureLoaded();if(speech.session!==id)throw Error('语音会话已过期');return true;});
+    handle('voice-synthesize',async(id,text)=>{const audio=await speech.synthesize(id,text);companions?.clearCapabilityError?.('voice');return audio;});
     handle('voice-stop',id=>voiceStart.stop(id));
     handle('voice-pick',async kind=>{
       const directories=['root','bert','hubert'];
