@@ -1,0 +1,51 @@
+name: Revalidate exact published multimodal installer without GUI capture
+on:
+  push:
+    branches: [verify/native-multimodal-41029585625]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native_exact:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify this branch changes only the isolated verification harness
+        shell: pwsh
+        run: |
+          $candidate = 'a60bd0581bc93904b6d7f3f968ca1f508496fe6e'
+          if ((git rev-parse ($candidate+'^{tree}')) -ne '6dafe4985fb1707667e325a93efc2ecda29c5098') { throw 'Candidate source tree mismatch' }
+          $expected = @('.github/workflows/native-exact-revalidate.yml', 'scripts/verify-native-exact.py')
+          $changed = @(git diff --name-only $candidate HEAD)
+          if ($changed.Count -ne 2 -or @($changed | Where-Object { $_ -notin $expected }).Count -ne 0) { throw 'Verification branch changes application source' }
+      - name: Download the exact already-published candidate, never rebuild it
+        uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-a60bd0581bc93904b6d7f3f968ca1f508496fe6e
+          path: .
+          run-id: 41029585625
+          github-token: ${{ github.token }}
+      - name: Verify real silent installation, renderer, upgrade and uninstall
+        timeout-minutes: 16
+        shell: pwsh
+        run: python scripts/verify-native-exact.py
+      - name: Preserve bounded native evidence and every checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-native-exact-41029585625
+          path: |
+            build/native-exact-review/report.json
+            build/native-exact-review/*.log
+          if-no-files-found: error
+          retention-days: 30
