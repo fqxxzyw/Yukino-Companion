@@ -1,0 +1,70 @@
+name: Complete installer preview 417c5d draft
+on:
+  push:
+    branches: [release/resume-preview-417c-20261030]
+permissions:
+  contents: read
+jobs:
+  publish:
+    if: github.repository == 'fqxxzyw/Yukino-Companion' && github.ref == 'refs/heads/release/resume-preview-417c-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify existing draft, publish and verify tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,subprocess
+          repo=os.environ['GITHUB_REPOSITORY']
+          target='417c5d8227404dcc32d3b40015c95bb58192ebc0'
+          tag='v0.4.0-test.417c5d-20261030'
+          release_id=428631002
+          expected={
+            'Yukino-Companion-0.4.0-Base-Setup.exe': (258520956,'sha256:54744a459812284349c00fd4f5412e52bc76ae176c9138d5d33c357d657c04b3'),
+            'SHA256SUMS.txt': (104,'sha256:291a6529f34f7bbec0e0946c232832c400d92016d98dae626ef3eb2bb41c62e9'),
+          }
+          def api(path,*args):
+              return json.loads(subprocess.check_output(['gh','api',*args,path]))
+          def validate(rel):
+              if rel['id']!=release_id or rel['tag_name']!=tag or rel['target_commitish']!=target or not rel['prerelease']:
+                  raise SystemExit('Release identity or prerelease mismatch')
+              assets={a['name']:a for a in rel['assets']}
+              if len(rel['assets'])!=2 or set(assets)!=set(expected):
+                  raise SystemExit('Unexpected asset list; refusing to publish')
+              for name,(size,digest) in expected.items():
+                  a=assets[name]
+                  if a['state']!='uploaded' or a['size']!=size or a.get('digest')!=digest:
+                      raise SystemExit('Uploaded asset mismatch: '+name)
+          pages=api(f'repos/{repo}/releases?per_page=100','--paginate','--slurp')
+          matches=[r for page in pages for r in page if r['tag_name']==tag]
+          if len(matches)!=1:
+              raise SystemExit('Expected exactly one existing draft/release')
+          release=matches[0]
+          validate(release)
+          refurl=f'repos/{repo}/git/ref/tags/{tag}'
+          ref=subprocess.run(['gh','api',refurl],capture_output=True,text=True)
+          if ref.returncode==0:
+              obj=json.loads(ref.stdout)['object']
+              if obj.get('type')!='commit' or obj.get('sha')!=target:
+                  raise SystemExit('Existing tag is not the intended commit')
+          elif 'HTTP 404' not in ref.stderr:
+              raise SystemExit('Unable to verify tag: '+ref.stderr)
+          if release['draft']:
+              release=api(f'repos/{repo}/releases/{release_id}','--method','PATCH','-F','draft=false')
+          validate(release)
+          if release['draft']:
+              raise SystemExit('Release remains draft')
+          tagobj=api(refurl)['object']
+          if tagobj.get('type')!='commit' or tagobj.get('sha')!=target:
+              raise SystemExit('Published tag does not resolve to intended commit')
+          final=api(f'repos/{repo}/releases/{release_id}')
+          validate(final)
+          if final['draft']:
+              raise SystemExit('Published release not confirmed')
+          print('Published and checked:',final['html_url'])
+          PY
