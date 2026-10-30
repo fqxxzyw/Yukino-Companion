@@ -5,6 +5,9 @@ test('integration checks restore verified EXE inputs on each OS before the compl
  const w=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/inference-checks.yml'),'utf8'));
  assert.equal(w.jobs.checks.strategy['fail-fast'],false);
  const steps=w.jobs.checks.steps,testing=steps.findIndex(s=>s.run==='npm test');
+ const checkout=steps.find(s=>s.name==='Check out pinned Inno Setup 6.7 compatibility tool');
+ assert.equal(checkout.with.repository,'dscho/innoextract');assert.equal(checkout.with.ref,'376a13e7c41cc5528b6088d0dd16ec1b323a8d37');assert.equal(checkout.with['persist-credentials'],false);
+ const build=steps.find(s=>s.name==='Build pinned installer extractor on Linux');assert.match(build.run,/git -C build\/innoextract-source rev-parse HEAD/);assert.match(build.run,/cmake --build/);
  for(const [name,os,command] of [['Recover verified character inputs on Linux','Linux','bash scripts/restore-character-inputs-linux.sh'],['Recover verified character inputs on Windows','Windows','./scripts/restore-character-inputs-windows.ps1']]){
   const index=steps.findIndex(s=>s.name===name);assert.ok(index>=0&&index<testing);assert.equal(steps[index].if,`runner.os == '${os}'`);assert.equal(steps[index].run,command);
  }
