@@ -1,0 +1,99 @@
+name: Publish exact multimodal Windows candidate as a test prerelease
+on:
+  push:
+    branches: [release/publish-multimodal-41029585625]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: github.repository == 'fqxxzyw/Yukino-Companion' && github.ref == 'refs/heads/release/publish-multimodal-41029585625'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: yukino-multimodal-candidate-41029585625
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_REPOSITORY: fqxxzyw/Yukino-Companion
+      EXPECTED_COMMIT: a60bd0581bc93904b6d7f3f968ca1f508496fe6e
+      EXPECTED_RUN: '41029585625'
+    steps:
+      - name: Check out the exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: a60bd0581bc93904b6d7f3f968ca1f508496fe6e
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check original build identity and record native validation status
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          mkdir -p build
+          gh api "repos/$EXPECTED_REPOSITORY/actions/runs/$EXPECTED_RUN" > "$RUNNER_TEMP/candidate-run.json"
+          gh api --paginate "repos/$EXPECTED_REPOSITORY/actions/runs/$EXPECTED_RUN/jobs?per_page=100" --slurp > "$RUNNER_TEMP/candidate-jobs.json"
+          gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/candidate/multimodal-20261030-safe" > "$RUNNER_TEMP/candidate-head.json"
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          temp = Path(os.environ['RUNNER_TEMP'])
+          run = json.loads((temp/'candidate-run.json').read_text())
+          pages = json.loads((temp/'candidate-jobs.json').read_text())
+          head = json.loads((temp/'candidate-head.json').read_text())
+          jobs = [job for page in pages for job in page['jobs']]
+          expected_commit = os.environ['EXPECTED_COMMIT']
+          if (str(run['id']) != os.environ['EXPECTED_RUN'] or run['head_sha'] != expected_commit
+              or run['head_branch'] != 'candidate/multimodal-20261030-safe' or run['event'] != 'push'
+              or run['path'] != '.github/workflows/windows-multimodal-candidate.yml'
+              or head['object']['sha'] != expected_commit):
+              raise SystemExit('Original candidate run or current source head does not match')
+          candidates = [job for job in jobs if job['name'] == 'candidate']
+          if len(candidates) != 1 or candidates[0]['status'] != 'completed' or candidates[0]['conclusion'] != 'success':
+              raise SystemExit('The exact original candidate build is not confirmed successful')
+          names = subprocess.check_output(['git','ls-tree','-r','--name-only','HEAD'],text=True).splitlines()
+          if any(re.search(r'\.(glb|gltf|vrm|fbx|gguf|ckpt|pth|safetensors)(\.gz)?$', name, re.I) for name in names):
+              raise SystemExit('Standalone private model binaries are present in the source tree')
+          native = [{'id':j['id'],'status':j['status'],'conclusion':j.get('conclusion')}
+                    for j in jobs if j['name'] == 'native_smoke']
+          Path('build/multimodal-publication-input.json').write_text(json.dumps({
+              'commit':expected_commit,'originalRunId':os.environ['EXPECTED_RUN'],
+              'candidateJobId':candidates[0]['id'],'candidateConclusion':'success',
+              'nativeSmoke':native,'completeFeatureAcceptance':False},indent=2)+'\n')
+          PY
+      - name: Download only this candidate from its original run
+        uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-a60bd0581bc93904b6d7f3f968ca1f508496fe6e
+          path: .
+          run-id: 41029585625
+          github-token: ${{ github.token }}
+      - name: Validate the exact source tree and publish only its installer and manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          source = json.loads(Path('release/candidate-source.json').read_text(encoding='utf-8-sig'))
+          tree = subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
+          if source.get('commit') != os.environ['EXPECTED_COMMIT'] or str(source.get('runId')) != os.environ['EXPECTED_RUN'] or source.get('tree') != tree:
+              raise SystemExit('Candidate artifact does not match the exact source tree')
+          PY
+          env GITHUB_SHA="$EXPECTED_COMMIT" GITHUB_RUN_ID="$EXPECTED_RUN" python scripts/publish-candidate.py
+      - name: Preserve publication identity and readback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-multimodal-publication-41029585625
+          path: |
+            build/candidate-publication.json
+            build/multimodal-publication-input.json
+          if-no-files-found: warn
+          retention-days: 30
