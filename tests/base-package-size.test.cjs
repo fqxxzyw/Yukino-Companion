@@ -1,4 +1,5 @@
 'use strict';
+const {finished:finishArchive}=require('node:stream/promises');
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBaseApp}=require('../scripts/build-base-app.cjs');
@@ -76,7 +77,7 @@ test('ASAR visual verification reads nested assets on the host platform and stil
   const directory=await fixture(t),stage=path.join(directory,'stage'),archive=path.join(directory,'app.asar');
   await fs.mkdir(path.join(stage,'dist/characters'),{recursive:true});
   const data=Buffer.from('synthetic visual bytes');await fs.writeFile(path.join(stage,'dist/characters/fixture.glb'),data);
-  await asar.createPackage(stage,archive);
+  await finishArchive(await asar.createPackage(stage,archive));
   const model={id:'fixture',bundled:true,url:'./characters/fixture.glb',bytes:data.length,sha256:crypto.createHash('sha256').update(data).digest('hex')};
   assert.doesNotThrow(()=>verifyBundledCharacters(archive,[model]));
   assert.throws(()=>verifyBundledCharacters(archive,[{...model,sha256:'0'.repeat(64)}]),/integrity failed/);
