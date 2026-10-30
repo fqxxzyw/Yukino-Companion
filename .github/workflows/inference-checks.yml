@@ -36,9 +36,28 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Install installer extraction tool on Linux
+      # Ubuntu's innoextract 1.9 cannot read this 6.7.3 installer. Use a
+      # pinned, unmerged compatibility change only as a CI build tool.
+      - name: Check out pinned Inno Setup 6.7 compatibility tool
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y innoextract
+        uses: actions/checkout@v4
+        with:
+          repository: dscho/innoextract
+          ref: 376a13e7c41cc5528b6088d0dd16ec1b323a8d37
+          path: build/innoextract-source
+          persist-credentials: false
+      - name: Build pinned installer extractor on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C build/innoextract-source rev-parse HEAD)" = 376a13e7c41cc5528b6088d0dd16ec1b323a8d37
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libboost-filesystem-dev libboost-iostreams-dev libboost-date-time-dev libboost-system-dev libboost-program-options-dev liblzma-dev libbz2-dev zlib1g-dev
+          cmake -S build/innoextract-source -B build/innoextract-build -G Ninja -DUSE_LTO=OFF
+          cmake --build build/innoextract-build --target innoextract --parallel 2
+          test -x "$GITHUB_WORKSPACE/build/innoextract-build/innoextract"
+          echo "$GITHUB_WORKSPACE/build/innoextract-build" >> "$GITHUB_PATH"
       - name: Recover verified character inputs on Linux
         if: runner.os == 'Linux'
         shell: bash
