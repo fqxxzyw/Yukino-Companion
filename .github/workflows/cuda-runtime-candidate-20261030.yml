@@ -1,0 +1,129 @@
+name: Build CUDA runtime candidate (not published)
+on:
+  push:
+    branches: [verify/cuda-runtime-candidate-20261030]
+permissions:
+  contents: read
+jobs:
+  cuda-runtime:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+      PYTHONUTF8: '1'
+      ORT_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 417c5d8227404dcc32d3b40015c95bb58192ebc0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source and available disk
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD) -ne '417c5d8227404dcc32d3b40015c95bb58192ebc0') { throw 'Unexpected source' }
+          if ((git rev-parse 'HEAD^{tree}') -ne '8675e5bf8bab11babc32c345945c4dfa7461506f') { throw 'Unexpected source tree' }
+          $drive = Get-PSDrive -Name ((Get-Item $env:GITHUB_WORKSPACE).PSDrive.Name)
+          $freeGB = [math]::Round($drive.Free / 1GB, 2)
+          Write-Output "Free workspace disk: $freeGB GiB"
+          if ($drive.Free -lt 16GB) { throw 'Less than 16 GiB free; cannot safely build the isolated CUDA candidate' }
+      - name: Install verified NVIDIA CUDA toolkit in this disposable runner
+        shell: pwsh
+        timeout-minutes: 40
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/install-cuda-toolkit.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Windows CUDA inference runtime
+        shell: cmd
+        timeout-minutes: 110
+        run: |
+          @echo on
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%i"
+          if not defined VSROOT exit /b 1
+          call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat"
+          if errorlevel 1 exit /b %errorlevel%
+          where dumpbin || exit /b 1
+          python -X utf8 scripts/build_windows_runtime.py --flavor cu124
+          if errorlevel 1 exit /b %errorlevel%
+      - name: Verify actual runtime build capabilities
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $probe = @'
+          import importlib.util, json, pathlib
+          spec = importlib.util.spec_from_file_location('translation_worker', 'translation/worker.py')
+          worker = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(worker)
+          worker.prepare_windows_dlls()
+          import llama_cpp, torch
+          marker = json.loads(pathlib.Path('build/python-runtime/yukino-runtime-build.json').read_text())
+          assert marker['flavor'] == 'cu124' and torch.version.cuda == '12.4'
+          assert llama_cpp.llama_supports_gpu_offload(), 'llama-cpp CUDA backend missing'
+          report = {'flavor':marker['flavor'], 'torch':torch.__version__, 'torchCudaBuild':torch.version.cuda,
+                    'cudaDeviceAvailable':torch.cuda.is_available(), 'llamaGpuBackend':True,
+                    'realGpuInferenceVerified':False, 'trainingWeightsIncluded':False,
+                    'note':'Hosted runner has no guaranteed GPU; installed libraries do not prove device inference.'}
+          pathlib.Path('build/cuda-candidate-evidence').mkdir(parents=True,exist_ok=True)
+          pathlib.Path('build/cuda-candidate-evidence/runtime-probe.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          '@
+          $probe | Set-Content build/cuda-runtime-probe.py -Encoding utf8
+          & build/python-runtime/python.exe -X utf8 build/cuda-runtime-probe.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prepare packaging space and create ordered verified parts
+        shell: pwsh
+        timeout-minutes: 35
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item build/runtime-venv -Recurse -Force
+          $sourceBytes = (Get-ChildItem build/python-runtime,build/inference-engine -Recurse -File | Measure-Object Length -Sum).Sum
+          $drive = Get-PSDrive -Name ((Get-Item $env:GITHUB_WORKSPACE).PSDrive.Name)
+          $needed = 2 * $sourceBytes + 1GB
+          if ($drive.Free -lt $needed) { throw "Not enough free disk for two package copies and staging: need $needed bytes, have $($drive.Free)" }
+          python scripts/package-runtime.py --flavor cu124 --tag unpublished-cu124-candidate.1 --output build/cuda-candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify every part and concatenated archive hash
+        shell: pwsh
+        run: |
+          $verify = @'
+          import hashlib,json,pathlib
+          root=pathlib.Path('build/cuda-candidate')
+          catalog=json.loads((root/'runtime-catalog-cu124.json').read_text(encoding='utf8'))
+          v=catalog['variants']['cu124']; total=hashlib.sha256(); size=0
+          for part in v['parts']:
+              path=root/part['path']; h=hashlib.sha256(); n=0
+              with path.open('rb') as f:
+                  while block:=f.read(1024*1024): h.update(block);total.update(block);n+=len(block)
+              assert n==part['bytes'] and h.hexdigest()==part['digest'];size+=n
+          assert size==v['bytes'] and total.hexdigest()==v['archiveSha256']
+          print(json.dumps({'archiveVerified':True,'parts':len(v['parts']),'bytes':size,'archiveSha256':v['archiveSha256']}))
+          '@
+          $verify | Set-Content build/verify-cuda-parts.py -Encoding utf8
+          python -X utf8 build/verify-cuda-parts.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve candidate and diagnostics in Actions artifacts only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cu124-runtime-candidate-${{ github.run_id }}
+          path: |
+            build/cuda-candidate/*
+            build/cuda-candidate-evidence/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Summarize validation limits
+        if: always()
+        shell: pwsh
+        run: |
+          @'
+          CUDA runtime candidate only: this workflow does not publish a Release or modify the application catalog.
+          GPU-less runner capability tests do not establish real GPU synthesis, compatibility or acceptance.
+          The candidate catalog contains an unpublished placeholder URL and must not be used for downloading.
+          '@ | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
