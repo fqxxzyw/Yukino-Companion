@@ -22,6 +22,7 @@ permissions:
 jobs:
   checks:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -35,7 +36,25 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install installer extraction tool on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y innoextract
+      - name: Recover verified character inputs on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash scripts/restore-character-inputs-linux.sh
+      - name: Recover verified character inputs on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/restore-character-inputs-windows.ps1
       - run: npm test
+      - name: Report unavailable private blink-review fixture
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -f review-assets/Yukino06_BilateralBlink_REVIEW.glb ]]; then
+            echo 'Seven private blink-review asset tests skipped; all other tests execute.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
       - run: python -m unittest discover -s tests -p '*_test.py'
       - run: npm run build
         env:

@@ -1,0 +1,36 @@
+name: Publish validated Windows revision test
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/private-model-release-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: yukino-revision-publication-${{ github.sha }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-${{ github.sha }}
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-native-smoke-${{ github.sha }}
+          path: build/native-smoke-evidence
+      - name: Validate this exact candidate and publish only its installer and manifests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish-revision.py

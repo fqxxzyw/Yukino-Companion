@@ -116,3 +116,10 @@ jobs:
             build/base-installer-review/report.json
           if-no-files-found: warn
           retention-days: 30
+  publish_release:
+    needs: [candidate, native_smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/private-model-release-20261030'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/windows-revision-publish.yml

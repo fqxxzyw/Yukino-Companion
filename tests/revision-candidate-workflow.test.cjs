@@ -3,14 +3,19 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const root=path.resolve(__dirname,'..');
 const workflow=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/windows-revision-candidate.yml'),'utf8'));
 
-test('revision candidate is read-only and publishes no standalone model files',()=>{
+test('candidate and native validation are read-only; publication is restricted to the authorized branch',()=>{
  assert.deepEqual(workflow.on.push.branches,['fix/liquid-glass-pet-voice-20261030','fix/private-model-release-20261030']);
  assert.ok(Object.hasOwn(workflow.on,'workflow_dispatch'));
  assert.deepEqual(workflow.permissions,{contents:'read'});
- for(const job of Object.values(workflow.jobs)){
+ for(const job of [workflow.jobs.candidate,workflow.jobs.native_smoke]){
   assert.equal(job.permissions,undefined);
   for(const step of job.steps){assert.notEqual(step['continue-on-error'],true);assert.doesNotMatch(step.run||'',/gh\s+release|git\s+push|--clobber/i);}
  }
+ const publish=workflow.jobs.publish_release;
+ assert.deepEqual(publish.needs,['candidate','native_smoke']);
+ assert.equal(publish.if,"github.event_name == 'push' && github.ref == 'refs/heads/fix/private-model-release-20261030'");
+ assert.deepEqual(publish.permissions,{contents:'write',actions:'read'});
+ assert.equal(publish.uses,'./.github/workflows/windows-revision-publish.yml');
  const upload=workflow.jobs.candidate.steps.find(step=>step.name==='Preserve unpublished candidate');
  const steps=workflow.jobs.candidate.steps,restore=steps.findIndex(step=>step.name==='Recover verified character inputs from the previously published installer');
  assert.ok(restore>steps.findIndex(step=>step.run==='npm ci --no-audit --no-fund'));
@@ -41,5 +46,5 @@ test('clean-source Windows checks disclose the absent optional blink model and s
  assert.ok(check.on.push.branches.includes('fix/private-model-release-20261030'));assert.ok(Object.hasOwn(check.on,'workflow_dispatch'));
  const steps=check.jobs.windows.steps,restore=steps.findIndex(step=>step.name==='Recover verified character inputs from the previously published installer'),regression=steps.findIndex(step=>step.name==='Source and Python regression');
  assert.ok(restore>steps.findIndex(step=>step.run==='npm ci --no-audit --no-fund'));assert.ok(restore<regression);
- const script=steps[regression].run;for(const marker of ['Test-Path -LiteralPath','Where-Object','blink-review-runtime.test.cjs','review model stays outside production public assets','SKIPPED: six blink-review runtime tests','GITHUB_STEP_SUMMARY','python -m unittest','community/tests'])assert.ok(script.includes(marker),marker);
+ const script=steps[regression].run;for(const marker of ['Test-Path -LiteralPath','npm test','Seven private blink-review asset tests skipped','GITHUB_STEP_SUMMARY','python -m unittest','community/tests'])assert.ok(script.includes(marker),marker);
 });

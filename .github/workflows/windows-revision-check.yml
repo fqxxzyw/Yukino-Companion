@@ -28,22 +28,12 @@ jobs:
       - name: Source and Python regression
         shell: pwsh
         run: |
-          npm run prepare:characters
+          npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (Test-Path -LiteralPath 'review-assets/Yukino06_BilateralBlink_REVIEW.glb' -PathType Leaf) {
-            $tests = @(Get-ChildItem tests -Filter '*.test.cjs' | ForEach-Object { $_.FullName })
-            node --test $tests
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } else {
-            # Six review-only tests need an unapproved, non-distributed GLB.
-            # Run every other test plus the gate that does not need that asset.
-            $tests = @(Get-ChildItem tests -Filter '*.test.cjs' | Where-Object { $_.Name -ne 'blink-review-runtime.test.cjs' } | ForEach-Object { $_.FullName })
-            node --test $tests
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            node --test --test-name-pattern='^review model stays outside production public assets' tests/blink-review-runtime.test.cjs
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host 'SKIPPED: six blink-review runtime tests require the private, non-distributed review GLB.'
-            if ($env:GITHUB_STEP_SUMMARY) { 'Six blink-review runtime tests skipped: private review GLB not available.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          if (-not (Test-Path -LiteralPath 'review-assets/Yukino06_BilateralBlink_REVIEW.glb' -PathType Leaf)) {
+            $message = 'Seven private blink-review asset tests skipped; all other tests execute.'
+            Write-Host $message
+            if ($env:GITHUB_STEP_SUMMARY) { $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
           }
           python -m unittest discover -s tests -p '*_test.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
