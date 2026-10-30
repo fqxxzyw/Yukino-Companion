@@ -34,8 +34,9 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
   async function save() { const value=await onSave();setNotice('配置已保存；模型、语言、语速等推理设置修改后需重新加载。');return value; }
   return <>
     <ResourceHelp api={api}/>
-    <p className="intro">用她的声音读出日语回复。音色模型按需下载，也可以选择自己的本地权重。</p>
-    {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">检查运行环境、公共模型与默认音色，缺少的组件会明确列出。可以跳过，稍后再来。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
+    <p className="intro">用雪乃的声音朗读日语回复。准备好后，开启自动朗读即可。</p>
+    {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">自动检查并准备所需环境和默认声音；优先使用可用的 GPU。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
+    <details className="advanced-settings"><summary>音色与资源管理（可选）</summary>
     <div className="voice-status resource-card">
       <span className="card-kicker">01 · 运行资源</span><strong>{resources.bundled?'语音运行环境已就绪':'语音运行环境待准备'}</strong>
       <span>{resources.bundled?'已找到 Python、语音推理组件和 FFmpeg。':'应用专用 Python 与推理库为本地对话、翻译和声音提供运行环境。'}</span>
@@ -55,8 +56,10 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
       <div className="button-row"><button className="secondary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true});onRemote(await api.voiceSettings());await refresh();setNotice(result.applied?'两个音色文件已校验并选用，首次朗读时自动加载。':'文件已下载；期间选择已改变，未覆盖你的设置。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用这组音色':'同时下载这组音色'}</button></div>
       <span>{readyReference?'参考声音已自动准备；通常不需要选择或填写参考文本。':'默认参考声音尚未就绪，请先检查 / 一键配置。'}</span>
     </div>
+    </details>
     <div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
-      {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · 显存不足，已回退 CPU':''}</span>}
+      {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · GPU 不可用，已回退 CPU':''}</span>}
+      {status.metadata?.cpuFallbackReason&&<span>回退原因：{status.metadata.cpuFallbackReason}</span>}
       {status.phase==='unloaded'&&<span>{status.configured?'资源已齐全；当前没有占用模型内存，首次朗读时会自动加载。':'这里指语音合成模型，和本地对话模型、翻译模型的状态相互独立。'}</span>}
       {status.missing?.length>0&&<span>还需准备：{status.missing.map(item=>item.label).join('、')}</span>}
       {status.error&&<p>{cleanError(status.error)}</p>}
@@ -68,23 +71,22 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
       <label className="field">参考音频对应文本<textarea rows="3" maxLength={3000} value={config.promptText} onChange={e=>patch({promptText:e.target.value})} placeholder="填写参考音频中实际说出的内容。"/></label>
       <label className="field">参考音频语言<Select value={config.promptLang} onChange={e=>patch({promptLang:e.target.value})}>{langs.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select></label></details>
       <details className="advanced-settings"><summary>推理环境与基础模型路径</summary><p className="hint">一键配置会自动填入这些路径。使用自己的环境或模型目录时，再修改它们。</p>{['python','root','bert','hubert','ffmpeg'].map(pathField)}</details>
-      <p className="hint">GPT .ckpt 与 SoVITS .pth 是两个模型。BERT / HuBERT 是公共基础资源；v3/v4/Pro/LoRA 等版本还可能需要对应底模或声码器。路径仅引用原文件，不复制权重。</p>
+      <details className="advanced-settings"><summary>高级：设备与合成参数</summary><p className="hint">默认自动优先使用 GPU，通常无需更改。</p>
       <h3 className="settings-section-title">合成偏好</h3><div className="voice-grid">
         <label className="field">模型版本<Select value={config.version} onChange={e=>patch({version:e.target.value})}>{['v1','v2','v2Pro','v2ProPlus','v3','v4','v5dev','v5turbo'].map(v=><option key={v}>{v}</option>)}</Select></label>
         <label className="field">推理设备<Select value={config.device} onChange={e=>patch({device:e.target.value})}><option value="auto">自动：CUDA 可用时使用 GPU</option><option value="cpu">CPU</option><option value="cuda">CUDA GPU（不可用时报错）</option></Select></label>
         <label className="field">合成语言<input value="日语（固定）" readOnly/><small>只朗读日语译文；翻译失败时保留文字，不朗读中文。</small></label>
       </div>
       <label className="row"><div><strong>GPU 半精度</strong><small>默认关闭以兼容更多设备；CPU 始终使用 FP32。</small></div><input type="checkbox" role="switch" checked={config.half} onChange={e=>patch({half:e.target.checked})}/></label>
-      <label className="row"><div><strong>显存不足时回退 CPU</strong><small>会重新加载模型，合成速度可能明显变慢。</small></div><input type="checkbox" role="switch" checked={config.cpuFallback} onChange={e=>patch({cpuFallback:e.target.checked})}/></label>
+      <label className="row"><div><strong>GPU 推理失败时回退 CPU</strong><small>显存、驱动或 CUDA 出错时重新加载模型，速度可能变慢。</small></div><input type="checkbox" role="switch" checked={config.cpuFallback} onChange={e=>patch({cpuFallback:e.target.checked})}/></label>
       <div className="voice-grid">
         <label className="field">语速（0.5–2）<input type="number" min="0.5" max="2" step="0.1" value={config.speed} onChange={e=>patch({speed:Number(e.target.value)})}/></label>
         <label className="field">CPU 线程（1–32）<input type="number" min="1" max="32" value={config.cpuThreads} onChange={e=>patch({cpuThreads:Number(e.target.value)})}/></label>
         <label className="field">单次超时（30–900 秒）<input type="number" min="30" max="900" value={config.timeout} onChange={e=>patch({timeout:Number(e.target.value)})}/></label>
       </div>
-      <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();const latest=await save();await api.voiceLoad(latest);setNotice('权重与参考音频已加载，可以试听。')})}>加载 / 重新加载</button></div>
+      <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();const latest=await save();await api.voiceLoad(latest);setNotice('声音已加载，可以试听。')})}>加载 / 重新加载</button></div></details>
     </fieldset>
     {!readyReference&&<p className="notice">{needsTranscript?'当前模型版本需要参考音频及对应原文，请在高级选项中配置。':'默认参考声音尚未就绪，请先检查 / 一键配置。'}</p>}
-    {!needsTranscript&&<p className="hint">当前版本可不填参考文本；参考音频仍是声音合成必需项。填写与音频一致的文本可能改善效果。</p>}
     {hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
     <section className="settings-card"><h3>试听声音</h3><p className="intro">听听她的声音，再调整到你喜欢的语速与音量。</p><label className="field">日语试听文本<input maxLength={200} value={sample} onChange={e=>setSample(e.target.value)}/></label>
     <div className="button-row"><button className="primary" disabled={working||!sample.trim()||downloading} onClick={()=>action(async()=>{if(!readyReference){onOpenSetup?.();setNotice('请先准备参考声音，也可以使用一键配置。');return;}await onSave();onPreview({text:sample,language:'ja'});})}>试听</button><button className="secondary" onClick={onStop}>停止朗读</button><button className="secondary" onClick={()=>action(async()=>{onStop();await api.voiceUnload();setNotice('已卸载模型并释放推理进程。')})}>卸载模型</button></div></section>

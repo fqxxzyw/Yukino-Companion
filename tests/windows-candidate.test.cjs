@@ -51,3 +51,17 @@ test('independent native check binds the newest exact candidate and keeps bounde
  assert.ok(quick.jobs.source_regression.steps.some(step=>step.run?.includes('npm test')&&step.run?.includes('python -m unittest')));
  const script=fs.readFileSync(path.join(root,'scripts/smoke-quick-installer.ps1'),'utf8');assert.match(script,/Get-FileHash/);assert.match(script,/base-payload\.cjs/);assert.match(script,/verify-character-package\.cjs/);assert.match(script,/verify-installed-window\.cjs/);assert.match(script,/verify-current-window\.cjs/);assert.match(script,/WaitForExit\(120000\)/);assert.match(script,/Uninstall did not preserve/);
 });
+test('feedback candidate workflow cannot publish and binds validation to its candidate',()=>{
+  const candidate=yaml.load(fs.readFileSync(path.join(root,'.github/workflows/windows-feedback-candidate.yml'),'utf8'));
+  assert.deepEqual(candidate.on.push.branches,['candidate/feedback-20261030-safe']);
+  assert.deepEqual(candidate.permissions,{contents:'read'});
+  assert.deepEqual(Object.keys(candidate.jobs),['candidate','native_smoke']);
+  assert.equal(candidate.jobs.native_smoke.needs,'candidate');
+  for(const job of Object.values(candidate.jobs)){
+    assert.equal(job.permissions,undefined);
+    for(const step of job.steps){
+      assert.doesNotMatch(step.run||'',/gh release|git push|--clobber/);
+      if(step.uses)assert.doesNotMatch(step.uses,/windows-revision-publish/);
+    }
+  }
+});

@@ -14,9 +14,10 @@ function subscribe(channel, fn) {
 }
 contextBridge.exposeInMainWorld('desktop', {
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
+  wallpaperPick:()=>invoke('wallpaper-pick'), wallpaperRead:id=>invoke('wallpaper-read',id),
   load:()=>invoke('load'), save:state=>invoke('save',state), saveKey:(id,key,base)=>invoke('key',id,key,base), copyText:value=>invoke('copy-text',value),
   apiProviders:()=>invoke('api-providers'), apiModels:request=>invoke('api-models',request),
-  setupStatus:options=>invoke('setup-status',options), setupInstall:options=>invoke('setup-install',options), setupCancel:()=>invoke('setup-cancel'),
+  resourceDirectoryPick:()=>invoke('resource-directory-pick'), setupStatus:options=>invoke('setup-status',options), setupInstall:options=>invoke('setup-install',options), setupCancel:()=>invoke('setup-cancel'),
   onSetupStatus:fn=>subscribe('setup-status',fn),
   localChatSettings:()=>invoke('local-chat-settings'), localChatStatus:()=>invoke('local-chat-status'),
   localChatSave:config=>invoke('local-chat-save',config), localChatLoad:config=>invoke('local-chat-load',config),
@@ -46,5 +47,5 @@ contextBridge.exposeInMainWorld('desktop', {
   companionState:()=>invoke('companion-state'), companionSet:patch=>invoke('companion-set',patch),
   companionAction:action=>invoke('companion-action',action), closeChoice:(mode,options)=>invoke('close-choice',mode,options), onCompanionState:fn=>subscribe('companion-state',fn), onCompanionUse:fn=>subscribe('companion-use',fn),
   onCloseRequested:fn=>subscribe('close-requested',fn),
-  onFlushState:fn=>subscribe('flush-state',fn), flushComplete:id=>invoke('flush-complete',id),
+  onFlushState:fn=>subscribe('flush-state',fn), flushComplete:(id,ok)=>invoke('flush-complete',id,ok),
 });

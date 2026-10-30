@@ -85,13 +85,33 @@ def is_oom(exc):
     return "out of memory" in str(exc).lower() or "cuda error: memory" in str(exc).lower()
 
 
+def is_gpu_failure(exc):
+    """Only retry failures that plausibly belong to CUDA, not bad models/files."""
+    text = str(exc).lower()
+    return is_oom(exc) or any(token in text for token in (
+        "cuda error", "cuda driver", "cuda initialization", "cuda failure",
+        "cublas_status", "cudnn_status", "no kernel image is available",
+        "device-side assert", "not compiled with cuda",
+    ))
+
+
+def release_cuda_cache(torch):
+    # A broken driver can make even cache cleanup fail. Never let this mask
+    # the original GPU failure or prevent the configured CPU recovery.
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 class Engine:
     def __init__(self):
         self.pipeline = None
         self.cfg = None
         self.metadata = {}
 
-    def load(self, config, force_cpu=False):
+    def load(self, config, force_cpu=False, fallback_reason=None):
         cfg = validate_config(config)
         os.chdir(cfg["root"])
         sys.path[:0] = [cfg["root"], str(Path(cfg["root"]) / "GPT_SoVITS")]
@@ -143,14 +163,15 @@ class Engine:
             self.pipeline.set_ref_audio(cfg["reference"])
         except Exception as exc:
             self.pipeline = None
-            if device != "cpu" and cfg.get("cpuFallback") and is_oom(exc) and not force_cpu:
-                gc.collect(); torch.cuda.empty_cache()
-                return self.load(cfg, force_cpu=True)
+            if device != "cpu" and cfg.get("cpuFallback") and is_gpu_failure(exc) and not force_cpu:
+                release_cuda_cache(torch)
+                return self.load(cfg, force_cpu=True, fallback_reason=str(exc)[:500])
             raise
         self.metadata = {**info, "cpuThreads": torch.get_num_threads(),
                          "device": str(self.pipeline.configs.device),
                          "half": bool(self.pipeline.configs.is_half), "version": self.pipeline.configs.version,
-                         "cpuFallback": force_cpu, "referenceSeconds": round(audio_info.duration, 2)}
+                         "cpuFallback": force_cpu, "cpuFallbackReason": fallback_reason,
+                         "referenceSeconds": round(audio_info.duration, 2)}
         return self.metadata
 
     def synthesize(self, text, speed):
@@ -174,9 +195,9 @@ class Engine:
             with self.torch.inference_mode():
                 parts = list(self.pipeline.run(params))
         except Exception as exc:
-            if self.metadata["device"] != "cpu" and cfg.get("cpuFallback") and is_oom(exc):
-                self.pipeline = None; gc.collect(); self.torch.cuda.empty_cache()
-                self.load(cfg, force_cpu=True)
+            if self.metadata["device"] != "cpu" and cfg.get("cpuFallback") and is_gpu_failure(exc):
+                self.pipeline = None; release_cuda_cache(self.torch)
+                self.load(cfg, force_cpu=True, fallback_reason=str(exc)[:500])
                 return self.synthesize(text, speed)
             raise
         import numpy as np

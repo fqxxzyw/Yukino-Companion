@@ -191,7 +191,7 @@ begin
   WizardForm.SelectDirLabel.Caption:='只为当前 Windows 用户安装。请选择一个专用文件夹。'; WizardForm.SelectDirBrowseLabel.Visible:=False;
   WizardForm.DirEdit.SetBounds(0,ScaleY(70),W-ScaleX(98),ScaleY(28)); WizardForm.DirBrowseButton.SetBounds(W-ScaleX(88),ScaleY(69),ScaleX(88),ScaleY(30));
   DesktopShortcutCheck:=TNewCheckBox.Create(WizardForm); DesktopShortcutCheck.Parent:=WizardForm.SelectDirPage; DesktopShortcutCheck.Caption:='在桌面创建快捷方式'; DesktopShortcutCheck.Checked:=True; DesktopShortcutCheck.SetBounds(0,ScaleY(121),W,ScaleY(28));
-  Note:=AddText(WizardForm.SelectDirPage,'聊天记录、个人设置和之后下载的资源保存在用户数据目录。卸载应用时会保留。',0,ScaleY(170),W,ScaleY(60),9,False); Note.Font.Color:=ColorMuted;
+  Note:=AddText(WizardForm.SelectDirPage,'聊天与设置保存在用户数据目录。之后下载的资源默认保存在本安装文件夹的 Yukino-Data 子目录，卸载时保留。',0,ScaleY(170),W,ScaleY(60),9,False); Note.Font.Color:=ColorMuted;
   W:=WizardForm.InstallingPage.ClientWidth; WizardForm.StatusLabel.SetBounds(0,ScaleY(16),W,ScaleY(34));
   ProgressPercent:=AddText(WizardForm.InstallingPage,'0%',0,ScaleY(66),W,ScaleY(48),25,True);
   WizardForm.ProgressGauge.SetBounds(0,ScaleY(130),W,ScaleY(12)); WizardForm.FilenameLabel.Visible:=False;

@@ -5,7 +5,7 @@ test('setup leaves all feature switches selectable while checking or downloading
  const {default:SetupWizard}=await server.ssrLoadModule('/src/ui/SetupWizard.jsx');
  for(const phase of ['checking','installing']){
   const html=renderToStaticMarkup(React.createElement(SetupWizard,{initialFeatures:['voice'],status:{phase,steps:[]},onStatus(){},onClose(){}}));
-  const switches=html.match(/<input[^>]+role="switch"[^>]*>/g)||[];assert.equal(switches.length,4);assert.ok(switches.every(input=>!input.includes('disabled')));assert.match(html,/可选择/);
+  const switches=html.match(/<input[^>]+role="switch"[^>]*>/g)||[];assert.equal(switches.length,4);assert.ok(switches.every(input=>!input.includes('disabled')));assert.match(html,/未选择/);
  }
 });
 test('voice settings presents separate local and downloaded GPT and SoVITS files',async t=>{

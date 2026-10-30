@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import CompactDock from './ui/CompactDock.jsx';
 import {RemoteSpeechClock} from './speech/remote-clock.mjs';
 import {useReducedMotion} from './ui/use-reduced-motion.mjs';
+import {useLocalDaylight} from './ui/use-local-daylight.mjs';
 import {GlbAvatarRenderer} from './ui/model-runtime.mjs';
 import {friendlyError} from './ui/errors.mjs';
 import catalog from '../resources/character-models.json';
@@ -16,15 +17,16 @@ function ModelWindow(){
  const [text,setText]=useState(''),[error,setError]=useState(null),[view,setView]=useState({zoom:1,yaw:0});
  const api=window.companion,call=(action,payload)=>api?.call(action,payload)||Promise.resolve(false);
  through.current=state.preferences?.mouseThrough===true;
- const reply=state.preferences?.showBubbles===false||!state.reply?'':state.preferences?.bubbleLanguage==='ja'?(state.reply.ja||(state.reply.zh?`中文：${state.reply.zh}`:'')):state.preferences?.bubbleLanguage==='both'?[state.reply.zh,state.reply.ja].filter(Boolean).join('\n'):(state.reply.zh||state.reply.ja||'');
+ const reply=state.preferences?.showBubbles===false||!state.reply?'':state.preferences?.bubbleLanguage==='ja'?(state.reply.ja||(state.reply.zh?`中文：${state.reply.zh}`:'')):state.preferences?.bubbleLanguage==='both'?[state.reply.zh,state.reply.ja].filter(Boolean).join('\n'):(state.reply.zh||(state.reply.ja?`中文暂不可用 · 日文原文：\n${state.reply.ja}`:''));
  const reducedMotion=useReducedMotion(state.preferences?.animation===false);
+ const daylightHour=useLocalDaylight(state.character?.presentation?.daylightLocation);
 
  useEffect(()=>{renderer.current?.setView(view)},[view,state.character?.modelId]);
  useEffect(()=>{const element=host.current;if(!element)return;const wheel=event=>{event.preventDefault();if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;setView(current=>({...current,zoom:Math.max(1,Math.min(2.2,current.zoom-event.deltaY*.0015))}))};element.addEventListener('wheel',wheel,{passive:false});return()=>element.removeEventListener('wheel',wheel)},[]);
  useEffect(()=>{const off=api?.onState(setState),actionOff=api?.onAction?.(value=>{if(value.name==='chat-error')setError({kind:value.kind||'chat',message:friendlyError(value.message)});else if(value.name==='capability-recovered')setError(current=>current?.kind===value.kind?null:current)}),mouthOff=api?.onMouth?.(value=>{mouth.current=value}),speechOff=api?.onSpeech?.(value=>{if(value)speechClock.current.receive(value);else{speechClock.current.clear();renderer.current?.resetSpeechClock?.()}});call('ready');return()=>{off?.();actionOff?.();mouthOff?.();speechOff?.();speechClock.current.clear()}},[]);
  useEffect(()=>{try{renderer.current=new GlbAvatarRenderer(host.current,{renderEnvironment:false,catalog:catalog.models,api:{characterModelData:id=>call('model-data',id)},audioPlayer:{getLevel:()=>speechClock.current.snapshot?speechClock.current.getLevel():mouth.current,getSnapshot:()=>speechClock.current.getSnapshot()},onStatus:setStatus});}catch(error){setStatus({phase:'error',message:error.message})}return()=>renderer.current?.dispose()},[]);
  useEffect(()=>{let active=true;if(loadedIdentity.current!==state.character?.id){renderer.current?.clear();setText('');setError(null);mouth.current=0;speechClock.current.clear();loadedIdentity.current=state.character?.id}renderer.current?.cancelLoad();if(!state.character?.modelId){renderer.current?.clear();return;}call('model-catalog').then(next=>{if(!active)return;if(next?.models)renderer.current.catalog=next.models;renderer.current?.load(state.character.modelId,{animate:true})}).catch(error=>{if(active)setStatus({phase:'error',message:error.message})});return()=>{active=false;renderer.current?.cancelLoad()}},[state.character?.id,state.character?.modelId]);
- useEffect(()=>{const value=state.character?.presentation||{};renderer.current?.setEnvironment({id:value.scene,timeOfDay:value.timeOfDay});renderer.current?.setRenderStyle(value.renderStyle)},[state.character?.presentation?.scene,state.character?.presentation?.timeOfDay,state.character?.presentation?.renderStyle]);
+ useEffect(()=>{const value=state.character?.presentation||{};renderer.current?.setEnvironment({id:value.scene,timeOfDay:daylightHour});renderer.current?.setRenderStyle(value.renderStyle)},[state.character?.presentation?.scene,daylightHour,state.character?.presentation?.renderStyle]);
  useEffect(()=>{renderer.current?.setReducedMotion(reducedMotion);renderer.current?.setActivity(state.chatBusy?'thinking':'idle')},[reducedMotion,state.chatBusy]);
  useEffect(()=>{const stop=()=>{drag.current=null;orbit.current=null;call('drag-end').catch(()=>{})};window.addEventListener('blur',stop);return()=>window.removeEventListener('blur',stop)},[]);
  useLayoutEffect(()=>{if(replyId.current!==state.reply?.id){replyId.current=state.reply?.id;replyPinned.current=true}if(replyPinned.current&&replyBody.current)replyBody.current.scrollTop=replyBody.current.scrollHeight},[reply,state.reply?.id]);

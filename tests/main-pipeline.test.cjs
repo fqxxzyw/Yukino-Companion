@@ -306,3 +306,44 @@ test('main-frame document reload resets the speech generation but subframes and 
  wc.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(resets,1);assert.equal(await app.invoke('companion-speech',{sequence:10}),false,'old unloading renderer cannot reclaim sequence watermark');assert.equal(received.length,1);
  wc.emit('dom-ready');assert.equal(resets,2);assert.equal(await app.invoke('companion-speech',{sequence:1}),true);assert.equal(received.at(-1).sequence,1);
 });
+
+test('packaged resource directory follows the executable and selection is saved without moving active downloads',async()=>{
+ const chosen=path.resolve('/another-volume/Yukino-assets');
+ const app=await mainHarness({state,packaged:true,directoryChoice:chosen});
+ const status=await app.invoke('setup-status',{features:['pet']});
+ assert.equal(status.resourceDirectory,path.resolve('/virtual-install/Yukino-Data'));
+ assert.equal(app.runtime.options.dataRoot,status.resourceDirectory);
+ const choosing=app.invoke('resource-directory-pick');
+ while(!app.sent.some(item=>item.channel==='flush-state'))await new Promise(setImmediate);
+ const flush=app.sent.find(item=>item.channel==='flush-state');await app.invoke('save',state);await app.invoke('flush-complete',flush.payload.id,true);
+ const choice=await choosing;assert.equal(choice.directory,chosen);assert.equal(choice.restartRequired,true);
+ assert.equal(JSON.parse(app.storage.get('resource-directory.json')).directory,chosen);
+ await assert.rejects(app.invoke('setup-install',{features:['pet']}),/重启应用/);
+});
+
+test('failed or timed out renderer state save prevents changing resource directory',async()=>{
+ for(const ack of [false,null]){
+  const app=await mainHarness({state,packaged:true,directoryChoice:path.resolve('/another-volume/Yukino-assets')});
+  const choosing=app.invoke('resource-directory-pick');
+  while(!app.sent.some(item=>item.channel==='flush-state'))await new Promise(setImmediate);
+  const flush=app.sent.find(item=>item.channel==='flush-state');
+  if(ack===false)await app.invoke('flush-complete',flush.payload.id,false);
+  await assert.rejects(choosing,/当前设置未能保存/);
+  assert.equal(app.storage.has('resource-directory.json'),false);
+  assert.equal((await app.invoke('setup-status',{features:['pet']})).pendingResourceDirectory,null);
+ }
+});
+
+test('resource directory selection and installation exclude each other across awaited dialogs',async()=>{
+ const dialog=deferred(),download=deferred(),entered=deferred();
+ const app=await mainHarness({state,directoryChoice:()=>dialog.promise,voiceInstallBarrier:async()=>{entered.resolve();await download.promise;}});
+ const choosing=app.invoke('resource-directory-pick');
+ await new Promise(setImmediate);
+ await assert.rejects(app.invoke('voice-install','core'),/正在选择资源目录/);
+ await assert.rejects(app.invoke('resource-directory-pick'),/正在选择目录/);
+ dialog.resolve(null);assert.equal(await choosing,null);
+ const installing=app.invoke('voice-install','core');await entered.promise;
+ await assert.rejects(app.invoke('resource-directory-pick'),/正在选择目录或安装资源/);
+ download.resolve();await installing;
+ assert.equal(app.storage.has('resource-directory.json'),false);
+});

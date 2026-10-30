@@ -9,6 +9,7 @@ const {promisify} = require('node:util');
 const {RuntimeManager, extractRuntimeZip, safeEntry, detectNvidia} = require('../electron/runtime-manager.cjs');
 const execute = promisify(execFile);
 const digest = value => createHash('sha256').update(value).digest('hex');
+const isOwnedStage = name => /^runtime-[0-9a-f-]{36}$/.test(name);
 
 // Small stored ZIP fixture writer. ZIP offsets, lengths, attributes and CRCs are
 // explicit so adversarial archive entries do not require external programs.
@@ -104,7 +105,7 @@ test('failed runtime validation preserves the selected working runtime and retri
   let attempts=0, env, previous;
   env=await fixture(t,{run:async(executable,args,options)=>{
     attempts++;
-    assert.ok(path.isAbsolute(executable)); assert.ok(executable.includes('.install-')); assert.equal(args[0],'-X'); assert.equal(options.shell,undefined);
+    assert.ok(path.isAbsolute(executable)); assert.ok(isOwnedStage(path.basename(path.dirname(path.dirname(executable))))); assert.equal(args[0],'-X'); assert.equal(options.shell,undefined);
     assert.equal((await env.manager.current()).root,previous.root,'old runtime is selected during staged validation');
     if(attempts===1)throw Error('synthetic probe failure');
     return {stdout:JSON.stringify({torch:'tested',gpuAvailable:true})};
@@ -117,7 +118,7 @@ test('failed runtime validation preserves the selected working runtime and retri
   await assert.rejects(env.manager.install('cu124'),/synthetic probe failure/);
   assert.equal(await fs.readFile(pointerPath,'utf8'),original);
   assert.equal(await fs.readFile(path.join(previous.root,'python-runtime/python.exe'),'utf8'),'previous working Python');
-  assert.equal((await fs.readdir(env.manager.root)).some(name=>name.startsWith('.install-')),false);
+  assert.equal((await fs.readdir(env.manager.root)).some(isOwnedStage),false);
   assert.equal(env.manager.controller,null); assert.equal(env.calls.length,2);
   const installed=await env.manager.install('cu124');
   assert.equal(installed.ready,true); assert.equal(installed.flavor,'cu124'); assert.equal(installed.metadata.torch,'tested');
@@ -135,7 +136,7 @@ test('bad assembled archive digest never alters the selected runtime',async t=>{
   env.catalog.variants.cu124.archiveSha256='0'.repeat(64); await fs.writeFile(env.catalogPath,JSON.stringify(env.catalog));
   await assert.rejects(env.manager.install('cu124'),/完整校验失败/);
   assert.equal((await env.manager.current()).root,previous.root);
-  assert.equal((await fs.readdir(env.manager.root)).some(name=>name.startsWith('.install-')),false);
+  assert.equal((await fs.readdir(env.manager.root)).some(isOwnedStage),false);
 });
 
 test('cancelling a runtime probe aborts only its owned process and keeps the old runtime selected',async t=>{
@@ -153,7 +154,7 @@ test('cancelling a runtime probe aborts only its owned process and keeps the old
   await assert.rejects(pending,/abort|cancel|取消/i);
   assert.equal(probePromise.child.killed,true); assert.equal(unrelated.killed,false); assert.doesNotThrow(()=>process.kill(unrelated.pid,0));
   assert.equal(env.manager.phase,'cancelled'); assert.equal((await env.manager.current()).root,previous.root);
-  assert.equal((await fs.readdir(env.manager.root)).some(name=>name.startsWith('.install-')),false);
+  assert.equal((await fs.readdir(env.manager.root)).some(isOwnedStage),false);
   assert.equal(env.manager.controller,null);
 });
 
@@ -182,7 +183,7 @@ test('hardware detection reports NVIDIA even before Python or a CUDA runtime is 
 
 test('cancel during hardware selection does not start a download after the probe returns',async t=>{
   let started,release; const ready=new Promise(resolve=>started=resolve);
-  const env=await fixture(t,{run:async()=>{started();return new Promise(resolve=>release=()=>resolve({stdout:'NVIDIA GeForce'}));},fetcher:async()=>{throw Error('download must not start after cancellation');}});
+  const env=await fixture(t,{hardwareRun:async()=>{started();return new Promise(resolve=>release=()=>resolve({stdout:'NVIDIA GeForce'}));},fetcher:async()=>{throw Error('download must not start after cancellation');}});
   const pending=env.manager.install('auto'); await ready; env.manager.cancel(); release();
   await assert.rejects(pending);
   assert.equal(env.calls.length,0,'an aborted preflight must never start a network request');
@@ -219,7 +220,24 @@ test('failure to commit the atomic pointer leaves the prior runtime selected',as
   finally {fs.rename=rename;}
   assert.equal((await env.manager.current()).root,previous.root);
   assert.equal(await fs.readFile(path.join(previous.root,'python-runtime/python.exe'),'utf8'),'previous working Python');
-  assert.equal((await fs.readdir(env.manager.root)).some(name=>name.startsWith('.install-')),false);
+  assert.equal((await fs.readdir(env.manager.root)).some(isOwnedStage),false);
+});
+
+test('reinstall preserves a selected runtime at the historical deterministic destination',async t=>{
+  const env=await fixture(t);
+  const oldName=env.pack.id+'-'+digest(env.catalog.version+'\n'+env.pack.archiveSha256).slice(0,16);
+  const oldRoot=path.join(env.manager.root,oldName),oldPython=path.join(oldRoot,'python-runtime');
+  await fs.mkdir(oldPython,{recursive:true});
+  await fs.writeFile(path.join(oldPython,'python.exe'),'previous runtime');
+  await fs.writeFile(path.join(oldPython,'yukino-runtime-build.json'),JSON.stringify({flavor:'cu124'}));
+  await fs.writeFile(path.join(oldRoot,'user-file.txt'),'do not remove');
+  // A stale pointer forces installation even though it names that same folder.
+  await fs.writeFile(path.join(env.manager.root,'current.json'),JSON.stringify({directory:oldName,version:'outdated'}));
+  const next=await env.manager.install('cu124');
+  assert.notEqual(next.root,oldRoot);
+  assert.equal(await fs.readFile(path.join(oldRoot,'user-file.txt'),'utf8'),'do not remove');
+  assert.equal(await fs.readFile(path.join(oldPython,'python.exe'),'utf8'),'previous runtime');
+  assert.equal((await env.manager.current()).root,next.root);
 });
 
 test('short filesystem writes still assemble every archive byte before verification',async t=>{
@@ -244,7 +262,7 @@ test('short filesystem writes still assemble every archive byte before verificat
 test('cleanup errors cannot leave the installer permanently busy or replace the original failure',async t=>{
   const notices=[],env=await fixture(t,{run:async()=>{throw Error('original probe failure');},notify:value=>notices.push(value)}),previous=await previousRuntime(env),remove=fs.rm;
   fs.rm=async(filename,...args)=>{
-    if(path.basename(String(filename)).startsWith('.install-'))throw Object.assign(Error('temporary Windows sharing violation'),{code:'EPERM'});
+    if(isOwnedStage(path.basename(String(filename))))throw Object.assign(Error('temporary Windows sharing violation'),{code:'EPERM'});
     return remove(filename,...args);
   };
   try {await assert.rejects(env.manager.install('cu124'),/original probe failure/);}
@@ -292,4 +310,14 @@ test('a CPU-only catalogue installs CPU automatically and refuses an unavailable
   await assert.rejects(env.manager.install('cu124'),/尚未提供所选运行环境/);
   assert.equal((await env.manager.current()).root,previousRoot);
   assert.equal(env.calls.length,2,'unavailable CUDA must not start any additional download');
+});
+
+test('existing legacy runtime is reused while new installations still target the selected data directory',async t=>{
+ const env=await fixture(t);const legacy=path.join(env.temp,'legacy');const root=path.join(legacy,'runtime','old','python-runtime');
+ await fs.mkdir(root,{recursive:true});await fs.writeFile(path.join(root,'python.exe'),'old Python');await fs.writeFile(path.join(root,'yukino-runtime-build.json'),JSON.stringify({flavor:'cpu'}));
+ await fs.writeFile(path.join(legacy,'runtime','current.json'),JSON.stringify({directory:'old',version:'previous',metadata:{gpuAvailable:false}}));
+ env.manager.legacyDataRoot=legacy;
+ const current=await env.manager.current();assert.equal(current.root,path.dirname(root));assert.equal(current.flavor,'cpu');
+ assert.ok(env.manager.root.startsWith(env.dataRoot+path.sep));
+ assert.equal(await fs.readFile(path.join(root,'python.exe'),'utf8'),'old Python');
 });

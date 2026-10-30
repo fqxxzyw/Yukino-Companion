@@ -59,3 +59,13 @@ test('setup starts speech core and selected voice together after the runtime is 
  const setup=new SetupService({inspect:async()=>({steps:['runtime','voiceCore','voicePreset'].map(id=>({id,state:ready.has(id)?'ready':'missing'}))}),installRuntime:async()=>{},refresh:async()=>{},installVoice:async()=>{started.push('voiceCore');await gate;ready.add('voiceCore');return {};},saveVoice:async()=>{},installVoicePreset:async()=>{started.push('voicePreset');await gate;ready.add('voicePreset');}});
  const job=setup.install({features:['voice']});await new Promise(setImmediate);assert.deepEqual(new Set(started),new Set(['voiceCore','voicePreset']));release();assert.equal((await job).ready,true);
 });
+
+test('existing verified legacy pack is reused; new downloads target the selected directory',async t=>{
+ const old=await fixture(t,'chat',chatEntries());const installed=await old.service.install('chat');
+ const selected=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-new-location-'));t.after(()=>fs.rm(selected,{recursive:true,force:true}));
+ const service=new ResourcePacks({dataRoot:selected,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,fetcher:()=>{throw Error('should reuse existing pack');}});
+ assert.equal((await service.status('chat')).root,installed.root);
+ assert.equal((await service.install('chat')).root,installed.root);
+ assert.ok(service.root.startsWith(selected+path.sep));
+ assert.equal((await fs.readFile(path.join(installed.root,'model.gguf'))).subarray(0,4).toString(),'GGUF');
+});

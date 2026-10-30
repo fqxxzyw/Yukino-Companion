@@ -1,7 +1,9 @@
 # Yukino application icon
 
-Generated for this project with the built-in Image Generation tool on 2026-10-25. The full-resolution transparent master is `app-icon-master.png`; Windows multi-size export is `app-icon.ico`; the renderer export is `../public/yukino-icon.png` (512 × 512).
+The blue Y and crystal icon is based on the image supplied by the user on 2026-10-30. The white outside canvas was made transparent and the artwork was fitted into a square with a small margin. The original motif, colors, and white Y remain intact.
 
-Prompt direction: a single premium snow-blue Liquid Glass application tile, luminous white six-arm snow crystal with a subtle Y at its center, rounded square with transparent surroundings, soft icy blue and cobalt depth, no lettering, portrait, mockup, or surrounding UI. Exported with ImageMagick; the original illustration is preserved in the master.
+- `app-icon-master.png`: 1024 × 1024 transparent master.
+- `app-icon.ico`: Windows icon with 16, 24, 32, 48, 64, 128, and 256 px entries.
+- `../public/yukino-icon.png`: 512 × 512 renderer, window, and tray icon.
 
-Used by the executable, installer, tray, window and renderer. The ICO includes 16, 24, 32, 48, 64, 128 and 256 px sizes. The artwork is original generated branding, not official franchise artwork.
+The ICO is referenced by the Windows executable and installer configurations. The PNG is copied to `dist` by the frontend build.

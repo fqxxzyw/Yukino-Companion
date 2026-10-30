@@ -28,6 +28,11 @@ test('API translation cancellation rejects late output and preserves the owning 
 test('API translation enforces streamed output bounds',async()=>{
  await assert.rejects(translateWithApi({profile,key,text:'你好',transport:async request=>request.onToken('あ'.repeat(48001))}),/过长/);
 });
+test('reverse translation uses Japanese to Chinese without mislabelling Japanese output',async()=>{
+ let prompt;const result=await translateWithApi({profile,key,text:'こんにちは、今日はどう？',source:'ja',target:'zh',transport:async request=>{prompt=request.messages[0].content;request.onToken('你好，今天过得怎么样？');}});
+ assert.equal(result.text,'你好，今天过得怎么样？');assert.equal(result.target,'zh');assert.match(prompt,/Japanese text into natural Simplified Chinese/);
+ await assert.rejects(translateWithApi({profile,key,text:'こんにちは',source:'ja',target:'zh',transport:async request=>request.onToken('こんにちは、今日はどう？')}),/有效中文/);
+});
 
 test('real translate IPC cannot override saved provider or API key through renderer request fields',async()=>{
  const {mainHarness}=require('./helpers/main-harness.cjs');

@@ -9,12 +9,13 @@ const defaultCatalog=require('../resources/resource-packs.json');
 async function hashFile(file,signal){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}return hash.digest('hex');}
 async function manifests(root,depth=0){let result=[];for(const item of await fs.readdir(root,{withFileTypes:true})){if(item.isSymbolicLink())throw Error('资源目录不支持链接');const target=path.join(root,item.name);if(item.isDirectory()&&depth<2)result.push(...await manifests(target,depth+1));else if(item.isFile()&&item.name==='manifest.json')result.push(target);}return result;}
 class ResourcePacks {
-  constructor({dataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.controllers=new Map();this.petCheck=null;}
+  constructor({dataRoot,legacyDataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.legacyRoot=legacyDataRoot&&path.resolve(legacyDataRoot)!==path.resolve(dataRoot)?path.join(legacyDataRoot,'resources'):null;this.controllers=new Map();this.petCheck=null;}
   get controller(){return this.controllers.values().next().value||null;}
   pack(id){const pack=this.catalog?.packs?.[id];if(!['chat','pet'].includes(id)||!pack||!Number.isSafeInteger(pack.bytes)||pack.bytes<1||!/^[a-f0-9]{64}$/.test(pack.sha256)||!Number.isSafeInteger(pack.maxUnpackedBytes)||pack.maxUnpackedBytes<pack.bytes||pack.maxUnpackedBytes>8*1024**3)throw Error('资源清单无效');return pack;}
   directory(id){return path.join(this.root,id+'-'+this.pack(id).sha256.slice(0,16));}
   async status(id){
-    const pack=this.pack(id),directory=this.directory(id);let installed=false,root='';
+    const pack=this.pack(id);let installed=false,root='';
+    for(const directory of [this.directory(id),...(this.legacyRoot?[path.join(this.legacyRoot,id+'-'+pack.sha256.slice(0,16))]:[])]){
     try{
       const marker=JSON.parse(await fs.readFile(path.join(directory,'.resource-pack.json'),'utf8'));
       if(marker.sha256!==pack.sha256||typeof marker.root!=='string'||marker.root.includes('\\')||path.isAbsolute(marker.root)||marker.root.split('/').some(x=>x==='..'))throw Error('资源安装标记无效');
@@ -23,8 +24,9 @@ class ResourcePacks {
       else {const indexPath=path.join(root,'voices.json'),voicesPath=path.join(root,'voices');const index=JSON.parse(await fs.readFile(indexPath,'utf8'));if(index.archiveSha256!==pack.sha256||!Array.isArray(index.files)||index.files.length!==pack.expectedFiles)throw Error('桌宠资源不完整');
         const key=root+':'+(await fs.stat(indexPath)).mtimeMs+':'+(await fs.stat(voicesPath)).mtimeMs;
         if(this.petCheck!==key){for(const item of index.files){if(!/^[A-Za-z0-9_-]+\.ogg$/.test(item.file)||!Number.isSafeInteger(item.bytes)||item.bytes<1||(await fs.stat(path.join(voicesPath,item.file))).size!==item.bytes)throw Error('桌宠语音索引不完整');}this.petCheck=key;}}
-      installed=true;
+      installed=true;break;
     }catch{root='';}
+    }
     return {id,installed,root,downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
   }
   async install(id,{signal}={}){

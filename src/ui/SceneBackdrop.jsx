@@ -1,21 +1,32 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
-import {SCENES,revealOrigin} from './avatar-presentation.mjs';
-export default function SceneBackdrop({scene,timeOfDay,enabled,reducedMotion}){
+import {SCENES,revealOrigin,presentationConfig} from './avatar-presentation.mjs';
+const sceneBackground=scene=>(SCENES[scene]||SCENES.studio).background;
+const styleFor=entry=>entry?.url?{backgroundImage:`url("${entry.url}")`,backgroundSize:'cover',backgroundPosition:'center'}:{background:entry?.scene?sceneBackground(entry.scene):'transparent'};
+export default function SceneBackdrop({scene,timeOfDay,enabled,reducedMotion,wallpaper,selectionRevision=0,onCurrentWallpaper}){
+ const settings=presentationConfig({wallpaper}).wallpaper,ids=settings.items.map(item=>item.id),idKey=ids.join(','),wallpaperMode=settings.enabled&&ids.length>0;
+ const [index,setIndex]=useState(0),[current,setCurrent]=useState({key:null,scene:null}),[previous,setPrevious]=useState(null),cache=useRef(new Map()),previousRef=useRef(null);
  const currentScene=useRef({scene,timeOfDay});currentScene.current={scene,timeOfDay};
- const canvasHost=useRef(null),renderer=useRef(null),layer=useRef(null),[previous,setPrevious]=useState(null),previousRef=useRef(null);
- useEffect(()=>{let cancelled=false,instance=null;if(!enabled)return;import('./environment-backdrop.mjs').then(({EnvironmentBackdrop})=>{if(cancelled)return;try{instance=new EnvironmentBackdrop(canvasHost.current);renderer.current=instance;instance.update(currentScene.current.scene,currentScene.current.timeOfDay)}catch{canvasHost.current?.setAttribute('data-fallback','true')}});return()=>{cancelled=true;instance?.dispose();renderer.current=null}},[enabled]);
+ const canvasHost=useRef(null),renderer=useRef(null),layer=useRef(null);
+ useEffect(()=>{setIndex(0)},[idKey,selectionRevision]);
+ useEffect(()=>{if(!wallpaperMode||!settings.rotation||ids.length<2)return;const timer=setInterval(()=>setIndex(value=>(value+1)%ids.length),settings.intervalSeconds*1000);return()=>clearInterval(timer)},[wallpaperMode,settings.rotation,settings.intervalSeconds,idKey,selectionRevision]);
+ const selected=ids[index%Math.max(ids.length,1)];
+ useEffect(()=>{let cancelled=false;if(!wallpaperMode){setCurrent({key:enabled?`scene:${scene}`:null,scene:enabled?scene:null});return;}if(!selected||!window.desktop?.wallpaperRead)return;
+  const cached=cache.current.get(selected);if(cached){setCurrent({key:`wallpaper:${selected}`,url:cached});return;}
+  window.desktop.wallpaperRead(selected).then(({data,mime})=>{if(cancelled)return;const url=URL.createObjectURL(new Blob([data],{type:mime}));cache.current.set(selected,url);setCurrent({key:`wallpaper:${selected}`,url});}).catch(()=>{if(!cancelled)setCurrent({key:enabled?`scene:${scene}`:null,scene:enabled?scene:null})});return()=>{cancelled=true};
+ },[wallpaperMode,selected,enabled,scene]);
+ useEffect(()=>()=>{for(const url of cache.current.values())URL.revokeObjectURL(url);cache.current.clear()},[]);
+ useEffect(()=>{onCurrentWallpaper?.(wallpaperMode&&current.key?.startsWith('wallpaper:')?current.key.slice('wallpaper:'.length):null)},[wallpaperMode,current.key,onCurrentWallpaper]);
+ const sceneEnabled=Boolean(current.scene);
+ useEffect(()=>{let cancelled=false,instance=null;if(!sceneEnabled)return;import('./environment-backdrop.mjs').then(({EnvironmentBackdrop})=>{if(cancelled)return;try{instance=new EnvironmentBackdrop(canvasHost.current);renderer.current=instance;instance.update(currentScene.current.scene,currentScene.current.timeOfDay)}catch{canvasHost.current?.setAttribute('data-fallback','true')}});return()=>{cancelled=true;instance?.dispose();renderer.current=null}},[sceneEnabled]);
  useEffect(()=>{renderer.current?.update(scene,timeOfDay)},[scene,timeOfDay]);
  useLayoutEffect(()=>{
-  const element=layer.current;if(!element)return;const active=enabled?(SCENES[scene]?scene:'studio'):null;
-  setPrevious(previousRef.current);const old=previousRef.current;previousRef.current=active;
-  const root=element.closest('.app'),model=root?.querySelector('.character-panel');
-  if(!root)return;
+  const element=layer.current;if(!element)return;const old=previousRef.current;previousRef.current=current;setPrevious(old);
+  const root=element.closest('.app'),model=root?.querySelector('.character-panel');if(!root)return;
   const {x,y}=revealOrigin(model?.getBoundingClientRect(),root.getBoundingClientRect());
   const reduce=reducedMotion||window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(reduce||!enabled||old===active||typeof element.animate!=='function'){setPrevious(null);return;}
-  let current=true;const animation=element.animate([{clipPath:`circle(0% at ${x}% ${y}%)`},{clipPath:`circle(150% at ${x}% ${y}%)`}],{duration:700,easing:'cubic-bezier(.2,.75,.2,1)',fill:'both'});
-  animation.finished.then(()=>{if(current){setPrevious(null);animation.cancel()}}).catch(()=>{});
-  return()=>{current=false;animation.cancel()};
- },[scene,enabled,reducedMotion]);
- return <div className="scene-ui-backdrop" aria-hidden="true"><div style={{background:previous?SCENES[previous]?.background:'transparent'}}/><div ref={layer} style={{background:enabled?(SCENES[scene]||SCENES.studio).background:'transparent'}}><div className="environment-backdrop-canvas" ref={canvasHost}/></div></div>;
+  if(reduce||!current.key||old?.key===current.key||typeof element.animate!=='function'){setPrevious(null);return;}
+  let live=true;const animation=element.animate([{clipPath:`circle(0% at ${x}% ${y}%)`},{clipPath:`circle(150% at ${x}% ${y}%)`}],{duration:700,easing:'cubic-bezier(.2,.75,.2,1)',fill:'both'});
+  animation.finished.then(()=>{if(live){setPrevious(null);animation.cancel()}}).catch(()=>{});return()=>{live=false;animation.cancel()};
+ },[current.key,reducedMotion]);
+ return <div className="scene-ui-backdrop" aria-hidden="true"><div style={styleFor(previous)}/><div ref={layer} style={styleFor(current)}><div className="environment-backdrop-canvas" ref={canvasHost} style={{display:sceneEnabled?'':'none'}}/></div></div>;
 }

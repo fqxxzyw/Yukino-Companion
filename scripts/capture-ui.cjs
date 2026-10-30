@@ -234,7 +234,15 @@ async function run() {
   await click(`.scene-options button:nth-child(${forestButton})`);
   await click('.presentation-settings .row input');
   await check('Forest is selected and the full-window environment host is active',`document.querySelector('.app').classList.contains('scene-spread')&&[...document.querySelectorAll('.scene-options button')].some(button=>button.textContent.trim()==='森林'&&button.getAttribute('aria-pressed')==='true')&&Boolean(document.querySelector('.scene-ui-backdrop .environment-backdrop-canvas'))`);
-  await check('Lighting, rendering and truthful head-only tracking controls are present',`(()=>{const panel=document.querySelector('.presentation-settings');return [...panel.querySelectorAll('select')].map(select=>select.value).join(',')==='noon,lit'&&panel.textContent.includes('赛璐璐')&&panel.textContent.includes('没有可用的独立眼球蒙皮')})()`);
+  await check('Lighting, rendering and truthful head-only tracking controls are present',`(()=>{const panel=document.querySelector('.presentation-settings');return [...panel.querySelectorAll('select')].map(select=>select.value).join(',')==='lit'&&panel.textContent.includes('本地时间模拟')&&panel.textContent.includes('赛璐璐')&&panel.textContent.includes('没有可用的独立眼球蒙皮')})()`);
+  await click('.sunlight-location summary');
+  await fill('.sunlight-location input[min="-90"]','35.6895');
+  await fill('.sunlight-location input[min="-180"]','139.6917');
+  await click('.sunlight-location .secondary');
+  await check('A manually supplied location activates offline sunlight',`document.querySelector('.sunlight-location [role="status"]').textContent.includes('按位置日光')`);
+  await waitFor(`window.desktop.load().then(({state})=>state.presentation?.daylightLocation?.latitude===35.6895&&state.presentation?.daylightLocation?.longitude===139.6917)`,'locally saved daylight location');
+  await click('.sunlight-location .text-link');
+  await check('Clearing location returns to the local-clock simulation',`document.querySelector('.sunlight-location [role="status"]').textContent.includes('本地时间模拟')`);
 
   await check('Complete original pet settings remain available',`['互动与动作','气泡与语录','桌宠预录语音','专注一会儿','形象透明度','暂停互动','安静模式'].every(text=>document.querySelector('.pet-settings').textContent.includes(text))`);
   await evaluate(`document.querySelector('.pet-settings-card:last-of-type').scrollIntoView({block:'end'})`);await settle();
@@ -303,7 +311,7 @@ async function run() {
   await capture('10-confirm-dialog');
   await click('.confirm-dialog .secondary');
   await check('Cancel keeps the conversation',`!document.querySelector('.confirm-dialog')&&document.querySelectorAll('.message').length===2`);
-  const expandedAvatarX=await evaluate(`document.querySelector('.avatar-stage').getBoundingClientRect().x`);
+  await check('New installations start with the character on the right',`document.querySelector('.main').classList.contains('avatar-right')`);
   await click('[aria-label="收起或展开侧边栏"]');
   await capture('11-collapsed-sidebar');
   await click('[aria-label="打开服装面板"]');
@@ -316,15 +324,15 @@ async function run() {
   await click('[role="listbox"][aria-label="人物渲染风格"] [role="option"]:nth-child(3)');
   await check('Mouse selects toon from the scene menu portal without closing or dragging the panel',`Boolean(document.querySelector('.character-scene-menu'))&&!document.querySelector('.character-panel.is-dragging')&&document.querySelector('[aria-label="人物渲染风格"][role="combobox"]').textContent.includes('赛璐璐')&&!document.querySelector('[role="listbox"]')`);
   await waitFor(`window.desktop.load().then(({state})=>state.presentation?.renderStyle==='toon')`,'saved toon style');
-  await click('[aria-label="人物日光"][role="combobox"]');
-  await click('[role="listbox"][aria-label="人物日光"] [role="option"]:nth-child(1)');
-  await check('Mouse selects morning light from the scene menu portal',`Boolean(document.querySelector('.character-scene-menu'))&&document.querySelector('[aria-label="人物日光"][role="combobox"]').textContent.includes('清晨')`);
-  await waitFor(`window.desktop.load().then(({state})=>state.presentation?.timeOfDay==='morning')`,'saved morning light');
+  await check('Daylight follows local time without a redundant selector',`document.querySelector('.character-scene-menu').textContent.includes('本地时间模拟日光')&&!document.querySelector('[aria-label="人物日光"]')`);
   await key('Escape');
   await check('Scene menu dismisses with Escape',`!document.querySelector('.character-scene-menu')`);
   await check('Duration is absent from sidebar and character panel',`!document.querySelector('.stage-footer')&&!document.querySelector('.sidebar').textContent.includes('已陪伴')`);
 
-  await check('Left character follows the collapsed sidebar',`document.querySelector('.avatar-stage').getBoundingClientRect().x<${expandedAvatarX}`);
+  await check('Right character stays right of chat after collapsing the sidebar',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.x>c.x;})()`);
+  await check('Character panel no longer shows an action picker',`!document.querySelector('.character-panel .model-action-picker')`);
+  await pointerDrag('.character-drag-handle',`(()=>{const r=document.querySelector('.main').getBoundingClientRect();return {x:r.left+45,y:r.top+40};})()`);
+  await check('Right character can be dragged to the left',`!document.querySelector('.main').classList.contains('avatar-right')`);
   await pointerDrag('.character-drag-handle',`(()=>{const r=document.querySelector('.main').getBoundingClientRect();return {x:r.right-45,y:r.top+40};})()`);
   await check('Right docking allocates the fixed pane to the character, not the chat',`(()=>{const avatar=document.querySelector('.avatar-stage').getBoundingClientRect(),chat=document.querySelector('.chat').getBoundingClientRect();return avatar.x>chat.x&&avatar.width<=460&&chat.width>=310;})()`);
   await capture('11a-right-docked');

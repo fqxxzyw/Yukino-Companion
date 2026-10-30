@@ -79,7 +79,7 @@ function renderBubble(){
  if(!localQuote&&(!remoteReply||(!remoteReply.zh&&!remoteReply.ja))){bubble.hidden=true;bubbleKey='';return;}
  const key=localQuote?'quote:'+localQuote:'reply:'+(remoteReply.id||''),same=key===bubbleKey;
  const nextZh=localQuote|| (settings.bubbleLanguage==='ja'&&remoteReply.ja?'':remoteReply.zh);
- const nextJa=localQuote?'':settings.bubbleLanguage==='zh'?(remoteReply.zh?'':remoteReply.ja):(remoteReply.ja||'（当前仅有中文内容）');
+ const nextJa=localQuote?'':settings.bubbleLanguage==='zh'?(remoteReply.zh?'':`中文暂不可用 · 日文原文：\n${remoteReply.ja}`):(remoteReply.ja||'（当前仅有中文内容）');
  const oldTop=bubbleBody.scrollTop,atBottom=bubbleBody.scrollHeight-bubbleBody.clientHeight-oldTop<=12;
  bubble.hidden=false;
  if(zh.textContent!==nextZh)zh.textContent=nextZh;

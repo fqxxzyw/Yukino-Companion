@@ -161,6 +161,21 @@ test('sunlight presets are bounded, distinct, safe copies and can drive real Thr
  assert.deepEqual(sunlightConfig('night'), sunlightConfig('noon'));assert.deepEqual(sunlightConfig('__proto__'), sunlightConfig('noon'));
 });
 
+test('local time continuously blends daytime and night without a location', async () => {
+ const {sunlightConfig,createEnvironment,updateEnvironmentSunlight,disposeEnvironment}=await modulePromise;
+ const midnight=sunlightConfig(0),sunrise=sunlightConfig(7),noon=sunlightConfig(12),sunset=sunlightConfig(18);
+ assert.equal(noon.color,sunlightConfig('noon').color);
+ assert.equal(sunrise.color,sunlightConfig('morning').color);
+ assert.equal(sunset.color,sunlightConfig('evening').color);
+ assert.notEqual(midnight.color,noon.color);
+ assert.ok(midnight.intensity>0&&midnight.ambient>0,'night retains fill light for visibility');
+ assert.deepEqual(sunlightConfig(24),midnight);
+ for(let hour=0;hour<24;hour+=.25){const a=sunlightConfig(hour),b=sunlightConfig(hour+1/60);assert.ok(a.intensity>0&&a.ambient>0&&a.position.every(Number.isFinite));assert.ok(Math.abs(a.intensity-b.intensity)<.02,'brightness should not jump between minutes');}
+ const group=createEnvironment('beach',{timeOfDay:12}),sky=meshes(group).find(mesh=>mesh.userData.role==='sky'),others=meshes(group).filter(mesh=>mesh!==sky),unchanged=others.map(mesh=>mesh.material.color.getHexString());
+ updateEnvironmentSunlight(group,18);assert.equal(sky.material.color.getHexString(),new (await threePromise).Color(sunset.skyColor).getHexString());assert.deepEqual(others.map(mesh=>mesh.material.color.getHexString()),unchanged);assert.equal(group.userData.timeOfDay,18);disposeEnvironment(group);
+ const {localDaylightHour}=await import('../src/ui/use-local-daylight.mjs');assert.equal(localDaylightHour(new Date(2026,1,1,18,30,0)),18.5);
+});
+
 test('dispose releases every owned instance buffer, geometry and material exactly once, without touching models', async () => {
  const {createEnvironment, disposeEnvironment} = await modulePromise;
  const THREE = await threePromise, scene = new THREE.Scene(), group = createEnvironment('classroom'), sibling = createEnvironment('beach');

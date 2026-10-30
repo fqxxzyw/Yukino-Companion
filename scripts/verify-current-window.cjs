@@ -20,9 +20,9 @@ async function verify(profile){
   let layout;
   for(let i=0;i<100;i++){
    layout=await main.evaluate(`(()=>{const panel=document.querySelector('.character-panel'),host=document.querySelector('.character-model-host'),action=document.querySelector('.model-action-picker'),a=action?.getBoundingClientRect(),b=panel.getBoundingClientRect();return {innerRadius:getComputedStyle(host).borderTopLeftRadius,outerRadius:getComputedStyle(panel).borderTopLeftRadius,arrows:!!document.querySelector('.character-dock-tools'),actionPresent:!!a,actionInside:!!a&&a.left>=b.left-1&&a.right<=b.right+1&&a.top>=b.top-1&&a.bottom<=b.bottom+1,contacts:document.querySelectorAll('.contact-select').length,expand:!!document.querySelector('.contact-expand')}})()`);
-   if(layout.actionPresent)break;await pause(200);
+   if(layout.contacts&&layout.expand)break;await pause(200);
   }
-  if(parseFloat(layout.innerRadius)<1||parseFloat(layout.outerRadius)<1||layout.arrows||!layout.actionPresent||!layout.actionInside||layout.contacts<1||!layout.expand)throw Error('Installed panel or contacts layout incorrect: '+JSON.stringify(layout));
+  if(parseFloat(layout.innerRadius)<1||parseFloat(layout.outerRadius)<1||layout.arrows||layout.actionPresent||layout.contacts<1||!layout.expand)throw Error('Installed panel or contacts layout incorrect: '+JSON.stringify(layout));
   console.log('Installed check: panel and contacts verified');
   await main.evaluate(`window.desktop.copyText('Yukino clipboard verification')`,true);
   const copied=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Sta','-Command','Get-Clipboard -Raw'],{encoding:'utf8',timeout:15000}).trim();

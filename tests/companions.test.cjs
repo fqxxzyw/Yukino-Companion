@@ -59,6 +59,19 @@ test('preferences validate modes, close decisions, language and bounded scale', 
   assert.throws(() => sanitizePreferences({mouseThrough:'true'}));
   assert.deepEqual(clampBounds({ x:-900,y:2000,width:330,height:410 },{ x:0,y:0,width:1920,height:1040 }),{ x:0,y:630,width:330,height:410 });
 });
+test('proactive greeting shares desktop delivery and cancels stale generation when chat starts',async t=>{
+ const f=await fixture(t);f.powerMonitor.getSystemIdleTime=()=>0;await f.manager.setMode('both');
+ const config={...f.manager.preferences.proactive,enabled:true,mode:'generate',intervalMinutes:5,startHour:0,endHour:0,prompt:'聊聊音乐'};
+ await f.manager.setPreferences({proactive:config});let resolve;f.manager.onProactive=(_event,{signal})=>new Promise(done=>{resolve=done;assert.equal(signal.aborted,false)});
+ const active=f.manager.deliverProactive({id:'pending',mode:'generate',prompt:'聊聊音乐'});f.manager.setChatBusy(true);resolve({zh:'迟到的消息'});await active;assert.equal(f.manager.reply,null);
+ f.manager.setChatBusy(false);const spoken=[];f.manager.onReminder=e=>spoken.push(e.text);f.manager.onProactive=async()=>({zh:'今天听了什么？'});
+ await f.manager.deliverProactive({id:'next',mode:'generate',prompt:'聊聊音乐'});assert.equal(f.manager.reply.zh,'今天听了什么？');assert.deepEqual(spoken,['今天听了什么？']);
+});
+test('proactive generation cannot display after a visual session begins or every companion is hidden',async t=>{
+ const f=await fixture(t);f.powerMonitor.getSystemIdleTime=()=>0;await f.manager.setMode('pet');await f.manager.setPreferences({proactive:{...f.manager.preferences.proactive,enabled:true,mode:'generate',startHour:0,endHour:0}});
+ let resolve;f.manager.onProactive=()=>new Promise(done=>{resolve=done});let run=f.manager.deliverProactive({id:'vision',mode:'generate',prompt:'问候'});f.manager.setVisionActive(true);resolve({zh:'不应显示'});await run;assert.equal(f.manager.reply,null);
+ f.manager.setVisionActive(false);run=f.manager.deliverProactive({id:'hidden',mode:'generate',prompt:'问候'});f.manager.windows.get('pet').hide();resolve({zh:'也不应显示'});await run;assert.equal(f.manager.reply,null);assert.equal(f.manager.proactiveStatus.phase,'idle');
+});
 test('mouse-through preference persists and hit tests cannot break an active drag',async t=>{
  const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet');
  const event={sender:win.webContents,senderFrame:win.webContents.mainFrame},calls=[];
@@ -303,6 +316,16 @@ test('model companion loads real renderer and restricts model bytes to selected 
  const result=await f.manager.viewCall(event,'model-data','yukino-02');assert.deepEqual([...result.bytes],[1,2,3]);assert.deepEqual(fetched,['yukino-02']);
  await assert.rejects(f.manager.viewCall(event,'model-data','../../private'),/当前人物/);await assert.rejects(f.manager.viewCall({sender:pet.webContents,senderFrame:pet.webContents.mainFrame},'model-data','yukino-02'),/仅人物/);
  f.manager.setCharacter({id:'plain',name:'无模型'});assert.equal(f.manager.getState().modelReady,false);await assert.rejects(f.manager.viewCall(event,'model-data'),/当前人物/);
+});
+
+test('location-based daylight reaches the companion and invalid coordinates fall back',async t=>{
+ const f=await fixture(t);await f.manager.setMode('model');
+ const win=f.manager.windows.get('model');
+ f.manager.setCharacter({id:'yukino',presentation:{scene:'beach',renderStyle:'lit',daylightLocation:{latitude:35.6895,longitude:139.6917}}});
+ assert.deepEqual(f.manager.getState().character.presentation.daylightLocation,{latitude:35.6895,longitude:139.6917});
+ f.manager.setCharacter({id:'yukino',presentation:{scene:'beach',daylightLocation:{latitude:91,longitude:0}}});
+ assert.equal(f.manager.getState().character.presentation.daylightLocation,null);
+ assert.ok(win,'model window is active for state broadcasts');
 });
 
 test('changing character identity clears the prior bubble and resets model mouth before publishing new state',async t=>{

@@ -97,3 +97,34 @@ test('old response audio arriving after a new bilingual reply cannot be played',
   delayed.resolve({id:'old',text:'古い返事です。'});await tick();
   assert.deepEqual(played,[{id:'new',text:'新しい返事です。'}]);
 });
+
+test('real main IPC converts a Japanese-only remote answer for the desktop while retaining Japanese speech',async()=>{
+  const {mainHarness}=require('./helpers/main-harness.cjs');
+  const profile={id:'remote',base:'https://example.test/v1',model:'synthetic'};
+  const answer='こんにちは、今日はどうだった？';
+  const app=await mainHarness({state:{profiles:[profile],activeProfile:profile.id,conversations:[],translationMode:'api'},reply:async({messages})=>messages[0].content.includes('Japanese text into natural Simplified Chinese')?'你好，今天过得怎么样？':answer});
+  const result=await app.invoke('chat',{id:'japanese-provider',profileId:profile.id,messages:[{role:'user',content:'今天怎么样？'}]});
+  assert.equal(result.bilingual.zh,'你好，今天过得怎么样？');assert.equal(result.bilingual.ja,answer);
+  assert.equal(app.companions.replies.at(-1).zh,result.bilingual.zh);assert.equal(app.companions.replies.at(-1).ja,answer);
+});
+
+test('local JSON reply is parsed before forwarding, never leaving JSON syntax in companion bubble',async()=>{
+  const {mainHarness}=require('./helpers/main-harness.cjs');
+  const app=await mainHarness({state:{chatMode:'local',conversations:[]},localReply:JSON.stringify({zh:'下午好。',ja:'こんにちは。'})});
+  const result=await app.invoke('chat',{id:'local-json',mode:'local',messages:[{role:'user',content:'你好'}]});
+  assert.equal(result.bilingual.zh,'下午好。');assert.equal(app.companions.replies.at(-1).zh,'下午好。');
+  assert.equal(result.bilingual.ja,'ローカルで翻訳しました。');
+});
+
+test('proactive model request reuses the saved provider without reading visual input or writing a fake user turn',async()=>{
+  const {mainHarness}=require('./helpers/main-harness.cjs');const profile={id:'remote',base:'https://example.test/v1',model:'synthetic'};
+  const app=await mainHarness({state:{profiles:[profile],activeProfile:'remote',activeCharacter:'yukino',conversations:[],translationMode:'api'},reply:'今天有空听听歌吗？'});
+  const abort=new AbortController();const result=await app.companions.options.onProactive({id:'proactive-1',prompt:'聊聊音乐'},{signal:abort.signal,characterId:'yukino'});
+  assert.equal(result.zh,'今天有空听听歌吗？');assert.equal(app.requests.length,1);assert.match(app.requests[0].messages.at(-1).content,/聊聊音乐/);assert.doesNotMatch(JSON.stringify(app.requests[0]),/image_url/);assert.deepEqual(JSON.parse(app.storage.get('state.json')).conversations,[]);
+});
+test('a user chat preempts an in-flight proactive generation',async()=>{
+  const {mainHarness}=require('./helpers/main-harness.cjs');const profile={id:'remote',base:'https://example.test/v1',model:'synthetic'},entered=gate(),pending=gate();let count=0;
+  const app=await mainHarness({state:{profiles:[profile],activeProfile:'remote',activeCharacter:'yukino',conversations:[],translationMode:'api'},reply:async()=>{if(++count===1){entered.resolve();await pending.promise;return '迟来的消息。';}return JSON.stringify({zh:'你好',ja:'こんにちは。'});}});
+  const abort=new AbortController(),first=app.companions.options.onProactive({id:'proactive-old',prompt:'主动聊天'},{signal:abort.signal,characterId:'yukino'});await entered.promise;
+  const reply=await app.invoke('chat',{id:'user-chat',profileId:'remote',messages:[{role:'user',content:'你好'}]});assert.equal(reply.bilingual.zh,'你好');pending.resolve();await assert.rejects(first);
+});

@@ -148,6 +148,36 @@ class WorkerTests(unittest.TestCase):
         self.assertFalse(worker.is_oom(ValueError('missing file')))
         self.assertTrue(worker.is_oom(RuntimeError('CUDA out of memory')))
 
+    def test_cuda_errors_fall_back_but_model_errors_do_not(self):
+        for message in ['CUDA error: invalid device function', 'CUBLAS_STATUS_EXECUTION_FAILED', 'CUDA out of memory']:
+            self.assertTrue(worker.is_gpu_failure(RuntimeError(message)))
+        self.assertFalse(worker.is_gpu_failure(ValueError('missing checkpoint')))
+        # The configured fallback must still proceed if driver cleanup fails.
+        torch = SimpleNamespace(cuda=SimpleNamespace(empty_cache=mock.Mock(side_effect=RuntimeError('driver gone'))))
+        worker.release_cuda_cache(torch)
+        torch.cuda.empty_cache.assert_called_once()
+
+    def test_synthesis_cuda_failure_recovers_on_cpu_with_reason(self):
+        class BrokenPipeline:
+            def run(self, params):
+                raise RuntimeError('CUDA error: invalid device function')
+        class Torch:
+            cuda = SimpleNamespace(empty_cache=mock.Mock(side_effect=RuntimeError('driver gone')))
+            def inference_mode(self): return contextlib.nullcontext()
+        engine = worker.Engine()
+        engine.pipeline, engine.torch = BrokenPipeline(), Torch()
+        engine.cfg = {'reference':'reference.wav','promptText':'', 'promptLang':'ja', 'cpuFallback':True}
+        engine.metadata = {'device':'cuda:0'}
+        with mock.patch.object(engine, 'load') as load:
+            def fake_load(config, **kwargs):
+                engine.metadata={'device':'cpu'}
+                engine.pipeline=SimpleNamespace(run=lambda params: (_ for _ in ()).throw(RuntimeError('cpu retry reached')))
+            load.side_effect=fake_load
+            with self.assertRaisesRegex(RuntimeError, 'cpu retry reached'):
+                engine.synthesize('こんにちは。', 1)
+            self.assertTrue(load.call_args.kwargs['force_cpu'])
+            self.assertIn('invalid device function',load.call_args.kwargs['fallback_reason'])
+
     def test_synthesis_language_is_fixed_even_if_stale_config_requests_chinese(self):
         captured = {}
         class Pipeline:

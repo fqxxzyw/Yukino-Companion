@@ -16,3 +16,9 @@
 .model-companion header button{flex:none;align-self:flex-start}
 .model-companion header .model-reply{display:block;flex:1 1 0;min-width:0;max-width:none;max-height:min(160px,32vh);margin:0;padding:4px 2px;overflow-y:auto;overscroll-behavior:contain;overflow-wrap:anywhere;white-space:pre-wrap;background:transparent;border:0;border-radius:0;font-size:13px;line-height:1.5;cursor:text;user-select:text;scrollbar-width:thin}
 .model-companion header .model-reply:focus-visible{outline:2px solid #477fd1;outline-offset:1px;border-radius:4px}
+/* Reserve the reply's area above the character rather than painting it over
+   the face. Its height remains bounded even for a long streaming response;
+   the text scrolls within that area and the native window does not grow. */
+.model-companion header:has(.model-reply){height:clamp(44px,28vh,152px);align-items:stretch}
+.model-companion header:has(.model-reply) .model-reply{max-height:100%;align-self:stretch}
+.model-companion header:has(.model-reply) + .model-window-canvas{top:calc(16px + clamp(44px,28vh,152px))}

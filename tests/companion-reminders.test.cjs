@@ -1,6 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {CompanionReminderPolicy,validateReminderConfig,REMINDER_DEFAULTS,LIMITS}=require('../electron/companion-reminders.cjs');
+const {validateProactiveConfig,PROACTIVE_DEFAULTS,withinHours}=require('../electron/companion-reminders.cjs');
 const active={companionVisible:true,locked:false,suspended:false,systemIdleSeconds:0};
 function fixture(config={enabled:true,intervalMinutes:30}){let time=0;const p=new CompanionReminderPolicy({now:()=>time,config});p.tick(active);return {p,tick(ms=1000,flags={}){time+=ms;return p.tick({...active,...flags});},advance(ms,flags={}){const events=[];for(let remaining=ms;remaining>0;){const step=Math.min(1000,remaining);const event=this.tick(step,flags);if(event)events.push(event);remaining-=step;}return events;},setTime(value){time=value;},observe(extra={}){return p.observe({...active,consent:true,visualSessionActive:true,resultId:'result-one',...extra});}};}
 test('reminders are off by default and settings are finite discrete values',()=>{assert.deepEqual(validateReminderConfig(),REMINDER_DEFAULTS);for(const intervalMinutes of[30,45,60,90,120])assert.equal(validateReminderConfig({enabled:true,intervalMinutes}).intervalMinutes,intervalMinutes);for(const value of[null,[],{enabled:'yes'},{enabled:1},{intervalMinutes:'30'},{intervalMinutes:0},{intervalMinutes:NaN},{intervalMinutes:Infinity},{intervalMinutes:31}])assert.throws(()=>validateReminderConfig(value));});
@@ -25,3 +26,18 @@ test('busy observation is consumed without a delayed greeting after the user ret
 test('due break reminder has priority over an optional visual greeting',()=>{const f=fixture();f.advance(30*60000,{chatBusy:true});assert.equal(f.observe(),null);assert.equal(f.tick().type,'break-reminder');assert.equal(f.observe({resultId:'next-result'}),null);});
 test('disabled reminders do not imply disabled explicitly consented observation greetings',()=>{const f=fixture(REMINDER_DEFAULTS);f.advance(60000);assert.equal(f.observe().type,'visual-greeting');assert.equal(f.p.snapshot().activeUsageMs,0);});
 test('snapshot and returned config are copies; reset clears counters but does not enable anything',()=>{const f=fixture();f.advance(60000);const snapshot=f.p.snapshot();snapshot.config.enabled=false;assert.equal(f.p.snapshot().config.enabled,true);f.p.reset();assert.equal(f.p.snapshot().activeUsageMs,0);assert.equal(f.p.snapshot().lastReminderAt,null);assert.equal(f.p.snapshot().config.enabled,true);assert.equal(f.tick(),null);});
+
+test('proactive messages are opt-in, validated, and honor allowed local hours including overnight',()=>{
+ assert.equal(validateProactiveConfig().enabled,false);for(const value of [{enabled:'yes'},{mode:'other'},{intervalMinutes:4},{intervalMinutes:1441},{prompt:'x'.repeat(501)},{startHour:24},{enabled:true,mode:'fixed',text:' '}])assert.throws(()=>validateProactiveConfig(value));
+ assert.equal(withinHours(23,22,6),true);assert.equal(withinHours(4,22,6),true);assert.equal(withinHours(9,22,6),false);assert.equal(withinHours(9,0,0),true);
+});
+test('opted-in proactive fixed message waits for active time and never overlaps busy or visuals',()=>{
+ let time=0;const p=new CompanionReminderPolicy({now:()=>time,proactive:{...PROACTIVE_DEFAULTS,enabled:true,intervalMinutes:5,text:'测试问候',startHour:8,endHour:22}}),a={...active,hour:10,showBubbles:true};
+ p.tick(a);for(let i=0;i<299;i++){time+=1000;assert.equal(p.tick(a),null)}
+ time+=1000;assert.equal(p.tick({...a,visualBusy:true}),null);time+=1000;const e=p.tick(a);assert.equal(e.type,'proactive-message');assert.equal(e.text,'测试问候');assert.equal(p.tick(a),null);
+ for(let i=0;i<300;i++){time+=1000;assert.equal(p.tick({...a,chatBusy:true}),null)}assert.equal(p.snapshot().proactive.remainingMs,300000);
+});
+test('breaks take priority over simultaneous proactive messages and cooldown prevents a double popup',()=>{
+ let time=0;const p=new CompanionReminderPolicy({now:()=>time,config:{enabled:true,intervalMinutes:30},proactive:{...PROACTIVE_DEFAULTS,enabled:true,intervalMinutes:30,startHour:0,endHour:0}}),a={...active,hour:10,showBubbles:true};p.tick(a);
+ let result;for(let i=0;i<1800;i++){time+=1000;result=p.tick(a)}assert.equal(result.type,'break-reminder');time+=1000;assert.equal(p.tick(a),null);time+=29000;assert.equal(p.tick(a).type,'proactive-message');
+});

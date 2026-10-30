@@ -21,3 +21,7 @@
 .api-spinner{animation:api-spin 1s linear infinite}@keyframes api-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.api-spinner{animation:none}.api-advanced-toggle svg{transition:none}}
 .reduce .api-spinner{animation:none}
+.api-connection-status{display:flex;align-items:center;gap:8px;margin:12px 0 16px;color:var(--secondary);font-size:12px}
+.api-connection-status i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.api-connection-status.ready{color:#24714e}.api-connection-status.error{color:var(--danger)}.api-connection-status.checking{color:var(--accent-text)}
+@media (prefers-reduced-motion:no-preference){.api-connection-status.checking i{animation:api-connection-pulse 1.4s ease-in-out infinite}@keyframes api-connection-pulse{50%{opacity:.45;transform:scale(.75)}}}

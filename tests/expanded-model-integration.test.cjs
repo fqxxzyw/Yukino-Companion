@@ -17,7 +17,7 @@ async function hookHarness(t,component,api={}){
  export const useLayoutEffect=useEffect;export function flush(){effects.splice(0).forEach(fn=>fn())}
  export function unmount(){for(const fn of cleanups.values())fn?.();cleanups.clear()}
  `);
- await fs.writeFile(dummyFile,`export default ()=>null;export const useReducedMotion=value=>!!value;export const models=[];`);
+ await fs.writeFile(dummyFile,`export default ()=>null;export const useReducedMotion=value=>!!value;export const useLocalDaylight=value=>value?.latitude===35?{kind:'solar',elevation:40,hourAngle:0}:12;export const models=[];`);
  await fs.writeFile(runtimeFile,`
  export const instances=[];
  export class GlbAvatarRenderer{
@@ -43,7 +43,7 @@ async function hookHarness(t,component,api={}){
  for(const name of ['react/jsx-runtime','react-dom/client','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
  code=code.replace(/(["'])(\.[^"']+)\1/g,(all,_quote,specifier)=>{
   let file;if(specifier.endsWith('model-runtime.mjs'))file=runtimeFile;
-  else if(/(?:use-reduced-motion\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
+  else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
   else file=path.resolve(root,path.dirname(component),specifier);
   return JSON.stringify(pathToFileURL(file).href);
  });
@@ -95,6 +95,7 @@ test('desktop model reply is inside its drag header and defaults to Chinese',asy
  const header=walk(h.tree).find(node=>node.type==='header'),replies=walk(h.tree).filter(node=>node.props?.className==='model-reply');
  assert.equal(replies.length,1);assert.ok(walk(header).includes(replies[0]));assert.equal(replies[0].props.children,'你好，今天辛苦了。');
  receive({character:{id:'a',name:'雪乃'},preferences:{bubbleLanguage:'ja'},reply:{zh:'你好',ja:'こんにちは。'}});h.render();await h.settle();assert.equal(walk(h.tree).find(node=>node.props?.className==='model-reply').props.children,'こんにちは。');
+ receive({character:{id:'a',name:'雪乃'},preferences:{},reply:{zh:'',ja:'こんにちは。'}});h.render();await h.settle();assert.match(walk(h.tree).find(node=>node.props?.className==='model-reply').props.children,/中文暂不可用 · 日文原文/);
 });
 
 test('a pointer captured before gait and a render-delayed reset button cannot change the locked view',async t=>{
@@ -112,12 +113,31 @@ test('actual CharacterPanel sees newly imported catalog before selecting custom 
  h.render({...initial,character:{id:'a',modelId:''}});await h.settle();assert.equal(runtime.disposed,true);assert.equal(runtime.entry,null);
 });
 
+test('scene changes retain the user\'s saved daylight location',async t=>{
+ const h=await hookHarness(t,'src/ui/CharacterPanel.jsx');let update;
+ const location={latitude:35,longitude:139},props={side:'right',width:300,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',daylightLocation:location},reducedMotion:true};
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render();
+ walk(h.tree).find(node=>node.type==='button'&&node.props?.children==='海边').props.onClick();
+ assert.equal(update.scene,'beach');assert.deepEqual(update.daylightLocation,location);
+});
+
 test('actual CharacterSettings coalesces same-turn duplicate create submissions before rerender',async t=>{
  let creates=0,finish;const gate=new Promise(resolve=>finish=resolve),h=await hookHarness(t,'src/ui/CharacterSettings.jsx');
  h.render({characters:[{id:'a',name:'A'}],current:{id:'a',name:'A'},models:[],onCreate:async()=>{creates++;await gate}});
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  const submit=walk(h.tree).find(node=>node.type==='form').props.onSubmit;
  const first=submit({preventDefault(){}}),second=submit({preventDefault(){}});finish();await Promise.all([first,second]);await h.settle();assert.equal(creates,1);
+});
+
+test('manual daylight location requires valid coordinates and can be cleared',async t=>{
+ const h=await hookHarness(t,'src/ui/SunlightLocationSettings.jsx');let submitted='unchanged';
+ const props={value:null,onChange:value=>submitted=value},walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const find=(type)=>walk(h.tree).filter(node=>node.type===type);
+ h.render(props);assert.equal(find('button')[0].props.disabled,true);
+ find('input')[0].props.onChange({target:{value:'35.6895'}});find('input')[1].props.onChange({target:{value:'181'}});h.render();assert.equal(find('button')[0].props.disabled,true);
+ find('input')[1].props.onChange({target:{value:'139.6917'}});h.render();assert.equal(find('button')[0].props.disabled,false);find('button')[0].props.onClick();assert.deepEqual(submitted,{latitude:35.6895,longitude:139.6917});
+ h.render({...props,value:submitted});h.render({...props,value:submitted});assert.equal(find('button').length,2);find('button')[1].props.onClick();assert.equal(submitted,null);
 });
 
 async function cpuRenderer(){
@@ -243,4 +263,4 @@ test('native model QA uses the production player and demands clock, pause, gestu
  assert.match(source,/src\/speech\/player\.mjs/);assert.match(source,/__qaAudio\.play\(bytes/);assert.match(source,/getSnapshot\(\)/);assert.match(source,/context\.suspend\(\)/);assert.match(source,/context\.resume\(\)/);assert.match(source,/!started\|\|!paused\|\|!gesture\|\|!complete\|\|!cleared/);assert.match(source,/Actual AudioContext suspension did not freeze speech/);assert.match(source,/Suspended audio did not release gesture weight/);assert.match(source,/await checkActualAudioClock\(\)/);assert.match(preload,/onSpeech/);
 });
 
-test('independent model preserves lighting/toon settings and available-language visual bubble',async t=>{let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();const runtime=h.runtime.instances[0],environments=[],styles=[];runtime.setEnvironment=value=>environments.push(value);runtime.setRenderStyle=value=>styles.push(value);receive({character:{id:'a',modelId:'',presentation:{scene:'beach',timeOfDay:'evening',renderStyle:'toon'}},preferences:{bubbleLanguage:'ja'},reply:{zh:'当前视觉回复',ja:''}});h.render();await h.settle();assert.deepEqual(environments.at(-1),{id:'beach',timeOfDay:'evening'});assert.equal(styles.at(-1),'toon');const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];assert.equal(walk(h.tree).find(n=>n.props?.className==='model-reply').props.children,'中文：当前视觉回复')});
+test('independent model preserves lighting/toon settings and available-language visual bubble',async t=>{let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();const runtime=h.runtime.instances[0],environments=[],styles=[];runtime.setEnvironment=value=>environments.push(value);runtime.setRenderStyle=value=>styles.push(value);receive({character:{id:'a',modelId:'',presentation:{scene:'beach',timeOfDay:'evening',renderStyle:'toon',daylightLocation:{latitude:35,longitude:139}}},preferences:{bubbleLanguage:'ja'},reply:{zh:'当前视觉回复',ja:''}});h.render();await h.settle();assert.deepEqual(environments.at(-1),{id:'beach',timeOfDay:{kind:'solar',elevation:40,hourAngle:0}});assert.equal(styles.at(-1),'toon');const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];assert.equal(walk(h.tree).find(n=>n.props?.className==='model-reply').props.children,'中文：当前视觉回复')});

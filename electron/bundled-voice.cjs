@@ -34,7 +34,7 @@ async function readVoicePreset(resourceRoot) {
       referenceSource:manifest.referenceSource,transcriptVerification:manifest.transcriptVerification,ready:true} };
 }
 
-async function bundledVoiceDefaults({ resourceRoot, dataRoot, runtimeRoot }) {
+async function bundledVoiceDefaults({ resourceRoot, dataRoot, legacyDataRoot, runtimeRoot }) {
   const candidates=[runtimeRoot,resourceRoot,path.join(dataRoot,'runtime','current')].filter(Boolean);
   const result={...DEFAULTS};
   const engine=(await Promise.all(candidates.map(async root=>{const item=path.join(root,'inference-engine');return await exists(path.join(item,'yukino-runtime.json'))?item:null;}))).find(Boolean);
@@ -44,11 +44,15 @@ async function bundledVoiceDefaults({ resourceRoot, dataRoot, runtimeRoot }) {
     // Upstream writes pronunciation caches; keep packaged or downloaded source
     // read-only and use a private copy. Checkpoints are referenced in place.
     const installed=path.join(dataRoot,'speech-engine',manifest.revision),marker=path.join(installed,'.installed');
-    if(!await exists(marker)) {
-      await fs.mkdir(installed,{recursive:true});await fs.cp(engine,installed,{recursive:true,force:true});
-      await fs.writeFile(marker,manifest.revision);
+    const previous=legacyDataRoot&&path.join(legacyDataRoot,'speech-engine',manifest.revision);
+    if(await exists(marker)) result.root=installed;
+    else if(previous&&await exists(path.join(previous,'.installed'))) result.root=previous;
+    else {
+      try{
+        await fs.mkdir(installed,{recursive:true});await fs.cp(engine,installed,{recursive:true,force:true});
+        await fs.writeFile(marker,manifest.revision);result.root=installed;
+      }catch(error){if(!['EACCES','EPERM','EROFS'].includes(error.code))throw error;}
     }
-    result.root=installed;
   }
   for(const candidate of candidates) {
     const runtime=path.join(candidate,'python-runtime');

@@ -5,13 +5,17 @@ const fs = require('node:fs/promises');
 const { UsageTracker } = require('./usage.cjs');
 const { PET_DEFAULTS, petPreferences, parseLegacySettings, QuotePicker } = require('./pet-features.cjs');
 const petQuotes = require('./companion-view/quotes.json');
-const {CompanionReminderPolicy,validateReminderConfig}=require('./companion-reminders.cjs');
+const {CompanionReminderPolicy,validateReminderConfig,validateProactiveConfig,withinHours,PROACTIVE_DEFAULTS}=require('./companion-reminders.cjs');
 const {speechSnapshot}=require('./speech-snapshot.cjs');
 const {verifyVideoPreviewPack,VIDEO_GAIT}=require('./companion-video-pack.cjs');
 const {validBody,clampSubject}=require('./companion-geometry.cjs');
 const MODES = new Set(['none', 'model', 'pet', 'both']);
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'model', 'pet', 'both']);
-const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,...PET_DEFAULTS });
+const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,proactive:PROACTIVE_DEFAULTS,...PET_DEFAULTS });
+function daylightLocation(value){
+ if(!value||typeof value.latitude!=='number'||typeof value.longitude!=='number'||!Number.isFinite(value.latitude)||!Number.isFinite(value.longitude)||Math.abs(value.latitude)>90||Math.abs(value.longitude)>180)return null;
+ return {latitude:value.latitude,longitude:value.longitude};
+}
 function sanitizePreferences(value = {}, base = DEFAULTS) {
   const next = { ...base, ...value };
   if(!['sprite','video-preview'].includes(next.petRenderer))throw Error('无效的桌宠渲染模式');
@@ -23,12 +27,13 @@ function sanitizePreferences(value = {}, base = DEFAULTS) {
   if (!['left', 'right'].includes(next.position)) throw Error('无效的人物位置');
   if (!Number.isFinite(next.scale) || next.scale < .6 || next.scale > 2) throw Error('桌宠缩放应在 0.6–2 倍之间');
   const reminder=validateReminderConfig({enabled:next.breakReminders,intervalMinutes:next.breakIntervalMinutes});
+  const proactive=validateProactiveConfig(next.proactive);
   const positions = {};
   for (const kind of ['pet', 'model']) {
     const p = next.positions?.[kind];
     if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) positions[kind] = { x: Math.round(p.x), y: Math.round(p.y), ...(validBody(p.body)?{body:validBody(p.body)}:{}) };
   }
-  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, mouseThrough:next.mouseThrough, animation: !!next.animation, positions };
+  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes,proactive, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, mouseThrough:next.mouseThrough, animation: !!next.animation, positions };
 }
 function kindsForMode(mode) { return mode === 'both' ? ['model', 'pet'] : mode === 'none' ? [] : [mode]; }
 function clampBounds(bounds, area) {
@@ -81,11 +86,12 @@ function moveDraggedWindow(win, drag, screen, finalInputPoint=null) {
 
 
 class CompanionManager {
-  constructor({ electron, dataDir, onOpenMain = () => {}, onQuit = () => electron.app.quit(), onChange = () => {}, onCloseRequested = () => {}, onError = () => {}, onOpenSettings = () => {}, onChat = async () => false, onChatStop = () => {}, onVision = () => {}, onVisionStop = () => {}, onModelCatalog = async()=>({models:[]}), onUse=()=>{}, onReminder=()=>{}, onModelData = async () => { throw Error('人物模型数据尚未准备好'); } }) {
+  constructor({ electron, dataDir, onOpenMain = () => {}, onQuit = () => electron.app.quit(), onChange = () => {}, onCloseRequested = () => {}, onError = () => {}, onOpenSettings = () => {}, onChat = async () => false, onChatStop = () => {}, onVision = () => {}, onVisionStop = () => {}, onModelCatalog = async()=>({models:[]}), onUse=()=>{}, onReminder=()=>{}, onProactive=async()=>{throw Error('主动生成尚未准备');}, onModelData = async () => { throw Error('人物模型数据尚未准备好'); } }) {
     this.e = electron; this.dataDir = dataDir; this.onOpenMain = onOpenMain; this.onQuit = onQuit; this.onChange = onChange; this.onCloseRequested = onCloseRequested; this.onError = onError; this.onOpenSettings = onOpenSettings; this.onChat=onChat; this.onChatStop=onChatStop; this.onVision=onVision;this.onVisionStop=onVisionStop;this.visionActive=false;this.onModelData=onModelData;this.onModelCatalog=onModelCatalog;this.onUse=onUse;this.onReminder=onReminder;this.reminders=new CompanionReminderPolicy();this.character={id:'yukino',name:'雪之下雪乃',modelId:''};
     this.quotes = new QuotePicker(petQuotes); this.petMood={affection:12,annoyance:0,lastInteraction:Date.now()};
     this.preferences = { ...DEFAULTS, positions: {} }; this.windows = new Map(); this.menus = new Map(); this.chatBusy=false; this.listeners = [];
     this.usage = new UsageTracker({ file: path.join(dataDir, 'companionship.json') });
+    this.onProactive=onProactive;this.proactiveController=null;this.proactiveStatus={phase:'idle'};
     this.writeQueue = Promise.resolve(); this.quitting = false; this.pauses = new Set(); this.reply = null;
   }
   async initialize() {
@@ -106,7 +112,7 @@ class CompanionManager {
     const { powerMonitor, ipcMain, screen } = this.e;
     const listen = (emitter, name, fn) => { emitter.on(name, fn); this.listeners.push(() => emitter.removeListener(name, fn)); };
     for (const [event, flag, paused] of [['suspend','sleep',true], ['resume','sleep',false], ['lock-screen','lock',true], ['unlock-screen','lock',false]]) {
-      listen(powerMonitor, event, () => { if (paused) this.pauses.add(flag); else this.pauses.delete(flag); this.usage.update({ paused: this.pauses.size > 0 }); this.walkFraction={x:0,y:0};for(const [kind,win] of this.windows)this.sendState(win,kind);this.flush(); });
+      listen(powerMonitor, event, () => { if (paused){this.pauses.add(flag);this.cancelProactive();} else this.pauses.delete(flag); this.usage.update({ paused: this.pauses.size > 0 }); this.walkFraction={x:0,y:0};for(const [kind,win] of this.windows)this.sendState(win,kind);this.flush(); });
     }
     listen(screen, 'display-removed', () => this.repositionAll());
     listen(screen, 'display-metrics-changed', () => this.repositionAll());
@@ -114,7 +120,7 @@ class CompanionManager {
     this.listeners.push(() => ipcMain.removeHandler('companion-view'));
     this.timer = setInterval(() => this.flush(), 15000);
     this.focusTimer=setInterval(()=>this.tickFocus(),1000); this.focusTimer.unref?.(); this.timer.unref?.();
-    this.reminders.configure({enabled:this.preferences.breakReminders,intervalMinutes:this.preferences.breakIntervalMinutes});this.ensureTray(); this.applyMode(); return this.getState();
+    this.reminders.configure({enabled:this.preferences.breakReminders,intervalMinutes:this.preferences.breakIntervalMinutes});this.reminders.configureProactive(this.preferences.proactive);this.ensureTray(); this.applyMode(); return this.getState();
   }
   async setResourceRoot(root, {notify=true}={}) {
     if(typeof root!=='string'||!path.isAbsolute(root))throw Error('桌宠语音目录必须是本机绝对路径');
@@ -165,7 +171,7 @@ class CompanionManager {
     const companion = [...this.windows.values()].some(w => !w.isDestroyed() && w.isVisible());
     this.usage.update({ main: !this.quitting && !!main, companion: !this.quitting && companion });
   }
-  getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
+  getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), proactiveStatus:{...this.proactiveStatus}, usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
   updatePrefs(patch) { return this.setPreferences(patch); }
   async closeChoice(mode, {remember=false}={}) { if(remember && CLOSE_ACTIONS.has(mode))await this.setPreferences({closeAction:mode}); if (mode === 'quit') { this.quit(); return; } if (!MODES.has(mode)) throw Error('无效的关闭选项'); await this.setMode(mode); this.mainWindow?.hide(); this.refreshActivity(); this.emit(); return this.getState(); }
   async setPreferences(patch) {
@@ -175,6 +181,7 @@ class CompanionManager {
     }
     const previousPosition = this.preferences.position, previousRenderer = this.preferences.petRenderer;
     const next = sanitizePreferences(patch, this.preferences);
+    if(JSON.stringify(next.proactive)!==JSON.stringify(this.preferences.proactive)||next.quietMode||next.focusEnds>Date.now()||next.mode==='none'||!next.showBubbles)this.cancelProactive();
     if(next.startup!==this.preferences.startup){
       if(!this.startupAvailable)throw Error('开机启动仅在已安装的 Windows 或 macOS 版本可设置。');
       this.e.app.setLoginItemSettings({openAtLogin:next.startup});
@@ -183,6 +190,7 @@ class CompanionManager {
     this.preferences = next;
     if(next.petRenderer!==previousRenderer)this.walkFraction={x:0,y:0};
     this.reminders.configure({enabled:next.breakReminders,intervalMinutes:next.breakIntervalMinutes});
+    this.reminders.configureProactive(next.proactive);
     if (this.preferences.position !== previousPosition) this.preferences.positions = {};
     this.applyMode();
     for (const [kind, win] of this.windows) {
@@ -195,10 +203,10 @@ class CompanionManager {
     await this.persist(); this.emit(); return this.getState();
   }
   setCharacter(value={}) {
-    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,renderStyle:value.presentation.renderStyle}}:{})};
+    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,renderStyle:value.presentation.renderStyle,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
     // A conversation belongs to the character identity, not the currently worn model.
     // Clear before broadcasting the new identity so no window receives its predecessor's reply.
-    if(next.id!==this.character.id){this.walkFraction={x:0,y:0};this.reply=null;this.setMouthLevel(0);this.clearSpeechSnapshot();}
+    if(next.id!==this.character.id){this.cancelProactive();this.walkFraction={x:0,y:0};this.reply=null;this.setMouthLevel(0);this.clearSpeechSnapshot();}
     this.character=next;
     for(const [kind,win] of this.windows)this.sendState(win,kind);
     for(const [kind,win] of this.menus)this.sendState(win,kind,true);
@@ -208,11 +216,11 @@ class CompanionManager {
   setSpeechSnapshot(value){const snapshot=speechSnapshot(value);if(snapshot.characterId!==this.character.id||snapshot.sequence<=(this.speechSequence??-1))return false;this.speechSequence=snapshot.sequence;const win=this.windows.get('model');if(win&&!win.isDestroyed())win.webContents.send('companion-speech',snapshot);return true;}
   resetSpeechClock(){this.speechSequence=-1;this.clearSpeechSnapshot();}
   setMouthLevel(level){const win=this.windows.get('model');if(win&&!win.isDestroyed())win.webContents.send('companion-mouth',level);}
-  setVisionActive(value){this.visionActive=value===true;for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
+  setVisionActive(value){this.visionActive=value===true;if(this.visionActive)this.cancelProactive();for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
   showError(input){const kind=input&&typeof input==='object'&&input.kind==='voice'?'voice':'chat',message=typeof input==='string'?input:input?.message;const value=typeof message==='string'?message.slice(0,400):'请求没有完成';for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'chat-error',kind,message:value});}
   clearCapabilityError(kind){if(!['chat','voice'].includes(kind))return;for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'capability-recovered',kind});}
-  setSpeechBusy(value){this.speechBusy=value===true;for(const [kind,win] of this.windows){if(this.speechBusy)win.webContents.send('companion-action',{name:'audio-stop'});this.sendState(win,kind);}}
-  setChatBusy(value) { this.chatBusy=value===true; for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
+  setSpeechBusy(value){this.speechBusy=value===true;if(this.speechBusy)this.cancelProactive();for(const [kind,win] of this.windows){if(this.speechBusy)win.webContents.send('companion-action',{name:'audio-stop'});this.sendState(win,kind);}}
+  setChatBusy(value) { this.chatBusy=value===true;if(this.chatBusy)this.cancelProactive(); for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
   setMode(mode) { return this.setPreferences({ mode }); }
   showReply(reply) {
     // Chat already has its own 160k generation limit; never truncate a reply
@@ -374,10 +382,24 @@ class CompanionManager {
     if(win.webContents.isLoading?.())win.webContents.once('did-finish-load',send);else send();
     return this.getState();
   }
-  reminderActivity(){let idle=Infinity;try{idle=this.e.powerMonitor.getSystemIdleTime()}catch{}return {companionVisible:[...this.windows.values()].some(win=>!win.isDestroyed()&&win.isVisible()),locked:this.pauses.has('lock'),suspended:this.pauses.has('sleep'),systemIdleSeconds:idle,quiet:this.preferences.quietMode,focus:this.preferences.focusEnds>Date.now(),chatBusy:this.chatBusy,speechBusy:this.speechBusy===true};}
+  reminderActivity(){let idle=Infinity;try{idle=this.e.powerMonitor.getSystemIdleTime()}catch{}return {companionVisible:[...this.windows.values()].some(win=>!win.isDestroyed()&&win.isVisible()&&!win.isMinimized?.()),locked:this.pauses.has('lock'),suspended:this.pauses.has('sleep'),systemIdleSeconds:idle,quiet:this.preferences.quietMode,focus:this.preferences.focusEnds>Date.now(),chatBusy:this.chatBusy,speechBusy:this.speechBusy===true,visualBusy:this.visionActive||!!this.proactiveController,showBubbles:this.preferences.showBubbles,hour:new Date().getHours()};}
+  cancelProactive(){const controller=this.proactiveController;if(!controller)return;this.proactiveController=null;controller.abort();this.proactiveStatus={phase:'idle'};}
+  async deliverProactive(event){
+    if(event.mode==='fixed'){this.showReply({id:event.id,zh:event.text,ja:''});this.onReminder(event);return;}
+    const controller=new AbortController(),characterId=this.character.id;this.proactiveController=controller;this.proactiveStatus={phase:'generating'};this.emit();
+    try{
+      const result=await this.onProactive(event,{signal:controller.signal,characterId});
+      const activity=this.reminderActivity();
+      if(this.proactiveController!==controller||controller.signal.aborted||this.quitting||characterId!==this.character.id||!this.preferences.proactive.enabled||this.preferences.proactive.mode!=='generate'||!this.preferences.showBubbles||!activity.companionVisible||activity.locked||activity.suspended||!Number.isFinite(activity.systemIdleSeconds)||activity.systemIdleSeconds<0||activity.systemIdleSeconds>=300||activity.quiet||activity.focus||activity.chatBusy||activity.speechBusy||this.visionActive||!withinHours(activity.hour,this.preferences.proactive.startHour,this.preferences.proactive.endHour))return;
+      if(typeof result?.zh!=='string'||!result.zh.trim())throw Error('模型没有返回有效的中文主动消息');
+      const text=result.zh.trim().slice(0,1000);this.proactiveController=null;this.proactiveStatus={phase:'ready'};
+      this.showReply({id:event.id,zh:text,ja:typeof result.ja==='string'?result.ja:''});this.onReminder({...event,text});
+    }catch(error){if(this.proactiveController===controller&&!controller.signal.aborted)this.proactiveStatus={phase:'error',error:String(error?.message||'主动消息生成失败').slice(0,200)};}
+    finally{if(this.proactiveController===controller){this.proactiveController=null;if(this.proactiveStatus.phase==='generating')this.proactiveStatus={phase:'idle'};}this.emit();}
+  }
   tickFocus() {
     if(this.quitting)return;
-    const reminder=this.reminders.tick(this.reminderActivity());if(reminder){this.showReply({id:reminder.id,zh:reminder.text,ja:''});this.onReminder(reminder);}
+    const reminder=this.reminders.tick(this.reminderActivity());if(reminder){if(reminder.type==='proactive-message')void this.deliverProactive(reminder);else{this.showReply({id:reminder.id,zh:reminder.text,ja:''});this.onReminder(reminder);}}
     if(this.preferences.focusEnds>0&&this.preferences.focusEnds<=Date.now()&&!this.drag){
       this.preferences.focusEnds=0;this.persist().catch(this.onError);
       const pet=this.windows.get('pet');if(pet&&!pet.isDestroyed())pet.webContents.send('companion-action',{name:'focus-complete'});
@@ -413,7 +435,7 @@ class CompanionManager {
   flush() { this.usage.save().then(() => this.emit()).catch(this.onError); }
   quit() { this.quitting = true; this.onQuit(); }
   async dispose() {
-    this.quitting = true; clearInterval(this.timer); clearInterval(this.focusTimer); this.usage.update({ main: false, companion: false });
+    this.quitting = true;this.cancelProactive(); clearInterval(this.timer); clearInterval(this.focusTimer); this.usage.update({ main: false, companion: false });
     for (const cleanup of this.listeners.splice(0)) cleanup();
     for(const kind of [...this.menus.keys()])this.closeMenu(kind);
     for (const win of this.windows.values()) if (!win.isDestroyed()) win.destroy();

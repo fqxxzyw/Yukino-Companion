@@ -10,7 +10,7 @@ const zh='先不必急着给今天下结论。\n\n把让你在意的那件事说
 const ja='今日のことを、今すぐ結論づける必要はないわ。\n\n気になっていることを話してみて。一緒に考えましょう。外の雨も上がったし、自分のために少し時間を残してもいいでしょう。';
 let state={
   characters:[{id:'yukino',name:'雪之下雪乃',modelId:'',builtin:true,persona:'',personaEnabled:true,personaPromptMode:'detailed',memory:'',useMemory:false}],activeCharacter:'yukino',
-  collapsed:false,side:'left',showAvatar:true,width:290,accent:'#477fd1',background:'#f1f6fc',reduce:true,
+  collapsed:false,showAvatar:true,width:290,accent:'#477fd1',background:'#f1f6fc',reduce:true,
   bubbleLanguage:'both',translationMode:'api',chatMode:'api',setupDismissedVersion:'',
   profiles:[{id:'visual-qa',name:'界面验证 · 无网络请求',providerId:'custom',base:'https://example.invalid/v1',model:'qa-chat'}],activeProfile:'visual-qa',
   conversations:[{id:'qa-conversation',title:'雨后的图书馆（界面测试）',messages:[

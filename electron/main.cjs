@@ -1,6 +1,7 @@
 const {canUseSkin}=require('./skin-policy.cjs');
 const electron = require('electron');
-const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard} = electron;
+const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard, nativeImage} = electron;
+const {WallpaperStore}=require('./wallpapers.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {endpoint} = require('./chat.cjs');
@@ -28,6 +29,7 @@ const {managedRuntimeBinary}=require('./runtime-paths.cjs');
 const {SetupService} = require('./setup.cjs');
 const {ResourcePacks}=require('./resource-packs.cjs');
 const {resourceSources}=require('./resource-sources.cjs');
+const {selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate}=require('./resource-directory.cjs');
 const defaultVoicePreset=require('../resources/voice-presets/yukino-default.json');
 const {providerCatalog, discoverModels} = require('./providers.cjs');
 const {TranslationService, validateConfig: validateTranslation} = require('./translation.cjs');
@@ -36,11 +38,12 @@ const {CompanionManager} = require('./companions.cjs');
 const voiceCatalog = require('../resources/voice-models.json');
 const translationManifest = require('../translation/model-manifest.json');
 const outputInstruction = local => local ? '请用简体中文自然回答。不要自行附加其他语言翻译。' : BILINGUAL_INSTRUCTION;
-let win, controller, speech, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks;
-let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false, flushResolver;
+let win, controller, proactiveGeneration, speech, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks;
+let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false;
+const flushResolvers=new Map();
 function flushRenderer() {
-  if(!win || win.isDestroyed()) return Promise.resolve();
-  return new Promise(resolve => { const id=require('node:crypto').randomUUID(); const timer=setTimeout(()=>{flushResolver=null;resolve();},2000); flushResolver={id,resolve:()=>{clearTimeout(timer);flushResolver=null;resolve();}}; send('flush-state',{id}); });
+  if(!win || win.isDestroyed()) return Promise.resolve(false);
+  return new Promise(resolve => { const id=require('node:crypto').randomUUID(); const timer=setTimeout(()=>{flushResolvers.delete(id);resolve(false);},5000); flushResolvers.set(id,ok=>{clearTimeout(timer);flushResolvers.delete(id);resolve(ok===true);}); send('flush-state',{id}); });
 }
 const location = name => path.join(app.getPath('userData'), name);
 const resourceRoot = () => app.isPackaged ? process.resourcesPath : path.join(__dirname, '../build');
@@ -65,6 +68,7 @@ function updateVoice(update){
   saveQueue=job.catch(()=>{});return job;
 }
 function apiOrigin(base) { endpoint(base); return new URL(base).origin; }
+
 async function migrateKeys() {
   const keys=await read('keys.json',{}),state=await read('state.json',{});let changed=false;
   for(const [id,value] of Object.entries(keys))if(typeof value==='string'){
@@ -97,6 +101,12 @@ else {
   app.whenReady().then(async () => {
     app.setAppUserModelId?.('io.github.fqxxzyw.yukino');
     await migrateKeys();
+    const legacyDataRoot=app.getPath('userData');
+    const resourceSetting=await read('resource-directory.json',{});
+    const resourceDataRoot=selectResourceDirectory({configured:resourceSetting.directory,packaged:app.isPackaged,executable:process.execPath,userData:legacyDataRoot});
+    const resourceGate=new ResourceDirectoryGate();
+    const assetLocation=name=>path.join(resourceDataRoot,name);
+    const withResourceStorage=action=>resourceGate.run(async()=>{await assertWritableDirectory(resourceDataRoot);return action();});
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler?.(()=>false);
     win = new BrowserWindow({width:1280,height:840,minWidth:760,minHeight:580,frame:false,icon:path.join(__dirname,'../dist/yukino-icon.png'),backgroundColor:'#f1f6fc',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
@@ -104,25 +114,25 @@ else {
     win.webContents.setWindowOpenHandler(() => ({action:'deny'}));
     win.webContents.on('will-navigate', event => event.preventDefault());
     const workerPath = name => app.isPackaged ? path.join(process.resourcesPath, name, 'worker.py') : path.join(__dirname, '..', name, 'worker.py');
-    speech = new SpeechService({script:workerPath('inference'),stateDir:location('speech-runtime'),notify:status=>send('voice-status',status)});
+    speech = new SpeechService({script:workerPath('inference'),stateDir:assetLocation('speech-runtime'),notify:status=>send('voice-status',status)});
     voiceStart = new VoiceSessionStart({speech,readConfig:voiceConfig,onBusy:value=>companions?.setSpeechBusy?.(value),canBegin:()=>speechClockReady&&!shuttingDown});
-    resourcePacks=new ResourcePacks({dataRoot:app.getPath('userData'),fetcher:(url,options)=>net.fetch(url,options),notify:(id,progress)=>setup?.report(id,progress)});
-    runtime=new RuntimeManager({dataRoot:app.getPath('userData'),resourceRoot:resourceRoot(),catalogPath:path.join(resourceRoot(),'runtime-catalog.json'),fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
+    resourcePacks=new ResourcePacks({dataRoot:resourceDataRoot,legacyDataRoot,fetcher:(url,options)=>net.fetch(url,options),notify:(id,progress)=>setup?.report(id,progress)});
+    runtime=new RuntimeManager({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),catalogPath:path.join(resourceRoot(),'runtime-catalog.json'),fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
     const modelDir=app.isPackaged?path.join(process.resourcesPath,'translation-models',translationManifest.directory):path.join(__dirname,'../translation/models',translationManifest.directory);
     const localModelDir=app.isPackaged?path.join(resourceRoot(),'local-model/yukino-1.5b-persona-q4'):path.join(__dirname,'../resources/local-model/yukino-1.5b-persona-q4');
     const localScript=app.isPackaged?path.join(process.resourcesPath,'local-chat/desktop_worker.py'):path.join(__dirname,'../model-service/desktop_worker.py');
-    const managedBinary=(saved,selected)=>managedRuntimeBinary(saved,selected,{dataRoot:app.getPath('userData'),resourceRoot:resourceRoot()});
+    const managedBinary=(saved,selected)=>managedRuntimeBinary(saved,selected,{dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot()});
     const bundleReady=(async()=>{
       const current=await runtime.current(),chatPack=await resourcePacks.status('chat');
-      voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});
+      voiceBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:resourceDataRoot,legacyDataRoot,runtimeRoot:current.root});
       const savedVoice=await read('speech.json',{}), savedTranslation=await read('translation.json',{}),savedLocal=await read('local-chat.json',{});
       const selectedPython=current.python||voiceBundle.defaults.python||process.env.YUKINO_PYTHON||'';
       savedVoice.python=managedBinary(savedVoice.python,selectedPython);savedVoice.ffmpeg=managedBinary(savedVoice.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);
       const python=selectedPython||savedVoice.python;
-      translation=new TranslationService({script:workerPath('translation'),stateDir:location('translation-runtime'),modelDir,python,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('translation-status',status);setup?.report('translation',status);}});
+      translation=new TranslationService({script:workerPath('translation'),stateDir:assetLocation('translation-runtime'),modelDir,python,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('translation-status',status);setup?.report('translation',status);}});
       translation.configure({...savedTranslation,python:managedBinary(savedTranslation.python,python),modelDir:savedTranslation.modelDir||modelDir});
-      if(!(await translation.status()).modelInstalled&&savedTranslation.modelDir?.startsWith(path.join(location('translation-runtime'),'models')+path.sep))translation.configure({modelDir});
-      localChat=new LocalChatService({script:localScript,stateDir:location('local-chat-runtime'),modelDir:localModelDir,python,notify:status=>send('local-chat-status',status)});
+      if(!(await translation.status()).modelInstalled&&[assetLocation('translation-runtime'),location('translation-runtime')].some(root=>savedTranslation.modelDir?.startsWith(path.join(root,'models')+path.sep)))translation.configure({modelDir});
+      localChat=new LocalChatService({script:localScript,stateDir:assetLocation('local-chat-runtime'),modelDir:localModelDir,python,notify:status=>send('local-chat-status',status)});
       localChat.configure({...savedLocal,python:managedBinary(savedLocal.python,python),modelDir:savedLocal.modelDir||chatPack.root||localModelDir});
       makeVoiceResources();
       speech.configure(mergeVoiceDefaults(savedVoice,voiceBundle));
@@ -132,10 +142,10 @@ else {
       if(voiceResources?.controller)return; // Keep a background download owned until it finishes.
       voiceResources=new VoiceResources({root:voiceBundle.modelRoot,catalog:voiceCatalog,bundledRoot:path.join(resourceRoot(),'voice-models'),bundledPackId:voiceBundle.preset?.packId,fetcher:(url,options)=>net.fetch(url,options),notify:status=>{send('voice-download',status);setup?.report(status.packId==='core'?'voiceCore':status.packId?'voicePreset':setup?.active==='voicePreset'?'voicePreset':'voiceCore',status);}});
     }
-    async function voiceConfig(){await bundleReady;const saved=await read('speech.json',{}),current=await runtime.current();saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);if(saved.promptText===defaultVoicePreset.promptText&&[voiceBundle.defaults.reference,path.join(location('voice-presets'),'yukino-reference.wav')].includes(saved.reference))saved.promptText='';return mergeVoiceDefaults(saved,voiceBundle);}
+    async function voiceConfig(){await bundleReady;const saved=await read('speech.json',{}),current=await runtime.current();saved.python=managedBinary(saved.python,current.python||voiceBundle.defaults.python);saved.ffmpeg=managedBinary(saved.ffmpeg,current.ffmpeg||voiceBundle.defaults.ffmpeg);if(saved.promptText===defaultVoicePreset.promptText&&[voiceBundle.defaults.reference,path.join(assetLocation('voice-presets'),'yukino-reference.wav'),path.join(location('voice-presets'),'yukino-reference.wav')].includes(saved.reference))saved.promptText='';return mergeVoiceDefaults(saved,voiceBundle);}
     async function refreshRuntime(signal){
       const previous=voiceBundle,current=await runtime.current();
-      const nextBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:app.getPath('userData'),runtimeRoot:current.root});signal?.throwIfAborted();voiceBundle=nextBundle;
+      const nextBundle=await bundledVoiceDefaults({resourceRoot:resourceRoot(),dataRoot:resourceDataRoot,legacyDataRoot,runtimeRoot:current.root});signal?.throwIfAborted();voiceBundle=nextBundle;
       const value=await updateVoice(saved=>{
         signal?.throwIfAborted();
         for(const field of ['root','bert','hubert'])if(!saved[field]||saved[field]===previous.defaults[field])saved[field]=voiceBundle.defaults[field];
@@ -148,7 +158,7 @@ else {
     }
     async function installChat(signal){
       if((await localChat.status()).modelInstalled)return;
-      if(localChat.config.modelDir&&localChat.config.modelDir!==localModelDir&&!localChat.config.modelDir.startsWith(resourcePacks.root+path.sep))throw Error('已选择的自定义角色模型不完整，请在本地模型设置中重新选择或清空路径。');
+      if(localChat.config.modelDir&&localChat.config.modelDir!==localModelDir&&![resourcePacks.root,resourcePacks.legacyRoot].filter(Boolean).some(root=>localChat.config.modelDir.startsWith(root+path.sep)))throw Error('已选择的自定义角色模型不完整，请在本地模型设置中重新选择或清空路径。');
       const installed=await resourcePacks.install('chat',{signal});signal.throwIfAborted();
       localChat.configure({modelDir:installed.root});await write('local-chat.json',localChat.config);
     }
@@ -168,7 +178,7 @@ else {
       let reference=saved.reference||config.reference;
       if(!reference){const source=app.isPackaged?path.join(resourceRoot(),'voice-presets',defaultVoicePreset.reference.sourcePath):path.join(__dirname,'../resources/voice-presets',defaultVoicePreset.reference.sourcePath);
        const bytes=await fs.readFile(source);if(bytes.length!==defaultVoicePreset.reference.bytes||require('node:crypto').createHash('sha256').update(bytes).digest('hex')!==defaultVoicePreset.reference.sha256)throw Error('默认参考音频校验失败');
-       const refDir=location('voice-presets');await fs.mkdir(refDir,{recursive:true});reference=path.join(refDir,'yukino-reference.wav');await fs.writeFile(reference+'.tmp',bytes);signal.throwIfAborted();await fs.rename(reference+'.tmp',reference);}
+       const refDir=assetLocation('voice-presets');await fs.mkdir(refDir,{recursive:true});reference=path.join(refDir,'yukino-reference.wav');await fs.writeFile(reference+'.tmp',bytes);signal.throwIfAborted();await fs.rename(reference+'.tmp',reference);}
       const value=await updateVoice(latest=>{
        if(needsWeights&&(!isManaged('gpt',latest.gpt)||!isManaged('sovits',latest.sovits)))throw Error('下载期间已选择自定义音色，未覆盖你的选择。');
        if(!latest.reference&&latest.promptText?.trim())throw Error('已填写自定义参考文本，请选择与其匹配的参考音频。');
@@ -183,7 +193,7 @@ else {
       const describe=files=>({downloadBytes:files.reduce((sum,file)=>sum+(file.bytes||file.size||0),0),downloadSources:[...new Set(files.flatMap(file=>resourceSources(file.url||`${translationManifest.baseUrl}/${file.path}`,file.sources)))],helpUrl});
       const coreReady=!voice.missing?.some(x=>['bert','hubert'].includes(x.key));
       const presetReady=!voice.missing?.some(x=>['gpt','sovits','reference','promptText'].includes(x.key));
-      return {runtimeFlavor:environment.flavor,runtimeVariants:environment.variants,hardware:environment.hardware||null,device:environment.ready?(environment.metadata?.gpuAvailable?'GPU':'CPU'):null,steps:[
+      return {resourceDirectory:resourceDataRoot,pendingResourceDirectory:resourceGate.pending,runtimeFlavor:environment.flavor,runtimeVariants:environment.variants,hardware:environment.hardware||null,device:environment.ready?(environment.metadata?.gpuAvailable?'GPU':'CPU'):null,steps:[
         {id:'runtime',...describe(runtimeCatalog.variants?.cpu?.parts||[]),state:environment.ready?'ready':'missing',detail:environment.ready?`公共推理环境已安装 · ${environment.flavor}`:'按需安装 Python 与推理依赖；仅桌宠不需要。'},
         {id:'chat',downloadBytes:local.modelInstalled?0:chatPack.downloadBytes,downloadSources:chatPack.downloadSources,helpUrl,state:local.modelInstalled?(local.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:local.modelInstalled?(local.runtimeAvailable?'角色权重已安装，首次发送时自动加载验证。':'角色权重已安装，等待本地推理环境。'):'安装已训练的角色模型，无需重新训练。'},
         {id:'translation',...describe(translationManifest.files),downloadBytes:translated.modelInstalled?0:describe(translationManifest.files).downloadBytes,state:translated.modelInstalled?(translated.runtimeAvailable?'ready':'waiting-runtime'):'missing',detail:translated.modelInstalled?(translated.runtimeAvailable?'中日翻译权重已安装，首次翻译时自动加载验证。':'中日翻译权重已安装，等待本地推理环境。'):'需要准备中日翻译权重。'},
@@ -195,10 +205,10 @@ else {
       installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();if(!status.missing?.some(item=>['bert','hubert'].includes(item.key)))return {paths:{},expected:config};const paths=await voiceResources.install('core');const missing=new Set(status.missing?.map(item=>item.key));return {paths:Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key))),expected:config};},saveVoice:async result=>{const config=await updateVoice(latest=>{const current=mergeVoiceDefaults(latest,voiceBundle),paths=Object.fromEntries(Object.entries(result.paths||{}).filter(([key])=>current[key]===result.expected?.[key]));return mergeVoiceDefaults({...latest,...paths},voiceBundle);});speech.configure(config);send('voice-config-updated',config);},
       cancel:()=>{runtime.cancel();translation?.cancelInstall();voiceResources?.cancel();resourcePacks?.cancel();}});
     bundleReady.catch(error=>send('app-error',{message:error.message}));
-    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:openMain,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'}),onChat:text=>companionChatRequests.submit(text),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind)=>companionVisual?.open(owner,kind),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
+    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:openMain,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'}),onProactive:generateProactive,onChat:text=>companionChatRequests.submit(text),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind)=>companionVisual?.open(owner,kind),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
-    handle('flush-complete', id=>{if(flushResolver?.id===id)flushResolver.resolve();});
+    handle('flush-complete', (id,ok)=>{flushResolvers.get(id)?.(ok);});
     handle('copy-text', value=>{if(typeof value!=='string'||value.length>200000)throw Error('复制内容无效');clipboard.writeText(value);return true;});
     handle('load', async () => {
       const saved = await read('state.json',null);stateSignature=visualSignature(saved);
@@ -207,8 +217,11 @@ else {
     });
     handle('save', async state => {
       if (!state || !Array.isArray(state.conversations) || !Array.isArray(state.profiles) || JSON.stringify(state).length > 10000000) throw Error('无效或过大的设置');
-      const nextSignature=visualSignature(state);if(stateSignature!==null&&stateSignature!==nextSignature)vision?.cancel();stateSignature=nextSignature;companionVisual?.stateChanged(state);await write('state.json',migratePersonaState(state));await updateCompanionCharacter(state);
+      const nextSignature=visualSignature(state);if(stateSignature!==null&&stateSignature!==nextSignature){vision?.cancel();companions?.cancelProactive?.();}stateSignature=nextSignature;companionVisual?.stateChanged(state);await write('state.json',migratePersonaState(state));await updateCompanionCharacter(state);
     });
+    const wallpaperStore=new WallpaperStore(resourceDataRoot,{decode:buffer=>{const image=nativeImage.createFromBuffer(buffer);return image.isEmpty()?null:image.getSize();}});
+    handle('wallpaper-pick',()=>withResourceStorage(async()=>{const result=await dialog.showOpenDialog(win,{title:'选择自定义壁纸',properties:['openFile','multiSelections'],filters:[{name:'图片（PNG、JPEG、WebP）',extensions:['png','jpg','jpeg','webp']}]});return result.canceled?[]:wallpaperStore.import(result.filePaths);}));
+    handle('wallpaper-read',id=>wallpaperStore.read(id));
     handle('character-model-data',readCharacterModel);
     handle('character-model-catalog',()=>modelStore().catalog());
     async function pickCharacterModel(title){if(modelPickerOpen)throw Error('模型文件选择窗口已打开');const epoch=++modelPickEpoch;modelStore().cancel();modelPickerOpen=true;try{const result=await dialog.showOpenDialog(win,{title,properties:['openFile'],filters:[{name:'GLB 人物模型（最多 64 MiB）',extensions:['glb']}]});return result.canceled||epoch!==modelPickEpoch?null:result.filePaths[0];}finally{modelPickerOpen=false;}}
@@ -233,7 +246,7 @@ else {
       return discoverModels({profile:{id:profileId,base,providerId},key:providedKey||await key(profileId,base),signal:AbortSignal.timeout(30000),fetcher:(url,options)=>net.fetch(url,options)});
     });
     handle('key', async (id,value,base) => {
-      companionVisual?.stop();vision?.cancel();
+      companions?.cancelProactive?.();companionVisual?.stop();vision?.cancel();
       if(typeof id!=='string'||typeof value!=='string'||value.length>8192) throw Error('密钥格式无效');
       const keys = await read('keys.json',{});
       if(value){
@@ -247,6 +260,27 @@ else {
       const state = await read('state.json',null), profile = state?.profiles.find(p=>p.id===id);
       if(!profile?.base||!profile?.model) throw Error('请先保存 API 地址和模型名称');
       endpoint(profile.base); return {profile,key:await key(id,profile.base),state:migratePersonaState(state)};
+    }
+    async function generateProactive(event,{signal,characterId}) {
+      if(controller)throw Error('对话正在进行，主动消息已延后。');
+      const ctrl=new AbortController();controller=ctrl;proactiveGeneration=ctrl;
+      const abort=()=>ctrl.abort();signal.addEventListener('abort',abort,{once:true});if(signal.aborted)ctrl.abort();
+      let timer=setTimeout(()=>ctrl.abort(),90000);
+      try{
+        const state=migratePersonaState(await read('state.json',{}));ctrl.signal.throwIfAborted();
+        if(state.activeCharacter!==characterId)throw Error('角色已切换。');
+        const useLocal=state.chatMode==='local';
+        const settings=useLocal?{state,profile:{id:'builtin-local',name:'本地雪乃',model:'oregairu-small',base:'http://127.0.0.1'}}:await config(state.activeProfile);
+        const instruction=`请根据下面的偏好，主动向用户说一句简短自然的话；只输出简体中文，不要输出 JSON、日文或声称看到了屏幕或摄像头。\n${event.prompt}`;
+        const prepared=preparePersonaChat(settings.state,settings.profile,[{role:'user',content:instruction}]);
+        let raw='';const onToken=text=>{raw+=text;if(raw.length>4000)throw Error('主动消息过长。');};
+        if(useLocal){await bundleReady;ctrl.signal.throwIfAborted();await localChat.generate(prepared.messages,{requestId:event.id,signal:ctrl.signal,onChunk:onToken});}
+        else await chat({...settings,...prepared,signal:ctrl.signal,onToken});
+        ctrl.signal.throwIfAborted();
+        const parser=new BilingualStream(()=>{});parser.push(raw);const pair=parser.value();
+        if(!pair.zh?.trim()||/[\u3041-\u3096\u30a1-\u30fa]/u.test(pair.zh))throw Error('主动消息未返回可确认的中文。');
+        return {zh:pair.zh.trim().slice(0,1000),ja:''};
+      }finally{clearTimeout(timer);signal.removeEventListener('abort',abort);if(proactiveGeneration===ctrl)proactiveGeneration=null;if(controller===ctrl)controller=null;}
     }
     vision=new VisionSession({capturer:electron.desktopCapturer,resolveProfile:async id=>{const settings=await config(id);if(settings.state.chatMode==='local'||isYukinoLocal(settings.profile))throw Error('本地文本模型不能识别图片，请选择视觉 API。');return settings;},transport:chat,notify:state=>{send('vision-status',state);mainVisionActive=state.active===true;updateVisionIndicator()}});
     companionVisual=new CompanionVisual({electron,readState:()=>read('state.json',{}),resolveProfile:config,transport:chat,onConfigure:()=>{openMain();send('open-settings','api');},onStop:()=>send('companion-caption-stop',{source:'visual'}),onActive:active=>{companionVisionActive=active;updateVisionIndicator();},onResult:(result,characterId)=>{if(companions.character?.id===characterId){companions.showReply({id:require('node:crypto').randomUUID(),zh:result.text,ja:''});if(result.readAloud===true)send('companion-caption',{text:result.text,characterId,source:'visual'});}}});
@@ -262,6 +296,7 @@ else {
       if(!output) throw Error('连接成功但未返回正文'); return '连接成功 · 模型已返回内容';
     });
     handle('chat', async ({id,profileId,messages,mode}) => {
+      if(proactiveGeneration){const previous=proactiveGeneration;companions?.cancelProactive?.();previous.abort();if(controller===previous)controller=null;proactiveGeneration=null;}
       if(controller) throw Error('请先停止当前回复');
       if(typeof id!=='string'||id.length>200||!Array.isArray(messages)||messages.length>200||messages.some(m=>!m||!['system','user','assistant'].includes(m.role)||typeof m.content!=='string'||m.content.length>100000)) throw Error('消息格式不正确');
       const ctrl = new AbortController(); controller=ctrl;
@@ -278,14 +313,18 @@ else {
         const parser = new BilingualStream(text=>send('chunk',{id,text}));
         const onToken=text=>{
           raw+=text; if(raw.length>160000) throw Error('模型回复过长');
-          if(localTranslation) send('chunk',{id,text}); else parser.push(text);
+          // Even models asked for plain text occasionally return a JSON pair.
+          // Parse it instead of leaking its Japanese field or closing braces
+          // into the Chinese display. Plain Chinese retains streaming.
+          parser.push(text);
+          if(localTranslation&&!/^\s*(?:\{|`)/.test(raw))send('chunk',{id,text});
         };
         if(useLocal)await localChat.generate(prepared.messages,{requestId:id,signal:ctrl.signal,onChunk:onToken});
         else await chat({...settings,...prepared,signal:ctrl.signal,onToken});
         ctrl.signal.throwIfAborted();
         clearTimeout(timer); timer=setTimeout(()=>ctrl.abort(),300000);
-        const pair = localTranslation ? {zh:raw,ja:''} : parser.value();
-        const bilingual = await completeBilingual(pair,{requestId:id,signal:ctrl.signal,preferLocal:localTranslation,translationSource:localTranslation?'local':'api',translate:async (request,options)=>{if(!localTranslation)return translateWithApi({...settings,...request,...options,transport:chat});await bundleReady;return translation.translate(request,options);}});
+        const pair = parser.value();
+        const bilingual = await completeBilingual(pair,{requestId:id,signal:ctrl.signal,preferLocal:localTranslation,translationSource:localTranslation?'local':'api',translate:async (request,options)=>{if(!localTranslation)return translateWithApi({...settings,...request,...options,transport:chat});await bundleReady;return translation.translate(request,options);},translateToChinese:useLocal?undefined:async(request,options)=>translateWithApi({...settings,...request,...options,transport:chat})});
         ctrl.signal.throwIfAborted();
         companions.showReply({id,...bilingual});
         companions.clearCapabilityError?.('chat');
@@ -296,7 +335,25 @@ else {
     });
     handle('stop',()=>{controller?.abort();for(const request of translationRequests.values())request.abort();localChat?.cancel();translation?.cancelRequests();});
     handle('setup-status',options=>setup.status(options));
-    handle('setup-install',options=>setup.install(options));
+    handle('setup-install',options=>withResourceStorage(()=>setup.install(options)));
+    const resourceInstallBusy=()=>Boolean(setup?.controller||voiceResources?.controller||resourcePacks?.controller||translation?.installToken||runtime?.controller);
+    handle('resource-directory-pick',()=>resourceGate.select(async()=>{
+        const result=await dialog.showOpenDialog(win,{title:'选择资源与运行环境的保存目录',properties:['openDirectory','createDirectory']});
+        if(result.canceled||!result.filePaths[0])return null;
+        const selected=path.resolve(result.filePaths[0]);
+        if(selected===path.parse(selected).root)throw Error('请选择专用文件夹，不要选择磁盘根目录。');
+        await assertWritableDirectory(selected);
+        if(resourceInstallBusy())throw Error('正在下载或安装资源，请先等待完成或取消。');
+        if(selected!==resourceDataRoot){
+          if(!await flushRenderer())throw Error('当前设置未能保存，请重试后再切换资源目录。');
+          const saved=await read('state.json',{}),items=saved?.presentation?.wallpaper?.items;
+          try{await wallpaperStore.copyAllTo(selected,Array.isArray(items)?items.map(item=>item?.id):[]);}
+          catch(error){throw Error('壁纸未能完整复制到新目录，原资源目录未更改：'+error.message);}
+        }
+        await write('resource-directory.json',{directory:selected});
+        resourceGate.pending=selected===resourceDataRoot?null:selected;
+        return {directory:selected,restartRequired:Boolean(resourceGate.pending)};
+    },resourceInstallBusy));
     handle('setup-cancel',()=>setup.cancel());
     handle('local-chat-settings',async()=>{await bundleReady;return localChat.config;});
     handle('local-chat-status',async()=>{await bundleReady;return localChat.status();});
@@ -307,7 +364,7 @@ else {
 
     handle('voice-settings',voiceConfig);
     handle('voice-resources',async()=>{await bundleReady;return {...await voiceResources.inspect(),bundled:voiceBundle.bundled,preset:voiceBundle.preset};});
-    handle('voice-install',async(id='core',options={})=>{await bundleReady;if(typeof options?.apply!=='boolean'&&options?.apply!==undefined||options?.component!==undefined&&(!['gpt','sovits'].includes(options.component)||id==='core'))throw Error('无效音色选择');const before=await voiceConfig(),owner=voiceResources,paths=await owner.install(id,{component:options.component});let applied=false;if(options?.apply){const value=await updateVoice(saved=>{const current=mergeVoiceDefaults(saved,voiceBundle);if(Object.keys(paths).some(key=>current[key]!==before[key]))return null;return mergeVoiceDefaults({...saved,...paths},voiceBundle);});if(value){voiceStart.cancel();speech.configure(value);send('voice-config-updated',value);applied=true;}}return {...paths,applied};});
+    handle('voice-install',(id='core',options={})=>withResourceStorage(async()=>{await bundleReady;if(typeof options?.apply!=='boolean'&&options?.apply!==undefined||options?.component!==undefined&&(!['gpt','sovits'].includes(options.component)||id==='core'))throw Error('无效音色选择');const before=await voiceConfig(),owner=voiceResources,paths=await owner.install(id,{component:options.component});let applied=false;if(options?.apply){const value=await updateVoice(saved=>{const current=mergeVoiceDefaults(saved,voiceBundle);if(Object.keys(paths).some(key=>current[key]!==before[key]))return null;return mergeVoiceDefaults({...saved,...paths},voiceBundle);});if(value){voiceStart.cancel();speech.configure(value);send('voice-config-updated',value);applied=true;}}return {...paths,applied};}));
     handle('voice-download-cancel',()=>voiceResources?.cancel());
     async function saveVoiceSettings(raw, partial=false){
       await bundleReady;
@@ -348,7 +405,7 @@ else {
       const value=validateTranslation({...translation.config,...raw,python:raw?.python||voiceBundle.defaults.python||savedVoice.python||process.env.YUKINO_PYTHON||translation.config.python,modelDir:raw?.modelDir||translation.config.modelDir||fallbackModel});
       translation.configure(value);await write('translation.json',value);return translation.status();
     });
-    handle('translation-install',async()=>{await bundleReady;const status=await translation.install();await write('translation.json',status.config);return status;});
+    handle('translation-install',()=>withResourceStorage(async()=>{await bundleReady;const status=await translation.install();await write('translation.json',status.config);return status;}));
     handle('translation-cancel',id=>{if(id)translationRequests.get(id)?.abort();else for(const request of translationRequests.values())request.abort();return translation?.cancelRequests(id);});
     handle('translate',async request=>{
       if(!request||typeof request.requestId!=='string'||request.requestId.length>200||typeof request.text!=='string'||request.text.length>24000)throw Error('翻译请求无效');

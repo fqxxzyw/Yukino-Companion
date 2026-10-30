@@ -40,3 +40,18 @@ test('reasoning stripped and malformed response handled without raw JSON', () =>
   const partial = new BilingualStream(() => {});partial.push('{"zh":"你好","ja":');assert.equal(partial.value().zh,'你好');
   const invalid = new BilingualStream(() => {});invalid.push('{"message":"你好"}');assert.throws(()=>invalid.value(),/格式/);
 });
+test('Japanese-only provider answer is translated to Chinese for display, while speech keeps the Japanese original', async () => {
+  const japanese='ここであなたに返事ができるわ。今日はどうだった？';
+  const parser=new BilingualStream(()=>{});parser.push(japanese);
+  assert.deepEqual(parser.value(),{zh:'',ja:japanese});
+  const result=await completeBilingual(parser.value(),{requestId:'japanese-answer',translateToChinese:async request=>{assert.deepEqual(request,{text:japanese,source:'ja',target:'zh',requestId:'japanese-answer'});return {text:'我可以在这里回答你。今天过得怎么样？'};},translate:()=>{throw Error('must not translate back to Japanese')}});
+  assert.equal(result.zh,'我可以在这里回答你。今天过得怎么样？');assert.equal(result.ja,japanese);assert.equal(result.translationStatus,'ready');
+});
+test('a Chinese translation failure keeps the Japanese source explicitly separate',async()=>{
+  const ja='こんにちは、今日はいい天気ですね。';
+  const result=await completeBilingual({zh:ja,ja:''},{translateToChinese:async()=>{throw Error('离线');}});
+  assert.equal(result.zh,'');assert.equal(result.ja,ja);assert.equal(result.displayStatus,'error');assert.equal(result.translationStatus,'ready');
+});
+test('Japanese-only JSON response is not shown as raw JSON',()=>{
+  const parser=new BilingualStream(()=>{});parser.push('{"ja":"こんにちは、今日はどう？"}');assert.deepEqual(parser.value(),{zh:'',ja:'こんにちは、今日はどう？'});
+});

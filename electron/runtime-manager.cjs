@@ -54,18 +54,21 @@ async function detectNvidiaDetails(platform=process.platform,run=execute,signal)
 }
 async function detectNvidia(platform=process.platform,run=execute,signal){return (await detectNvidiaDetails(platform,run,signal)).nvidia;}
 class RuntimeManager{
-  constructor({dataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
-    Object.assign(this,{dataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run,hardwareRun});
+  constructor({dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
+    Object.assign(this,{dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run,hardwareRun});
     this.root=path.join(dataRoot,'runtime');this.phase='idle';this.error=null;this.progress=null;this.controller=null;this.downloader=null;
   }
   emit(phase,extra={}){this.phase=phase;this.error=extra.error||null;this.progress=extra.progress||null;this.notify({phase,...extra});}
   async catalog(){try{return JSON.parse(await fs.readFile(this.catalogPath,'utf8'));}catch(e){if(e.code==='ENOENT')return {schemaVersion:1,variants:{}};throw Error('运行环境下载清单无法读取');}}
   async current(){
-    let saved;try{saved=JSON.parse(await fs.readFile(path.join(this.root,'current.json'),'utf8'));}catch{}
     const roots=[];
-    if(saved?.directory&&/^[a-z0-9][a-z0-9._-]{0,120}$/i.test(saved.directory))roots.push(path.join(this.root,saved.directory));
-    roots.push(this.resourceRoot);
-    for(const root of roots){
+    for(const dataRoot of [...new Set([this.dataRoot,this.legacyDataRoot].filter(Boolean))]){
+      const runtimeRoot=path.join(dataRoot,'runtime');let saved;
+      try{saved=JSON.parse(await fs.readFile(path.join(runtimeRoot,'current.json'),'utf8'));}catch{}
+      if(saved?.directory&&/^[a-z0-9][a-z0-9._-]{0,120}$/i.test(saved.directory))roots.push({root:path.join(runtimeRoot,saved.directory),saved});
+    }
+    roots.push({root:this.resourceRoot,saved:null});
+    for(const {root,saved} of roots){
       try{
         const python=path.join(root,'python-runtime',this.platform==='win32'?'python.exe':'bin/python');
         await fs.access(python);
@@ -82,7 +85,7 @@ class RuntimeManager{
     signal?.throwIfAborted();
     if(!['auto','cpu','cu124'].includes(requested))throw Error('无效的运行环境选项');
     if(requested!=='auto')return requested;
-    return catalog.variants?.cu124&&await detectNvidia(this.platform,this.run,signal)?'cu124':'cpu';
+    return catalog.variants?.cu124&&await detectNvidia(this.platform,this.hardwareRun,signal)?'cu124':'cpu';
   }
   async install(requested='auto'){
     if(this.controller)throw Error('运行环境正在安装');
@@ -110,7 +113,11 @@ class RuntimeManager{
       const archive=path.join(cache,'runtime.zip');this.emit('assembling');
       const out=await fs.open(archive,'w');try{for(const part of pack.parts){for await(const chunk of createReadStream(safeEntry(cache,part.path))){controller.signal.throwIfAborted();let offset=0;while(offset<chunk.length){const written=await out.write(chunk,offset,chunk.length-offset);if(!written.bytesWritten)throw Error('运行环境文件写入失败');offset+=written.bytesWritten;}}}}finally{await out.close();}
       if(await hashFile(archive)!==pack.archiveSha256)throw Error('运行环境完整校验失败，请重新下载。');
-      stage=path.join(this.root,'.install-'+crypto.randomUUID());this.emit('extracting',{progress:{bytes:0,total:pack.unpackedBytes}});
+      // A fresh directory is owned by this operation. Never remove a prior
+      // deterministic destination: it may contain user data or be selected by
+      // an older current.json whose metadata no longer matches the catalog.
+      const nextStage=path.join(this.root,'runtime-'+crypto.randomUUID());
+      await fs.mkdir(nextStage);stage=nextStage;this.emit('extracting',{progress:{bytes:0,total:pack.unpackedBytes}});
       let last=0;await extractRuntimeZip(archive,stage,{signal:controller.signal,maxBytes:pack.unpackedBytes,onProgress:progress=>{if(Date.now()-last>200){last=Date.now();this.emit('extracting',{progress:{bytes:progress.bytes,total:pack.unpackedBytes}});}}});
       const python=path.join(stage,'python-runtime/python.exe');await fs.access(python);
       const marker=JSON.parse(await fs.readFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),'utf8'));
@@ -119,16 +126,12 @@ class RuntimeManager{
       const probe="import os,sys,json; dll=os.path.join(sys.prefix,'Lib','site-packages','torch','lib'); handle=os.add_dll_directory(dll) if hasattr(os,'add_dll_directory') and os.path.isdir(dll) else None; import torch,llama_cpp; print(json.dumps({'torch':torch.__version__,'gpuAvailable':torch.cuda.is_available(),'gpuName':torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,'translationGpuBuild':bool(llama_cpp.llama_supports_gpu_offload())}))";
       const result=await this.run(python,['-X','utf8','-c',probe],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal:controller.signal});
       const metadata=JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1));controller.signal.throwIfAborted();
-      // Include the catalogue version in the directory identity: even a version
-      // update that reuses an archive cannot remove the selected working tree.
-      const directory=pack.id+'-'+crypto.createHash('sha256').update(catalog.version+'\n'+pack.archiveSha256).digest('hex').slice(0,16),installed=path.join(this.root,directory);
-      // Only this app's versioned staging destination is replaced; the old
-      // selected runtime stays usable until the atomic pointer update below.
-      await fs.rm(installed,{recursive:true,force:true});await fs.rename(stage,installed);stage=null;
+      const directory=path.basename(stage);
       controller.signal.throwIfAborted();
       await fs.writeFile(path.join(this.root,'current.json.tmp'),JSON.stringify({directory,flavor,version:catalog.version,archiveSha256:pack.archiveSha256,metadata}));
       controller.signal.throwIfAborted();
       await fs.rename(path.join(this.root,'current.json.tmp'),path.join(this.root,'current.json'));
+      stage=null; // The new pointer owns the validated directory from this point.
       await fs.rm(cache,{recursive:true,force:true});this.emit('ready',{metadata});return this.status();
     }catch(error){this.emit(controller.signal.aborted?'cancelled':'error',{error:controller.signal.aborted?'安装已取消；已下载的部分可在下次继续。':error.message});throw error;}
     finally{

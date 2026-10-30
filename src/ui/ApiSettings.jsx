@@ -14,6 +14,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   const [result, setResult] = useState(null);
   const [working, setWorking] = useState('');
   const [notice, setNotice] = useState(null);
+  const [connection, setConnection] = useState('untested');
   const [query, setQuery] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [manual, setManual] = useState(false);
@@ -36,7 +37,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   }, [api]);
   useEffect(() => {
     sequence.current++;
-    setSecret(''); setResult(null); setQuery(''); setNotice(null); setManual(false); setWorking('');
+    setSecret(''); setResult(null); setQuery(''); setNotice(null); setManual(false); setWorking(''); setConnection('untested');
   }, [profile?.id]);
 
   function patchState(patch) {
@@ -44,9 +45,10 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     onChange(patch);
   }
   function updateProfile(patch) {
+    if ('base' in patch || 'providerId' in patch || 'model' in patch) setConnection('untested');
     patchState({profiles:latest.current.profiles.map(p => p.id === profile.id ? {...p, ...patch} : p)});
   }
-  function invalidate() {sequence.current++; setResult(null); setNotice(null); setQuery('');}
+  function invalidate() {sequence.current++; setResult(null); setNotice(null); setQuery(''); setConnection('untested');}
   function selectProvider(id) {
     const next = catalog.find(p => p.id === id);
     if (!next) return;
@@ -90,7 +92,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   async function save(test = false) {
     const operation = ++sequence.current;
     const snapshot = currentProfile();
-    setWorking(test ? 'test' : 'save'); setNotice(null);
+    setWorking(test ? 'test' : 'save'); setNotice(null); if(test) setConnection('checking');
     try {
       await api.save(latest.current);
       if (secret.trim()) {
@@ -99,8 +101,8 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
         rememberKey(snapshot.id); setSecret('');
       }
       const text = test ? await api.test(snapshot.id) : '配置已保存。选择模型后可测试对话连接。';
-      if (mounted.current && operation === sequence.current) setNotice({tone:'success', text});
-    } catch (error) {fail(error, operation);}
+      if (mounted.current && operation === sequence.current) {setNotice({tone:'success', text}); if(test) setConnection('ready');}
+    } catch (error) {if(test && mounted.current && operation === sequence.current) setConnection('error'); fail(error, operation);}
     finally {if (mounted.current && operation === sequence.current) setWorking('');}
   }
 
@@ -129,7 +131,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
       await api.saveKey(profile.id, '', profile.base);
       if (!mounted.current || operation !== sequence.current) return;
       onKeyIds?.(keyIds.filter(id => id !== profile.id));
-      setSecret(''); setResult(null); setQuery('');
+      setSecret(''); setResult(null); setQuery(''); setConnection('untested');
       setNotice({tone:'success', text:'已删除此配置的本机密钥。可以重新填写密钥，或直接连接无需密钥的本机服务。'});
     } catch (error) {fail(error, operation);}
     finally {if (mounted.current && operation === sequence.current) setWorking('');}
@@ -146,6 +148,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
 
   return <div className="api-settings">
     <div className="api-intro"><KeyRound size={19}/><div><strong>连接你的模型</strong><p>选择服务商，验证密钥，再从列表选择模型。</p></div></div>
+    <div className={'api-connection-status '+connection} role="status"><i aria-hidden="true"/><span>对话连接：{connection==='ready'?'本次测试成功':connection==='checking'?'正在测试':connection==='error'?'本次测试失败':'本次尚未测试'}</span></div>
     <label className="field">当前配置
       <div className="profile-picker">
         <Select aria-label="当前 API 配置" value={profile.id} disabled={locked} onChange={e => patchState({activeProfile:e.target.value})}>
