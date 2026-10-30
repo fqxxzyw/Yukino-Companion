@@ -83,7 +83,7 @@ test('actual React skin picker renders locks, real local previews, neutral fallb
  const file=path.join(directory,'SkinPicker.mjs');await fs.writeFile(file,code);const {default:SkinPicker}=await import(pathToFileURL(file).href);
  const html=renderToStaticMarkup(React.createElement(SkinPicker,{models:[model('07'),model('02',{thumbnail:'./characters/actual-preview.png'}),model('03',{thumbnail:'https://remote.invalid/not-auto-loaded.png'}),model('01',{status:'HOLD'})],selectedId:'yukino-07-v1'}));
  assert.equal((html.match(/<button/g)||[]).length,4);assert.equal((html.match(/disabled=""/g)||[]).length,3);assert.equal((html.match(/type="button"/g)||[]).length,4);
- assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感 35 \/ 40/);assert.match(html,/7 天不等于运行 168 小时/);assert.match(html,/aria-pressed="true"/);
+ assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感 35 \/ 40/);assert.match(html,/同一天计一次；挂机不计入/);assert.match(html,/aria-pressed="true"/);
 });
 
 // JSX is compiled and its actual event handlers run with a tiny hook scheduler.

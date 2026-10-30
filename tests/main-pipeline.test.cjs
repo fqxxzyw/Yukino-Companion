@@ -161,7 +161,7 @@ test('first-use setup installs one shared runtime and keeps model/runtime states
   assert.equal(before.steps.find(item=>item.id==='chat').state,'waiting-runtime');assert.equal(before.steps.find(item=>item.id==='translation').state,'waiting-runtime');
   assert.equal(before.steps.find(item=>item.id==='chat').downloadBytes,0);assert.equal(before.steps.find(item=>item.id==='translation').downloadBytes,0);
   const after=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
-  assert.equal(after.ready,true);assert.deepEqual(app.runtime.installs,['cpu']);assert.deepEqual(app.voiceInstallCalls,['core']);
+  assert.equal(after.ready,true);assert.deepEqual(app.runtime.installs,['cpu']);assert.deepEqual(new Set(app.voiceInstallCalls),new Set(['core','yukino-e2']));
   const local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status'),voice=await app.invoke('voice-settings');
   assert.equal(local.python,path.resolve('/embedded/python'));assert.equal(translation.config.python,local.python);assert.equal(voice.python,local.python);
   assert.equal(JSON.parse(app.storage.get('speech.json')).bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
@@ -197,7 +197,7 @@ test('setup preserves custom Python and valid core paths without duplicate voice
   const customTranslation=path.resolve('/my-translation/python'),customLocal=path.resolve('/my-local/python');
   const app=await mainHarness({state,runtimeReady:false,files:{'speech.json':JSON.stringify(custom),'translation.json':JSON.stringify({python:customTranslation}),'local-chat.json':JSON.stringify({python:customLocal})}});
   const result=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
-  assert.equal(result.ready,true);assert.deepEqual(app.voiceInstallCalls,[]);
+  assert.equal(result.ready,true);assert.deepEqual(app.voiceInstallCalls,['yukino-e2']);
   const voice=await app.invoke('voice-settings'),local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status');
   for(const key of Object.keys(custom))assert.equal(voice[key],custom[key],key);
   assert.equal(local.python,customLocal);assert.equal(translation.config.python,customTranslation);
@@ -208,7 +208,7 @@ test('setup preserves custom Python and valid core paths without duplicate voice
 test('setup fills only a missing core component and keeps the existing custom counterpart',async()=>{
   const custom={bert:path.resolve('/custom/missing-bert'),hubert:path.resolve('/custom/working-hubert')};
   const app=await mainHarness({state,voiceMissing:['bert'],files:{'speech.json':JSON.stringify(custom)}});
-  const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.ready,true);assert.deepEqual(app.voiceInstallCalls,['core']);
+  const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.ready,true);assert.deepEqual(new Set(app.voiceInstallCalls),new Set(['core','yukino-e2']));
   const voice=await app.invoke('voice-settings');assert.equal(voice.bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));assert.equal(voice.hubert,custom.hubert);
 });
 
@@ -241,16 +241,16 @@ test('cancelling while voice readiness is pending cannot start a core download',
   const savedBeforeCancel=app.storage.get('speech.json');
   await app.invoke('setup-cancel');gate.resolve();
   await assert.rejects(installing,/已取消准备/);
-  assert.deepEqual(app.voiceInstallCalls,[]);assert.equal(app.network.length,0);
+  assert.equal(app.voiceInstallCalls.includes('core'),false);assert.equal(app.network.length,0);
   assert.equal(app.storage.get('speech.json'),savedBeforeCancel);
   assert.equal((await app.invoke('setup-status')).phase,'cancelled');
 });
 
-test('default weight download preserves a custom reference and never pairs a text-only custom prompt with unrelated audio',async()=>{
+test('default weight download preserves custom reference settings without blocking resource preparation',async()=>{
  const reference=path.resolve('/custom/my-reference.wav'),app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({reference})}});
  await app.invoke('setup-install',{features:['voice']});assert.equal(JSON.parse(app.storage.get('speech.json')).reference,reference);assert.ok(app.voiceInstallCalls.includes('yukino-e2'));
  const promptText='私が選んだ文章です。',textOnly=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({promptText})}});
- await assert.rejects(textOnly.invoke('setup-install',{features:['voice']}),/自定义参考文本/);assert.equal(JSON.parse(textOnly.storage.get('speech.json')).promptText,promptText);assert.equal(textOnly.voiceInstallCalls.includes('yukino-e2'),false);
+ await textOnly.invoke('setup-install',{features:['voice']});const saved=JSON.parse(textOnly.storage.get('speech.json'));assert.equal(saved.promptText,promptText);assert.equal(saved.reference,'');assert.equal(textOnly.voiceInstallCalls.includes('yukino-e2'),true);
 });
 test('an app-managed default voice pair can be repaired without being mistaken for custom weights',async()=>{
  const saved={gpt:path.resolve('/embedded/models/yukino-v1/gpt-e2.ckpt'),sovits:path.resolve('/embedded/models/yukino-v1/sovits-e1-s3561.pth')};
@@ -317,7 +317,7 @@ test('packaged resource directory follows the executable and selection is saved 
  while(!app.sent.some(item=>item.channel==='flush-state'))await new Promise(setImmediate);
  const flush=app.sent.find(item=>item.channel==='flush-state');await app.invoke('save',state);await app.invoke('flush-complete',flush.payload.id,true);
  const choice=await choosing;assert.equal(choice.directory,chosen);assert.equal(choice.restartRequired,true);
- assert.equal(JSON.parse(app.storage.get('resource-directory.json')).directory,chosen);
+ assert.equal(JSON.parse(app.storage.get('resource-directory.json')).directory,chosen);assert.deepEqual(JSON.parse(app.storage.get('resource-directory.json')).previousDirectories,[status.resourceDirectory]);
  await assert.rejects(app.invoke('setup-install',{features:['pet']}),/重启应用/);
 });
 
@@ -346,4 +346,16 @@ test('resource directory selection and installation exclude each other across aw
  await assert.rejects(app.invoke('resource-directory-pick'),/正在选择目录或安装资源/);
  download.resolve();await installing;
  assert.equal(app.storage.has('resource-directory.json'),false);
+});
+
+test('restart after repeated resource moves maps only previously managed configuration paths',async()=>{
+ const first=path.resolve('/volume-d/Yukino'),selected=path.resolve('/volume-e/Yukino');
+ const files={'resource-directory.json':JSON.stringify({directory:selected,previousDirectories:[first]}),'speech.json':JSON.stringify({python:path.join(first,'runtime','old','python-runtime','python.exe'),bert:path.join(first,'speech-models','bert'),hubert:path.join(first,'speech-models','hubert'),gpt:path.join(first,'speech-models','voice.ckpt'),sovits:path.join(first,'speech-models','voice.pth'),reference:path.join(first,'voice-presets','yukino-reference.wav')}),'translation.json':JSON.stringify({modelDir:path.join(first,'translation-runtime','models','japanese')}),'local-chat.json':JSON.stringify({modelDir:path.join(first,'resources','chat','payload')})};
+ const app=await mainHarness({state,packaged:true,runtimeReady:false,files});
+ const voice=await app.invoke('voice-settings');assert.equal(voice.python,'');assert.equal(voice.bert,path.join(selected,'speech-models','bert'));assert.equal(voice.reference,path.join(selected,'voice-presets','yukino-reference.wav'));
+ assert.equal((await app.invoke('local-chat-settings')).modelDir,path.join(selected,'resources','chat','payload'));
+ assert.equal((await app.invoke('translation-status')).modelDir,path.join(selected,'translation-runtime','models','japanese'));
+ const custom=path.join(first,'personal-models','custom');
+ const preserved=await mainHarness({state,packaged:true,files:{...files,'local-chat.json':JSON.stringify({modelDir:custom})}});
+ assert.equal((await preserved.invoke('local-chat-settings')).modelDir,custom);
 });

@@ -55,3 +55,7 @@ test('a Chinese translation failure keeps the Japanese source explicitly separat
 test('Japanese-only JSON response is not shown as raw JSON',()=>{
   const parser=new BilingualStream(()=>{});parser.push('{"ja":"こんにちは、今日はどう？"}');assert.deepEqual(parser.value(),{zh:'',ja:'こんにちは、今日はどう？'});
 });
+test('an independent translator is still used after recovering Chinese from a Japanese-only chat answer',async()=>{
+ let translations=0;const result=await completeBilingual({zh:'',ja:'元の日本語です。'},{forceTranslation:true,translationSource:'api',translateToChinese:async()=>({text:'已恢复的中文。'}),translate:async()=>{translations++;return {text:'指定された翻訳です。',source:'api'};}});
+ assert.equal(translations,1);assert.equal(result.ja,'指定された翻訳です。');assert.equal(result.translationStatus,'ready');
+});

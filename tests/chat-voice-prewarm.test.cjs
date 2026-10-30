@@ -6,7 +6,7 @@ function harness(){
  const settings=deferred(),response=deferred(),events=[];
  const state={chatMode:'api',activeCharacter:'a',activeProfile:'p',profiles:[],characters:[{id:'a'}],conversations:[],usedDates:[],relationship:{},conversationSkinSwitch:false};
  const session={current:null,push:text=>events.push('text:'+text),finish:()=>events.push('finish'),cancel(){this.current=null;}};
- const ctx={s:state,sref:{current:state},draft:'',busy:false,activeRequest:{current:null},profile:{id:'p',base:'https://example.test/v1',model:'model'},localStatus:{},conversation:null,models:[],
+ const ctx={effectiveChatMode:state.chatMode,s:state,sref:{current:state},draft:'',busy:false,activeRequest:{current:null},profile:{id:'p',base:'https://example.test/v1',model:'model'},localStatus:{},conversation:null,models:[],
   api:{save:async()=>events.push('save'),send:async()=>{events.push('chat');return response.promise;}},saveVoice:()=>{events.push('settings');return settings.promise;},
   setError(){},setModal(){},setS(){},setBusy(){},setDraft(){},setSpeechState(){},pinned:{current:false},previewSequence:{current:0},voiceRef:{current:{enabled:true}},speechRef:{current:session},playerRef:{current:{unlock:async()=>{}}},
   uid:(()=>{let n=0;return()=>String(++n)})(),conversationSkin:()=>'',recordUsedDate:()=>({state:[]}),friendlyError:e=>e.message,advanceRelationship:x=>x,
@@ -24,4 +24,9 @@ test('chat starts while voice settings are saved and prewarms before the reply a
 test('stopping while voice settings are being saved cannot start a late voice session',async()=>{
  const f=harness(),pending=f.send();await turn();f.ctx.stopSpeech();f.response.resolve({stopped:true});await pending;
  f.settings.resolve({});await turn();assert.ok(!f.events.some(value=>value.startsWith('prepare:')||value.startsWith('text:')));
+});
+test('unassigned voice output keeps text chat working without starting GPT-SoVITS',async()=>{
+ const f=harness();f.ctx.s.apiManagement={taskRoutes:{tts:'unassigned'}};
+ const pending=f.send();await turn();f.response.resolve({bilingual:{zh:'你好',ja:'こんにちは。',translationStatus:'ready'}});await pending;
+ assert.ok(f.events.includes('chat'));assert.ok(!f.events.includes('settings'));assert.ok(!f.events.some(value=>value.startsWith('prepare:')||value.startsWith('text:')));
 });

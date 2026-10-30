@@ -1,5 +1,7 @@
 'use strict';
 const {performance}=require('node:perf_hooks');
+const {createHash}=require('node:crypto');
+const OBSERVATION_LIMITS=Object.freeze({maxAgeMs:30000,interactionGraceMs:60000,maxUnanswered:2,textChars:4000,duplicateMs:15*60000});
 
 const INTERVAL_MINUTES=Object.freeze([30,45,60,90,120]);
 const REMINDER_DEFAULTS=Object.freeze({enabled:false,intervalMinutes:60});
@@ -32,9 +34,9 @@ function activity(value={}) {
 
 /** Pure event policy. It owns no timer, native capture, audio, persistence or history. */
 class CompanionReminderPolicy {
-  constructor({now=()=>performance.now(),config=REMINDER_DEFAULTS,proactive=PROACTIVE_DEFAULTS}={}) {
+  constructor({now=()=>performance.now(),wallNow=Date.now,config=REMINDER_DEFAULTS,proactive=PROACTIVE_DEFAULTS}={}) {
     if(typeof now!=='function')throw Error('提醒计时器无效。');
-    this.now=now;this.config=validateReminderConfig(config);this.proactive=validateProactiveConfig(proactive);this.reset();
+    this.now=now;this.wallNow=wallNow;this.config=validateReminderConfig(config);this.proactive=validateProactiveConfig(proactive);this.reset();
   }
   configureProactive(value={}) {
     const next=validateProactiveConfig({...this.proactive,...value});
@@ -53,7 +55,7 @@ class CompanionReminderPolicy {
   reset() {
     this.activeUsageMs=0;this.proactiveMs=0;this.returnActiveMs=0;this.lastTick=null;this.wasPresent=false;
     this.lastReminderAt=-Infinity;this.lastGreetingAt=-Infinity;this.lastEventAt=-Infinity;
-    this.seenResults=new Map();this.sequence=0;this.current={present:false,deliver:false};
+    this.seenResults=new Map();this.observationHashes=new Map();this.unansweredProactive=0;this.lastInteractionAt=-Infinity;this.sequence=0;this.current={present:false,deliver:false};
     return this.snapshot();
   }
   advance(input) {
@@ -81,14 +83,36 @@ class CompanionReminderPolicy {
   ready(stamp) {return stamp!==null&&this.current.deliver&&this.returnActiveMs>=LIMITS.returnGraceMs&&stamp-this.lastEventAt>=LIMITS.globalCooldownMs;}
   tick(input={}) {
     const stamp=this.advance(input);
+    if(input.chatBusy===true)this.noteInteraction(stamp);
     if(!this.ready(stamp))return null;
     if(this.config.enabled&&this.activeUsageMs>=this.config.intervalMinutes*60000&&stamp-this.lastReminderAt>=LIMITS.reminderCooldownMs){
       this.activeUsageMs=0;this.lastReminderAt=stamp;this.lastEventAt=stamp;
       return Object.freeze({type:'break-reminder',id:`reminder-${++this.sequence}`,title:'休息提醒',text:REMINDER_TEXT,readAloudEligible:true});
     }
-    if(!this.proactive.enabled||input.visualBusy===true||input.showBubbles===false||this.proactiveMs<this.proactive.intervalMinutes*60000||!withinHours(input.hour,this.proactive.startHour,this.proactive.endHour))return null;
+    if(!this.proactive.enabled||this.unansweredProactive>=OBSERVATION_LIMITS.maxUnanswered||stamp-this.lastInteractionAt<OBSERVATION_LIMITS.interactionGraceMs||input.visualBusy===true||input.showBubbles===false||this.proactiveMs<this.proactive.intervalMinutes*60000||!withinHours(input.hour,this.proactive.startHour,this.proactive.endHour))return null;
     this.proactiveMs=0;this.lastEventAt=stamp;
     return Object.freeze({type:'proactive-message',id:`proactive-${++this.sequence}`,mode:this.proactive.mode,text:this.proactive.text.trim(),prompt:this.proactive.prompt.trim(),readAloudEligible:true});
+  }
+  noteInteraction(stamp=this.now()){if(!Number.isFinite(stamp))return;this.lastInteractionAt=stamp;this.unansweredProactive=0;this.proactiveMs=0;}
+  markProactiveDelivered(){this.unansweredProactive=Math.min(OBSERVATION_LIMITS.maxUnanswered,this.unansweredProactive+1);}
+  observation(input={}) {
+    const deny=reason=>({accepted:false,reason});
+    if(input.consent!==true||input.visualSessionActive!==true)return deny('not-authorized');
+    if(!['screen','camera'].includes(input.source)||typeof input.id!=='string'||!/^[-A-Za-z0-9_]{1,128}$/.test(input.id)||typeof input.sessionId!=='string'||!/^[-A-Za-z0-9_]{1,128}$/.test(input.sessionId)||typeof input.text!=='string'||!input.text.trim())return deny('invalid-observation');
+    const identity=input.sessionId+':'+input.id;if(this.seenResults.has(identity))return deny('duplicate');
+    this.seenResults.set(identity,true);if(this.seenResults.size>LIMITS.rememberedResults)this.seenResults.delete(this.seenResults.keys().next().value);
+    const age=this.wallNow()-input.observedAt;if(!Number.isFinite(age)||age< -5000||age>OBSERVATION_LIMITS.maxAgeMs)return deny('stale');
+    const text=input.text.trim().slice(0,OBSERVATION_LIMITS.textChars),hash=createHash('sha256').update(text.replace(/\s+/g,' ').toLowerCase()).digest('hex');
+    if(this.observationHashes.has(hash)&&this.wallNow()-this.observationHashes.get(hash)<OBSERVATION_LIMITS.duplicateMs)return deny('unchanged');
+    this.observationHashes.set(hash,this.wallNow());if(this.observationHashes.size>LIMITS.rememberedResults)this.observationHashes.delete(this.observationHashes.keys().next().value);
+    const stamp=this.advance(input);if(!this.ready(stamp))return deny('do-not-disturb');
+    if(!withinHours(input.hour,this.proactive.startHour,this.proactive.endHour))return deny('quiet-hours');
+    if(stamp-this.lastInteractionAt<OBSERVATION_LIMITS.interactionGraceMs)return deny('recent-interaction');
+    if(this.unansweredProactive>=OBSERVATION_LIMITS.maxUnanswered)return deny('awaiting-reply');
+    if(input.generationBusy===true||stamp-this.lastGreetingAt<LIMITS.greetingCooldownMs)return deny('cooldown');
+    if(this.config.enabled&&this.activeUsageMs>=this.config.intervalMinutes*60000)return deny('break-due');
+    this.lastGreetingAt=stamp;this.lastEventAt=stamp;
+    return {accepted:true,event:Object.freeze({type:'visual-observation',id:'visual-'+(++this.sequence),mode:'generate',prompt:this.proactive.prompt,readAloudEligible:input.readAloud===true,observation:Object.freeze({source:input.source,text,observedAt:input.observedAt,sessionId:input.sessionId,untrusted:true})})};
   }
   observe(input={}) {
     // Calling this method does not start or authorize visual capture. The caller
@@ -104,7 +128,7 @@ class CompanionReminderPolicy {
   }
   snapshot() {
     const threshold=this.config.intervalMinutes*60000;
-    return {config:{...this.config},proactive:{...this.proactive,remainingMs:this.proactive.enabled?Math.max(0,this.proactive.intervalMinutes*60000-this.proactiveMs):null},activeUsageMs:this.activeUsageMs,nextReminderInMs:this.config.enabled?Math.max(0,threshold-this.activeUsageMs):null,pending:this.config.enabled&&this.activeUsageMs>=threshold,present:this.current?.present===true,deliverySuppressed:this.current?.deliver!==true,lastReminderAt:Number.isFinite(this.lastReminderAt)?this.lastReminderAt:null,lastGreetingAt:Number.isFinite(this.lastGreetingAt)?this.lastGreetingAt:null};
+    return {config:{...this.config},unansweredProactive:this.unansweredProactive,proactive:{...this.proactive,remainingMs:this.proactive.enabled?Math.max(0,this.proactive.intervalMinutes*60000-this.proactiveMs):null},activeUsageMs:this.activeUsageMs,nextReminderInMs:this.config.enabled?Math.max(0,threshold-this.activeUsageMs):null,pending:this.config.enabled&&this.activeUsageMs>=threshold,present:this.current?.present===true,deliverySuppressed:this.current?.deliver!==true,lastReminderAt:Number.isFinite(this.lastReminderAt)?this.lastReminderAt:null,lastGreetingAt:Number.isFinite(this.lastGreetingAt)?this.lastGreetingAt:null};
   }
 }
-module.exports={CompanionReminderPolicy,validateReminderConfig,validateProactiveConfig,withinHours,PROACTIVE_DEFAULTS,PROACTIVE_INTERVALS,REMINDER_DEFAULTS,INTERVAL_MINUTES,LIMITS,REMINDER_TEXT,GREETING_TEXT};
+module.exports={CompanionReminderPolicy,validateReminderConfig,validateProactiveConfig,withinHours,PROACTIVE_DEFAULTS,PROACTIVE_INTERVALS,REMINDER_DEFAULTS,INTERVAL_MINUTES,LIMITS,REMINDER_TEXT,GREETING_TEXT,OBSERVATION_LIMITS};

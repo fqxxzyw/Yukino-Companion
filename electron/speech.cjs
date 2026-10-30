@@ -38,7 +38,8 @@ class WorkerClient {
     // The embedded Python ._pth enables isolation and ignores PYTHON* variables.
     // Keep UTF-8 explicit so Japanese JSONL works on every Windows locale.
     this.child = spawnImpl(python, ['-X', 'utf8', '-u', script], { cwd, windowsHide: true, shell: false,
-      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ORT_DISABLE_TELEMETRY: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ORT_DISABLE_TELEMETRY: '1',
+        ...(cwd?{HF_HOME:path.join(cwd,'.cache','huggingface'),TORCH_HOME:path.join(cwd,'.cache','torch'),XDG_CACHE_HOME:path.join(cwd,'.cache'),TMP:cwd,TEMP:cwd}:{}) }, stdio: ['pipe', 'pipe', 'pipe'] });
     const decoder = new StringDecoder('utf8'); let buffer = '';
     this.child.stdout.on('data', chunk => {
       buffer += decoder.write(chunk);
@@ -164,7 +165,8 @@ class SpeechService {
       const client = await this.makeWorker(config);
       if (epoch !== this.epoch) { client.close(); throw Error('加载已取消'); }
       this.worker = client;
-      const metadata = await client.request('load', { config: { ...config, stateDir: this.stateDir } }, config.timeout * 1000);
+      const loadingStarted=Date.now();
+      const metadata = {...await client.request('load', { config: { ...config, stateDir: this.stateDir } }, config.timeout * 1000),loadMs:Date.now()-loadingStarted};
       if (epoch !== this.epoch) throw Error('加载已取消');
       this.update('ready', { metadata }); return this.status;
     })();
@@ -186,12 +188,13 @@ class SpeechService {
     if (this.session !== id) throw Error('语音会话已过期');
     this.update('synthesizing', { metadata: this.status.metadata });
     try {
+      const synthesisStarted=Date.now();
       const result = await this.worker.request('synthesize', { text, speed: this.config.speed }, this.config.timeout * 1000);
       if (this.session !== id) throw Error('语音会话已过期');
       if (typeof result.audio !== 'string' || result.audio.length > 17 * 1024 * 1024) throw Error('音频数据超过限制');
       const audio = Buffer.from(result.audio, 'base64');
       if (audio.length < 44 || audio.toString('ascii', 0, 4) !== 'RIFF' || audio.toString('ascii', 8, 12) !== 'WAVE') throw Error('推理未返回有效 WAV');
-      this.update('ready', { metadata: result.metadata }); return audio;
+      this.update('ready', { metadata: {...this.status.metadata,...result.metadata,sessionId:id,synthesisMs:Date.now()-synthesisStarted} }); return audio;
     } catch (e) { if (this.session === id) { this.worker?.close(); this.worker = null; this.update('error', { error: e.message }); } throw e; }
   }
   stop(id) {

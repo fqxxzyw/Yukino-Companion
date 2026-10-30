@@ -74,12 +74,53 @@ class VoiceResources {
       const pack=this.catalog.packs[item.id];
       item.bundled=pack.kind==='voice'&&item.id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot);
       item.installed=item.bundled||await this.packAvailable(pack,this.root);
-      if(pack.kind==='voice'&&pack.paths){item.components={};for(const key of ['gpt','sovits']){const files=pack.files.filter(file=>file.path===pack.paths[key]||file.extract?.path===pack.paths[key]);const component={...pack,files};item.components[key]=files.length>0&&(await this.packAvailable(component,this.root)||item.id===this.bundledPackId&&await this.packAvailable(component,this.bundledRoot));}}
+      if(pack.kind==='voice'&&pack.paths){item.components={};item.componentDetails={};for(const key of ['gpt','sovits']){const files=pack.files.filter(file=>file.path===pack.paths[key]||file.extract?.path===pack.paths[key]);const component={...pack,files},managed=files.length>0&&await this.packAvailable(component,this.root),bundled=files.length>0&&item.id===this.bundledPackId&&await this.packAvailable(component,this.bundledRoot);item.components[key]=managed||bundled;item.componentDetails[key]={installed:managed||bundled,managed,canDelete:managed,path:safeDestination(managed?this.root:bundled?this.bundledRoot:this.root,pack.paths[key]),bytes:files.reduce((n,file)=>n+(file.extract?.bytes||file.bytes),0)};}}
     }
     summary.coreReady=Boolean(summary.packs.find(pack=>pack.id==='core')?.installed);
     return summary;
   }
+  component(id,component){
+    const pack=this.catalog.packs[id];
+    if(!pack||pack.kind!=='voice'||!['gpt','sovits'].includes(component)||!pack.paths?.[component])throw Error('未知音色模型文件');
+    const files=pack.files.filter(file=>file.path===pack.paths[component]||file.extract?.path===pack.paths[component]);
+    if(!files.length)throw Error('音色文件不在受管理下载清单中');
+    return {...pack,files};
+  }
+  async inspectSelectedWeight(component,filename){
+    if(!['gpt','sovits'].includes(component))throw Error('未知音色模型文件');
+    const extension=component==='gpt'?'.ckpt':'.pth';
+    if(!filename)return {component,selected:false,readable:false,message:'尚未选择文件。'};
+    if(!path.isAbsolute(filename)||path.extname(filename).toLowerCase()!==extension)throw Error(`请选择 ${extension} 音色权重文件。`);
+    let stat;
+    try{stat=await fs.stat(filename);if(!stat.isFile()||stat.size===0)throw Error('empty');const file=await fs.open(filename,'r');try{const first=Buffer.alloc(1);await file.read(first,0,1,0);}finally{await file.close();}}
+    catch{ return {component,selected:true,path:filename,readable:false,message:'文件不存在、为空或没有读取权限，请重新选择。'}; }
+    const packEntry=Object.entries(this.catalog.packs).find(([,pack])=>pack.kind==='voice'&&pack.paths?.[component]&&safeDestination(this.root,pack.paths[component])===path.resolve(filename));
+    return {component,selected:true,path:filename,bytes:stat.size,readable:true,managed:Boolean(packEntry),packId:packEntry?.[0],message:'文件可读；权重版本、配对及推理兼容性需加载和试听验证。'};
+  }
+  async verifyComponent(id,component){
+    const pack=this.component(id,component),managed=await this.packAvailable(pack,this.root,{hash:true}),bundled=id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot,{hash:true});
+    return {id,component,verified:managed||bundled,source:managed?'managed':bundled?'bundled':null,path:safeDestination(managed?this.root:bundled?this.bundledRoot:this.root,pack.paths[component]),message:managed||bundled?'大小与内容摘要校验通过；模型兼容性需实际加载验证。':'文件缺失或内容摘要不匹配，请重新下载。'};
+  }
+  async removeComponent(id,component){
+    const pack=this.component(id,component);
+    if(this.controller||this.deleting)throw Error('语音资源正在下载或删除，请完成或取消后再删除。');
+    this.deleting=true;
+    try{
+    const targets=[...new Set(pack.files.flatMap(file=>[file.path,...(file.extract?[file.extract.path]:[])]).flatMap(relative=>[relative,relative+'.part',relative+'.https.partial',relative+'.aria2']))];
+    const removable=[];
+    // Only exact catalog files under the application-managed root may be removed.
+    // Walk every existing parent: a symlink must not redirect removal elsewhere.
+    for(const relative of targets){
+      const target=safeDestination(this.root,relative),parts=path.relative(path.resolve(this.root),target).split(path.sep);let current=path.resolve(this.root),missing=false;
+      for(const part of ['',...parts]){if(part)current=path.join(current,part);try{const stat=await fs.lstat(current);if(stat.isSymbolicLink())throw Error('受管理资源路径包含符号链接，已拒绝删除。');if(current!==target&&!stat.isDirectory())throw Error('受管理资源父路径不是文件夹。');if(current===target){if(!stat.isFile())throw Error('受管理资源不是普通文件，已拒绝删除。');removable.push(target);}}catch(error){if(error.code==='ENOENT'){missing=true;break;}throw error;}}
+      if(missing)continue;
+    }
+    for(const target of removable)await fs.unlink(target);
+    return {id,component,removed:removable,sharedPacks:Object.entries(this.catalog.packs).filter(([,item])=>item.paths?.[component]===pack.paths[component]).map(([key])=>key)};
+    }finally{this.deleting=false;}
+  }
   async install(id='core',{component}={}) {
+    if(this.deleting)throw Error('正在删除音色文件，请稍后再下载。');
     const original=this.catalog.packs[id];if(!original)throw Error('未知公共模型组件');
     if(component!==undefined&&(!['gpt','sovits'].includes(component)||original.kind!=='voice'||!original.paths?.[component]))throw Error('未知音色模型文件');
     const pack=component?{...original,files:original.files.filter(file=>file.path===original.paths[component]||file.extract?.path===original.paths[component])}:original;

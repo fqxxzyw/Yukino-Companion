@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs/promises');
-const {defaultResourceDirectory,selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate}=require('../electron/resource-directory.cjs');
+const {defaultResourceDirectory,selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate,rebaseManagedResourcePath,resourceDirectoryRecord,resourceDirectoryHistory}=require('../electron/resource-directory.cjs');
 const {managedRuntimeBinary}=require('../electron/runtime-paths.cjs');
 
 test('packaged downloads follow the installed executable location, profile remains separate',()=>{
@@ -48,4 +48,35 @@ test('directory selection and resource operations are mutually exclusive across 
  gate.pending=null;await assert.rejects(gate.run(()=>{throw Error('failure')}),/failure/);
  await gate.select(()=>{});
  await assert.rejects(gate.select(()=>{},()=>true),/正在选择目录或安装资源/);
+});
+
+test('only app-managed legacy paths are mapped into the selected resource directory',()=>{
+ const legacy=path.resolve('/profile'),selected=path.resolve('/chosen-data');
+ const options={dataRoot:selected,legacyDataRoot:legacy,managedDirectories:['resources','translation-runtime']};
+ assert.equal(rebaseManagedResourcePath(path.join(legacy,'resources','chat','model'),options),path.join(selected,'resources','chat','model'));
+ assert.equal(rebaseManagedResourcePath(path.join(legacy,'translation-runtime','models','ja'),options),path.join(selected,'translation-runtime','models','ja'));
+ const custom=path.join(legacy,'my-models','custom');assert.equal(rebaseManagedResourcePath(custom,options),custom);
+ const outside=path.resolve('/profile-other/resources/chat');assert.equal(rebaseManagedResourcePath(outside,options),outside);
+});
+
+test('successive selected directories keep managed history and rebase model paths, never custom paths',()=>{
+ const first=path.resolve('/volume-d/Yukino'),second=path.resolve('/volume-e/Yukino'),third=path.resolve('/volume-f/Yukino');
+ const changed=resourceDirectoryRecord(second,{currentDirectory:first});
+ const again=resourceDirectoryRecord(third,{currentDirectory:second,previousDirectories:changed.previousDirectories});
+ assert.deepEqual(again.previousDirectories,[second,first]);
+ const options={dataRoot:third,legacyDataRoot:path.resolve('/profile'),previousDirectories:again.previousDirectories,managedDirectories:['resources','translation-runtime','speech-models','speech-engine','voice-presets']};
+ for(const directory of options.managedDirectories)assert.equal(rebaseManagedResourcePath(path.join(first,directory,'saved-file'),options),path.join(third,directory,'saved-file'));
+ const custom=path.join(first,'my-custom-model','weights');assert.equal(rebaseManagedResourcePath(custom,options),custom);
+ const current=path.join(third,'resources','chat');assert.equal(rebaseManagedResourcePath(current,options),current);
+ const nested=path.join(first,'resources','nested-selection');
+ assert.equal(rebaseManagedResourcePath(path.join(nested,'speech-models','bert'),{...options,previousDirectories:[first,nested]}),path.join(third,'speech-models','bert'));
+ const filtered=resourceDirectoryHistory([first,first,'relative','bad\0path',null,path.parse(first).root]);assert.deepEqual(filtered,[first]);
+});
+
+test('runtime binaries from all recorded previous roots follow the current runtime',()=>{
+ const first=path.resolve('/volume-d/Yukino'),selected=path.resolve('/volume-e/Yukino'),python=path.join(selected,'runtime','current','python.exe');
+ const options={dataRoot:selected,legacyDataRoot:path.resolve('/profile'),previousDirectories:[first],resourceRoot:path.resolve('/application/resources')};
+ assert.equal(managedRuntimeBinary(path.join(first,'runtime','old','python-runtime','python.exe'),python,options),python);
+ assert.equal(managedRuntimeBinary(path.join(first,'runtime','old','python-runtime','python.exe'),'',options),'');
+ const custom=path.join(first,'my-python','python.exe');assert.equal(managedRuntimeBinary(custom,python,options),custom);
 });

@@ -26,6 +26,16 @@ test('visual configuration navigation stops capture and refreshed profile requir
 
 test('stale screen cleanup cannot hide camera-active global indicator or Stop affordance',async t=>{const f=fixture(),active=[];f.manager.onActive=value=>active.push(value);t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true});assert.equal(active.at(-1),true);await f.call('screen-stop');assert.equal(active.at(-1),true);assert.equal(f.manager.entry.camera.session.token,grant.token);await f.call('camera-stop',{token:grant.token});assert.equal(active.at(-1),false)});
 
+test('screen stop and source switches cancel pending visual replies without revoking unrelated camera state',async t=>{
+ const f=fixture(),active=[];let cancelled=0;f.manager.onStop=()=>cancelled++;f.manager.onActive=value=>active.push(value);t.after(()=>f.manager.close());
+ await f.manager.open(f.owner,'model');
+ const grant=await f.call('camera-start',{consent:true});assert.equal(cancelled,1);
+ const entry=f.manager.entry,details={isMainFrame:true,requestingUrl:entry.url,mediaType:'video'};
+ await f.call('screen-stop');assert.equal(cancelled,2);assert.equal(active.at(-1),true);assert.equal(entry.camera.session.token,grant.token);assert.equal(f.sessions[0].check(entry.contents,'media','null',details),true);
+ await f.call('screen-sources',{consent:true});assert.equal(cancelled,3);assert.equal(entry.camera.session,null);assert.equal(f.sessions[0].check(entry.contents,'media','null',details),false);assert.ok(entry.screen.captures.size);
+ await f.call('camera-start',{consent:true});assert.equal(cancelled,4);assert.equal(entry.screen.captures.size,0);assert.equal(active.at(-1),true);assert.ok(entry.camera.session.token);
+});
+
 test('panel document reload revokes capture while subframe and same-document navigation do not reset consent',async t=>{const f=fixture();t.after(()=>f.manager.close());await f.manager.open(f.owner,'model');const grant=await f.call('camera-start',{consent:true}),entry=f.manager.entry;entry.win.webContents.emit('did-start-navigation',{isMainFrame:false,isSameDocument:false});entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:true});assert.equal(entry.camera.session.token,grant.token);entry.win.webContents.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(entry.camera.session,null);assert.equal(entry.active,false)});
 
 test('known built-in local text profile is blocked even when labeled API and visionEnabled',async t=>{const f=fixture();t.after(()=>f.manager.close());f.state.profiles[0]={id:'test',base:'http://127.0.0.1:8000/v1',model:'oregairu-small',visionEnabled:true};await f.manager.open(f.owner,'model');assert.equal((await f.call('info')).profile.visionEnabled,false);await assert.rejects(f.call('camera-start',{consent:true}),/本地文本/);await assert.rejects(f.call('screen-sources',{consent:true}),/本地文本/);assert.equal(f.captures(),0)});

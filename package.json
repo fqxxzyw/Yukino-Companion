@@ -8,7 +8,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "npm run prepare:characters && npm run prepare:companions && vite build",
+    "build": "npm run prepare:characters && npm run prepare:companions && npm run prepare:wallpapers && vite build",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win --x64 --dir --publish never",
     "test": "node --test tests/*.test.cjs",
@@ -30,8 +30,9 @@
     "qa:skin8": "electron scripts/capture-eight-weight-skinning.cjs --output build/eight-weight-skinning-review",
     "package:characters": "node scripts/package-character-assets.cjs",
     "prepare:characters": "node scripts/prepare-character-assets.cjs",
-    "pretest": "npm run prepare:characters",
-    "predev": "npm run prepare:characters",
+    "prepare:wallpapers": "node scripts/prepare-wallpapers.cjs",
+    "pretest": "npm run prepare:characters && npm run prepare:wallpapers",
+    "predev": "npm run prepare:characters && npm run prepare:wallpapers",
     "review:blink": "electron scripts/open-blink-review.cjs",
     "qa:blink": "electron scripts/open-blink-review.cjs --capture",
     "test:release": "node --test tests/release-automation/*.test.cjs"
@@ -41,6 +42,7 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "three": "0.185.0",
+    "ws": "8.22.0",
     "yauzl": "3.2.0"
   },
   "devDependencies": {

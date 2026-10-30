@@ -78,3 +78,13 @@ test('cancellation during preflight checking never starts a new download',async 
  service=new VoiceResources({root,catalog:{packs:{core:{files:[{path:'weights.bin',bytes:5,algorithm:'sha256',digest:sha(Buffer.from('voice')),url:'https://example.test/weights'}]}}},fetcher:async()=>{fetched++;throw Error('unexpected download');},notify:status=>{if(status.phase==='checking')service.cancel();}});
  await assert.rejects(service.install('core'));assert.equal(fetched,0);assert.equal(service.status.phase,'cancelled');
 });
+
+test('voice engine is deployed into the selected directory even when a legacy private copy exists',async t=>{
+ const root=await fixture(t),resources=path.join(root,'resources'),selected=path.join(root,'selected'),legacy=path.join(root,'legacy'),runtime=path.join(selected,'runtime','current'),revision='b'.repeat(40);
+ await write(runtime,'python-runtime/python.exe');await write(runtime,'inference-engine/yukino-runtime.json',JSON.stringify({revision}));await write(runtime,'inference-engine/GPT_SoVITS/TTS_infer_pack/TTS.py','new-runtime-engine');
+ const old=path.join(legacy,'speech-engine',revision);await write(old,'.installed',revision);await write(old,'GPT_SoVITS/TTS_infer_pack/TTS.py','preserved-legacy-engine');
+ const result=await bundledVoiceDefaults({resourceRoot:resources,dataRoot:selected,legacyDataRoot:legacy,runtimeRoot:runtime});
+ assert.equal(result.defaults.root,path.join(selected,'speech-engine',revision));
+ assert.equal(await fs.readFile(path.join(result.defaults.root,'GPT_SoVITS/TTS_infer_pack/TTS.py'),'utf8'),'new-runtime-engine');
+ assert.equal(await fs.readFile(path.join(old,'GPT_SoVITS/TTS_infer_pack/TTS.py'),'utf8'),'preserved-legacy-engine');
+});

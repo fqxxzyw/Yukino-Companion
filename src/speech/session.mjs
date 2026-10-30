@@ -8,7 +8,8 @@ export class SpeechSession {
   }
   start(id) {
     this.cancel();
-    const job = { id, stream: this.japaneseOnly ? new JapaneseSentenceStream() : new SentenceStream(), queue: [], final: false, running: false, playing: false, next: null, count: 0 };
+    const job = { id, stream: this.japaneseOnly ? new JapaneseSentenceStream() : new SentenceStream(), queue: [], final: false, running: false, playing: false, next: null, count: 0, played:0,synthesized:0 };
+    job.completion=new Promise(resolve=>job.complete=resolve);
     this.current = job;
     job.ready = Promise.resolve(this.bridge.begin(id)).then(() => {
       if (this.current !== job) return;
@@ -58,28 +59,30 @@ export class SpeechSession {
         if (this.current !== job) return;
         job.next = null;
         if (result.error) throw result.error;
+        job.synthesized++;
         job.playing = true;
         this.onState({ phase: 'playing', id: job.id, pending: job.queue.length });
         const playback = this.player.play(result.audio, { hint: speechHint(next.segment) });
         this.prepareNext(job);
         await playback;
+        if(this.current===job)job.played++;
         job.playing = false;
       }
       if (this.current === job) {
         this.onState({ phase: job.final ? 'idle' : 'waiting', id: job.id });
-        if (job.final) this.current = null;
+        if (job.final) {this.current = null;job.complete(job.played?{completed:true,id:job.id,synthesized:job.synthesized>0,played:true}:{completed:false,id:job.id,synthesized:job.synthesized>0,played:false,error:'没有生成并播放可用的日语语音。'});}
       }
     } catch (e) { if (this.current === job) this.fail(job, e); }
     finally { job.running = false; job.playing = false; }
   }
   fail(job, error) {
     if (this.current !== job) return;
-    this.cancel(); this.onState({ phase: 'error', error: error.message });
+    job.complete({completed:false,id:job.id,synthesized:job.synthesized>0,played:job.played>0,error:error.message});this.cancel(); this.onState({ phase: 'error', error: error.message });
   }
   cancel() {
     const old = this.current; this.current = null;
     this.player.stop();
-    if (old) { old.queue.length = 0; old.stream = null; old.next = null; old.playing = false; Promise.resolve(this.bridge.stop(old.id)).catch(() => {}); }
+    if (old) { old.complete({completed:false,id:old.id,cancelled:true});old.queue.length = 0; old.stream = null; old.next = null; old.playing = false; Promise.resolve(this.bridge.stop(old.id)).catch(() => {}); }
     this.onState({ phase: 'idle' });
   }
 }

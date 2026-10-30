@@ -35,3 +35,10 @@ build/
 /public/characters/*.glb
 /resources/character-source/*.glb.gz
 /review-assets/*.glb
+
+# Reconstructed byte-for-byte from the pinned wallpaper transport parts.
+/public/wallpapers/yukino-sky-01.png
+/public/wallpapers/yukino-sky-02.png
+
+# Official website icons are fetched and recorded as build artifacts.
+/public/provider-logos/

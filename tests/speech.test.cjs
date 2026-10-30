@@ -172,6 +172,15 @@ test('bad configuration rejected without starting subprocesses',()=>{
 });
 
 function fakeProcess(){const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdin=new PassThrough();child.kills=0;child.kill=()=>{child.kills++};return child;}
+test('inference caches and temporary files follow the selected worker directory',()=>{
+  const path=require('node:path'),cwd=path.resolve('selected-data','speech-runtime');
+  let options;const child=fakeProcess();
+  const worker=new WorkerClient({python:'/python',script:'/worker.py',cwd,spawnImpl:(exe,args,opts)=>{options=opts;return child}});
+  assert.equal(options.env.HF_HOME,path.join(cwd,'.cache','huggingface'));
+  assert.equal(options.env.TORCH_HOME,path.join(cwd,'.cache','torch'));
+  assert.equal(options.env.XDG_CACHE_HOME,path.join(cwd,'.cache'));
+  assert.equal(options.env.TMP,cwd);assert.equal(options.env.TEMP,cwd);worker.close();
+});
 test('Python starts with ONNX telemetry disabled even when the parent opts in',()=>{
   const previous=process.env.ORT_DISABLE_TELEMETRY;
   process.env.ORT_DISABLE_TELEMETRY='0';

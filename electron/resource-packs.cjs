@@ -13,9 +13,9 @@ class ResourcePacks {
   get controller(){return this.controllers.values().next().value||null;}
   pack(id){const pack=this.catalog?.packs?.[id];if(!['chat','pet'].includes(id)||!pack||!Number.isSafeInteger(pack.bytes)||pack.bytes<1||!/^[a-f0-9]{64}$/.test(pack.sha256)||!Number.isSafeInteger(pack.maxUnpackedBytes)||pack.maxUnpackedBytes<pack.bytes||pack.maxUnpackedBytes>8*1024**3)throw Error('资源清单无效');return pack;}
   directory(id){return path.join(this.root,id+'-'+this.pack(id).sha256.slice(0,16));}
-  async status(id){
+  async status(id,{currentOnly=false}={}){
     const pack=this.pack(id);let installed=false,root='';
-    for(const directory of [this.directory(id),...(this.legacyRoot?[path.join(this.legacyRoot,id+'-'+pack.sha256.slice(0,16))]:[])]){
+    for(const directory of [this.directory(id),...(!currentOnly&&this.legacyRoot?[path.join(this.legacyRoot,id+'-'+pack.sha256.slice(0,16))]:[])]){
     try{
       const marker=JSON.parse(await fs.readFile(path.join(directory,'.resource-pack.json'),'utf8'));
       if(marker.sha256!==pack.sha256||typeof marker.root!=='string'||marker.root.includes('\\')||path.isAbsolute(marker.root)||marker.root.split('/').some(x=>x==='..'))throw Error('资源安装标记无效');
@@ -27,13 +27,13 @@ class ResourcePacks {
       installed=true;break;
     }catch{root='';}
     }
-    return {id,installed,root,downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
+    return {id,installed,root,legacy:Boolean(installed&&this.legacyRoot&&root.startsWith(this.legacyRoot+path.sep)),targetDirectory:this.directory(id),downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
   }
   async install(id,{signal}={}){
     if(this.controllers.has(id))throw Error('此资源正在安装，请等待或先取消');
     const controller=new AbortController();this.controllers.set(id,controller);const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();const active=controller.signal;let stage;
     try{
-      active.throwIfAborted();const existing=await this.status(id);if(existing.installed)return existing;
+      active.throwIfAborted();const existing=await this.status(id,{currentOnly:true});if(existing.installed)return existing;
       const pack=this.pack(id),destination=this.directory(id);await fs.mkdir(this.root,{recursive:true});
       // Verified chunks are removed before extraction; the peak is either two
       // archive copies while merging, or archive + unpacked payload, not all three.
@@ -60,7 +60,7 @@ class ResourcePacks {
       await fs.writeFile(path.join(stage,'.resource-pack.json'),JSON.stringify({schemaVersion:1,id,sha256:pack.sha256,root:relative}));active.throwIfAborted();
       // Never recursively replace an existing directory containing user files.
       try{await fs.access(destination);throw Error('资源目录已存在但不完整，请在帮助文档中查看修复方法；原文件已保留');}catch(error){if(error.code!=='ENOENT')throw error;}
-      await fs.rename(stage,destination);stage=null;const result=await this.status(id);if(!result.installed)throw Error('资源安装后的检查未通过');this.notify(id,{phase:'ready',bytes:pack.bytes,total:pack.bytes});return result;
+      await fs.rename(stage,destination);stage=null;const result=await this.status(id,{currentOnly:true});if(!result.installed)throw Error('资源安装后的检查未通过');this.notify(id,{phase:'ready',bytes:pack.bytes,total:pack.bytes});return result;
     }finally{signal?.removeEventListener('abort',cancel);if(this.controllers.get(id)===controller)this.controllers.delete(id);if(stage)await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
   }
   cancel(){for(const controller of this.controllers.values())controller.abort();}

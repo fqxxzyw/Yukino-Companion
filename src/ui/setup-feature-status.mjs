@@ -9,7 +9,7 @@ export function featureStatus(feature,status={}) {
   const states=steps.map(step=>step.state||step.phase||'pending');
   if (states.some(state=>state==='error')) return {kind:'error',label:'需要处理'};
   if (states.some(state=>['checking','installing','downloading','extracting','assembling','merging','running'].includes(state))) return {kind:'busy',label:'正在准备'};
-  if (states.every(state=>['ready','complete'].includes(state))) return {kind:'ready',label:'资源已准备'};
+  if (states.every(state=>['ready','complete'].includes(state))) return {kind:'ready',label:'文件已找到'};
   if (states.includes('waiting-runtime')) return {kind:'waiting',label:'等待运行环境'};
   if (states.includes('missing')) return {kind:'missing',label:'需要准备'};
   if (states.includes('cancelled')) return {kind:'waiting',label:'已取消'};

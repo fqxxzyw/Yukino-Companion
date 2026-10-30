@@ -62,6 +62,8 @@ async function main(){
   const run=args=>{const r=spawnSync(process.execPath,args,{cwd:root,env:{...process.env,YUKINO_BASE_BUILD:'1',CSC_IDENTITY_AUTO_DISCOVERY:'false'},stdio:'inherit',shell:false});if(r.error||r.status!==0)throw r.error||Error('Base build failed: '+args[0]);};
   run([path.join(__dirname,'prepare-character-assets.cjs')]);
   run([path.join(__dirname,'prepare-companion-assets.cjs'),'--artwork-only']);
+  run([path.join(__dirname,'prepare-wallpapers.cjs')]);
+  await fs.access(path.join(root,'public/provider-logos/manifest.json')).catch(()=>run([path.join(__dirname,'cache-provider-logos.cjs'),'--allow-missing']));
   run([path.join(root,'node_modules/vite/bin/vite.js'),'build']);
   run([require.resolve('electron-builder/out/cli/cli.js'),'--win','--x64','--dir','--publish','never','--config',filename]);
   await fs.rm(output,{recursive:true,force:true});await fs.rename(path.join(root,'build/base-electron/win-unpacked'),output);
@@ -77,22 +79,50 @@ function verifyBundledCharacters(archive,models){
     if(data.length!==model.bytes||crypto.createHash('sha256').update(data).digest('hex')!==model.sha256)throw Error('Bundled character integrity failed: '+model.id);
   }
 }
+function verifyBundledWallpapers(archive){
+  const crypto=require('node:crypto'),manifest=require('../resources/default-wallpapers.json');
+  for(const item of manifest.items){
+    if(!/^[a-f0-9]{64}$/.test(item.id)||!/^\.\/wallpapers\/[a-z0-9-]+\.png$/.test(item.url))throw Error('Invalid bundled wallpaper manifest');
+    const data=asar.extractFile(archive,path.join('dist',...item.url.slice(2).split('/')));
+    if(data.length!==item.bytes||crypto.createHash('sha256').update(data).digest('hex')!==item.id)throw Error('Bundled wallpaper integrity failed: '+item.name);
+  }
+  return manifest.items.length;
+}
+function verifyBundledProviderLogos(archive){
+  const crypto=require('node:crypto'),{allowed,imageExtension}=require('./cache-provider-logos.cjs'),brands=require('../resources/api-brands.json').brands;
+  const manifest=JSON.parse(asar.extractFile(archive,path.join('dist','provider-logos','manifest.json')).toString('utf8'));
+  if(manifest.version!==1||!manifest.brands||typeof manifest.brands!=='object')throw Error('Invalid provider logo manifest');
+  const cached=[],missing=[];
+  for(const [brand,definition] of Object.entries(brands)){
+    const item=manifest.brands[brand];
+    if(!item)throw Error('Missing provider logo outcome: '+brand);
+    if(item.status==='not-applicable'&&!definition.logoSources.length)continue;
+    if(item.status==='missing'){missing.push(brand);continue;}
+    if(item.status!=='cached'||!new RegExp('^'+brand+'\\.(png|ico|jpg|webp)$').test(item.file)||!allowed(item.sourceUrl,definition.assetDomains))throw Error('Invalid official provider logo record: '+brand);
+    const data=asar.extractFile(archive,path.join('dist','provider-logos',item.file));
+    if(imageExtension(data)!==path.extname(item.file).slice(1)||data.length!==item.bytes||crypto.createHash('sha256').update(data).digest('hex')!==item.sha256)throw Error('Provider logo integrity failed: '+brand);
+    cached.push(brand);
+  }
+  return {cached,missing,validation:'official-source-and-package-bytes-only',displayVerified:false};
+}
 async function verifyBaseApp(output){
   const executable=await verifyWindowsExecutable(path.join(output,'Yukino Companion.exe'));
   const resources=path.join(output,'resources'),entries=asar.listPackage(path.join(resources,'app.asar')).map(x=>x.replaceAll('\\','/'));
   if(entries.some(x=>/\/assets\/voices\//.test(x)||/\.(gguf|ckpt|pth|safetensors|onnx)$/i.test(x)))throw Error('Heavy model/audio resources entered the base app');
   const characterCatalog=require('../resources/character-models.json');
   verifyBundledCharacters(path.join(resources,'app.asar'),characterCatalog.models);
+  const wallpapersEmbedded=verifyBundledWallpapers(path.join(resources,'app.asar'));
+  const providerLogos=verifyBundledProviderLogos(path.join(resources,'app.asar'));
   for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html'])if(!entries.includes('/'+file))throw Error('Missing application file '+file);
   for(const file of ['runtime-catalog.json','aria2/aria2c.exe','aria2/COPYING','aria2/LICENSE.OpenSSL','aria2/aria2-1.37.0.tar.xz','inference/worker.py','translation/worker.py','local-chat/desktop_worker.py'])await fs.access(path.join(resources,file));
   const bytes=await inspectDetachedResources(output);validateUnpackedBudget(bytes);
   const outfits=new Set(characterCatalog.models.filter(item=>item.bundled).map(item=>item.outfitGroup));
   if(outfits.size!==7)throw Error('Expected all seven character outfits');
-  const report={schemaVersion:1,version:pkg.version,bytes,maxUnpackedBytes:MAX_UNPACKED_BYTES,maxInstallerBytes:512*1024**2,modelsEmbedded:false,legacyModelsEmbeddedMeaning:'LLM/TTS weights only; visual character models are recorded separately',languageWeightsEmbedded:false,voiceWeightsEmbedded:false,characterModelsEmbedded:true,characterVariants:characterCatalog.models.filter(item=>item.bundled).length,characterOutfits:outfits.size,runtimeEmbedded:false,petVoicesEmbedded:false,bundledAria2:true,executable,validation:'static-package-only',windowsExecutionVerified:false,installerBuilt:false};await fs.writeFile(path.join(root,'build/base-package.json'),JSON.stringify(report,null,2)+'\n');console.log(report);return report;
+  const report={schemaVersion:1,version:pkg.version,bytes,maxUnpackedBytes:MAX_UNPACKED_BYTES,maxInstallerBytes:512*1024**2,modelsEmbedded:false,legacyModelsEmbeddedMeaning:'LLM/TTS weights only; visual character models are recorded separately',languageWeightsEmbedded:false,voiceWeightsEmbedded:false,characterModelsEmbedded:true,characterVariants:characterCatalog.models.filter(item=>item.bundled).length,characterOutfits:outfits.size,wallpapersEmbedded,providerLogos,runtimeEmbedded:false,petVoicesEmbedded:false,bundledAria2:true,executable,validation:'static-package-only',windowsExecutionVerified:false,installerBuilt:false};await fs.writeFile(path.join(root,'build/base-package.json'),JSON.stringify(report,null,2)+'\n');console.log(report);return report;
 }
 if(require.main===module){
   const args=process.argv.slice(2);
   const work=args.length===0?main:args.length===2&&args[0]==='--verify-only'?()=>verifyBaseApp(path.resolve(args[1])):()=>Promise.reject(Error('Usage: node scripts/build-base-app.cjs [--verify-only DIRECTORY]'));
   work().catch(e=>{console.error(e);process.exitCode=1;});
 }
-module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBundledCharacters,verifyBaseApp};
+module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBundledCharacters,verifyBundledWallpapers,verifyBundledProviderLogos,verifyBaseApp};

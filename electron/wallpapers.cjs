@@ -1,6 +1,7 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
+const bundledIds=new Set(require('../resources/default-wallpapers.json').items.map(item=>item.id));
 const MAX_BYTES=16*1024*1024,MAX_IMAGES=20;
 function imageMime(data){if(data.length>=8&&data.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')))return 'image/png';if(data.length>=3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff)return 'image/jpeg';if(data.length>=12&&data.toString('ascii',0,4)==='RIFF'&&data.toString('ascii',8,12)==='WEBP')return 'image/webp';throw Error('只支持 PNG、JPEG 或 WebP 图片');}
 function validId(id){return typeof id==='string'&&/^[a-f0-9]{64}$/.test(id)}
@@ -13,7 +14,7 @@ class WallpaperStore{
  async copyTo(targetRoot,ids){
   if(!Array.isArray(ids)||ids.length>MAX_IMAGES||ids.some(id=>!validId(id)))throw Error('壁纸清单无效');
   const destination=new WallpaperStore(targetRoot);await fs.mkdir(destination.root,{recursive:true});const rootStat=await fs.lstat(destination.root);if(!rootStat.isDirectory()||rootStat.isSymbolicLink())throw Error('目标壁纸目录无效');
-  for(const id of new Set(ids)){
+  for(const id of new Set(ids.filter(id=>!bundledIds.has(id)))){
    const {data}=await this.read(id),file=path.join(destination.root,id);
    try{await fs.writeFile(file,data,{flag:'wx'});}catch(error){if(error.code!=='EEXIST')throw error;}
    await destination.read(id);
@@ -21,6 +22,7 @@ class WallpaperStore{
  }
  async copyAllTo(targetRoot,requiredIds=[]){
   if(!Array.isArray(requiredIds)||requiredIds.length>MAX_IMAGES||requiredIds.some(id=>!validId(id)))throw Error('壁纸清单无效');
+  requiredIds=requiredIds.filter(id=>!bundledIds.has(id));
   let entries;try{entries=await fs.readdir(this.root,{withFileTypes:true});}catch(error){if(error.code==='ENOENT'&&!requiredIds.length)return;throw error;}
   const ids=new Set(requiredIds);
   for(const entry of entries){

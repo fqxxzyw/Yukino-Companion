@@ -70,7 +70,7 @@ class BilingualStream {
   }
 }
 
-async function completeBilingual({zh, ja}, {translate, translateToChinese, signal, requestId, preferLocal = false, translationSource = 'local'}) {
+async function completeBilingual({zh, ja}, {translate, translateToChinese, signal, requestId, preferLocal = false, forceTranslation = false, translationSource = 'local'}) {
   signal?.throwIfAborted();
   zh = clean(zh); ja = clean(ja);
   if (isMostlyJapanese(zh)) { if (!hasKana(ja)) ja=zh; zh=''; }
@@ -83,12 +83,12 @@ async function completeBilingual({zh, ja}, {translate, translateToChinese, signa
       if (!zh || isMostlyJapanese(zh)) throw Error('未获得有效中文翻译');
     } catch(error) {
       if(signal?.aborted)throw error;
-      return {zh:'',ja,translationStatus:'ready',source:translationSource,displayStatus:'error',displayError:error.message||'中文翻译暂不可用'};
+      return {zh:'',ja:forceTranslation?'':ja,translationStatus:forceTranslation?'error':'ready',source:translationSource,displayStatus:'error',displayError:error.message||'中文翻译暂不可用',...(forceTranslation?{translationError:error.message||'中文翻译暂不可用'}:{})};
     }
-    return {zh,ja,translationStatus:'ready',source:'api'};
+    if(!forceTranslation&&!preferLocal)return {zh,ja,translationStatus:'ready',source:'api'};
   }
   if (!zh) throw Error('模型没有返回中文正文');
-  if (!preferLocal && hasKana(ja)) return {zh, ja, translationStatus: 'ready', source: 'api'};
+  if (!preferLocal && !forceTranslation && hasKana(ja)) return {zh, ja, translationStatus: 'ready', source: 'api'};
   try {
     signal?.throwIfAborted();
     const translated = await translate({text: zh, source: 'zh', target: 'ja', requestId}, {signal});

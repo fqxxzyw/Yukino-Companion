@@ -1,0 +1,18 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {Mic,MicOff,Square} from 'lucide-react';
+import {VoiceInputSession,VOICE_INPUT_DEFAULTS} from './voice-input-session.mjs';
+import './voice-input.css';
+export default function VoiceInputControl({api,settings={},disabled=false,onPartial=()=>{},onFinal=()=>{},onSubmit=()=>{},onInterrupt=()=>{},onStatus=()=>{}}){
+ const [state,setState]=useState({phase:'idle',level:0,partial:'',final:''}),controller=useRef(null),callbacks=useRef({});callbacks.current={onPartial,onFinal,onSubmit,onInterrupt,onStatus};
+ const value={...VOICE_INPUT_DEFAULTS,...settings},signature=JSON.stringify(value);
+ useEffect(()=>{const session=new VoiceInputSession({api,onStatus:next=>{setState(next);callbacks.current.onStatus(next);},onPartial:(...args)=>callbacks.current.onPartial(...args),onFinal:(...args)=>callbacks.current.onFinal(...args),onSubmit:(...args)=>callbacks.current.onSubmit(...args),onInterrupt:(...args)=>callbacks.current.onInterrupt(...args)});controller.current=session;const hide=()=>{if(document.hidden)void session.cancel();},pagehide=()=>void session.cancel();document.addEventListener('visibilitychange',hide);window.addEventListener('pagehide',pagehide);return()=>{document.removeEventListener('visibilitychange',hide);window.removeEventListener('pagehide',pagehide);void session.dispose();controller.current=null;};},[api]);
+ useEffect(()=>{void controller.current?.cancel();},[signature]);
+ const active=['connecting','listening','finishing'].includes(state.phase),start=()=>controller.current?.start(value).catch(()=>{}),finish=()=>controller.current?.finish().catch(()=>{});
+ const label=value.mode==='hold'?'按住说话':value.mode==='continuous'?'开启自由语音':'点击说话';
+ function pointerDown(event){if(value.mode!=='hold'||disabled)return;event.preventDefault();event.currentTarget.setPointerCapture?.(event.pointerId);void start();}
+ function pointerUp(event){if(value.mode==='hold'){event.preventDefault();void finish();}}
+ return <div className="voice-input-control"><div className="voice-input-actions"><button type="button" className={active?'voice-mic active':'voice-mic'} disabled={disabled&&!active||!api?.asrStart||state.phase==='finishing'} aria-label={active?'结束本次语音输入':label} aria-pressed={active} onPointerDown={pointerDown} onPointerUp={pointerUp} onPointerCancel={()=>void controller.current?.cancel()} onLostPointerCapture={()=>{if(value.mode==='hold')void controller.current?.finish();}} onClick={()=>{if(value.mode!=='hold')active?void finish():void start();}} onKeyDown={event=>{if(value.mode==='hold'&&!event.repeat&&[' ','Enter'].includes(event.key)){event.preventDefault();void start();}}} onKeyUp={event=>{if(value.mode==='hold'&&[' ','Enter'].includes(event.key)){event.preventDefault();void finish();}}}><Mic size={17}/>{active?state.phase==='connecting'?'连接中…':state.phase==='finishing'?'等待最终文字…':'结束说话':label}</button>
+ {active&&<><button type="button" onClick={()=>controller.current?.setMuted(!state.muted)} aria-label={state.muted?'取消麦克风静音':'麦克风静音'}>{state.muted?<MicOff size={16}/>:<Mic size={16}/>}</button><button type="button" onClick={()=>void controller.current?.cancel()} aria-label="停止监听并取消本次识别"><Square size={16}/></button></>}
+ {active&&<meter min="0" max="1" value={state.level||0} aria-label="麦克风输入音量"/>}</div>
+ {state.partial&&<p className="asr-partial" aria-live="polite">{state.partial}<small>识别中</small></p>}{state.final&&<p className="asr-final" aria-live="polite">{state.final}<small>已确认</small></p>}{state.error&&<p role="alert" className="notice">{state.error}</p>}{active&&<small>{state.muted?'麦克风已静音':value.mode==='continuous'?'正在向所选云端 ASR 发送声音；可随时停止。':'正在录音；结束后确认转写。'}</small>}</div>;
+}

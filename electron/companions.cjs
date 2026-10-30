@@ -216,11 +216,11 @@ class CompanionManager {
   setSpeechSnapshot(value){const snapshot=speechSnapshot(value);if(snapshot.characterId!==this.character.id||snapshot.sequence<=(this.speechSequence??-1))return false;this.speechSequence=snapshot.sequence;const win=this.windows.get('model');if(win&&!win.isDestroyed())win.webContents.send('companion-speech',snapshot);return true;}
   resetSpeechClock(){this.speechSequence=-1;this.clearSpeechSnapshot();}
   setMouthLevel(level){const win=this.windows.get('model');if(win&&!win.isDestroyed())win.webContents.send('companion-mouth',level);}
-  setVisionActive(value){this.visionActive=value===true;if(this.visionActive)this.cancelProactive();for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
+  setVisionActive(value){const previous=this.visionActive;this.visionActive=value===true;if(this.visionActive&&!previous&&this.proactiveEvent?.type!=='visual-observation'||!this.visionActive&&previous&&this.proactiveEvent?.type==='visual-observation')this.cancelProactive();for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
   showError(input){const kind=input&&typeof input==='object'&&input.kind==='voice'?'voice':'chat',message=typeof input==='string'?input:input?.message;const value=typeof message==='string'?message.slice(0,400):'请求没有完成';for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'chat-error',kind,message:value});}
   clearCapabilityError(kind){if(!['chat','voice'].includes(kind))return;for(const win of this.windows.values())if(!win.isDestroyed())win.webContents.send('companion-action',{name:'capability-recovered',kind});}
   setSpeechBusy(value){this.speechBusy=value===true;if(this.speechBusy)this.cancelProactive();for(const [kind,win] of this.windows){if(this.speechBusy)win.webContents.send('companion-action',{name:'audio-stop'});this.sendState(win,kind);}}
-  setChatBusy(value) { this.chatBusy=value===true;if(this.chatBusy)this.cancelProactive(); for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
+  setChatBusy(value) { this.chatBusy=value===true;if(this.chatBusy){this.reminders.noteInteraction();this.cancelProactive();} for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
   setMode(mode) { return this.setPreferences({ mode }); }
   showReply(reply) {
     // Chat already has its own 160k generation limit; never truncate a reply
@@ -287,7 +287,7 @@ class CompanionManager {
     if (action === 'voice-url') {if(this.speechBusy)throw Error('角色正在朗读，请等待或停止。');return this.voiceUrl(payload);}
     if (action === 'settings') { this.closeMenu(kind); this.openMain(); this.onOpenSettings('avatar'); return true; }
     if (action === 'prefs') { const allowed=['animation','interactionPaused','quietMode','randomQuotes','interactionQuotes','nightReminders','showBubbles','soundEnabled','soundVolume','opacity','scale','alwaysOnTop','mouseThrough','startup','bubbleLanguage','inputPosition','breakReminders','breakIntervalMinutes','petRenderer']; const patch=Object.fromEntries(Object.entries(payload||{}).filter(([key])=>allowed.includes(key))); return this.setPreferences(patch); }
-    if (action === 'action'){this.onUse();return this.performAction(payload);}
+    if (action === 'action'){this.reminders.noteInteraction();this.onUse();return this.performAction(payload);}
     if (action === 'quote') return this.pickQuote(payload);
     if (action === 'cursor') { const cursor=this.e.screen.getCursorScreenPoint();const bounds=win.getBounds();return {x:cursor.x-bounds.x,y:cursor.y-bounds.y}; }
     if (action === 'hide') return this.setMode(this.preferences.mode === 'both' ? (kind === 'pet' ? 'model' : 'pet') : 'none');
@@ -358,7 +358,7 @@ class CompanionManager {
     if(trigger==='Idle'&&this.petMood.affection>=45&&Math.random()<.25)trigger='Affection';
     if(!['Greeting','Click','HeadPat','Annoyed','Mouse','Night','Idle','Observation','Affection','Break','Work','Farewell'].includes(trigger))throw Error('未知桌宠语录类型');
     const interactive=['Click','HeadPat','Annoyed','Mouse'].includes(trigger);
-    if(interactive&&!this.preferences.interactionPaused){
+    if(interactive&&!this.preferences.interactionPaused){this.reminders.noteInteraction();
       if(trigger==='HeadPat'){this.petMood.affection=Math.min(100,this.petMood.affection+.7);this.petMood.annoyance=Math.max(0,this.petMood.annoyance-1.3);}
       if(trigger==='Click')this.petMood.affection=Math.min(100,this.petMood.affection+.15);
       if(trigger==='Annoyed'){this.petMood.affection=Math.max(0,this.petMood.affection-.2);this.petMood.annoyance=Math.min(100,this.petMood.annoyance+10);}
@@ -371,6 +371,8 @@ class CompanionManager {
     return this.quotes.pick(trigger,{mood,affection:this.petMood.affection,action:typeof raw?.action==='string'?raw.action:'idle',high:['Greeting','HeadPat','Annoyed','Break','Work','Farewell'].includes(trigger)});
   }
   async performAction(action) {
+    if(action==='vision-stop'){await this.onVisionStop();return this.getState();}
+    if(action==='vision-open'){const pair=[...this.windows].find(([,win])=>!win.isDestroyed()&&win.isVisible()&&!win.isMinimized?.());const owner=pair?.[1]||this.mainWindow;if(!owner||owner.isDestroyed()||!owner.isVisible())throw Error('请先显示聊天或陪伴窗口。');if(await this.onVision(owner,pair?.[0]||'main')===false)throw Error('视觉窗口未能打开。');return this.getState();}
     if(!['greet','voice','head-tilt','jump','walk','sit','focus-25','focus-50','focus-cancel'].includes(action))throw Error('未知桌宠动作');
     if(this.preferences.petRenderer==='video-preview'&&this.character.id==='yukino'&&['greet','head-tilt','jump','sit'].includes(action))throw Error('连续动画预览仅支持待机、左右散步和拖动位置；其他动作请切回原 Q 版桌宠。');
     if(action==='focus-cancel'){await this.setPreferences({focusEnds:0});return this.getState();}
@@ -383,19 +385,21 @@ class CompanionManager {
     return this.getState();
   }
   reminderActivity(){let idle=Infinity;try{idle=this.e.powerMonitor.getSystemIdleTime()}catch{}return {companionVisible:[...this.windows.values()].some(win=>!win.isDestroyed()&&win.isVisible()&&!win.isMinimized?.()),locked:this.pauses.has('lock'),suspended:this.pauses.has('sleep'),systemIdleSeconds:idle,quiet:this.preferences.quietMode,focus:this.preferences.focusEnds>Date.now(),chatBusy:this.chatBusy,speechBusy:this.speechBusy===true,visualBusy:this.visionActive||!!this.proactiveController,showBubbles:this.preferences.showBubbles,hour:new Date().getHours()};}
-  cancelProactive(){const controller=this.proactiveController;if(!controller)return;this.proactiveController=null;controller.abort();this.proactiveStatus={phase:'idle'};}
+  cancelProactive(){const controller=this.proactiveController;if(!controller)return;this.proactiveController=null;this.proactiveEvent=null;controller.abort();this.proactiveStatus={phase:'idle'};}
+  async submitVisualObservation(input={}){if(this.quitting||input.characterId!==this.character.id)return {accepted:false,reason:'character-changed'};if(!this.visionActive)return {accepted:false,reason:'visual-session-stopped'};const decision=this.reminders.observation({...input,...this.reminderActivity(),generationBusy:Boolean(this.proactiveController)});if(!decision.accepted)return decision;await this.deliverProactive(decision.event);return {accepted:true};}
   async deliverProactive(event){
-    if(event.mode==='fixed'){this.showReply({id:event.id,zh:event.text,ja:''});this.onReminder(event);return;}
-    const controller=new AbortController(),characterId=this.character.id;this.proactiveController=controller;this.proactiveStatus={phase:'generating'};this.emit();
+    if(event.mode==='fixed'){this.reminders.markProactiveDelivered();this.showReply({id:event.id,zh:event.text,ja:''});this.onReminder(event);return;}
+    const controller=new AbortController(),characterId=this.character.id;this.proactiveController=controller;this.proactiveEvent=event;this.proactiveStatus={phase:'generating'};this.emit();
     try{
       const result=await this.onProactive(event,{signal:controller.signal,characterId});
       const activity=this.reminderActivity();
-      if(this.proactiveController!==controller||controller.signal.aborted||this.quitting||characterId!==this.character.id||!this.preferences.proactive.enabled||this.preferences.proactive.mode!=='generate'||!this.preferences.showBubbles||!activity.companionVisible||activity.locked||activity.suspended||!Number.isFinite(activity.systemIdleSeconds)||activity.systemIdleSeconds<0||activity.systemIdleSeconds>=300||activity.quiet||activity.focus||activity.chatBusy||activity.speechBusy||this.visionActive||!withinHours(activity.hour,this.preferences.proactive.startHour,this.preferences.proactive.endHour))return;
+      if(this.proactiveController!==controller||controller.signal.aborted||this.quitting||characterId!==this.character.id||event.type!=='visual-observation'&&(!this.preferences.proactive.enabled||this.preferences.proactive.mode!=='generate')||!this.preferences.showBubbles||!activity.companionVisible||activity.locked||activity.suspended||!Number.isFinite(activity.systemIdleSeconds)||activity.systemIdleSeconds<0||activity.systemIdleSeconds>=300||activity.quiet||activity.focus||activity.chatBusy||activity.speechBusy||event.type!=='visual-observation'&&this.visionActive||event.type==='visual-observation'&&!this.visionActive||!withinHours(activity.hour,this.preferences.proactive.startHour,this.preferences.proactive.endHour))return;
+      if(result?.speak===false){this.proactiveStatus={phase:'suppressed'};return;}
       if(typeof result?.zh!=='string'||!result.zh.trim())throw Error('模型没有返回有效的中文主动消息');
       const text=result.zh.trim().slice(0,1000);this.proactiveController=null;this.proactiveStatus={phase:'ready'};
-      this.showReply({id:event.id,zh:text,ja:typeof result.ja==='string'?result.ja:''});this.onReminder({...event,text});
+      this.reminders.markProactiveDelivered();this.showReply({id:event.id,zh:text,ja:typeof result.ja==='string'?result.ja:''});this.onReminder({...event,text});
     }catch(error){if(this.proactiveController===controller&&!controller.signal.aborted)this.proactiveStatus={phase:'error',error:String(error?.message||'主动消息生成失败').slice(0,200)};}
-    finally{if(this.proactiveController===controller){this.proactiveController=null;if(this.proactiveStatus.phase==='generating')this.proactiveStatus={phase:'idle'};}this.emit();}
+    finally{if(this.proactiveController===controller){this.proactiveController=null;this.proactiveEvent=null;if(this.proactiveStatus.phase==='generating')this.proactiveStatus={phase:'idle'};}if(this.proactiveEvent===event)this.proactiveEvent=null;this.emit();}
   }
   tickFocus() {
     if(this.quitting)return;

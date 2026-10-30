@@ -65,6 +65,12 @@ class SetupService {
         tasks.push(step('voicePreset',async signal=>{if(this.installVoicePreset)await this.installVoicePreset(signal);const state=await inspect();if(state.steps.find(x=>x.id==='voicePreset')?.state!=='ready')throw Error('默认音色或参考音频不完整，请在声音设置中检查选择。');}));
       }
       await Promise.allSettled(tasks);if(firstFailure)throw firstFailure;controller.signal.throwIfAborted();
+      // Install callbacks are not proof of completed resources. Inspect the final
+      // selected set after all writes/refreshes; a no-op or partial installer
+      // must not produce a green completion banner.
+      const final=await inspect();controller.signal.throwIfAborted();
+      const incomplete=final.steps.filter(item=>stepSelected(item.id,features)&&item.state!=='ready');
+      if(incomplete.length){this.failedStep=incomplete[0].id;throw Error('资源准备未完成：'+incomplete.map(item=>item.label||item.id).join('、')+'。请检查实际保存位置和错误日志后重试。');}
       this.phase='ready';this.revision++;return await this.status();
     }catch(error){if(!this.failedStep)this.failedStep=this.active;const cancelled=controller.signal.aborted&&!firstFailure;this.phase=cancelled?'cancelled':'error';this.error=cancelled?'已取消准备，已完成的资源会保留。':error.code==='ENOENT'?'所选功能的资源尚未安装，请重新准备该功能或检查设置中的文件位置。':error.message;throw Error(this.error);}
     finally{this.active=null;this.activeSteps.clear();this.progressByStep.clear();this.progress=null;if(this.controller===controller)this.controller=null;this.changed();}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "5c728db837a82c254192345fd05530a6726dd15267b4d799aadf907cc6204c01",
+      "name": "晴空 · 01",
+      "url": "./wallpapers/yukino-sky-01.png",
+      "bytes": 3398320
+    },
+    {
+      "id": "edfda90ae7060d4152584631d6aa92efc511d12f525c04394baefec32f9bdf60",
+      "name": "晴空 · 02",
+      "url": "./wallpapers/yukino-sky-02.png",
+      "bytes": 3257483
+    }
+  ]
+}

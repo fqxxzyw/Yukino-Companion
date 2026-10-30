@@ -24,6 +24,15 @@ jobs:
       - name: Recover verified character inputs from the previously published installer
         shell: pwsh
         run: ./scripts/restore-character-inputs-windows.ps1
+      - name: Check source behavior
+        shell: pwsh
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s tests -p '*_test.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test community/tests/*.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prepare pinned build resources
         shell: pwsh
         run: |

@@ -38,7 +38,7 @@ async function temporary(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'yukino-runtime-test-'));
   t.after(() => fs.rm(root,{recursive:true,force:true})); return root;
 }
-async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',gpuAvailable:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify} = {}) {
+async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify} = {}) {
   const temp = await temporary(t), resourceRoot = path.join(temp,'resources'), dataRoot = path.join(temp,'data');
   await fs.mkdir(resourceRoot,{recursive:true});
   const entries = [{name:'python-runtime/python.exe',data:'synthetic Python fixture'}, {name:'python-runtime/ffmpeg.exe',data:'synthetic ffmpeg'}, {name:'python-runtime/yukino-runtime-build.json',data:JSON.stringify({flavor})}];
@@ -108,7 +108,7 @@ test('failed runtime validation preserves the selected working runtime and retri
     assert.ok(path.isAbsolute(executable)); assert.ok(isOwnedStage(path.basename(path.dirname(path.dirname(executable))))); assert.equal(args[0],'-X'); assert.equal(options.shell,undefined);
     assert.equal((await env.manager.current()).root,previous.root,'old runtime is selected during staged validation');
     if(attempts===1)throw Error('synthetic probe failure');
-    return {stdout:JSON.stringify({torch:'tested',gpuAvailable:true})};
+    return {stdout:JSON.stringify({torch:'tested',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true})};
   }});
   previous=await previousRuntime(env);
   const pointerPath=path.join(env.manager.root,'current.json'), original=await fs.readFile(pointerPath,'utf8');
@@ -177,7 +177,7 @@ test('hardware auto-selection uses an argument-vector probe and falls back to CP
 });
 test('hardware detection reports NVIDIA even before Python or a CUDA runtime is installed',async t=>{
  let checks=0;const env=await fixture(t,{flavor:'cpu',hardwareRun:async()=>{checks++;return {stdout:'NVIDIA GeForce RTX 3060'};}});
- const status=await env.manager.status();assert.equal(status.ready,false);assert.equal(status.hardware.checked,true);assert.equal(status.hardware.nvidia,true);assert.deepEqual(status.variants,['cpu']);
+ const status=await env.manager.status();assert.equal(status.ready,false);assert.equal(status.hardware.checked,true);assert.equal(status.hardware.nvidia,true);assert.deepEqual(status.variants,['cpu','cu124']);
  await env.manager.status();assert.equal(checks,1,'repeated status checks reuse the hardware probe');
 });
 
@@ -277,7 +277,7 @@ test('a new catalogue version of the same flavor stages separately and preserves
   env=await fixture(t,{run:async()=>{
     probes++;
     if(previous){assert.equal((await env.manager.current()).root,previous.root); await fs.access(previous.python);}
-    return {stdout:JSON.stringify({torch:'test',gpuAvailable:true})};
+    return {stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true})};
   }});
   previous=await env.manager.install('cu124');
   env.catalog.version='test-2'; await fs.writeFile(env.catalogPath,JSON.stringify(env.catalog));
@@ -298,26 +298,40 @@ test('hardware detection is cancelled through its owned process signal',async()=
   controller.abort(); await assert.rejects(pending,/aborted/); assert.equal(received,controller.signal);
 });
 
-test('a CPU-only catalogue installs CPU automatically and refuses an unavailable CUDA request',async t=>{
-  let hardwareProbes=0;
-  const env=await fixture(t,{flavor:'cpu',run:async(executable)=>{
-    if(executable==='powershell.exe')hardwareProbes++;
-    return {stdout:JSON.stringify({torch:'cpu-test',gpuAvailable:false,translationGpuBuild:false})};
-  }});
-  const result=await env.manager.install('auto');
-  assert.equal(result.flavor,'cpu'); assert.deepEqual(result.variants,['cpu']); assert.equal(hardwareProbes,0);
-  const previousRoot=result.root;
-  await assert.rejects(env.manager.install('cu124'),/尚未提供所选运行环境/);
-  assert.equal((await env.manager.current()).root,previousRoot);
-  assert.equal(env.calls.length,2,'unavailable CUDA must not start any additional download');
+test('a CPU-only catalogue advertises upstream CUDA installation and keeps CPU auto without NVIDIA',async t=>{
+ const env=await fixture(t,{flavor:'cpu',run:async()=>({stdout:JSON.stringify({torch:'cpu-test',cpuTensor:true,gpuAvailable:false,translationGpuBuild:false})})});
+ const result=await env.manager.install('auto');assert.equal(result.flavor,'cpu');assert.deepEqual(result.variants,['cpu','cu124']);assert.equal(result.officialInstall,true);
+ const catalog=await env.manager.catalog();assert.equal(catalog.variants.cu124.officialPip,true);assert.equal(catalog.variants.cu124.baseFlavor,'cpu');
 });
 
-test('existing legacy runtime is reused while new installations still target the selected data directory',async t=>{
+test('legacy runtime is not reported installed in an empty selected directory',async t=>{
  const env=await fixture(t);const legacy=path.join(env.temp,'legacy');const root=path.join(legacy,'runtime','old','python-runtime');
  await fs.mkdir(root,{recursive:true});await fs.writeFile(path.join(root,'python.exe'),'old Python');await fs.writeFile(path.join(root,'yukino-runtime-build.json'),JSON.stringify({flavor:'cpu'}));
  await fs.writeFile(path.join(legacy,'runtime','current.json'),JSON.stringify({directory:'old',version:'previous',metadata:{gpuAvailable:false}}));
- env.manager.legacyDataRoot=legacy;
- const current=await env.manager.current();assert.equal(current.root,path.dirname(root));assert.equal(current.flavor,'cpu');
- assert.ok(env.manager.root.startsWith(env.dataRoot+path.sep));
+ env.manager.legacyDataRoot=legacy;assert.equal((await env.manager.current()).ready,false);assert.ok(env.manager.root.startsWith(env.dataRoot+path.sep));
  assert.equal(await fs.readFile(path.join(root,'python.exe'),'utf8'),'old Python');
+});
+
+test('NVIDIA auto install uses official CUDA wheels in a new stage even when no custom CUDA archive exists',async t=>{
+ const calls=[];const env=await fixture(t,{flavor:'cpu',hardwareRun:async()=>({stdout:'NVIDIA RTX 3060'}),run:async(executable,args,options)=>{
+  calls.push({executable,args,options});if(args.includes('pip'))return {stdout:'Downloading upstream package\nSuccessfully installed\n'};
+  return {stdout:JSON.stringify({cpuTensor:true,torch:'2.5.1+cu124',cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:false,gpuTensor:false,translationGpuBuild:false})};
+ }});
+ const installed=await env.manager.install('auto');assert.equal(installed.flavor,'cu124');assert.equal(installed.verified,true);assert.equal(installed.metadata.gpuTensor,false);assert.ok(installed.root.startsWith(env.dataRoot+path.sep));
+ const pip=calls.filter(call=>call.args.includes('pip'));assert.equal(pip.length,2);assert.ok(pip.every(call=>call.executable===installed.python));assert.ok(pip[0].args.includes('https://download.pytorch.org/whl/cu124'));
+ const marker=JSON.parse(await fs.readFile(path.join(installed.root,'python-runtime/yukino-runtime-build.json'),'utf8'));assert.equal(marker.installSource,'official-pip');assert.equal(marker.flavor,'cu124');
+ await fs.access(path.join(env.manager.root,'official-install.log'));assert.equal(env.calls.length,2,'only the checked CPU base archive is downloaded before official dependencies');
+});
+test('existing executable and old metadata cannot make a broken environment ready',async t=>{
+ const env=await fixture(t,{run:async()=>{throw Error('No module named torch');}});await previousRuntime(env);
+ const status=await env.manager.status();assert.equal(status.filesPresent,true);assert.equal(status.ready,false);assert.equal(status.verified,false);assert.match(status.validationError,/torch/);
+});
+test('official pip failure preserves prior runtime and leaves retry logs/cache in selected storage',async t=>{
+ let failed=true;const env=await fixture(t,{flavor:'cpu',hardwareRun:async()=>({stdout:'NVIDIA RTX 3060'}),run:async(executable,args)=>{
+  if(args.includes('pip')){if(failed)throw Error('upstream connection reset');return {stdout:'installed'};}
+  return {stdout:JSON.stringify({cpuTensor:true,torch:'test',cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:false,gpuTensor:false})};
+ }}),previous=await previousRuntime(env);
+ await assert.rejects(env.manager.install('cu124'),/官方安装失败/);assert.equal((await env.manager.current()).root,previous.root);assert.equal(env.manager.controller,null);assert.equal((await fs.readdir(env.manager.root)).some(isOwnedStage),false);
+ assert.match(await fs.readFile(path.join(env.manager.root,'official-install.log'),'utf8'),/connection reset/);await fs.access(path.join(env.manager.root,'pip-cache'));
+ failed=false;const installed=await env.manager.install('cu124');assert.equal(installed.flavor,'cu124');assert.equal(env.calls.length,2,'retry reuses the previously checked base archive parts');await fs.access(previous.root);
 });

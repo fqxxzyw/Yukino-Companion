@@ -7,7 +7,7 @@ const messageOf = error => String(error?.message || error || '操作失败，请
 const originOf = base => {try {return new URL(base).origin;} catch {return '';}};
 const providerFor = (profile, catalog) => catalog.find(p => p.id === profile.providerId) || catalog.find(p => p.base && profile.base?.replace(/\/$/, '').replace(/\/chat\/completions$/, '') === p.base) || catalog.find(p => p.id === 'custom');
 
-export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds, busy = false}) {
+export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds, busy = false,editingProfileId,onProfileSelect}) {
   const [catalog, setCatalog] = useState([]);
   const [catalogError, setCatalogError] = useState('');
   const [secret, setSecret] = useState('');
@@ -22,7 +22,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   const sequence = useRef(0);
   const mounted = useRef(true);
   latest.current = state;
-  const profile = state.profiles.find(p => p.id === state.activeProfile) || state.profiles[0];
+  const profile = state.profiles.find(p => p.id === (editingProfileId||state.activeProfile)) || state.profiles[0];
   const provider = providerFor(profile || {}, catalog);
   const locked = busy || Boolean(working);
   const savedKey = keyIds.includes(profile?.id);
@@ -108,7 +108,8 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
 
   function addProfile() {
     const id = crypto.randomUUID();
-    patchState({profiles:[...latest.current.profiles, {id, name:`API 配置 ${latest.current.profiles.length + 1}`, providerId:'deepseek', base:'https://api.deepseek.com', model:''}], activeProfile:id});
+    patchState({profiles:[...latest.current.profiles, {id, name:`API 配置 ${latest.current.profiles.length + 1}`, providerId:'custom', base:'', model:''}],...(onProfileSelect?{}:{activeProfile:id})});
+    onProfileSelect?.(id);
   }
   async function removeProfile() {
     const operation = ++sequence.current;
@@ -119,7 +120,8 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
       if (!mounted.current || operation !== sequence.current) return;
       onKeyIds?.(keyIds.filter(id => id !== profile.id));
       const profiles = latest.current.profiles.filter(p => p.id !== profile.id);
-      patchState({profiles, activeProfile:profiles[0].id});
+      patchState({profiles, activeProfile:latest.current.activeProfile===profile.id?profiles[0].id:latest.current.activeProfile});
+      onProfileSelect?.(profiles[0].id);
     } catch (error) {fail(error, operation);}
     finally {if (mounted.current && operation === sequence.current) setWorking('');}
   }
@@ -151,7 +153,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     <div className={'api-connection-status '+connection} role="status"><i aria-hidden="true"/><span>对话连接：{connection==='ready'?'本次测试成功':connection==='checking'?'正在测试':connection==='error'?'本次测试失败':'本次尚未测试'}</span></div>
     <label className="field">当前配置
       <div className="profile-picker">
-        <Select aria-label="当前 API 配置" value={profile.id} disabled={locked} onChange={e => patchState({activeProfile:e.target.value})}>
+        <Select aria-label="当前 API 配置" value={profile.id} disabled={locked} onChange={e => onProfileSelect?onProfileSelect(e.target.value):patchState({activeProfile:e.target.value})}>
           {state.profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         <button className="secondary api-add" type="button" disabled={locked} onClick={addProfile} aria-label="新增 API 配置"><Plus size={16}/></button>

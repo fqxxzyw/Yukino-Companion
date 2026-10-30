@@ -1,10 +1,12 @@
-const {randomUUID}=require('node:crypto');
+const {randomUUID,createHash}=require('node:crypto');
+const WATCH_LIMITS=Object.freeze({durationMs:600000,frames:60});
+const imageHash=image=>createHash('sha256').update(image).digest('hex');
 const {endpoint,chat}=require('./chat.cjs');
 // Capture is off by default. One-shot and separately consented, serialized watch
 // modes keep images in bounded memory only, never conversation history or disk.
 // Opening the dialog performs no desktop access.
 class VisionSession{
- constructor({capturer,resolveProfile,transport=chat,notify=()=>{},now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout}){this.capturer=capturer;this.resolveProfile=resolveProfile;this.transport=transport;this.notify=notify;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.expiryTimer=null;this.activeCapture=null;this.watch=null;this.watchTimer=null;this.captures=new Map();this.epoch=0;this.controller=null;}
+ constructor({capturer,resolveProfile,transport=chat,notify=()=>{},now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout}){this.capturer=capturer;this.resolveProfile=resolveProfile;this.transport=transport;this.notify=notify;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.expiryTimer=null;this.activeCapture=null;this.watch=null;this.watchTimer=null;this.watchExpiryTimer=null;this.captures=new Map();this.epoch=0;this.controller=null;}
  async sources({consent,profileId}={}){
   if(consent!==true)throw Error('请先同意本次截图预览。');
   this.cancel();const epoch=this.epoch;const settings=await this.resolveProfile(profileId);
@@ -45,7 +47,8 @@ class VisionSession{
    controller.signal.throwIfAborted();if(!text.trim())throw Error('视觉 API 没有返回内容。');return {text:text.trim(),destination:new URL(capture.destination).origin,model:capture.model};
   }finally{this.clearTimer(timer);capture.image='';if(this.activeCapture===capture)this.activeCapture=null;if(this.controller===controller){this.controller=null;this.notify({phase:this.watch?'watching':'idle',active:Boolean(this.watch)});}}
  }
- async startWatch({token,consent,watchConsent,profileId,prompt='请用中文说明当前截图中的变化。',intervalSeconds=30}={}){
+ async startWatch({token,consent,watchConsent,profileId,prompt='请用中文说明当前截图中的变化。',intervalSeconds=30,skipUnchanged=false}={}){
+  if(typeof skipUnchanged!=='boolean')throw Error('自动观察选项无效。');
   if(consent!==true||watchConsent!==true)throw Error('持续识别需要单独确认固定窗口、发送目标和周期。');
   if(![15,30,60,300].includes(intervalSeconds))throw Error('持续识别间隔只能选择 15、30、60 或 300 秒。');
   if(this.watch||this.controller)throw Error('识别正在进行，请先停止。');
@@ -56,13 +59,15 @@ class VisionSession{
   if(settings.profile.visionEnabled!==true||settings.profile.id!==capture.profileId||endpoint(settings.profile.base)!==capture.destination||settings.profile.model!==capture.model)throw Error('视觉 API 配置已改变，请重新预览确认。');
   if(typeof prompt!=='string'||prompt.length>4000)throw Error('识别问题最多 4000 字符。');
   if(this.watch||this.controller)throw Error('识别正在进行，请先停止。');
-  const watch={epoch,sourceId:capture.sourceId,sourceName:capture.sourceName,sourceType:capture.sourceType,profileId:capture.profileId,destination:capture.destination,model:capture.model,prompt,intervalSeconds};this.watch=watch;
-  this.notify({phase:'watching',active:true,sourceName:watch.sourceName,intervalSeconds});
+  const watch={epoch,sourceId:capture.sourceId,sourceName:capture.sourceName,sourceType:capture.sourceType,profileId:capture.profileId,destination:capture.destination,model:capture.model,prompt,intervalSeconds,skipUnchanged,expires:this.now()+WATCH_LIMITS.durationMs,count:0,skipped:0,lastImageHash:''};this.watch=watch;
+  this.watchExpiryTimer=this.setTimer(()=>{if(this.watch===watch){this.cancel();this.notify({phase:'completed',active:false,reason:'expired',count:watch.count,skipped:watch.skipped});}},WATCH_LIMITS.durationMs);this.watchExpiryTimer?.unref?.();
+  this.notify({phase:'watching',active:true,sourceName:watch.sourceName,intervalSeconds,expires:watch.expires,count:0});
   void this.watchCycle(watch,token);
-  return {active:true,sourceName:watch.sourceName,intervalSeconds,destination:new URL(watch.destination).origin,model:watch.model};
+  return {active:true,sourceName:watch.sourceName,intervalSeconds,destination:new URL(watch.destination).origin,model:watch.model,expires:watch.expires};
  }
  async watchCycle(watch,initialToken){
   if(this.watch!==watch||this.epoch!==watch.epoch)return;
+  if(this.now()>=watch.expires||watch.count>=WATCH_LIMITS.frames){this.cancel();this.notify({phase:'completed',active:false,count:watch.count,skipped:watch.skipped});return;}
   try{
    let token=initialToken;
    if(!token){
@@ -75,16 +80,20 @@ class VisionSession{
     const source=sources.find(item=>item.id===watch.sourceId&&String(item.name)===watch.sourceName);
     if(!source||source.thumbnail.isEmpty())throw Error('所选窗口已关闭或标题改变，持续识别已停止。');
     const image=source.thumbnail.toDataURL();if(!/^data:image\/png;base64,/.test(image)||image.length>6000000)throw Error('截图大小不支持，持续识别已停止。');
+    if(watch.skipUnchanged&&imageHash(image)===watch.lastImageHash){watch.skipped++;this.notify({phase:'watching',active:true,sourceName:watch.sourceName,intervalSeconds:watch.intervalSeconds,count:watch.count,skipped:watch.skipped,expires:watch.expires,unchanged:true});this.scheduleWatch(watch);return;}
     token=randomUUID();this.captures.set(token,{...watch,image,expires:this.now()+120000});
    }
+   watch.lastImageHash=imageHash(this.captures.get(token)?.image||'');
    const result=await this.analyze({token,prompt:watch.prompt,consent:true,profileId:watch.profileId});
    if(this.watch!==watch||this.epoch!==watch.epoch)return;
-   this.notify({phase:'watching',active:true,sourceName:watch.sourceName,intervalSeconds:watch.intervalSeconds,result});
+   watch.count++;this.notify({phase:'watching',active:true,sourceName:watch.sourceName,intervalSeconds:watch.intervalSeconds,result,count:watch.count,skipped:watch.skipped,expires:watch.expires});
    // Backpressure: schedule only after the previous network request finishes.
-   this.watchTimer=this.setTimer(()=>{this.watchTimer=null;void this.watchCycle(watch)},watch.intervalSeconds*1000);this.watchTimer?.unref?.();
+   if(watch.count>=WATCH_LIMITS.frames){this.cancel();this.notify({phase:'completed',active:false,count:watch.count,skipped:watch.skipped});return;}
+   this.scheduleWatch(watch);
   }catch(error){if(this.watch===watch&&this.epoch===watch.epoch){this.cancel();this.notify({phase:'error',active:false,error:error.message||'持续识别已停止。'});}}
  }
+ scheduleWatch(watch){this.watchTimer=this.setTimer(()=>{this.watchTimer=null;void this.watchCycle(watch)},watch.intervalSeconds*1000);this.watchTimer?.unref?.();}
  clearCaptures(){this.clearTimer(this.expiryTimer);this.expiryTimer=null;for(const capture of this.captures.values())capture.image='';this.captures.clear();}
- cancel(){this.epoch++;this.clearTimer(this.watchTimer);this.watchTimer=null;this.watch=null;this.controller?.abort();this.controller=null;if(this.activeCapture)this.activeCapture.image='';this.activeCapture=null;this.clearCaptures();this.notify({phase:'idle',active:false});}
+ cancel(){this.epoch++;this.clearTimer(this.watchExpiryTimer);this.watchExpiryTimer=null;this.clearTimer(this.watchTimer);this.watchTimer=null;this.watch=null;this.controller?.abort();this.controller=null;if(this.activeCapture)this.activeCapture.image='';this.activeCapture=null;this.clearCaptures();this.notify({phase:'idle',active:false});}
 }
-module.exports={VisionSession};
+module.exports={VisionSession,WATCH_LIMITS};

@@ -128,13 +128,13 @@ test('continuous vision reads only the fixed source kind and never converts or s
  const f=fixture({capture:()=>++rounds===1?[selected]:[{...source('Unselected window'),id:'window:other',thumbnail:{isEmpty:()=>false,toDataURL:()=>{throw Error('unselected thumbnail must not be converted');}}},selected]});
  const result=await startWatch(f);await flush();assert.equal(result.active,true);assert.equal(f.calls.transport.length,1);assert.equal(f.calls.capture.length,1);assert.equal(f.events.at(-1).phase,'watching');assert.equal(f.events.at(-1).active,true);
  f.clock.advance(14999);await flush();assert.equal(f.calls.capture.length,1);f.clock.advance(1);await flush();
- assert.equal(f.calls.capture.length,2);assert.deepEqual(f.calls.capture[1].types,['window']);assert.equal(f.calls.transport.length,2);assert.equal(f.session.captures.size,0);assert.equal(f.clock.timers.size,1);f.session.cancel();
+ assert.equal(f.calls.capture.length,2);assert.deepEqual(f.calls.capture[1].types,['window']);assert.equal(f.calls.transport.length,2);assert.equal(f.session.captures.size,0);assert.equal(f.clock.timers.size,2);f.session.cancel();
 });
 test('continuous vision never overlaps requests or accumulates a timer backlog',async()=>{
  const first=deferred(),entered=deferred();let calls=0,active=0,maxActive=0;
  const f=fixture({transport:async request=>{active++;maxActive=Math.max(active,maxActive);try{if(++calls===1){entered.resolve();await first.promise;}request.onToken('現在の画面です。');}finally{active--;}}});
  await startWatch(f);await entered.promise;f.clock.advance(60000);await flush();assert.equal(f.calls.capture.length,1);assert.equal(f.calls.transport.length,1);
- first.resolve();await flush();assert.equal(f.clock.timers.size,1);f.clock.advance(14999);await flush();assert.equal(f.calls.transport.length,1);f.clock.advance(1);await flush();assert.equal(f.calls.transport.length,2);assert.equal(maxActive,1);assert.equal(f.clock.timers.size,1);f.session.cancel();
+ first.resolve();await flush();assert.equal(f.clock.timers.size,2);f.clock.advance(14999);await flush();assert.equal(f.calls.transport.length,1);f.clock.advance(1);await flush();assert.equal(f.calls.transport.length,2);assert.equal(maxActive,1);assert.equal(f.clock.timers.size,2);f.session.cancel();
 });
 test('continuous vision stops instead of falling back when the selected source disappears or changes title',async()=>{
  for(const replacement of [[],[{...source('Other window'),id:'window:other'}],[{...source('Changed title'),id:'window:synthetic'}]]){
@@ -174,4 +174,18 @@ test('cancel during continuous-start profile lookup prevents the initial upload'
 test('cancel during a later watch profile lookup prevents the next desktop capture',async()=>{
  const entered=deferred(),gate=deferred();let lookups=0;const f=fixture({resolve:async(_id,settings)=>{if(++lookups===4){entered.resolve();await gate.promise;}return settings;}});
  await startWatch(f);await flush();assert.equal(f.calls.transport.length,1);f.clock.advance(15000);await entered.promise;f.session.cancel();gate.resolve();await flush();assert.equal(f.calls.capture.length,1);assert.equal(f.calls.transport.length,1);assert.equal(f.session.watch,null);assert.equal(f.clock.timers.size,0);
+});
+
+
+test('opted-in companionship skips unchanged screenshots but sends a changed selected window',async()=>{
+ let round=0;const changed='data:image/png;base64,Y2hhbmdlZA==';
+ const f=fixture({capture:()=>[source('Chosen',++round<3?image:changed)]});
+ await startWatch(f,{skipUnchanged:true});await flush();assert.equal(f.calls.transport.length,1);
+ f.clock.advance(15000);await flush();assert.equal(f.calls.capture.length,2);assert.equal(f.calls.transport.length,1);assert.equal(f.session.captures.size,0);assert.equal(f.events.at(-1).unchanged,true);assert.equal(f.events.at(-1).skipped,1);
+ f.clock.advance(15000);await flush();assert.equal(f.calls.transport.length,2);assert.equal(f.events.at(-1).count,2);f.session.cancel();assert.equal(f.clock.timers.size,0);
+});
+test('automatic observation expires and aborts an in-flight response without replaying it',async()=>{
+ const entered=deferred(),gate=deferred();let request;
+ const f=fixture({transport:async value=>{request=value;entered.resolve();await gate.promise;value.onToken('late response');}});
+ await startWatch(f,{skipUnchanged:true});await entered.promise;f.clock.advance(600000);assert.equal(f.session.watch,null);assert.equal(request.signal.aborted,true);assert.equal(f.events.at(-1).phase,'completed');assert.equal(f.clock.timers.size,0);gate.resolve();await flush();assert.ok(!f.events.some(value=>value.result));
 });

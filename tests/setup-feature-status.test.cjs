@@ -11,7 +11,7 @@ test('voice readiness requires both independently checked resource groups',()=>{
   const status={features:['voice'],steps:[{id:'voiceCore',state:'ready'},{id:'voicePreset',state:'missing'}]};
   assert.equal(featureStatus('voice',status).label,'需要准备');
   status.steps[1].state='ready';
-  assert.equal(featureStatus('voice',status).label,'资源已准备');
+  assert.equal(featureStatus('voice',status).label,'文件已找到');
 });
 test('active, waiting and error states are explicit',()=>{
   const status={features:['chat'],steps:[{id:'chat',state:'downloading'}]};

@@ -12,5 +12,5 @@ test('voice settings presents separate local and downloaded GPT and SoVITS files
  const {createServer}=await import('vite'),server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});t.after(()=>server.close());
  const {default:VoiceSettings,voiceDefaults}=await server.ssrLoadModule('/src/speech/VoiceSettings.jsx');
  const html=renderToStaticMarkup(React.createElement(VoiceSettings,{config:{...voiceDefaults,reference:'automatic.wav'},status:{phase:'unloaded'},onChange(){},onStop(){},onPreview(){},onOpenSetup(){}}));
- assert.match(html,/GPT 权重（\.ckpt）/);assert.match(html,/SoVITS 权重（\.pth）/);assert.equal((html.match(/下载此文件/g)||[]).length,2);assert.equal((html.match(/选择本地文件/g)||[]).length,2);assert.match(html,/参考声音已自动准备/);
+ assert.match(html,/GPT 权重（\.ckpt）/);assert.match(html,/SoVITS 权重（\.pth）/);assert.equal((html.match(/下载此文件/g)||[]).length,2);assert.equal((html.match(/选择本地文件/g)||[]).length,2);assert.match(html,/参考声音已配置/);assert.match(html,/改用默认参考声音/);
 });

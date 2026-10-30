@@ -60,12 +60,20 @@ test('setup starts speech core and selected voice together after the runtime is 
  const job=setup.install({features:['voice']});await new Promise(setImmediate);assert.deepEqual(new Set(started),new Set(['voiceCore','voicePreset']));release();assert.equal((await job).ready,true);
 });
 
-test('existing verified legacy pack is reused; new downloads target the selected directory',async t=>{
+test('legacy pack is identified but installation prepares the selected directory',async t=>{
  const old=await fixture(t,'chat',chatEntries());const installed=await old.service.install('chat');
  const selected=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-new-location-'));t.after(()=>fs.rm(selected,{recursive:true,force:true}));
- const service=new ResourcePacks({dataRoot:selected,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,fetcher:()=>{throw Error('should reuse existing pack');}});
+ const service=new ResourcePacks({dataRoot:selected,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,fetcher:async()=>new Response(zipBuffer(chatEntries()))});
  assert.equal((await service.status('chat')).root,installed.root);
- assert.equal((await service.install('chat')).root,installed.root);
+ assert.equal((await service.status('chat')).legacy,true);
+ assert.equal((await service.status('chat',{currentOnly:true})).installed,false);
+ const prepared=await service.install('chat');assert.equal(prepared.legacy,false);assert.ok(prepared.root.startsWith(selected+path.sep));assert.notEqual(prepared.root,installed.root);
  assert.ok(service.root.startsWith(selected+path.sep));
  assert.equal((await fs.readFile(path.join(installed.root,'model.gguf'))).subarray(0,4).toString(),'GGUF');
+});
+
+test('setup refuses a false successful installer when final disk inspection remains incomplete',async()=>{
+ const setup=new SetupService({inspect:async()=>({steps:[{id:'pet',state:'missing'}]}),installPet:async()=>{}});
+ await assert.rejects(setup.install({features:['pet']}),/资源准备未完成/);
+ const state=await setup.status();assert.equal(state.phase,'error');assert.equal(state.ready,false);assert.equal(state.steps[0].state,'error');
 });

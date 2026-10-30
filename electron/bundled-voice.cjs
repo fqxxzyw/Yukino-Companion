@@ -44,9 +44,7 @@ async function bundledVoiceDefaults({ resourceRoot, dataRoot, legacyDataRoot, ru
     // Upstream writes pronunciation caches; keep packaged or downloaded source
     // read-only and use a private copy. Checkpoints are referenced in place.
     const installed=path.join(dataRoot,'speech-engine',manifest.revision),marker=path.join(installed,'.installed');
-    const previous=legacyDataRoot&&path.join(legacyDataRoot,'speech-engine',manifest.revision);
     if(await exists(marker)) result.root=installed;
-    else if(previous&&await exists(path.join(previous,'.installed'))) result.root=previous;
     else {
       try{
         await fs.mkdir(installed,{recursive:true});await fs.cp(engine,installed,{recursive:true,force:true});
