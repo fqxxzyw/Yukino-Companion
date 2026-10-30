@@ -1,0 +1,94 @@
+name: Publish verified installer preview 417c5d
+on:
+  push:
+    branches: [release/installer-preview-417c-20261030]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: github.repository == 'fqxxzyw/Yukino-Companion' && github.ref == 'refs/heads/release/installer-preview-417c-20261030'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET: 417c5d8227404dcc32d3b40015c95bb58192ebc0
+      TREE: 8675e5bf8bab11babc32c345945c4dfa7461506f
+      ARTIFACT: '12951526278'
+      ORIGINAL_RUN: '40996290825'
+      EXPECTED_SHA256: 54744a459812284349c00fd4f5412e52bc76ae176c9138d5d33c357d657c04b3
+      TAG: v0.4.0-test.417c5d-20261030
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 417c5d8227404dcc32d3b40015c95bb58192ebc0
+          persist-credentials: false
+      - name: Verify source tree and artifact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$TREE"
+          python - <<'PY'
+          import json,os,re,subprocess
+          repo=os.environ['GITHUB_REPOSITORY']; run=os.environ['ORIGINAL_RUN']; art=os.environ['ARTIFACT']; target=os.environ['TARGET']
+          def api(path):
+              return json.loads(subprocess.check_output(['gh','api',path]))
+          r=api(f'repos/{repo}/actions/runs/{run}')
+          a=api(f'repos/{repo}/actions/artifacts/{art}')
+          if r['head_sha'] != target or a['workflow_run']['id'] != int(run) or a['workflow_run']['head_sha'] != target or a['expired'] or a['name'] != 'Yukino-revision-candidate-'+target or a.get('digest') != 'sha256:0aa0a02007371eb1c7bb7d946b255264d517ed6c0eae05d1e43c10fa5d38f328':
+              raise SystemExit('Artifact provenance mismatch')
+          paths=subprocess.check_output(['git','ls-tree','-r','--name-only',target],text=True).splitlines()
+          if any(re.search(r'\.(?:glb|gltf|vrm|fbx|blend)(?:\.gz)?$', p, re.I) for p in paths):
+              raise SystemExit('Refusing source archive with standalone visual models')
+          tag=os.environ['TAG']
+          check=subprocess.run(['gh','api',f'repos/{repo}/git/ref/tags/{tag}'],capture_output=True,text=True)
+          if check.returncode == 0:
+              raise SystemExit('Tag already exists; refusing to replace it')
+          if 'HTTP 404' not in check.stderr:
+              raise SystemExit('Unable to confirm tag absence: '+check.stderr)
+          print('Source and original artifact match; new tag is absent')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-417c5d8227404dcc32d3b40015c95bb58192ebc0
+          run-id: 40996290825
+          github-token: ${{ github.token }}
+          path: downloaded
+      - name: Validate exact bytes and publish an explicitly unaccepted prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          root=Path('downloaded/release'); exe=root/'Yukino-Companion-0.4.0-Base-Setup.exe'
+          source=json.loads((root/'candidate-source.json').read_text(encoding='utf-8-sig'))
+          expected=os.environ['EXPECTED_SHA256']; target=os.environ['TARGET']; repo=os.environ['GITHUB_REPOSITORY']; tag=os.environ['TAG']
+          with exe.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+          if source.get('commit') != target or source.get('tree') != os.environ['TREE'] or source.get('runId') != os.environ['ORIGINAL_RUN'] or source.get('sha256') != expected or source.get('bytes') != 258520956 or exe.stat().st_size != 258520956 or digest != expected:
+              raise SystemExit('Candidate identity mismatch')
+          out=Path('release-preview');out.mkdir()
+          (out/'SHA256SUMS.txt').write_text(expected+'  '+exe.name+'\n',encoding='utf-8')
+          notes=out/'notes.md'
+          notes.write_text('''# 雪乃数字人 0.4.0 · Windows 安装测试版\n\n此版本供下载和测试，尚未完成全部验收。七款视觉模型打包在安装程序中，未作为单独附件上传。\n\n本提交的 Windows 源码回归和界面检查通过；本安装包的 Windows 安装、启动、升级和卸载检查仍在运行，不能宣称通过。真实 GPU、摄像头和完整训练音色语音链路尚未完成验收。安装程序未签名。\n\n源码提交：'''+target+'\n候选构建与安装检查：https://github.com/'+repo+'/actions/runs/'+os.environ['ORIGINAL_RUN']+'\n',encoding='utf-8')
+          paths=[exe,out/'SHA256SUMS.txt']
+          subprocess.run(['gh','release','create',tag,*map(str,paths),'--target',target,'--title','Yukino Companion 0.4.0 · Windows 安装测试版 417c5d（待验收）','--notes-file',str(notes),'--draft','--prerelease'],check=True)
+          remote=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          assets={a['name']:a for a in remote['assets']}
+          if not remote.get('draft') or not remote.get('prerelease') or set(assets) != {p.name for p in paths}:
+              raise SystemExit('Unexpected draft state or asset list')
+          for path in paths:
+              with path.open('rb') as stream: sha=hashlib.file_digest(stream,'sha256').hexdigest()
+              item=assets[path.name]
+              if item['size'] != path.stat().st_size or item.get('digest') != 'sha256:'+sha:
+                  raise SystemExit('Uploaded digest mismatch: '+path.name)
+          subprocess.run(['gh','release','edit',tag,'--draft=false','--prerelease'],check=True)
+          remote=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          if remote.get('draft') or not remote.get('prerelease'):
+              raise SystemExit('Release publication not confirmed')
+          print('Published: '+remote['html_url'])
+          PY
