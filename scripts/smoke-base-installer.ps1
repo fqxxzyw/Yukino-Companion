@@ -6,6 +6,12 @@ $output=Join-Path $root 'build/base-installer-review';[void][IO.Directory]::Crea
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('Yukino 基础安装测试 '+[Guid]::NewGuid().ToString('N'))
 $target=Join-Path $temporary '中文目录\Yukino Companion'
 $report=@{schemaVersion=1;fixtureOnly=$false;passed=$false;checks=@();screenshots=@()}
+function Checkpoint([string]$Phase){
+ $report.phase=$Phase
+ $report|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $output 'report.json') -Encoding utf8
+ Write-Host ('Native smoke checkpoint: '+$Phase)
+}
+Checkpoint 'initializing'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
 using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
@@ -58,25 +64,28 @@ function Stop-InstalledApp {
 $gui=$null;$visible=$null
 try{
  if(-not(Test-Path -LiteralPath $Installer -PathType Leaf)){throw 'Published installer is missing'}
- Write-Host 'Native smoke: open installer pages'
+ Checkpoint 'open installer pages'
  $gui=Start-Process -FilePath $Installer -ArgumentList '/SP-' -PassThru
  $deadline=[DateTime]::UtcNow.AddSeconds(30)
  do{$visible=Get-Process | Where-Object{$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -eq '安装 Yukino Companion'} | Select-Object -First 1;if(-not $visible){Start-Sleep -Milliseconds 150}}while(-not $visible -and [DateTime]::UtcNow -lt $deadline)
  if(-not $visible){throw 'Native Chinese installer window did not open'}
  Start-Sleep -Milliseconds 400
+ Checkpoint 'capture welcome page'
  $text=Capture $visible.MainWindowHandle 'welcome'
  if($text -notmatch '一方安静的空间' -or $text -notmatch '安装过程不下载资源'){throw 'Welcome page Chinese text is missing or garbled'}
  $next=[BaseInstallerWindow]::Children($visible.MainWindowHandle)|Where-Object{$_.Text -match '^继续'}|Select-Object -First 1
  if(-not $next){throw 'Native continue button not found'}
+ Checkpoint 'open directory page'
  [void][BaseInstallerWindow]::SendMessage($next.Handle,0xF5,[IntPtr]::Zero,[IntPtr]::Zero)
  Start-Sleep -Milliseconds 400
+ Checkpoint 'capture directory page'
  $text=Capture $visible.MainWindowHandle 'directory'
  if($text -notmatch '专用文件夹' -or $text -notmatch '在桌面创建快捷方式'){throw 'Directory page Chinese text is missing or garbled'}
  $report.checks+='Actual published native installer opens; welcome and directory Chinese text verified and captured'
  Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue
  if(-not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}
  $visible=$null;$gui=$null
- Write-Host 'Native smoke: install and verify payload'
+ Checkpoint 'install and verify payload'
  Install $target $true
  if($PayloadManifest){
   & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
@@ -96,7 +105,7 @@ try{
  $start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
  $start.Arguments='--user-data-dir="'+(Join-Path $profile 'Chromium')+'" --enable-logging=stderr --no-first-run --remote-debugging-port=0'
  $start.EnvironmentVariables['APPDATA']=$roaming;$start.EnvironmentVariables['LOCALAPPDATA']=$local
- Write-Host 'Native smoke: launch installed application'
+ Checkpoint 'launch installed application'
  $installedApp=New-Object Diagnostics.Process;$installedApp.StartInfo=$start
  if(-not $installedApp.Start()){throw 'Installed application could not start'}
  $appStdout=$installedApp.StandardOutput.ReadToEndAsync();$appStderr=$installedApp.StandardError.ReadToEndAsync()
@@ -112,25 +121,28 @@ try{
  Start-Sleep -Seconds 3
  $installedApp.Refresh()
  if($installedApp.HasExited -or $installedApp.MainWindowHandle -eq 0){throw 'Installed application did not remain running'}
+ Checkpoint 'capture installed application'
  $appText=Capture $installedApp.MainWindowHandle 'app-first-launch'
  if($installedApp.MainWindowTitle -ne 'Yukino Companion' -or $appText -match 'JavaScript error|Uncaught Exception'){throw 'Installed application shows an error dialog'}
- Write-Host 'Native smoke: verify installed renderer'
+ Checkpoint 'verify installed renderer'
  & node (Join-Path $root 'scripts/verify-installed-window.cjs') (Join-Path $profile 'Chromium')
  if($LASTEXITCODE -ne 0){throw 'The installed application did not render its bundled character'}
  if($VerifyCurrentFeatures){
-  Write-Host 'Native smoke: verify current interface and companion'
+  Checkpoint 'verify current interface and companion'
   & node (Join-Path $root 'scripts/verify-current-window.cjs') (Join-Path $profile 'Chromium')
   if($LASTEXITCODE -ne 0){throw 'The installed character, desktop header or visual companion check failed'}
   $report.checks+='Installed rounded panel, contact list, fixed desktop header and visual companion shell checked on the running app'
  }
+ Checkpoint 'capture character'
  [void](Capture $installedApp.MainWindowHandle 'app-character')
  $report.checks+='Actual installed main renderer loaded the default bundled character and completed a WebGL frame'
+ Checkpoint 'stop application'
  Stop-InstalledApp
  $stderrFile=Join-Path $output 'app-first-launch.stderr.log'
  if((Test-Path -LiteralPath $stderrFile) -and (Get-Content -LiteralPath $stderrFile -Raw) -match 'A JavaScript error occurred|Uncaught Exception|Cannot find module|Uncaught (Error|TypeError|ReferenceError|SyntaxError)|UnhandledPromiseRejection|Error occurred in handler for ''character-model-data'''){throw 'Installed application logged an uncaught JavaScript error'}
  $report.checks+='Actual installed application launches with an isolated profile, displays its main window and stays alive; screenshot captured; no model download or inference requested'
  $sentinel=Join-Path $target 'my-personal-file.txt';[IO.File]::WriteAllText($sentinel,'keep me')
- Write-Host 'Native smoke: upgrade and reverify payload'
+ Checkpoint 'upgrade and reverify payload'
  Install $target $true
  if($PayloadManifest){
   & node (Join-Path $root 'scripts/base-payload.cjs') verify $target ([IO.Path]::GetFullPath((Join-Path $root $PayloadManifest)))
@@ -140,7 +152,7 @@ try{
  if((Get-Content -LiteralPath $sentinel -Raw) -ne 'keep me'){throw 'Upgrade modified personal files'}
  $report.checks+='Recognized base-app upgrade preserves added personal files'
  $unknown=Join-Path $temporary 'unknown personal folder';[void][IO.Directory]::CreateDirectory($unknown);[IO.File]::WriteAllText((Join-Path $unknown 'personal.txt'),'untouched')
- Write-Host 'Native smoke: reject unknown directory and uninstall'
+ Checkpoint 'reject unknown directory and uninstall'
  Install $unknown $false
  if((Get-Content -LiteralPath (Join-Path $unknown 'personal.txt') -Raw) -ne 'untouched'){throw 'Unknown directory was modified'}
  $report.checks+='Unknown nonempty installation directory rejected'
@@ -150,7 +162,9 @@ try{
  if($child.ExitCode -ne 0 -or (Test-Path -LiteralPath (Join-Path $target 'Yukino Companion.exe')) -or -not(Test-Path -LiteralPath $sentinel)){throw 'Uninstall did not preserve personal files'}
  $report.checks+='Uninstall removes owned application files and preserves added personal files'
  $report.passed=$true
+ Checkpoint 'checks passed; final cleanup pending'
 }finally{
+ $report.phase='final cleanup'
  try{Stop-InstalledApp}catch{Write-Warning $_.Exception.Message}
  if($visible){Stop-Process -Id $visible.Id -Force -ErrorAction SilentlyContinue}
  if($gui -and -not $gui.HasExited){Stop-Process -Id $gui.Id -Force -ErrorAction SilentlyContinue}

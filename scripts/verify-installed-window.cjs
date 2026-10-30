@@ -11,7 +11,7 @@ async function verify(profile){
   while(Date.now()<deadline&&!target){try{const items=await (await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(2000)})).json();target=items.find(x=>x.type==='page'&&x.url.includes('app.asar/dist/index.html'));}catch{}if(!target)await pause(200);}
   if(!target)throw Error('Installed main renderer was not found');
   const socket=new WebSocket(target.webSocketDebuggerUrl),pending=new Map();let next=0;
-  await new Promise((resolve,reject)=>{socket.addEventListener('open',resolve,{once:true});socket.addEventListener('error',()=>reject(Error('Cannot connect to installed renderer')),{once:true})});
+  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{try{socket.close()}catch{}reject(Error('Installed renderer connection timed out'))},10000);socket.addEventListener('open',()=>{clearTimeout(timer);resolve()},{once:true});socket.addEventListener('error',()=>{clearTimeout(timer);reject(Error('Cannot connect to installed renderer'))},{once:true})});
   socket.addEventListener('message',event=>{const response=JSON.parse(event.data),request=pending.get(response.id);if(request){pending.delete(response.id);response.error?request.reject(Error(response.error.message)):request.resolve(response.result);}});
   socket.addEventListener('close',()=>{for(const request of pending.values())request.reject(Error('Installed renderer disconnected'));pending.clear();});
   const send=(method,params)=>new Promise((resolve,reject)=>{const id=++next,timer=setTimeout(()=>{pending.delete(id);reject(Error('Installed renderer verification timed out'));},5000);pending.set(id,{resolve:value=>{clearTimeout(timer);resolve(value)},reject:error=>{clearTimeout(timer);reject(error)}});socket.send(JSON.stringify({id,method,params}));});
@@ -35,5 +35,5 @@ async function verify(profile){
     throw Error('Installed character did not render: '+JSON.stringify(last));
   }finally{socket.close();}
 }
-if(require.main===module)verify(process.argv[2]).then(()=>process.stdout.write('',()=>process.exit(0)),error=>{console.error(error.message);process.stderr.write('',()=>process.exit(1));});
+if(require.main===module){const watchdog=setTimeout(()=>{console.error('Installed model check exceeded 150 seconds');process.exit(1)},150000);watchdog.unref();verify(process.argv[2]).then(()=>{clearTimeout(watchdog);process.stdout.write('',()=>process.exit(0))},error=>{clearTimeout(watchdog);console.error(error.message);process.stderr.write('',()=>process.exit(1))});}
 module.exports={verify};

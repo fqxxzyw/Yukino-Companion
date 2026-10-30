@@ -105,7 +105,7 @@ jobs:
       - name: Install, launch, upgrade, verify payload and uninstall
         timeout-minutes: 10
         shell: pwsh
-        run: ./scripts/smoke-base-installer.ps1 -PayloadManifest build/base-payload.json -VerifyCurrentFeatures
+        run: python scripts/run-native-smoke.py
       - name: Preserve native smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -114,6 +114,7 @@ jobs:
           path: |
             build/base-installer-review/*.png
             build/base-installer-review/report.json
+            build/base-installer-review/watchdog.json
           if-no-files-found: warn
           retention-days: 30
   publish_release:

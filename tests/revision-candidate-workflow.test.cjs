@@ -35,8 +35,10 @@ test('native smoke binds the installer to the same source and verifies the insta
  assert.equal(download.with.name,'Yukino-revision-candidate-${{ github.sha }}');
  const identity=steps.find(step=>step.name==='Verify exact source and installer bytes').run;
  for(const marker of ['GITHUB_SHA','GITHUB_RUN_ID','HEAD^{tree}','Get-FileHash','$source.sha256','$source.bytes'])assert.ok(identity.includes(marker));
- const smoke=steps.find(step=>step.run?.includes('smoke-base-installer.ps1 -PayloadManifest build/base-payload.json -VerifyCurrentFeatures'));
+ const smoke=steps.find(step=>step.run==='python scripts/run-native-smoke.py');
  assert.ok(smoke);assert.equal(smoke['timeout-minutes'],10);
+ const wrapper=fs.readFileSync(path.join(root,'scripts/run-native-smoke.py'),'utf8');
+ for(const marker of ['smoke-base-installer.ps1','-PayloadManifest','build/base-payload.json','-VerifyCurrentFeatures','480','watchdog.json'])assert.ok(wrapper.includes(marker));
  const check=fs.readFileSync(path.join(root,'scripts/verify-current-window.cjs'),'utf8');
  assert.match(check,/Installed renderer connection timed out/);assert.match(check,/Installed feature check exceeded 150 seconds/);
  assert.equal(steps.find(step=>step.name==='Preserve native smoke evidence').if,'always()');
