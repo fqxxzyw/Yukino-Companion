@@ -1,7 +1,7 @@
 name: Verify official CUDA dependency installation
 on:
   push:
-    branches: [candidate/feedback-20261030-safe, candidate/runtime-download-20261030]
+    branches: [candidate/runtime-dll-diagnostic-20261030]
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,9 @@ jobs:
         run: python scripts/mirror-resources.py --runtime-catalog-only
       - name: Install official CUDA packages in a fresh resource directory
         run: node scripts/verify-official-runtime.cjs --catalog build/base-resource-catalog/runtime-catalog.json --directory build/official-runtime-qa --flavor cu124
+      - name: Diagnose cached official CUDA wheel DLL dependencies
+        if: always()
+        run: python scripts/diagnose-cuda-wheel.py --directory build/official-runtime-qa
       - name: Preserve dependency verification and installation logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -30,6 +33,7 @@ jobs:
           name: official-runtime-installation-${{ github.sha }}
           path: |
             build/official-runtime-qa/official-runtime-qa.json
+            build/official-runtime-qa/cuda-wheel-dependencies.json
             build/official-runtime-qa/runtime/official-install.log
           if-no-files-found: warn
           retention-days: 30
