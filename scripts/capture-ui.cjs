@@ -17,7 +17,8 @@ const headless=app.commandLine.getSwitchValue('ozone-platform')==='headless';
 report.headless=headless;
 if(headless)report.purpose+='; headless rendering is supplemental and does not verify a native Windows desktop';
 let window, temp;
-app.disableHardwareAcceleration();
+// Exercise the same WebGL-capable renderer as production: scene backgrounds
+// are actual Three.js geometry, not a software-only mock.
 app.commandLine.appendSwitch('force-device-scale-factor','1');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
@@ -164,7 +165,7 @@ async function run() {
   await check('Application icon loads',`[...document.querySelectorAll('img')].every(img=>img.complete&&img.naturalWidth>0)`);
   await waitFor(`Boolean(document.querySelector('.setup-dialog'))`,'first-run setup');
   await check('Base first-run setup truthfully offers four optional features and no installed models',`document.querySelectorAll('.setup-feature').length===4&&document.querySelectorAll('.setup-step.ready').length===0&&document.querySelectorAll('.setup-step.missing').length===5&&document.querySelector('.setup-download-summary').textContent.includes('GB')`);
-  await check('CPU-only catalogue has a truthful runtime notice',`document.querySelector('.setup-runtime').textContent.includes('目前提供 CPU 环境')&&document.querySelector('.setup-runtime').textContent.includes('Python 和推理依赖只需安装一份')`);
+  await check('CPU-only catalogue has a truthful runtime notice',`document.querySelector('.setup-runtime').textContent.includes('CPU')&&document.querySelector('.setup-runtime').textContent.includes('Python 和推理依赖')`);
   await click('[aria-label="首次配置推理环境"]');
   await check('Unavailable CUDA is disabled in the runtime picker',`[...document.querySelectorAll('[role="option"]')].some(option=>option.textContent.includes('NVIDIA CUDA')&&option.getAttribute('aria-disabled')==='true')`);
   await key('Escape');
@@ -228,9 +229,12 @@ async function run() {
   await click('.relationship-settings .secondary');
   await check('Daily check-in is saved once and disables duplicate claim',`document.querySelector('.relationship-settings .secondary').disabled&&document.querySelector('.relationship-settings').textContent.includes('累计签到 1 天')`);
   await capture('05b-relationship-settings');
-  await click('.scene-options button:nth-child(2)');
+  const forestButton=await evaluate(`[...document.querySelectorAll('.scene-options button')].findIndex(button=>button.textContent.trim()==='森林')+1`);
+  if(!forestButton)throw Error('Missing forest environment control');
+  await click(`.scene-options button:nth-child(${forestButton})`);
   await click('.presentation-settings .row input');
-  await check('Forest preview and full-window background are active without pretending a rig exists',`document.querySelector('.app').classList.contains('scene-spread')&&document.querySelector('.scene-picker button:nth-child(2)').getAttribute('aria-pressed')==='true'&&document.querySelector('.presentation-settings').textContent.includes('模型接入后生效')`);
+  await check('Forest is selected and the full-window environment host is active',`document.querySelector('.app').classList.contains('scene-spread')&&[...document.querySelectorAll('.scene-options button')].some(button=>button.textContent.trim()==='森林'&&button.getAttribute('aria-pressed')==='true')&&Boolean(document.querySelector('.scene-ui-backdrop .environment-backdrop-canvas'))`);
+  await check('Lighting, rendering and truthful head-only tracking controls are present',`(()=>{const panel=document.querySelector('.presentation-settings');return [...panel.querySelectorAll('select')].map(select=>select.value).join(',')==='noon,lit'&&panel.textContent.includes('赛璐璐')&&panel.textContent.includes('没有可用的独立眼球蒙皮')})()`);
 
   await check('Complete original pet settings remain available',`['互动与动作','气泡与语录','桌宠预录语音','专注一会儿','形象透明度','暂停互动','安静模式'].every(text=>document.querySelector('.pet-settings').textContent.includes(text))`);
   await evaluate(`document.querySelector('.pet-settings-card:last-of-type').scrollIntoView({block:'end'})`);await settle();
@@ -294,7 +298,7 @@ async function run() {
   await click('.close-options button:first-child');
   await check('Remembered close choice reaches companion persistence',`window.desktop.companionState().then(value=>value.closeAction==='pet'&&value.mode==='pet')`);
   await check('Close choice dismisses the dialog',`!document.querySelector('.close-dialog')`);
-  await click('[aria-label="删除这段对话"]');
+  await click('[title="删除这段对话"]');
   await waitFor(`Boolean(document.querySelector('.confirm-dialog'))`,'custom confirmation dialog');
   await capture('10-confirm-dialog');
   await click('.confirm-dialog .secondary');
@@ -303,12 +307,25 @@ async function run() {
   await click('[aria-label="收起或展开侧边栏"]');
   await capture('11-collapsed-sidebar');
   await click('[aria-label="打开服装面板"]');
-  await check('Wardrobe truthfully reports absent model assets',`document.querySelector('.wardrobe-panel').textContent.includes('正式模型接入后')&&!document.querySelector('.wardrobe-panel>button')`);
+  await check('Wardrobe groups seven outfits and keeps locked outfits identifiable',`(()=>{const panel=document.querySelector('.wardrobe-panel');if(!panel)return false;const cards=[...panel.querySelectorAll('.skin-card')];return cards.length===7&&cards.filter(card=>!card.disabled).length===1&&cards.filter(card=>card.disabled).length===6&&cards.find(card=>!card.disabled).textContent.includes('校服')&&panel.textContent.includes('7 个不同日期')&&new Set([...panel.querySelectorAll('.skin-preview img')].map(img=>img.getAttribute('src'))).size===7})()`);
   await capture('11c-scene-wardrobe');
   await click('[aria-label="关闭服装面板"]');
+  await click('[aria-label="人物场景选项"]');
+  await check('Scene options open in place without full settings',`Boolean(document.querySelector('.character-scene-menu'))&&!document.querySelector('.settings')`);
+  await click('[aria-label="人物渲染风格"][role="combobox"]');
+  await click('[role="listbox"][aria-label="人物渲染风格"] [role="option"]:nth-child(3)');
+  await check('Mouse selects toon from the scene menu portal without closing or dragging the panel',`Boolean(document.querySelector('.character-scene-menu'))&&!document.querySelector('.character-panel.is-dragging')&&document.querySelector('[aria-label="人物渲染风格"][role="combobox"]').textContent.includes('赛璐璐')&&!document.querySelector('[role="listbox"]')`);
+  await waitFor(`window.desktop.load().then(({state})=>state.presentation?.renderStyle==='toon')`,'saved toon style');
+  await click('[aria-label="人物日光"][role="combobox"]');
+  await click('[role="listbox"][aria-label="人物日光"] [role="option"]:nth-child(1)');
+  await check('Mouse selects morning light from the scene menu portal',`Boolean(document.querySelector('.character-scene-menu'))&&document.querySelector('[aria-label="人物日光"][role="combobox"]').textContent.includes('清晨')`);
+  await waitFor(`window.desktop.load().then(({state})=>state.presentation?.timeOfDay==='morning')`,'saved morning light');
+  await key('Escape');
+  await check('Scene menu dismisses with Escape',`!document.querySelector('.character-scene-menu')`);
+  await check('Duration is absent from sidebar and character panel',`!document.querySelector('.stage-footer')&&!document.querySelector('.sidebar').textContent.includes('已陪伴')`);
 
   await check('Left character follows the collapsed sidebar',`document.querySelector('.avatar-stage').getBoundingClientRect().x<${expandedAvatarX}`);
-  await click('[aria-label="人物停靠右侧"]');
+  await pointerDrag('.character-drag-handle',`(()=>{const r=document.querySelector('.main').getBoundingClientRect();return {x:r.right-45,y:r.top+40};})()`);
   await check('Right docking allocates the fixed pane to the character, not the chat',`(()=>{const avatar=document.querySelector('.avatar-stage').getBoundingClientRect(),chat=document.querySelector('.chat').getBoundingClientRect();return avatar.x>chat.x&&avatar.width<=460&&chat.width>=310;})()`);
   await capture('11a-right-docked');
   await pointerDrag('.character-resizer',`(()=>{const r=document.querySelector('.character-resizer').getBoundingClientRect();return {x:r.x+80,y:r.y+18};})()`);
@@ -325,11 +342,17 @@ async function run() {
   await capture('12a-compact-expanded-sidebar');
   await check('Compact sidebar keeps collapse and settings buttons fully visible',`(()=>{const sidebar=document.querySelector('.sidebar').getBoundingClientRect();return ['[aria-label=\"收起或展开侧边栏\"]','[aria-label=\"设置\"]'].every(selector=>{const r=document.querySelector(selector).getBoundingClientRect();return r.left>=sidebar.left&&r.right<=sidebar.right;});})()`);
   await check('Expanded sidebar at the minimum window width keeps both panes usable',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.width>=168&&c.width>=310&&c.right<=innerWidth;})()`);
-  await click('[aria-label="人物停靠右侧"]');
+  await pointerDrag('.character-drag-handle',`(()=>{const r=document.querySelector('.main').getBoundingClientRect();return {x:r.right-35,y:r.top+25};})()`);
   await capture('12b-compact-right');
   await check('Compact right docking preserves minimum chat width',`(()=>{const a=document.querySelector('.avatar-stage').getBoundingClientRect(),c=document.querySelector('.chat').getBoundingClientRect();return a.x>c.x&&a.width>=168&&c.width>=310;})()`);
   await click('[aria-label="设置"]');await settle();
   await capture('13-compact-settings');
+  await click('[aria-label="关闭设置"]');await settle();
+  await click('[aria-label="打开服装面板"]');
+  await click('.wardrobe-panel .skin-card:not(:disabled)');
+  await waitFor(`document.querySelector('.contact-avatar img')?.getAttribute('src')?.includes('yukino-07.png')&&document.querySelector('.message-avatar img')?.getAttribute('src')?.includes('yukino-07.png')`,'contact and chat avatars using the selected outfit');
+  await check('Selected outfit appears in both contact and chat avatars',`[...document.querySelectorAll('.contact-avatar img')].length>=2&&[...document.querySelectorAll('.contact-avatar img')].every(img=>img.complete&&img.naturalWidth>0)`);
+  await capture('14-current-outfit-avatars');
   report.success=report.errors.length===0&&report.blockedRequests.length===0;
   if(!report.success)throw Error('Visual QA produced renderer errors or attempted network requests.');
 }

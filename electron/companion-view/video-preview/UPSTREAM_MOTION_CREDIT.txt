@@ -1,0 +1,6 @@
+Walking motion: Carnegie Mellon University Graphics Lab Motion Capture Database.
+Funding: NSF EIA-0196217. BVH conversion: Bruce Hahne / cgspeed (2010).
+Original terms: https://mocap.cs.cmu.edu/
+Converter terms: https://sites.google.com/a/cgspeed.com/cgspeed/motion-capture/the-motionbuilder-friendly-bvh-conversion-release-of-cmus-motion-capture-database/readme-motionbuilder-2010-release
+
+CMU permits incorporation in commercially sold products, but prohibits direct resale of the motion data, including converted forms. The converter adds no further restrictions. This package contains only model-integrated retargeted animation; raw BVH is intentionally excluded.

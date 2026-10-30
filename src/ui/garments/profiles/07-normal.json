@@ -1,0 +1,335 @@
+{
+  "schema": "yukino.garment-correctives.v4",
+  "modelId": "07",
+  "assetSha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66",
+  "assetPath": "public/characters/Yukino07_GarmentNormal_20261027.glb",
+  "bones": 55,
+  "animations": 20,
+  "referenceClip": "Idle_Breathe",
+  "recommendedIdleClip": "Idle_Relaxed",
+  "targets": [
+    "garment_underarm_compress_L",
+    "garment_elbow_fold_L",
+    "garment_hand_contact_L",
+    "garment_underarm_compress_R",
+    "garment_elbow_fold_R",
+    "garment_hand_contact_R"
+  ],
+  "defaults": 0,
+  "meshes": [
+    "Yukino_Body",
+    "Yukino_Body_ToonOutline"
+  ],
+  "synchronizeAllPrimitivesAndOutlineByExactName": true,
+  "sides": {
+    "L": {
+      "reference": {
+        "abduction": 16.601219384693586,
+        "flexion": 12.830749091202875,
+        "sagittal": -1.528146224993352,
+        "shoulderDrop": 8.746166054571185
+      },
+      "contact": {
+        "enabled": false,
+        "anchorInHipsBone": [
+          -0.0040995336771011345,
+          -0.06166286450624303,
+          -0.11385809102654457
+        ],
+        "palmRadius": 0.0225,
+        "halfHeight": 0.048,
+        "halfDepth": 0.067,
+        "maxValidatedAdditionalArmAdductionDegrees": 8,
+        "maxDepressionModelUnits": 0.007,
+        "handLocalQuaternions": {
+          "J_Bip_L_Hand": [
+            -0.005635553505271673,
+            -4.2800180381163955e-05,
+            -0.01637357845902443,
+            0.9998500943183899
+          ],
+          "J_Bip_L_Thumb1": [
+            -0.1282397359609604,
+            -0.005999037064611912,
+            -0.2856255769729614,
+            0.9497034549713135
+          ],
+          "J_Bip_L_Thumb2": [
+            -0.08018295466899872,
+            -0.03799893334507942,
+            0.03057265095412731,
+            0.9955863356590271
+          ],
+          "J_Bip_L_Thumb3": [
+            -0.030730390921235085,
+            -0.01643342897295952,
+            -0.0025667836889624596,
+            0.9993892908096313
+          ],
+          "J_Bip_L_Index1": [
+            -0.08536288887262344,
+            0.000584574940148741,
+            -0.006698993034660816,
+            0.9963272213935852
+          ],
+          "J_Bip_L_Index2": [
+            -0.15864361822605133,
+            -0.0022483125794678926,
+            -0.018333856016397476,
+            0.9871631264686584
+          ],
+          "J_Bip_L_Index3": [
+            -0.06970883905887604,
+            -0.0025747071485966444,
+            -9.597110329195857e-05,
+            0.9975640773773193
+          ],
+          "J_Bip_L_Middle1": [
+            -0.05259290337562561,
+            0.0003642073133960366,
+            -0.00671472167596221,
+            0.9985933899879456
+          ],
+          "J_Bip_L_Middle2": [
+            -0.18740975856781006,
+            1.7858516230262467e-06,
+            -4.229307819514361e-07,
+            0.9822818636894226
+          ],
+          "J_Bip_L_Middle3": [
+            -0.06976225972175598,
+            -3.8381922422559e-06,
+            2.7575691774472944e-07,
+            0.9975636005401611
+          ],
+          "J_Bip_L_Ring1": [
+            -0.08479280024766922,
+            0.0005808462738059461,
+            -0.006699323188513517,
+            0.9963759183883667
+          ],
+          "J_Bip_L_Ring2": [
+            -0.1592569500207901,
+            -2.3612271888850955e-06,
+            3.1580663062413805e-07,
+            0.9872372150421143
+          ],
+          "J_Bip_L_Ring3": [
+            -0.06974554061889648,
+            1.0935099453490693e-05,
+            -4.911290147902037e-07,
+            0.9975647926330566
+          ],
+          "J_Bip_L_Little1": [
+            -0.08734402805566788,
+            0.0005980304558761418,
+            -0.006697831675410271,
+            0.9961555004119873
+          ],
+          "J_Bip_L_Little2": [
+            -0.16940028965473175,
+            1.4899473171681166e-05,
+            -2.727894298004685e-06,
+            0.9855473637580872
+          ],
+          "J_Bip_L_Little3": [
+            -0.06977405399084091,
+            -1.4706190086144488e-05,
+            -9.34379102091043e-07,
+            0.997562825679779
+          ]
+        }
+      }
+    },
+    "R": {
+      "reference": {
+        "abduction": 16.6012894474374,
+        "flexion": 13.21277230500738,
+        "sagittal": -1.5281779673739688,
+        "shoulderDrop": 8.746166054571185
+      },
+      "contact": {
+        "enabled": false,
+        "anchorInHipsBone": [
+          0.061638199210166944,
+          -0.06166288453340686,
+          0.10027867922186853
+        ],
+        "palmRadius": 0.0195,
+        "halfHeight": 0.048,
+        "halfDepth": 0.067,
+        "maxValidatedAdditionalArmAdductionDegrees": 8,
+        "maxDepressionModelUnits": 0.007,
+        "handLocalQuaternions": {
+          "J_Bip_R_Hand": [
+            -0.010023077949881554,
+            -0.2971472442150116,
+            0.0014884225092828274,
+            0.9547778964042664
+          ],
+          "J_Bip_R_Thumb1": [
+            -0.07023666054010391,
+            -0.534692645072937,
+            0.23707741498947144,
+            0.8080624341964722
+          ],
+          "J_Bip_R_Thumb2": [
+            -0.005812810268253088,
+            -0.04676084220409393,
+            0.12111523002386093,
+            0.9915194511413574
+          ],
+          "J_Bip_R_Thumb3": [
+            -0.01630261354148388,
+            0.01890384964644909,
+            0.024378234520554543,
+            0.9993910789489746
+          ],
+          "J_Bip_R_Index1": [
+            -0.04078007489442825,
+            0.5341265797615051,
+            -0.07335688918828964,
+            0.8412280082702637
+          ],
+          "J_Bip_R_Index2": [
+            0.10008428245782852,
+            0.6960847973823547,
+            -0.12327609956264496,
+            0.7001801133155823
+          ],
+          "J_Bip_R_Index3": [
+            0.06976062059402466,
+            4.604788045980968e-06,
+            -4.0041447846306255e-07,
+            0.9975637793540955
+          ],
+          "J_Bip_R_Middle1": [
+            -0.00015711394371464849,
+            0.9749270081520081,
+            -0.05288737639784813,
+            0.21614858508110046
+          ],
+          "J_Bip_R_Middle2": [
+            0.1874120533466339,
+            2.1507572967038868e-07,
+            -1.1881145667302917e-07,
+            0.9822813868522644
+          ],
+          "J_Bip_R_Middle3": [
+            0.06975839287042618,
+            4.379023010869787e-08,
+            1.307927419702537e-07,
+            0.997563898563385
+          ],
+          "J_Bip_R_Ring1": [
+            -0.0681069865822792,
+            -0.21612456440925598,
+            -0.00321859959512949,
+            0.9739822149276733
+          ],
+          "J_Bip_R_Ring2": [
+            -6.538227381724937e-08,
+            0.9844474196434021,
+            -0.17567944526672363,
+            5.152626769699964e-08
+          ],
+          "J_Bip_R_Ring3": [
+            0.06975647807121277,
+            6.96230344487958e-08,
+            4.9192479423254554e-08,
+            0.9975640773773193
+          ],
+          "J_Bip_R_Little1": [
+            0.007372625172138214,
+            0.9724932312965393,
+            -0.08681690692901611,
+            0.2160218358039856
+          ],
+          "J_Bip_R_Little2": [
+            0.14262621104717255,
+            -9.440350936529285e-07,
+            6.110364125788692e-08,
+            0.989776611328125
+          ],
+          "J_Bip_R_Little3": [
+            0.06975912302732468,
+            5.417487045633607e-06,
+            2.3812378913135035e-07,
+            0.9975638389587402
+          ]
+        }
+      }
+    }
+  },
+  "updateOrder": [
+    "AnimationMixer.update(delta)",
+    "bounded neck/head follow if enabled",
+    "root.updateWorldMatrix(true,true)",
+    "garmentDriver.update(delta)",
+    "independent mouth/blink morph updates; never clear other morphs"
+  ],
+  "coordinateConvention": "Loaded glTF scene root coordinate space: +Y up, +X character left, +Z front. Bone positions converted via root.worldToLocal. Abduction=atan2(abs(upperArm.x),-upperArm.y). Sagittal=atan2(-upperArm.z,-upperArm.y), elbow flexion=acos(dot(upper,forearm)). Angles degrees. Proxy anchor is in exact Hips bone bind coordinates. ShoulderDrop=atan2(-shoulderToUpperArm.y,abs(shoulderToUpperArm.x)), relative to exact Idle_Breathe reference. Hand/finger quaternion departures use exact GLB local bind-time Idle_Breathe rotations, absolute quaternion dot.",
+  "bounds": {
+    "underarmAdditionalAdductionStartFull": [
+      0.5,
+      6
+    ],
+    "elbowAdditionalFlexionStartFull": [
+      2,
+      25
+    ],
+    "upperArmAbductionAllowed": [
+      0,
+      35
+    ],
+    "maxElbowFlexion": 60,
+    "maxSagittalDeparture": 25,
+    "handPressureSpecialEnvelope": {
+      "additionalAdduction": [
+        -0.001,
+        8.001
+      ],
+      "maxAddedElbowFlexionAbsolute": 0.05,
+      "maxSagittalDeparture": 0.15,
+      "maxShoulderDropDeparture": 0.01,
+      "maxHandAndFingerLocalQuaternionDepartureDegrees": 0.25
+    },
+    "morphClamp": [
+      0,
+      1
+    ],
+    "pressureAttack": "immediate, no temporal lag",
+    "underarmShoulderCoordination": {
+      "dropDepartureAllowed": [
+        0.025,
+        1.75
+      ],
+      "fullCoherenceDrop": 0.1,
+      "maximumAdditionalAdduction": 5.05,
+      "note": "Pure upper-arm-only adduction does not activate underarm channel. Empirical approved20 plus controlled contact diagnostic; not proof of arbitrary pose combinations."
+    },
+    "smoothing": "No added temporal filter. AnimationMixer pose interpolation plus smoothstep spatial weights; invalid/unsupported channels reset immediately."
+  },
+  "unsupportedFallback": "Zero only owned garment_* targets; preserve all old mouth/blink/other targets. Report exact asset/capability mismatch or out-of-envelope contact. Never infer no-collision, enable arbitrary arm clips, slide root, or spread arms automatically.",
+  "resetDispose": "Set exact owned garment_* channels0 on reset/skin switch/dispose; cancel stale updates; release references. Never use morphTargetInfluences.fill(0).",
+  "physicsClaim": "Pose-space local cloth correction plus lightweight proximity proxies, not an unconstrained cloth physics solver. Hand contact beyond8deg diagnostic inward adduction remains unsupported.",
+  "provenance": "Blender4.3.2 exported morph POSITION+NORMAL, appended to original20clipGLB preserving original binary payload and old nodes/skins/materials/images/animations byte-exact. V4 pressure normals use custom-normal transport rather than raw exporter normal deltas.",
+  "sources": [
+    "https://docs.blender.org/manual/ja/4.5/addons/import_export/scene_gltf2.html",
+    "https://docs.blender.org/manual/id/4.5/physics/cloth/settings/collisions.html",
+    "https://threejs.org/docs/pages/Mesh.html",
+    "https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html"
+  ],
+  "controller": "src/ui/garments/garment-driver-v4.mjs",
+  "controllerFactory": "createGarmentDriver",
+  "evidenceScope": [
+    "Approved20 existing clips",
+    "Controlled pureUpperArm additional inward adduction 0..8 degrees; not a new approved clip",
+    "No free root translation or arbitrary hand/finger animation support"
+  ],
+  "diagnosticOnlyPressure": false,
+  "pressureWarning": "Optional controlled 0..8deg diagnostic only, default NORMAL profile disables pressure. Hands/legs clearance checked; pre-existing hidden sleeve-skirt intersections migrate at extreme8deg and are not claimed eliminated.",
+  "controllerSHA256": "7ff9ee8b411383409d20e67d713f6fc2a5427b853afd3f1879e04ddfcb8eae65",
+  "appIntegrated": false,
+  "gpuAcceptance": "Pending supported Windows / Electron / Three GPU validation; CPU and Blender actualGLB evidence are not GPU acceptance."
+}

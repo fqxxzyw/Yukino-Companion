@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "model_id": "07",
+  "variant": "CMU_Walk_V6_REVIEW",
+  "status": "parent_accepted_review_candidate_not_runtime_release",
+  "file": "Yukino07_CMUWalk14_V6_REVIEW.glb",
+  "sha256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+  "units": "glTF meters / authored model units; multiply distances and speed by runtime uniform scale",
+  "source_height_m": 1.0004711474757642,
+  "animations_preserved": 13,
+  "total_animations": 14,
+  "clip": {
+    "name": "Walk_Slow_Loop",
+    "loop": true,
+    "in_place": true,
+    "root_motion": "periodic sway/bob/contact correction only; zero net drift; KEEP these authored Root translation tracks",
+    "fps": 30,
+    "frames_inclusive": [
+      0,
+      44
+    ],
+    "duration_seconds": 1.4666666666666666,
+    "stride_distance_m": 0.8342623859709787,
+    "stride_distance_model_units": 0.8342623859709787,
+    "preferred_travel_speed_m_per_second": 0.5688152631620309,
+    "forwardAxis": [
+      0.02847926409821225,
+      0,
+      0.999594383495838
+    ],
+    "nominal_model_front_gltf": [
+      0,
+      0,
+      1
+    ],
+    "contact_blend_anchor_seconds": [
+      0.6166666666666667,
+      1.2666666666666666
+    ],
+    "authored_visible_outline_floor_y": -0.00042811292223632336,
+    "dense_sample_visible_floor_range_y": [
+      -0.0006639419589191675,
+      0.0013855225406587124
+    ],
+    "conservative_floor_zero_wrapper_offset_y": 0.00067,
+    "foot_floor_policy": "Keep authored periodic Root translations. Place wrapper +0.00067*scale above floor0 for the sampled bound; never re-normalize animated bounds every frame."
+  },
+  "transitions": {
+    "runtime_verified": false,
+    "no_distinct_enter_exit_clips": true,
+    "exit": "Turn wrapper toward stage-left, play genuine gait and translate at stride/duration times uniform scale. Keep old skin until off-screen.",
+    "entry": "Spawn new skin off-screen stage-right already facing travel. Play genuine gait at matched speed toward center.",
+    "stop": "Prefer contact phase and bounded blend to Idle_Breathe with coordinated wrapper deceleration. App-native end-to-end must still be tested.",
+    "absent_clip_policy": "Do not claim walking for another model without its own retarget; label any fade honestly."
+  },
+  "source": {
+    "motion": "CMU subject07 trial04 slow walk",
+    "origin": "https://mocap.cs.cmu.edu/",
+    "conversion": "Bruce Hahne / cgspeed MotionBuilder-friendly 2010 BVH",
+    "mirror": "https://github.com/una-dinosauria/cmu-mocap/blob/master/data/007/07_04.bvh",
+    "raw_motion_included": false
+  },
+  "validation": {
+    "old13clips_2145channels_exact": true,
+    "all293mesh_morph_index_arrays_exact": true,
+    "textures_materials_weights_55joint_binds_exact": true,
+    "all45keys_finite": true,
+    "loop_pose_seam": 0,
+    "min_neighbor_quaternion_dot": 0.9950712323188782,
+    "independent_floor_samples": 177,
+    "shoe_cross_candidates": 0,
+    "distal_sleeve_lower_hair_candidates": 0,
+    "new_arm_hair_candidates": 0,
+    "new_covered_sleeve_torso_seam_pairs": {
+      "left": 33,
+      "right": 10
+    },
+    "front_hairlock_lapel_pairs": 7,
+    "actual_GLB_fractional_samples": 177,
+    "actual_GLB_visible_floor_range": [
+      -0.0006639419589191675,
+      0.0013855225406587124
+    ],
+    "actual_GLB_loop_mesh_seam": {
+      "Yukino_Body": 0.0,
+      "Yukino_Body_ToonOutline": 0.0
+    },
+    "targeted_neutral_vs_worst_material_views": "No obvious new silhouette break, exposed skin, hole or external panel poke; not mathematical intersection-free."
+  },
+  "limitations": [
+    "Covered armhole/chest sewn-layer intersections and front-hairlock/lapel contacts remain numerically. Targeted material closeups did not show new visible unwanted punch-through; not mathematically collision-free.",
+    "No dynamic hair or cloth simulation.",
+    "Residual contact/rolling approximation remains; no runtime IK foot locking.",
+    "Native action switching requires reset because some original native actions are partially keyed; exported old13 GLB clips are verified exact.",
+    "No other-model gait or blink claim.",
+    "Original baselines and frozen application files untouched; runtime skin-switch/turn/deceleration still requires separate QA."
+  ]
+}

@@ -9,6 +9,7 @@ const copy=value=>JSON.parse(JSON.stringify(value));
 const zh='先不必急着给今天下结论。\n\n把让你在意的那件事说清楚，我们再一起想办法。窗外的雨已经停了，留一点时间给自己，也没有什么不好。';
 const ja='今日のことを、今すぐ結論づける必要はないわ。\n\n気になっていることを話してみて。一緒に考えましょう。外の雨も上がったし、自分のために少し時間を残してもいいでしょう。';
 let state={
+  characters:[{id:'yukino',name:'雪之下雪乃',modelId:'',builtin:true,persona:'',personaEnabled:true,personaPromptMode:'detailed',memory:'',useMemory:false}],activeCharacter:'yukino',
   collapsed:false,side:'left',showAvatar:true,width:290,accent:'#477fd1',background:'#f1f6fc',reduce:true,
   bubbleLanguage:'both',translationMode:'api',chatMode:'api',setupDismissedVersion:'',
   profiles:[{id:'visual-qa',name:'界面验证 · 无网络请求',providerId:'custom',base:'https://example.invalid/v1',model:'qa-chat'}],activeProfile:'visual-qa',
@@ -54,9 +55,9 @@ contextBridge.exposeInMainWorld('desktop',{
   onChunk:fn=>on('chunk',fn),onError:fn=>on('error',fn),
   voiceResources:async()=>({phase:'idle',bundled:false,coreReady:false,preset:null,packs:Array.from({length:5},(_,i)=>({id:`yukino-e${i+1}`,kind:'voice',bundled:false,installed:false,label:`雪乃 · GPT e${i+1} / SoVITS e1（v1）`}))}),
   voiceInstall:noNetwork,voiceDownloadCancel:no,onVoiceDownload:fn=>on('voice-download',fn),
-  voiceSettings:async()=>copy(voice),voiceSave:async value=>{voice=copy(value);return copy(voice);},
+  voiceSettings:async()=>copy(voice),voiceSave:async value=>{voice=copy(value);return copy(voice);},voicePatch:async value=>{voice={...voice,...copy(value)};return copy(voice);},
   voiceStatus:async()=>voiceStatus(),voiceProbe:async()=>({torch:'界面测试',cudaAvailable:false,devices:[]}),
-  voiceLoad:noNetwork,voiceUnload:no,voiceBegin:no,voiceSynthesize:noNetwork,voiceStop:no,voicePick:async()=>null,
+  voiceLoad:noNetwork,voiceUnload:no,voiceBegin:no,voicePrewarm:no,voiceSynthesize:noNetwork,voiceStop:no,voicePick:async()=>null,
   onVoiceStatus:fn=>on('voice-status',fn),
   translate:async()=>({text:ja,source:'zh',target:'ja',device:'qa-fixture'}),
   translationStatus:async()=>copy(translation),translationSave:async config=>{translation.config=copy(config);return copy(translation);},

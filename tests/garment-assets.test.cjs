@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {load,compareAccessor}=require('./helpers/garment-glb-audit.cjs'),manifest=require('../src/ui/garments/manifest.json'),catalog=require('../resources/character-models.json');
+const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
+for(const pinned of manifest.models)test('garment '+pinned.modelId+' preserves old mesh/bones/mouth/animations/textures and exact NORMAL sources',()=>{
+ const after=load(pinned.id),before=load(pinned.baselineId),entry=after.model;
+ assert.equal(entry.sha256,pinned.assetSha256);assert.equal(entry.blink,false);assert.equal(entry.garment.mode,'normal');
+ for(const [file,sha]of [[pinned.profile,pinned.profileSha256],[pinned.driverModule,pinned.driverModuleSha256]])assert.equal(hash(fs.readFileSync(path.join(__dirname,'../src/ui/garments',file))),sha);
+ assert.deepEqual(after.json.materials,before.json.materials);assert.deepEqual(after.json.textures,before.json.textures);assert.deepEqual(after.json.samplers,before.json.samplers);
+ for(let i=0;i<before.json.images.length;i++){const x=before.json.bufferViews[before.json.images[i].bufferView],y=after.json.bufferViews[after.json.images[i].bufferView];assert.deepEqual(after.bin.subarray(y.byteOffset,y.byteOffset+y.byteLength),before.bin.subarray(x.byteOffset,x.byteOffset+x.byteLength),'image bytes');}
+ assert.deepEqual(after.json.nodes,before.json.nodes,'node/bone rest pose');
+ assert.equal(after.json.skins.length,before.json.skins.length);for(let i=0;i<before.json.skins.length;i++){const a=after.json.skins[i],b=before.json.skins[i];assert.deepEqual(a.joints,b.joints);compareAccessor(before,b.inverseBindMatrices,after,a.inverseBindMatrices,'inverse bind');}
+ assert.equal(after.json.meshes.length,before.json.meshes.length);
+ for(let i=0;i<before.json.meshes.length;i++){const a=after.json.meshes[i],b=before.json.meshes[i];assert.deepEqual(a.extras.targetNames.slice(0,b.extras.targetNames.length),b.extras.targetNames,'old morph names/index');assert.equal(a.primitives.length,b.primitives.length);
+  for(let k=0;k<b.primitives.length;k++){const x=a.primitives[k],y=b.primitives[k];assert.equal(x.material,y.material);compareAccessor(before,y.indices,after,x.indices,'triangles');for(const name of Object.keys(y.attributes))compareAccessor(before,y.attributes[name],after,x.attributes[name],name);for(let t=0;t<(y.targets||[]).length;t++)for(const name of Object.keys(y.targets[t]))compareAccessor(before,y.targets[t][name],after,x.targets[t][name],'old morph '+name);}
+ }
+ for(const old of before.json.animations){const newer=after.json.animations.find(a=>a.name===old.name);assert.ok(newer);assert.deepEqual(newer.channels,old.channels,old.name+' channels');assert.equal(newer.samplers.length,old.samplers.length);old.samplers.forEach((s,i)=>{const n=newer.samplers[i];assert.equal(n.interpolation||'LINEAR',s.interpolation||'LINEAR');compareAccessor(before,s.input,after,n.input,old.name+' time');compareAccessor(before,s.output,after,n.output,old.name+' values');});}
+ assert.equal(entry.outfitGroup,before.model.outfitGroup);assert.equal(entry.ready,pinned.modelId!=='01');
+ if(pinned.modelId==='07'){assert.equal(entry.defaultClip,'Idle_Relaxed');assert.equal(Object.keys(entry.clips).length,20);const profile=require('../src/ui/garments/profiles/07-normal.json');assert.equal(profile.sides.L.contact.enabled,false);assert.equal(profile.sides.R.contact.enabled,false);}
+});
+test('garment selection is fail-closed for wrong asset/profile/mode and cannot turn custom GLB into corrective capability',async()=>{const {garmentCapability}=await import('../src/ui/garment-runtime.mjs'),entry=catalog.models.find(x=>x.garment);assert.equal(garmentCapability(catalog.models[0]),null);for(const change of [{sha256:'0'.repeat(64)},{bytes:1},{custom:true},{reviewOnly:true},{garment:{...entry.garment,mode:'diagnostic'}},{garment:{...entry.garment,profileId:'07-diagnostic'}}])assert.throws(()=>garmentCapability({...entry,...change}),/不匹配/);});

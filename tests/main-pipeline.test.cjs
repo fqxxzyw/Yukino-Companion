@@ -4,6 +4,7 @@ const path = require('node:path');
 const {mainHarness} = require('./helpers/main-harness.cjs');
 const profile = {id:'provider',base:'https://example.test/v1',model:'provider-model'};
 const state = {profiles:[profile],activeProfile:profile.id,conversations:[],persona:'',translationMode:'api'};
+test('clipboard copies reply text through the authorized native main window',async()=>{const app=await mainHarness({state});assert.equal(await app.invoke('copy-text','中文 / 日本語'),true);assert.deepEqual(app.copied,['中文 / 日本語']);await assert.rejects(app.invoke('copy-text',{text:'invalid'}),/复制内容无效/);await assert.rejects(app.handlers.get('copy-text')({sender:{},senderFrame:{}},'forged'),/不允许/);});
 const request = {id:'message',profileId:profile.id,messages:[{role:'user',content:'今天也辛苦了。'}]};
 const deferred = () => {let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 
@@ -38,7 +39,7 @@ test('local translation mode obtains Chinese from API and runs the local transla
 });
 
 test('local translation failure returns the original Chinese and an explicit unavailable Japanese result', async () => {
-  const app = await mainHarness({state,reply:'慢慢来就好。',translate:async()=>{throw Error('model missing');}});
+  const app = await mainHarness({state:{...state,translationMode:'local'},reply:'慢慢来就好。',translate:async()=>{throw Error('model missing');}});
   const result = await app.invoke('chat',request);
   assert.equal(result.ok,true);assert.equal(result.bilingual.zh,'慢慢来就好。');
   assert.equal(result.bilingual.ja,'');assert.equal(result.bilingual.translationStatus,'error');
@@ -137,7 +138,7 @@ test('legacy encrypted keys migrate using the persisted profile origin and orpha
 
 test('voice begin applies merged defaults after saving and unloading, with no manual load',async()=>{
   const app=await mainHarness({state});
-  const defaults=await app.invoke('voice-settings');assert.ok(defaults.gpt.endsWith('default.ckpt'));assert.ok(defaults.reference.endsWith('ref.wav'));assert.ok(defaults.promptText);
+  const defaults=await app.invoke('voice-settings');assert.ok(defaults.gpt.endsWith('default.ckpt'));assert.ok(defaults.reference.endsWith('ref.wav'));assert.equal(defaults.promptText,'');
   const status=await app.invoke('voice-status');assert.equal(status.configured,true);
   await app.invoke('voice-save',{...defaults,enabled:true});await app.invoke('voice-unload');
   const count=app.voiceActions.length;await app.invoke('voice-begin','first-voice');
@@ -157,13 +158,28 @@ test('first-use setup installs one shared runtime and keeps model/runtime states
   const app=await mainHarness({state,runtimeReady:false,voiceMissing:['bert','hubert']});
   const before=await app.invoke('setup-status');
   assert.equal(before.steps.find(item=>item.id==='runtime').state,'missing');
-  assert.equal(before.steps.find(item=>item.id==='chat').state,'ready');assert.equal(before.steps.find(item=>item.id==='translation').state,'ready');
+  assert.equal(before.steps.find(item=>item.id==='chat').state,'waiting-runtime');assert.equal(before.steps.find(item=>item.id==='translation').state,'waiting-runtime');
+  assert.equal(before.steps.find(item=>item.id==='chat').downloadBytes,0);assert.equal(before.steps.find(item=>item.id==='translation').downloadBytes,0);
   const after=await app.invoke('setup-install',{runtimeFlavor:'cpu',features:['chat','translation','voice']});
   assert.equal(after.ready,true);assert.deepEqual(app.runtime.installs,['cpu']);assert.deepEqual(app.voiceInstallCalls,['core']);
   const local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status'),voice=await app.invoke('voice-settings');
   assert.equal(local.python,path.resolve('/embedded/python'));assert.equal(translation.config.python,local.python);assert.equal(voice.python,local.python);
   assert.equal(JSON.parse(app.storage.get('speech.json')).bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
   await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);
+});
+
+test('replaced app-managed Python paths follow the selected runtime across chat, translation and voice',async()=>{
+ const old=path.resolve('/virtual-user/runtime/old-runtime/python-runtime/python.exe'),files={'speech.json':JSON.stringify({python:old}),'translation.json':JSON.stringify({python:old}),'local-chat.json':JSON.stringify({python:old})};
+ const app=await mainHarness({state,runtimeReady:true,files});const expected=path.resolve('/embedded/python');
+ assert.equal((await app.invoke('voice-settings')).python,expected);assert.equal((await app.invoke('translation-status')).config.python,expected);assert.equal((await app.invoke('local-chat-settings')).python,expected);
+});
+
+test('missing app-managed Python is cleared until shared runtime installation completes',async()=>{
+ const old=path.resolve('/virtual-user/runtime/old-runtime/python-runtime/python.exe'),files={'speech.json':JSON.stringify({python:old}),'translation.json':JSON.stringify({python:old}),'local-chat.json':JSON.stringify({python:old})};
+ const app=await mainHarness({state,runtimeReady:false,files});
+ assert.equal((await app.invoke('voice-settings')).python,'');assert.equal((await app.invoke('translation-status')).config.python,'');assert.equal((await app.invoke('local-chat-settings')).python,'');
+ await app.invoke('setup-install',{features:['chat','translation','voice']});const expected=path.resolve('/embedded/python');
+ assert.equal((await app.invoke('voice-settings')).python,expected);assert.equal((await app.invoke('translation-status')).config.python,expected);assert.equal((await app.invoke('local-chat-settings')).python,expected);
 });
 
 test('setup exposes actual downloadable CPU-only or CPU/CUDA variants to the renderer',async()=>{
@@ -214,7 +230,7 @@ test('cancelling while voice readiness is pending cannot start a core download',
   const app=await mainHarness({state,voiceMissing:['bert','hubert']});
   const readiness=app.voice.readiness.bind(app.voice);
   app.voice.readiness=async(...args)=>{
-    if(app.setup.active==='voiceCore'){
+    if(app.setup.activeSteps.has('voiceCore')){
       // Both the progress inspection and the actual installation preflight can
       // inspect resources. Hold both so cancellation happens inside preflight.
       pending++;if(pending>=2)entered.resolve();await gate.promise;
@@ -230,20 +246,63 @@ test('cancelling while voice readiness is pending cannot start a core download',
   assert.equal((await app.invoke('setup-status')).phase,'cancelled');
 });
 
-test('first-use default voice preparation preserves custom reference-only and transcript-only choices',async()=>{
- for(const saved of [{reference:path.resolve('/custom/my-reference.wav')},{promptText:'私が選んだ文章です。'}]){
-  const app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify(saved)}});
-  await assert.rejects(app.invoke('setup-install',{features:['voice']}),/自定义参考/);
-  const after=JSON.parse(app.storage.get('speech.json'));for(const [field,value]of Object.entries(saved))assert.equal(after[field],value);
-  assert.equal(app.voiceInstallCalls.includes('yukino-e2'),false);
- }
+test('default weight download preserves a custom reference and never pairs a text-only custom prompt with unrelated audio',async()=>{
+ const reference=path.resolve('/custom/my-reference.wav'),app=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({reference})}});
+ await app.invoke('setup-install',{features:['voice']});assert.equal(JSON.parse(app.storage.get('speech.json')).reference,reference);assert.ok(app.voiceInstallCalls.includes('yukino-e2'));
+ const promptText='私が選んだ文章です。',textOnly=await mainHarness({state,voiceMissing:['gpt'],files:{'speech.json':JSON.stringify({promptText})}});
+ await assert.rejects(textOnly.invoke('setup-install',{features:['voice']}),/自定义参考文本/);assert.equal(JSON.parse(textOnly.storage.get('speech.json')).promptText,promptText);assert.equal(textOnly.voiceInstallCalls.includes('yukino-e2'),false);
 });
 test('an app-managed default voice pair can be repaired without being mistaken for custom weights',async()=>{
  const saved={gpt:path.resolve('/embedded/models/yukino-v1/gpt-e2.ckpt'),sovits:path.resolve('/embedded/models/yukino-v1/sovits-e1-s3561.pth')};
  const app=await mainHarness({state,voiceMissing:['gpt'],referenceFixture:true,files:{'speech.json':JSON.stringify(saved)}});
- const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.phase,'ready');assert.ok(app.voiceInstallCalls.includes('yukino-e2'));assert.match(JSON.parse(app.storage.get('speech.json')).reference,/voice-presets[/\\]yukino-reference\.wav$/);
+ const result=await app.invoke('setup-install',{features:['voice']});assert.equal(result.phase,'ready');assert.ok(app.voiceInstallCalls.includes('yukino-e2'));assert.equal(JSON.parse(app.storage.get('speech.json')).reference,path.resolve('/embedded/voice-models/ref.wav'));
+});
+test('background voice installation commits selected paths without relying on the settings panel',async()=>{
+ const app=await mainHarness({state}),result=await app.invoke('voice-install','yukino-e2',{apply:true}),saved=JSON.parse(app.storage.get('speech.json'));
+ assert.equal(result.applied,true);assert.equal(saved.gpt,result.gpt);assert.equal(saved.sovits,result.sovits);assert.equal(saved.promptText,'');assert.ok(app.sent.some(x=>x.channel==='voice-config-updated'));
+});
+test('a pending volume change cannot overwrite newly installed voice weights',async()=>{
+ const app=await mainHarness({state}),before=await app.invoke('voice-settings');
+ const owner=app.voiceDownloads.at(-1);let release;owner.install=()=>new Promise(resolve=>release=resolve);
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true});await new Promise(setImmediate);
+ release({gpt:path.resolve('/downloaded/voice.ckpt'),sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});
+ assert.equal((await pending).applied,true);
+ const saved=await app.invoke('voice-patch',{volume:0.35});
+ assert.notEqual(saved.gpt,before.gpt);assert.equal(saved.gpt,path.resolve('/downloaded/voice.ckpt'));assert.equal(saved.sovits,path.resolve('/downloaded/voice.pth'));assert.equal(saved.volume,0.35);
+ assert.equal(JSON.parse(app.storage.get('speech.json')).gpt,saved.gpt);
+ await assert.rejects(app.invoke('voice-patch',{unexpected:true}),/无效语音设置/);
+ await assert.rejects(app.invoke('voice-patch',{volume:2}),/超出范围/);
+});
+test('concurrent voice core and selected weights both persist without overwriting one another',async()=>{
+ const gate=deferred(),entered=deferred(),started=new Set();const app=await mainHarness({state,voiceMissing:['bert','gpt'],voiceInstallBarrier:async id=>{started.add(id);if(started.size===2)entered.resolve();await gate.promise;}});
+ const job=app.invoke('setup-install',{features:['voice']});await entered.promise;gate.resolve();const result=await job;assert.equal(result.ready,true);
+ const saved=JSON.parse(app.storage.get('speech.json'));assert.equal(saved.gpt,path.resolve('/embedded/voice-models/default.ckpt'));assert.equal(saved.sovits,path.resolve('/embedded/voice-models/default.pth'));assert.equal(saved.bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
+});
+test('a background voice download cannot overwrite a newer local voice selection',async()=>{
+ const app=await mainHarness({state}),owner=app.voiceDownloads.at(-1);let release;owner.install=()=>new Promise(resolve=>release=resolve);
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true});await new Promise(setImmediate);
+ const custom={...await app.invoke('voice-settings'),gpt:path.resolve('/custom/voice.ckpt'),sovits:path.resolve('/custom/voice.pth')};await app.invoke('voice-save',custom);
+ release({gpt:path.resolve('/downloaded/voice.ckpt'),sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});
+ const result=await pending;assert.equal(result.applied,false);const saved=JSON.parse(app.storage.get('speech.json'));assert.equal(saved.gpt,custom.gpt);assert.equal(saved.sovits,custom.sovits);
+});
+test('downloading one voice file preserves a separately selected local file',async()=>{
+ const app=await mainHarness({state}),owner=app.voiceDownloads.at(-1);let release;owner.install=(_id,options)=>new Promise(resolve=>{assert.equal(options.component,'sovits');release=resolve;});
+ const pending=app.invoke('voice-install','yukino-e2',{apply:true,component:'sovits'});await new Promise(setImmediate);
+ const custom={...await app.invoke('voice-settings'),gpt:path.resolve('/custom/voice.ckpt')};await app.invoke('voice-save',custom);
+ release({sovits:path.resolve('/downloaded/voice.pth'),version:'v1',textLang:'all_ja'});const result=await pending,saved=JSON.parse(app.storage.get('speech.json'));assert.equal(result.applied,true);assert.equal(saved.gpt,custom.gpt);assert.equal(saved.sovits,result.sovits);
 });
 test('default voice download progress is routed to its active setup step',async()=>{
  const app=await mainHarness({state});app.setup.controller=new AbortController();app.setup.phase='installing';app.setup.active='voicePreset';
  app.voiceDownloads.at(-1).options.notify({phase:'downloading',received:20,total:100});assert.equal(app.setup.progress.received,20);app.setup.controller=null;
+});
+
+test('manual Japanese translation follows selected API without invoking local Python',async()=>{const app=await mainHarness({state,reply:'こんにちは。'});const result=await app.invoke('translate',{text:'你好。',requestId:'api-manual',mode:'api',profileId:profile.id});assert.equal(result.text,'こんにちは。');assert.equal(result.source,'api');assert.equal(app.translated.length,0);assert.equal(app.requests.length,1);assert.match(app.requests[0].messages[0].content,/Japanese/);});
+test('translation renderer cannot override saved API profile or key',async()=>{const app=await mainHarness({state,reply:'こんにちは。'});await app.invoke('translate',{text:'你好。',requestId:'api-injection',mode:'api',profileId:profile.id,profile:{base:'https://evil.test',model:'bad'},key:'injected'});assert.equal(app.transport[0].headers.Authorization,undefined);assert.equal(app.requests[0].model,profile.model);});
+test('manual local translation stays local and does not contact the API',async()=>{const app=await mainHarness({state});const result=await app.invoke('translate',{text:'你好。',requestId:'local-manual',mode:'local',profileId:profile.id});assert.equal(app.requests.length,0);assert.equal(app.translated.length,1);assert.match(result.text,/翻訳/);});
+
+test('main-frame document reload resets the speech generation but subframes and hash changes do not',async()=>{
+ const app=await mainHarness({state});let resets=0,received=[];app.companions.resetSpeechClock=()=>resets++;app.companions.setSpeechSnapshot=value=>{received.push(value);return true};
+ const wc=app.window.webContents;wc.emit('did-start-navigation',{isMainFrame:false,isSameDocument:false});wc.emit('did-start-navigation',{isMainFrame:true,isSameDocument:true});assert.equal(resets,0);assert.equal(await app.invoke('companion-speech',{sequence:9}),true);
+ wc.emit('did-start-navigation',{isMainFrame:true,isSameDocument:false});assert.equal(resets,1);assert.equal(await app.invoke('companion-speech',{sequence:10}),false,'old unloading renderer cannot reclaim sequence watermark');assert.equal(received.length,1);
+ wc.emit('dom-ready');assert.equal(resets,2);assert.equal(await app.invoke('companion-speech',{sequence:1}),true);assert.equal(received.at(-1).sequence,1);
 });

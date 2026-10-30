@@ -1,0 +1,1594 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-27-review.1",
+  "models": [
+    {
+      "id": "yukino-01-v1",
+      "characterId": "yukino",
+      "label": "白色两件泳装",
+      "version": "2026-10-27-review.1",
+      "ready": false,
+      "status": "HOLD_eight_weight_GPU_validation",
+      "url": "./characters/Yukino01_UVDomainRepair.glb",
+      "bytes": 10671332,
+      "sha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "hold": true,
+      "note": "当前 UV 修色版；刘海形状仍待完善。八权重 GPU 验收通过后仍需七个使用日期解锁。",
+      "outfitGroup": "yukino-01",
+      "thumbnail": "./characters/thumbnails/yukino-01.png",
+      "thumbnailSha256": "b18676a25e3a2b46548ed63d5720028f06757b993fc1451590485c63459ae128",
+      "thumbnailSourceSha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6"
+    },
+    {
+      "id": "yukino-02-v1",
+      "characterId": "yukino",
+      "label": "蓝色开衫贝雷帽",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "delivered_review_stage",
+      "url": "./characters/Yukino02_UVDomainRepair.glb",
+      "bytes": 11413596,
+      "sha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-02",
+      "thumbnail": "./characters/thumbnails/yukino-02.png",
+      "thumbnailSha256": "c35b7401f2ba0defe17f04f493645115ac9389cb94d9b59f7b09aa25e381010d",
+      "thumbnailSourceSha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b"
+    },
+    {
+      "id": "yukino-03-v1",
+      "characterId": "yukino",
+      "label": "白色连体泳装蓝蝴蝶结",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "delivered_review_stage",
+      "url": "./characters/Yukino03_UVDomainRepair.glb",
+      "bytes": 9885224,
+      "sha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-03",
+      "thumbnail": "./characters/thumbnails/yukino-03.png",
+      "thumbnailSha256": "c0c91e8d8765515c8c21f070569269ab2d4fd759fac96419b25aab0e1951c8e4",
+      "thumbnailSourceSha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d"
+    },
+    {
+      "id": "yukino-04-v1",
+      "characterId": "yukino",
+      "label": "蓝色花纹和服",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "delivered_review_stage",
+      "url": "./characters/Yukino04_UVPartsClean_PORTABLE.glb",
+      "bytes": 10005444,
+      "sha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-04",
+      "thumbnail": "./characters/thumbnails/yukino-04.png",
+      "thumbnailSha256": "b62ea8608aabd9c16fa85e2458cf3d679a9b304a3037565f4f0e0c3824198473",
+      "thumbnailSourceSha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689"
+    },
+    {
+      "id": "yukino-05-v1",
+      "characterId": "yukino",
+      "label": "黑色蕾丝裙",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "delivered_review_stage",
+      "url": "./characters/Yukino05_UVDomainRepair.glb",
+      "bytes": 13369772,
+      "sha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-05",
+      "thumbnail": "./characters/thumbnails/yukino-05.png",
+      "thumbnailSha256": "9e975ea04ada2e3257d3727bd7c2a2655c8f9f09fa55be7ec3d25267a531b066",
+      "thumbnailSourceSha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59"
+    },
+    {
+      "id": "yukino-06-v1",
+      "characterId": "yukino",
+      "label": "黑白女仆红蝴蝶结",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "delivered_review_stage",
+      "url": "./characters/Yukino06_UVPartsClean_PORTABLE.glb",
+      "bytes": 11691392,
+      "sha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-06",
+      "thumbnail": "./characters/thumbnails/yukino-06.png",
+      "thumbnailSha256": "93f1c03884d38a602be4994442af82ea9586df080d98987caa22b71007bdfd98",
+      "thumbnailSourceSha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6"
+    },
+    {
+      "id": "yukino-07-v1",
+      "characterId": "yukino",
+      "label": "原校服黄背心",
+      "version": "2026-10-27-review.1",
+      "ready": true,
+      "status": "validated_stage_uploaded",
+      "url": "./characters/Yukino07_UVDomainRepair.glb",
+      "bytes": 9882096,
+      "sha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "clips": {
+        "Explain_Small": {
+          "loop": false,
+          "duration": 4.2
+        },
+        "Greet_Reserved": {
+          "loop": false,
+          "duration": 3.6
+        },
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "MouthOpen",
+        "recommended_dialogue_range": [
+          0,
+          0.25
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": true,
+        "aliases_not_additive": {
+          "MouthOpen": [
+            "viseme_A"
+          ]
+        },
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-07",
+      "thumbnail": "./characters/thumbnails/yukino-07.png",
+      "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5"
+    },
+    {
+      "id": "yukino-07-micro13-preview",
+      "characterId": "yukino",
+      "label": "校服·微动作增强（预览）",
+      "version": "2026-10-27-micro13-preview.3",
+      "ready": true,
+      "status": "optional_preview_technical_integration_approved_not_user_accepted",
+      "url": "./characters/Yukino07_MicroActions13_REVIEW.glb",
+      "bytes": 10118656,
+      "sha256": "e070bc7baf5326447df0023769cabda61d20f69781bd15bc39a557807b5142b4",
+      "clips": {
+        "Explain_Small": {
+          "duration": 4.2,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Greet_Reserved": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Idle_Breathe": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Listen_Attentive": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Look_Left": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Look_Right": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Nod_Subtle": {
+          "duration": 2.4,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Think_Downcast": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Question_Tilt": {
+          "duration": 3.7,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "questioning"
+        },
+        "Reject_Gentle": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "mild_refusal"
+        },
+        "Attentive_LeanReturn": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "attentive_forward_lean"
+        },
+        "WeightShift_Small": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "upper_torso_weight_settle"
+        },
+        "Shoulders_Relax": {
+          "duration": 4.3,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "quiet_shoulder_release"
+        }
+      },
+      "mouth": {
+        "canonical_name": "MouthOpen",
+        "recommended_dialogue_range": [
+          0,
+          0.25
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": true,
+        "aliases_not_additive": {
+          "MouthOpen": [
+            "viseme_A"
+          ]
+        },
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "outfitGroup": "yukino-07",
+      "bundled": true,
+      "thumbnail": "./characters/thumbnails/yukino-07.png",
+      "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5"
+    },
+    {
+      "id": "yukino-07-walk14-preview",
+      "characterId": "yukino",
+      "label": "校服·行走换装（评审）",
+      "version": "2026-10-27-walk14-preview.6",
+      "ready": true,
+      "status": "runtime_walking_review",
+      "url": "./characters/Yukino07_CMUWalk14_V6_REVIEW.glb",
+      "bytes": 10175144,
+      "sha256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+      "clips": {
+        "Explain_Small": {
+          "duration": 4.2,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Greet_Reserved": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Idle_Breathe": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Listen_Attentive": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Look_Left": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Look_Right": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Nod_Subtle": {
+          "duration": 2.4,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Think_Downcast": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Question_Tilt": {
+          "duration": 3.7,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "questioning"
+        },
+        "Reject_Gentle": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "mild_refusal"
+        },
+        "Attentive_LeanReturn": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "attentive_forward_lean"
+        },
+        "WeightShift_Small": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "upper_torso_weight_settle"
+        },
+        "Shoulders_Relax": {
+          "duration": 4.3,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "quiet_shoulder_release"
+        },
+        "Walk_Slow_Loop": {
+          "loop": true,
+          "duration": 1.4666666666666666
+        }
+      },
+      "mouth": {
+        "canonical_name": "MouthOpen",
+        "recommended_dialogue_range": [
+          0,
+          0.25
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": true,
+        "aliases_not_additive": {
+          "MouthOpen": [
+            "viseme_A"
+          ]
+        },
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "outfitGroup": "yukino-07",
+      "bundled": true,
+      "thumbnail": "./characters/thumbnails/yukino-07.png",
+      "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "variantLabel": "真实慢步进出 · 仅此版本，待原生视觉验收",
+      "notes": [
+        "原始13个动作保持，新增CMU重定向慢走；仅此版本支持真实步态换装。",
+        "仍为评审版；转身、减速、混合与用户显卡原生视觉待验收。",
+        "保留已记录的覆盖缝层/发束接触，不宣称全无碰撞。"
+      ],
+      "walking": {
+        "clip": "Walk_Slow_Loop",
+        "durationSeconds": 1.4666666666666666,
+        "strideModelUnits": 0.8342623859709787,
+        "speedModelUnitsPerSecond": 0.5688152631620309,
+        "forwardAxis": [
+          0.02847926409821225,
+          0,
+          0.999594383495838
+        ],
+        "sourceHeight": 1.0004711474757642,
+        "floorOffsetModelUnits": 0.00067,
+        "contactAnchors": [
+          0.6166666666666667,
+          1.2666666666666666
+        ],
+        "review": true
+      }
+    },
+    {
+      "id": "yukino-07-dialogue19-preview",
+      "characterId": "yukino",
+      "label": "校服·语音微动作（评审）",
+      "version": "dialogue-micro19-v1-review",
+      "ready": true,
+      "status": "runtime_walking_review",
+      "url": "./characters/Yukino07_DialogueMicro19_REVIEW.glb",
+      "bytes": 10420820,
+      "sha256": "0ce5fb17fb3150e3a812e71200ed47341050669b562cf0c457c4c22c80bbe1f9",
+      "clips": {
+        "Explain_Small": {
+          "duration": 4.2,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Greet_Reserved": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Idle_Breathe": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Listen_Attentive": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Look_Left": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Look_Right": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Nod_Subtle": {
+          "duration": 2.4,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Think_Downcast": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Question_Tilt": {
+          "duration": 3.7,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "questioning"
+        },
+        "Reject_Gentle": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "mild_refusal"
+        },
+        "Attentive_LeanReturn": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "attentive_forward_lean"
+        },
+        "WeightShift_Small": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "upper_torso_weight_settle"
+        },
+        "Shoulders_Relax": {
+          "duration": 4.3,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "quiet_shoulder_release"
+        },
+        "Walk_Slow_Loop": {
+          "loop": true,
+          "duration": 1.4666666666666666
+        },
+        "Speak_PhraseCadence": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "讲话短句节奏",
+          "family": "speech_clause_accents",
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 10,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Recall_SideThenReturn": {
+          "duration": 4.300000190734863,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "思考后重新对视",
+          "family": "retrieval_scan_and_reengagement",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 15,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Courtesy_Bow": {
+          "duration": 3.9000000953674316,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "克制上身致意",
+          "family": "upper_torso_courtesy_bow",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 20,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Clarify_LowHand": {
+          "duration": 4.199999809265137,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "低位手掌澄清",
+          "family": "low_forearm_clarification",
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 15,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Hear_SurpriseRecover": {
+          "duration": 3.200000047683716,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "轻微意外后收稳",
+          "family": "auditory_check_and_recovery",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 20,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        }
+      },
+      "mouth": {
+        "canonical_name": "MouthOpen",
+        "recommended_dialogue_range": [
+          0,
+          0.25
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": true,
+        "aliases_not_additive": {
+          "MouthOpen": [
+            "viseme_A"
+          ]
+        },
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "审阅版资源，未完成 Windows 原生验收",
+        "无眨眼与头发物理"
+      ],
+      "outfitGroup": "yukino-07",
+      "bundled": true,
+      "thumbnail": "./characters/thumbnails/yukino-07.png",
+      "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "variantLabel": "新增5种微动作 · 音频时钟驱动（评审）",
+      "notes": [
+        "稳定校服仍为默认；本版保留原14动作，新增5种微动作。",
+        "语音中只自动选择短句节奏/明确澄清；回想、致意、意外暂仅手动预览，避免错误语义触发。",
+        "根/脚固定；不包含新增眨眼、独立眼神或物理。",
+        "真实 Windows 音频/模型联合验收待运行。"
+      ],
+      "walking": {
+        "clip": "Walk_Slow_Loop",
+        "durationSeconds": 1.4666666666666666,
+        "strideModelUnits": 0.8342623859709787,
+        "speedModelUnitsPerSecond": 0.5688152631620309,
+        "forwardAxis": [
+          0.02847926409821225,
+          0,
+          0.999594383495838
+        ],
+        "sourceHeight": 1.0004711474757642,
+        "floorOffsetModelUnits": 0.00067,
+        "contactAnchors": [
+          0.6166666666666667,
+          1.2666666666666666
+        ],
+        "review": true
+      }
+    },
+    {
+      "id": "yukino-01-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "白色两件泳装·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": false,
+      "status": "HOLD_hair_and_gpu_review",
+      "url": "./characters/Yukino01_GarmentNormal_20261027.glb",
+      "bytes": 16086864,
+      "sha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收",
+        "原刘海问题与八权重 GPU 验收独立保留 HOLD。"
+      ],
+      "bundled": true,
+      "hold": true,
+      "note": "当前 UV 修色版；刘海形状仍待完善。八权重 GPU 验收通过后仍需七个使用日期解锁。",
+      "outfitGroup": "yukino-01",
+      "thumbnail": "./characters/thumbnails/yukino-01.png",
+      "thumbnailSha256": "b18676a25e3a2b46548ed63d5720028f06757b993fc1451590485c63459ae128",
+      "thumbnailSourceSha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "原六动作中修正权重为零；只有符合校准范围的真实臂姿才触发，不额外摇摆衣物。"
+      ],
+      "garment": {
+        "profileId": "01-normal",
+        "mode": "normal",
+        "assetSha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6"
+      }
+    },
+    {
+      "id": "yukino-02-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "蓝色开衫贝雷帽·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino02_GarmentNormal_20261027.glb",
+      "bytes": 12334716,
+      "sha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-02",
+      "thumbnail": "./characters/thumbnails/yukino-02.png",
+      "thumbnailSha256": "c35b7401f2ba0defe17f04f493645115ac9389cb94d9b59f7b09aa25e381010d",
+      "thumbnailSourceSha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "原六动作中修正权重为零；只有符合校准范围的真实臂姿才触发，不额外摇摆衣物。"
+      ],
+      "garment": {
+        "profileId": "02-normal",
+        "mode": "normal",
+        "assetSha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581"
+      }
+    },
+    {
+      "id": "yukino-03-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "白色连体泳装蓝蝴蝶结·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino03_GarmentNormal_20261027.glb",
+      "bytes": 13284400,
+      "sha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-03",
+      "thumbnail": "./characters/thumbnails/yukino-03.png",
+      "thumbnailSha256": "c0c91e8d8765515c8c21f070569269ab2d4fd759fac96419b25aab0e1951c8e4",
+      "thumbnailSourceSha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "原六动作中修正权重为零；只有符合校准范围的真实臂姿才触发，不额外摇摆衣物。"
+      ],
+      "garment": {
+        "profileId": "03-normal",
+        "mode": "normal",
+        "assetSha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec"
+      }
+    },
+    {
+      "id": "yukino-04-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "蓝色花纹和服·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino04_GarmentNormal_20261027.glb",
+      "bytes": 15118368,
+      "sha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-04",
+      "thumbnail": "./characters/thumbnails/yukino-04.png",
+      "thumbnailSha256": "b62ea8608aabd9c16fa85e2458cf3d679a9b304a3037565f4f0e0c3824198473",
+      "thumbnailSourceSha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "原六动作中修正权重为零；只有符合校准范围的真实臂姿才触发，不额外摇摆衣物。"
+      ],
+      "garment": {
+        "profileId": "04-normal",
+        "mode": "normal",
+        "assetSha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6"
+      }
+    },
+    {
+      "id": "yukino-05-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "黑色蕾丝裙·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino05_GarmentNormal_20261027.glb",
+      "bytes": 17068220,
+      "sha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收",
+        "右裙被遮挡衣物层存在10个交叉候选，不宣称完全无碰撞。"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-05",
+      "thumbnail": "./characters/thumbnails/yukino-05.png",
+      "thumbnailSha256": "9e975ea04ada2e3257d3727bd7c2a2655c8f9f09fa55be7ec3d25267a531b066",
+      "thumbnailSourceSha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "右裙被遮挡衣物层存在10个交叉候选，不宣称完全无碰撞。",
+        "原六动作中修正权重为零；只有符合校准范围的真实臂姿才触发，不额外摇摆衣物。"
+      ],
+      "garment": {
+        "profileId": "05-normal",
+        "mode": "normal",
+        "assetSha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62"
+      }
+    },
+    {
+      "id": "yukino-06-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "黑白女仆红蝴蝶结·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino06_GarmentNormal_20261027.glb",
+      "bytes": 17045924,
+      "sha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4.0
+        },
+        "Look_Left": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Look_Right": {
+          "loop": false,
+          "duration": 3.0
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 2.4
+        },
+        "Think_Downcast": {
+          "loop": false,
+          "duration": 4.0
+        }
+      },
+      "mouth": {
+        "canonical_name": "mouth_open_small",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收"
+      ],
+      "bundled": true,
+      "outfitGroup": "yukino-06",
+      "thumbnail": "./characters/thumbnails/yukino-06.png",
+      "thumbnailSha256": "93f1c03884d38a602be4994442af82ea9586df080d98987caa22b71007bdfd98",
+      "thumbnailSourceSha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "正常六动作的双侧裙摆手部接触修正；现有遮挡内层叠层风险仍保留。"
+      ],
+      "garment": {
+        "profileId": "06-normal",
+        "mode": "normal",
+        "assetSha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f"
+      }
+    },
+    {
+      "id": "yukino-07-garment-normal-v1",
+      "characterId": "yukino",
+      "label": "校服·衣物姿态修正",
+      "version": "2026-10-27-garment-normal.1",
+      "ready": true,
+      "status": "bounded_garment_normal_review",
+      "url": "./characters/Yukino07_GarmentNormal_20261027.glb",
+      "bytes": 12502896,
+      "sha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66",
+      "clips": {
+        "Explain_Small": {
+          "duration": 4.2,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Greet_Reserved": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Idle_Breathe": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Listen_Attentive": {
+          "duration": 4.0,
+          "loop": true,
+          "matching_endpoint_values": true
+        },
+        "Look_Left": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Look_Right": {
+          "duration": 3.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Nod_Subtle": {
+          "duration": 2.4,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Think_Downcast": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true
+        },
+        "Question_Tilt": {
+          "duration": 3.7,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "questioning"
+        },
+        "Reject_Gentle": {
+          "duration": 3.6,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "mild_refusal"
+        },
+        "Attentive_LeanReturn": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "attentive_forward_lean"
+        },
+        "WeightShift_Small": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "upper_torso_weight_settle"
+        },
+        "Shoulders_Relax": {
+          "duration": 4.3,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "family": "quiet_shoulder_release"
+        },
+        "Walk_Slow_Loop": {
+          "loop": true,
+          "duration": 1.4666666666666666
+        },
+        "Speak_PhraseCadence": {
+          "duration": 4.0,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "讲话短句节奏",
+          "family": "speech_clause_accents",
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 10,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Recall_SideThenReturn": {
+          "duration": 4.300000190734863,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "思考后重新对视",
+          "family": "retrieval_scan_and_reengagement",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 15,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Courtesy_Bow": {
+          "duration": 3.9000000953674316,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "克制上身致意",
+          "family": "upper_torso_courtesy_bow",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 20,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Clarify_LowHand": {
+          "duration": 4.199999809265137,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "低位手掌澄清",
+          "family": "low_forearm_clarification",
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 15,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Hear_SurpriseRecover": {
+          "duration": 3.200000047683716,
+          "loop": false,
+          "matching_endpoint_values": true,
+          "label": "轻微意外后收稳",
+          "family": "auditory_check_and_recovery",
+          "autonomous": false,
+          "speechEligible": false,
+          "minRepeatGapSeconds": 20,
+          "conflictGroups": [
+            "body_action",
+            "neck_head_follow",
+            "walk",
+            "skin_transition"
+          ],
+          "maxSpeechWeight": 0.4
+        },
+        "Idle_Relaxed": {
+          "duration": 6,
+          "loop": true,
+          "autonomous": false,
+          "label": "自然站姿"
+        }
+      },
+      "mouth": {
+        "canonical_name": "MouthOpen",
+        "recommended_dialogue_range": [
+          0,
+          0.25
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": true,
+        "aliases_not_additive": {
+          "MouthOpen": [
+            "viseme_A"
+          ]
+        },
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Relaxed",
+      "limits": [
+        "不包含试验眨眼；独立眼神尚未完成",
+        "GPU 与实际材质效果待原生验收"
+      ],
+      "outfitGroup": "yukino-07",
+      "bundled": true,
+      "thumbnail": "./characters/thumbnails/yukino-07.png",
+      "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "variantLabel": "正常姿态修正 · 开发预览",
+      "notes": [
+        "仅已校准姿态的局部衣物修正，不是通用布料物理或全姿态无穿模保证。",
+        "原 UV 基础版和默认选择保留；此版本未完成 Windows/Electron GPU 验收。",
+        "保留旧19动作并新增自然站姿；只肩肘正常修正，手裙诊断通道禁用。"
+      ],
+      "walking": {
+        "clip": "Walk_Slow_Loop",
+        "durationSeconds": 1.4666666666666666,
+        "strideModelUnits": 0.8342623859709787,
+        "speedModelUnitsPerSecond": 0.5688152631620309,
+        "forwardAxis": [
+          0.02847926409821225,
+          0,
+          0.999594383495838
+        ],
+        "sourceHeight": 1.0004711474757642,
+        "floorOffsetModelUnits": 0.00067,
+        "contactAnchors": [
+          0.6166666666666667,
+          1.2666666666666666
+        ],
+        "review": true
+      },
+      "garment": {
+        "profileId": "07-normal",
+        "mode": "normal",
+        "assetSha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66"
+      }
+    }
+  ]
+}

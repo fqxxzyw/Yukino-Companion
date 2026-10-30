@@ -8,7 +8,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "npm run prepare:companions && vite build",
+    "build": "npm run prepare:characters && npm run prepare:companions && vite build",
     "start": "electron .",
     "dist:win": "npm run build && electron-builder --win --x64 --dir --publish never",
     "test": "node --test tests/*.test.cjs",
@@ -25,12 +25,22 @@
     "package:runtime": "python scripts/package-runtime.py",
     "prepare:local-model": "python scripts/prepare-local-model.py",
     "prepare:voice": "python scripts/prepare-bundled-voice.py",
-    "qa:pet": "electron scripts/capture-pet-ui.cjs --output build/pet-ui-review"
+    "qa:pet": "electron scripts/capture-pet-ui.cjs --output build/pet-ui-review",
+    "qa:models": "electron scripts/capture-model-ui.cjs --output build/model-ui-review",
+    "qa:skin8": "electron scripts/capture-eight-weight-skinning.cjs --output build/eight-weight-skinning-review",
+    "package:characters": "node scripts/package-character-assets.cjs",
+    "prepare:characters": "node scripts/prepare-character-assets.cjs",
+    "pretest": "npm run prepare:characters",
+    "predev": "npm run prepare:characters",
+    "review:blink": "electron scripts/open-blink-review.cjs",
+    "qa:blink": "electron scripts/open-blink-review.cjs --capture",
+    "test:release": "node --test tests/release-automation/*.test.cjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "three": "0.185.0",
     "yauzl": "3.2.0"
   },
   "devDependencies": {

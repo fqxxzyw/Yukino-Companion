@@ -6,10 +6,25 @@ const os=require('node:os');
 const {createHash}=require('node:crypto');
 const {VoiceResources,verified,safeDestination}=require('../electron/voice-resources.cjs');
 function file(data,algorithm='sha256'){const hash=createHash(algorithm);if(algorithm==='sha1')hash.update(`blob ${data.length}\0`);hash.update(data);return {path:'model/config.json',url:'https://example.test/model',bytes:data.length,algorithm,digest:hash.digest('hex')}}
+function rendezvous(expected){let count=0,release;const gate=new Promise(resolve=>release=resolve);return async()=>{if(++count===expected)release();let timer;try{await Promise.race([gate,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('并发下载未同时启动')),10000);})]);}finally{clearTimeout(timer);}};}
 async function setup(t,data,fetcher){const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-download-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const item=file(data);return {root,item,installer:new VoiceResources({root,catalog:{packs:{core:{files:[item],label:'test'}}},fetcher})}}
 test('model downloads verify digest, atomically publish, and skip verified files',async t=>{
  const data=Buffer.from('verified data');let calls=0;const {root,item,installer}=await setup(t,data,async()=>{calls++;return new Response(data)});
  await installer.install();assert.equal(await verified(path.join(root,item.path),item),true);await installer.install();assert.equal(calls,1);
+});
+test('GPT and SoVITS can be downloaded and selected independently',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-weights-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const data={gpt:Buffer.from('a GPT checkpoint'),sovits:Buffer.from('a SoVITS checkpoint')},requests=[];
+ const records=Object.entries(data).map(([key,value])=>({...file(value),path:`voice/${key}`,url:`https://example.test/${key}`}));
+ const catalog={packs:{voice:{kind:'voice',version:'v1',paths:{gpt:'voice/gpt',sovits:'voice/sovits'},files:records}}};
+ const installer=new VoiceResources({root,catalog,fetcher:async url=>{const key=url.split('/').at(-1);requests.push(key);return new Response(data[key]);}});
+ const gpt=await installer.install('voice',{component:'gpt'});assert.ok(gpt.gpt);assert.equal(gpt.sovits,undefined);assert.deepEqual(requests,['gpt']);assert.deepEqual((await installer.inspect()).packs[0].components,{gpt:true,sovits:false});
+ const sovits=await installer.install('voice',{component:'sovits'});assert.ok(sovits.sovits);assert.equal(sovits.gpt,undefined);assert.deepEqual(requests,['gpt','sovits']);assert.deepEqual((await installer.inspect()).packs[0].components,{gpt:true,sovits:true});
+ await assert.rejects(installer.install('voice',{component:'other'}),/未知/);
+});
+test('separate GPT and SoVITS downloads can overlap without sharing a destination',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-parallel-weights-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const data={gpt:Buffer.from('one'),sovits:Buffer.from('two')},started=[];let release;const gate=new Promise(resolve=>release=resolve);
+ const files=Object.entries(data).map(([key,value])=>({...file(value),path:`voice/${key}`,url:`https://example.test/${key}`}));const installer=new VoiceResources({root,catalog:{packs:{voice:{kind:'voice',version:'v1',paths:{gpt:'voice/gpt',sovits:'voice/sovits'},files}}},fetcher:async url=>{const key=url.split('/').at(-1);started.push(key);await gate;return new Response(data[key]);}});
+ const a=installer.install('voice',{component:'gpt'}),b=installer.install('voice',{component:'sovits'});for(let i=0;i<100&&started.length<2;i++)await new Promise(resolve=>setTimeout(resolve,5));assert.deepEqual(new Set(started),new Set(['gpt','sovits']));release();await Promise.all([a,b]);
 });
 test('bad hashes never become installed files',async t=>{
  const data=Buffer.from('abcd');const {root,item,installer}=await setup(t,data,async()=>new Response('efgh'));
@@ -37,4 +52,19 @@ test('Git blob configuration files switch to a second pinned source and still ve
  const data=Buffer.from('{"small":"config"}'),item={...file(data,'sha1'),sources:['https://mirror.example.test/config','https://origin.example.test/config']};const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-small-source-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const requested=[];
  const installer=new VoiceResources({root,catalog:{packs:{core:{files:[item]}}},fetcher:async url=>{requested.push(url);return url.includes('mirror')?new Response('unavailable',{status:503}):new Response(data);}});
  await installer.install();assert.deepEqual(requested,item.sources);assert.equal(await verified(path.join(root,item.path),item),true);
+});
+
+test('multi-file model progress retains independent rows and never reports pack complete early',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-file-progress-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data=[Buffer.from('first model data'),Buffer.from('second model data')],files=data.map((bytes,index)=>({...file(bytes),path:`model/file-${index}.bin`,url:`https://example.test/${index}`})),events=[];let active=0,maximum=0;
+ const meet=rendezvous(2),installer=new VoiceResources({root,catalog:{packs:{core:{files}}},notify:event=>events.push(event),fetcher:async url=>{active++;maximum=Math.max(active,maximum);await meet();active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});await installer.install();
+ assert.equal(maximum,2,'both independent weight files run concurrently');assert.ok(events.some(event=>event.fileIndex===1&&event.files.length===2));
+ assert.equal(events.filter(event=>event.phase==='complete').length,1);assert.ok(events.at(-1).files.every(row=>row.phase==='complete'&&row.received===row.total));
+});
+test('public speech components and a selected voice pack can download together',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-voice-parallel-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data=[Buffer.from('public component'),Buffer.from('trained gpt'),Buffer.from('trained sovits')],records=data.map((bytes,index)=>({...file(bytes),path:`file-${index}`,url:`https://example.test/${index}`}));
+ const catalog={packs:{core:{kind:'core',files:[records[0]]},voice:{kind:'voice',version:'v1',files:records.slice(1),paths:{gpt:'file-1',sovits:'file-2'}}}};let active=0,maximum=0;
+ const meet=rendezvous(3),installer=new VoiceResources({root,catalog,fetcher:async url=>{active++;maximum=Math.max(active,maximum);await meet();active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});
+ const [core,voice]=await Promise.all([installer.install('core'),installer.install('voice')]);assert.equal(maximum,3);assert.equal(voice.gpt,path.join(root,'file-1'));assert.equal(voice.sovits,path.join(root,'file-2'));assert.ok(core.bert);assert.equal(installer.controller,null);
 });

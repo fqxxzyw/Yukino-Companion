@@ -32,6 +32,6 @@ foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/runtim
 if($LASTEXITCODE -ne 0){throw 'Inno Setup compilation failed'}
 $file=Get-Item -LiteralPath (Join-Path $OutputDirectory 'Yukino-Companion-0.4.0-Base-Setup.exe')
 if($file.Length -lt 1MB -or $file.Length -gt 512MB){throw 'Unexpected base installer size'}
-$report=@{schemaVersion=1;file=$file.Name;bytes=$file.Length;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant();compiler='Inno Setup 6.7.3';modelsEmbedded=$false;runtimeEmbedded=$false}
+$report=@{schemaVersion=1;file=$file.Name;bytes=$file.Length;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant();compiler='Inno Setup 6.7.3';modelsEmbedded=$false;characterModelsEmbedded=$true;runtimeEmbedded=$false}
 $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'base-installer.json') -Encoding utf8
 $report | ConvertTo-Json

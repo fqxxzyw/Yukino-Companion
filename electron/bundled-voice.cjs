@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { DEFAULTS, validateSettings } = require('./speech.cjs');
+const defaultReference=require('../resources/voice-presets/yukino-default.json');
 
 async function exists(filename, directory=false) {
   try {const stat=await fs.stat(filename);return directory?stat.isDirectory():stat.isFile();}catch{return false;}
@@ -54,10 +55,19 @@ async function bundledVoiceDefaults({ resourceRoot, dataRoot, runtimeRoot }) {
     if(!result.python&&await exists(path.join(runtime,'python.exe')))result.python=path.join(runtime,'python.exe');
     if(!result.ffmpeg&&await exists(path.join(runtime,'ffmpeg.exe')))result.ffmpeg=path.join(runtime,'ffmpeg.exe');
   }
-  const pretrained=result.root?path.join(result.root,'GPT_SoVITS','pretrained_models'):path.join(dataRoot,'speech-models');
+  // Voice weights belong to the app, not an engine revision. Keeping this
+  // directory stable lets downloads start while the runtime is installing.
+  // Existing explicitly saved BERT/HuBERT paths continue to be honored.
+  const pretrained=path.join(dataRoot,'speech-models');
   result.bert=path.join(pretrained,'chinese-roberta-wwm-ext-large');result.hubert=path.join(pretrained,'chinese-hubert-base');
   const preset=await readVoicePreset(resourceRoot);
-  if(preset){for(const key of ['gpt','sovits','reference','version','promptText','promptLang'])result[key]=preset[key];}
+  if(preset){for(const key of ['gpt','sovits','reference','version','promptLang'])result[key]=preset[key];result.promptText='';}
+  else {
+    // The small verified reference is shipped with the base app independently of
+    // the optional downloaded GPT/SoVITS weights. Never copy the user's weights.
+    const reference=path.join(resourceRoot,'voice-presets',defaultReference.reference.sourcePath);
+    try{const bytes=await fs.readFile(reference);if(bytes.length===defaultReference.reference.bytes&&createHash('sha256').update(bytes).digest('hex')===defaultReference.reference.sha256){result.reference=reference;result.promptLang=defaultReference.promptLang;result.promptText='';}}catch(error){if(error.code!=='ENOENT')throw error;}
+  }
   return {defaults:result,modelRoot:pretrained,bundled:Boolean(result.root&&result.python),preset:preset?.metadata||null};
 }
 

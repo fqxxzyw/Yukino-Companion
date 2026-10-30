@@ -1,0 +1,447 @@
+{
+  "schemaVersion": 1,
+  "modelId": "07",
+  "variantId": "07_dialogue_micro19_review",
+  "status": "PARENT_REVIEWED_OPTIONAL_CANDIDATE_NOT_FROZEN_APP_DEFAULT",
+  "file": "public/characters/Yukino07_DialogueMicro19_REVIEW.glb",
+  "sha256": "0ce5fb17fb3150e3a812e71200ed47341050669b562cf0c457c4c22c80bbe1f9",
+  "bytes": 10420820,
+  "sourceWalkV6SHA256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+  "animationCount": 19,
+  "old14PreservedByteExactly": true,
+  "newClipCount": 5,
+  "nonWalkClipCount": 18,
+  "countingPolicy": {
+    "doNotCount": [
+      "walk",
+      "mouth visemes",
+      "blink",
+      "left-right mirror as distinct family"
+    ],
+    "note": "18 non-walk clips are not an automatic claim of 18 independent families; new compound patterns have timing/joint differences, but recall vs look and bow vs attentive lean have semantic overlap. Parent visual assessment governs useful set count."
+  },
+  "clips": [
+    {
+      "name": "Attentive_LeanReturn",
+      "durationSeconds": 4.0,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Explain_Small",
+      "durationSeconds": 4.199999809265137,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Greet_Reserved",
+      "durationSeconds": 3.5999999046325684,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Idle_Breathe",
+      "durationSeconds": 4.0,
+      "loop": true,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Listen_Attentive",
+      "durationSeconds": 4.0,
+      "loop": true,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Look_Left",
+      "durationSeconds": 3.0,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Look_Right",
+      "durationSeconds": 3.0,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Nod_Subtle",
+      "durationSeconds": 2.4000000953674316,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Question_Tilt",
+      "durationSeconds": 3.700000047683716,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Reject_Gentle",
+      "durationSeconds": 3.5999999046325684,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Shoulders_Relax",
+      "durationSeconds": 4.300000190734863,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Think_Downcast",
+      "durationSeconds": 4.0,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Walk_Slow_Loop",
+      "durationSeconds": 1.4666666984558105,
+      "loop": true,
+      "newInThisVariant": false
+    },
+    {
+      "name": "WeightShift_Small",
+      "durationSeconds": 4.0,
+      "loop": false,
+      "newInThisVariant": false
+    },
+    {
+      "name": "Speak_PhraseCadence",
+      "durationSeconds": 4.0,
+      "loop": false,
+      "newInThisVariant": true,
+      "labelZh": "讲话短句节奏",
+      "semanticFamily": "speech_clause_accents",
+      "contexts": [
+        "speaking",
+        "explaining"
+      ],
+      "accentTimesSeconds": [
+        1.0,
+        2.15
+      ],
+      "minRepeatGapSeconds": 10,
+      "changedRegions": [
+        "neck",
+        "torso"
+      ],
+      "maxLocalRotationDegrees": {
+        "J_Bip_C_Spine": 0.462,
+        "J_Bip_C_UpperChest": 0.168,
+        "J_Bip_C_Neck": 2.1366
+      },
+      "defaultPlaybackRate": 1,
+      "recommendedWeight": 0.8,
+      "maxValidatedWeight": 1,
+      "additive": false,
+      "rootTranslation": "fixed",
+      "feet": "fixed",
+      "all55BoneTracksPresent": true,
+      "morphTracksPresent": false,
+      "interruptibility": {
+        "interruptible": true,
+        "method": "crossfade_to_Idle_Breathe",
+        "crossfadeSeconds": 0.3,
+        "hardCut": false,
+        "preferFinishAfterSeconds": 3.5,
+        "runtimeAudioCancelMustStopScheduledEvents": true
+      },
+      "conflictGroups": [
+        "body_action",
+        "neck_head_follow",
+        "walk",
+        "skin_transition"
+      ],
+      "allowConcurrent": [
+        "independent_small_mouth_morph"
+      ],
+      "returnState": "Idle_Breathe",
+      "qualityStatus": "parent_visual_review_candidate_not_user_global_acceptance",
+      "triggerProposal": {
+        "targetAudioEvent": "assistant_audio_playback_started",
+        "semanticIntent": [
+          "neutral_explanation",
+          "answer"
+        ],
+        "minimumRemainingAudioSeconds": 4.0,
+        "forbidTriggerOn": [
+          "queued_audio_not_playing",
+          "every_envelope_peak"
+        ]
+      }
+    },
+    {
+      "name": "Recall_SideThenReturn",
+      "durationSeconds": 4.300000190734863,
+      "loop": false,
+      "newInThisVariant": true,
+      "labelZh": "思考后重新对视",
+      "semanticFamily": "retrieval_scan_and_reengagement",
+      "contexts": [
+        "thinking",
+        "recalling"
+      ],
+      "accentTimesSeconds": [],
+      "minRepeatGapSeconds": 15,
+      "changedRegions": [
+        "neck",
+        "torso"
+      ],
+      "maxLocalRotationDegrees": {
+        "J_Bip_C_UpperChest": 0.88,
+        "J_Bip_C_Neck": 4.431
+      },
+      "defaultPlaybackRate": 1,
+      "recommendedWeight": 0.8,
+      "maxValidatedWeight": 1,
+      "additive": false,
+      "rootTranslation": "fixed",
+      "feet": "fixed",
+      "all55BoneTracksPresent": true,
+      "morphTracksPresent": false,
+      "interruptibility": {
+        "interruptible": true,
+        "method": "crossfade_to_Idle_Breathe",
+        "crossfadeSeconds": 0.3,
+        "hardCut": false,
+        "preferFinishAfterSeconds": 3.8000001907348633,
+        "runtimeAudioCancelMustStopScheduledEvents": true
+      },
+      "conflictGroups": [
+        "body_action",
+        "neck_head_follow",
+        "walk",
+        "skin_transition"
+      ],
+      "allowConcurrent": [
+        "independent_small_mouth_morph"
+      ],
+      "returnState": "Idle_Breathe",
+      "qualityStatus": "parent_visual_review_candidate_not_user_global_acceptance",
+      "triggerProposal": {
+        "targetAudioEvent": null,
+        "targetDialogueEvent": "assistant_response_thinking_started",
+        "semanticIntent": [
+          "retrieval",
+          "considering"
+        ],
+        "cancelWhenAudioBegins": true
+      }
+    },
+    {
+      "name": "Courtesy_Bow",
+      "durationSeconds": 3.9000000953674316,
+      "loop": false,
+      "newInThisVariant": true,
+      "labelZh": "克制上身致意",
+      "semanticFamily": "upper_torso_courtesy_bow",
+      "contexts": [
+        "thanks",
+        "apology",
+        "acknowledgement"
+      ],
+      "accentTimesSeconds": [],
+      "minRepeatGapSeconds": 20,
+      "changedRegions": [
+        "neck",
+        "torso",
+        "arms"
+      ],
+      "maxLocalRotationDegrees": {
+        "J_Bip_C_Spine": 3.5,
+        "J_Bip_C_Chest": 2.0,
+        "J_Bip_C_UpperChest": 1.0,
+        "J_Bip_C_Neck": 1.5,
+        "J_Bip_L_UpperArm": 2.2,
+        "J_Bip_R_UpperArm": 2.2
+      },
+      "defaultPlaybackRate": 1,
+      "recommendedWeight": 0.8,
+      "maxValidatedWeight": 1,
+      "additive": false,
+      "rootTranslation": "fixed",
+      "feet": "fixed",
+      "all55BoneTracksPresent": true,
+      "morphTracksPresent": false,
+      "interruptibility": {
+        "interruptible": true,
+        "method": "crossfade_to_Idle_Breathe",
+        "crossfadeSeconds": 0.3,
+        "hardCut": false,
+        "preferFinishAfterSeconds": 3.4000000953674316,
+        "runtimeAudioCancelMustStopScheduledEvents": true
+      },
+      "conflictGroups": [
+        "body_action",
+        "neck_head_follow",
+        "walk",
+        "skin_transition"
+      ],
+      "allowConcurrent": [
+        "independent_small_mouth_morph"
+      ],
+      "returnState": "Idle_Breathe",
+      "qualityStatus": "parent_visual_review_candidate_not_user_global_acceptance",
+      "triggerProposal": {
+        "targetAudioEvent": "assistant_audio_playback_ended",
+        "semanticIntent": [
+          "thanks",
+          "apology"
+        ],
+        "minimumRemainingAudioSeconds": 0,
+        "semanticGateRequired": true
+      }
+    },
+    {
+      "name": "Clarify_LowHand",
+      "durationSeconds": 4.199999809265137,
+      "loop": false,
+      "newInThisVariant": true,
+      "labelZh": "低位手掌澄清",
+      "semanticFamily": "low_forearm_clarification",
+      "contexts": [
+        "explaining",
+        "clarifying"
+      ],
+      "accentTimesSeconds": [
+        1.5
+      ],
+      "minRepeatGapSeconds": 15,
+      "changedRegions": [
+        "neck",
+        "torso",
+        "right_arm",
+        "right_hand"
+      ],
+      "maxLocalRotationDegrees": {
+        "J_Bip_C_UpperChest": 0.65,
+        "J_Bip_C_Neck": 0.8846,
+        "J_Bip_R_UpperArm": 8.061,
+        "J_Bip_R_LowerArm": 20.0,
+        "J_Bip_R_Hand": 9.0
+      },
+      "defaultPlaybackRate": 1,
+      "recommendedWeight": 0.8,
+      "maxValidatedWeight": 1,
+      "additive": false,
+      "rootTranslation": "fixed",
+      "feet": "fixed",
+      "all55BoneTracksPresent": true,
+      "morphTracksPresent": false,
+      "interruptibility": {
+        "interruptible": true,
+        "method": "crossfade_to_Idle_Breathe",
+        "crossfadeSeconds": 0.3,
+        "hardCut": false,
+        "preferFinishAfterSeconds": 3.6999998092651367,
+        "runtimeAudioCancelMustStopScheduledEvents": true
+      },
+      "conflictGroups": [
+        "body_action",
+        "neck_head_follow",
+        "walk",
+        "skin_transition"
+      ],
+      "allowConcurrent": [
+        "independent_small_mouth_morph"
+      ],
+      "returnState": "Idle_Breathe",
+      "qualityStatus": "parent_visual_review_candidate_not_user_global_acceptance",
+      "triggerProposal": {
+        "targetAudioEvent": "assistant_audio_playback_started_or_semantic_clause_boundary",
+        "semanticIntent": [
+          "clarification"
+        ],
+        "minimumRemainingAudioSeconds": 4.2,
+        "semanticGateRequired": true,
+        "forbidTriggerOn": [
+          "every_envelope_peak"
+        ]
+      }
+    },
+    {
+      "name": "Hear_SurpriseRecover",
+      "durationSeconds": 3.200000047683716,
+      "loop": false,
+      "newInThisVariant": true,
+      "labelZh": "轻微意外后收稳",
+      "semanticFamily": "auditory_check_and_recovery",
+      "contexts": [
+        "mild_surprise",
+        "unexpected_input"
+      ],
+      "accentTimesSeconds": [
+        0.48
+      ],
+      "minRepeatGapSeconds": 20,
+      "changedRegions": [
+        "neck",
+        "torso",
+        "shoulders"
+      ],
+      "maxLocalRotationDegrees": {
+        "J_Bip_C_Chest": 0.6492,
+        "J_Bip_C_Neck": 2.0867,
+        "J_Bip_L_Shoulder": 1.2985,
+        "J_Bip_R_Shoulder": 1.2985
+      },
+      "defaultPlaybackRate": 1,
+      "recommendedWeight": 0.8,
+      "maxValidatedWeight": 1,
+      "additive": false,
+      "rootTranslation": "fixed",
+      "feet": "fixed",
+      "all55BoneTracksPresent": true,
+      "morphTracksPresent": false,
+      "interruptibility": {
+        "interruptible": true,
+        "method": "crossfade_to_Idle_Breathe",
+        "crossfadeSeconds": 0.3,
+        "hardCut": false,
+        "preferFinishAfterSeconds": 2.700000047683716,
+        "runtimeAudioCancelMustStopScheduledEvents": true
+      },
+      "conflictGroups": [
+        "body_action",
+        "neck_head_follow",
+        "walk",
+        "skin_transition"
+      ],
+      "allowConcurrent": [
+        "independent_small_mouth_morph"
+      ],
+      "returnState": "Idle_Breathe",
+      "qualityStatus": "parent_visual_review_candidate_not_user_global_acceptance",
+      "triggerProposal": {
+        "targetAudioEvent": "user_audio_capture_ended",
+        "semanticIntent": [
+          "mild_unexpected_information"
+        ],
+        "semanticGateRequired": true,
+        "volumeOnlyTriggerAllowed": false
+      }
+    }
+  ],
+  "runtimeRules": {
+    "bodyScheduler": "At most one non-additive authored body action; do not play two full-rig tracks as simultaneous independent layers.",
+    "neckHeadFollow": "Fade head-follow offset to identity before authored action and restore only after it releases neck group; never write Head/Neck quaternion over mixer in parallel.",
+    "mouth": "Optional independent morphs MouthOpen or viseme_A alias, not summed; recommend 0..0.25; mirror same weights on Yukino_Body_ToonOutline. Body gestures do not force mouth open.",
+    "audio": "Body accent times are animation phase hints, not forced alignment or completed audio-driven lip sync. Schedule off actual audio playback clock; cancel on pause/end/abort. Do not trigger repeatedly each audio amplitude pulse.",
+    "root": "Do not drag or translate root/wrapper for these5 motions. Preserve authored periodic Root tracks only when separately using the original Walk_Slow_Loop.",
+    "skinTransition": "Finish/cancel body clip before walking/skin switch; walking remains separately validated on07 only.",
+    "weight": "Crossfade blending from Idle, default .8 max1, never additive extrapolation or negative weights."
+  },
+  "immutableAppearance": {
+    "geometryUVMaterialsTexturesWeights55Bones9Morphs": true,
+    "newBlinkOrGaze": false,
+    "eyelashesChanged": false
+  },
+  "limitations": [
+    "No all-seven microaction transfer or blink approval.",
+    "No runtime hair/cloth physics.",
+    "Normal-speed candidate video is silent body motion, not proof of offline TTS/audio matching.",
+    "Existing authored appearance/armhole intersections remain; local sampled overlap checks are not a universal intersection-free certificate.",
+    "This model data is not automatically part of the published executable."
+  ],
+  "audioEventVocabulary": "Proposed adapter-neutral mapping only; application owner maps to real event names. Not a claim these are already wired."
+}

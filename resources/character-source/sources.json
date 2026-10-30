@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "resources/character-source/Yukino05_UVDomainRepair.glb.gz",
+      "target": "public/characters/Yukino05_UVDomainRepair.glb",
+      "bytes": 13369772,
+      "sha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59",
+      "compressedBytes": 9928229,
+      "compressedSha256": "6aeacd5ff837eb86cda850c01d613ee88189a37f44785aa1e17c84663de864ae"
+    },
+    {
+      "path": "resources/character-source/Yukino01_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino01_GarmentNormal_20261027.glb",
+      "bytes": 16086864,
+      "sha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6",
+      "compressedBytes": 7463543,
+      "compressedSha256": "16b3c0bbe236c14177a1bb92a3105b7fc05dcdc08035dd138f20a509be480756"
+    },
+    {
+      "path": "resources/character-source/Yukino02_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino02_GarmentNormal_20261027.glb",
+      "bytes": 12334716,
+      "sha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581",
+      "compressedBytes": 8393919,
+      "compressedSha256": "3c61d65efaaa7a0dcd7e1fa20be631c6194bdd5286ec5842cbd9c358c9c8ba2d"
+    },
+    {
+      "path": "resources/character-source/Yukino03_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino03_GarmentNormal_20261027.glb",
+      "bytes": 13284400,
+      "sha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec",
+      "compressedBytes": 7490191,
+      "compressedSha256": "6f6a45cf9ab6d0366b5c429405c026f3b7fd17f3640b67aa41964a5a0b56eaab"
+    },
+    {
+      "path": "resources/character-source/Yukino04_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino04_GarmentNormal_20261027.glb",
+      "bytes": 15118368,
+      "sha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6",
+      "compressedBytes": 6777597,
+      "compressedSha256": "f455e16195adaef1ca2ee8421cc869be3b4575ee085213e6e890382fa7424b4c"
+    },
+    {
+      "path": "resources/character-source/Yukino05_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino05_GarmentNormal_20261027.glb",
+      "bytes": 17068220,
+      "sha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62",
+      "compressedBytes": 10128367,
+      "compressedSha256": "47bdfce228b84bc1edb63e4dc077441590fde6486ff7c6b10be074994435b1c4"
+    },
+    {
+      "path": "resources/character-source/Yukino06_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino06_GarmentNormal_20261027.glb",
+      "bytes": 17045924,
+      "sha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f",
+      "compressedBytes": 8712107,
+      "compressedSha256": "79290e13d1520161eed69f94fe94ebd0ebecd48056577cf4c2f9972c5e8b379c"
+    },
+    {
+      "path": "resources/character-source/Yukino07_GarmentNormal_20261027.glb.gz",
+      "target": "public/characters/Yukino07_GarmentNormal_20261027.glb",
+      "bytes": 12502896,
+      "sha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66",
+      "compressedBytes": 6290786,
+      "compressedSha256": "b26d799df6ef3346f2ff74fa28cfb6097b28807f2f5cb3b200704f2aff424763"
+    }
+  ]
+}

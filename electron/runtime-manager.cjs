@@ -44,17 +44,18 @@ async function extractRuntimeZip(archive,destination,{signal,maxBytes=16*1024**3
     if(signal?.aborted)abort();else zip.readEntry();
   });
 }
-async function detectNvidia(platform=process.platform,run=execute,signal){
+async function detectNvidiaDetails(platform=process.platform,run=execute,signal){
   signal?.throwIfAborted();
   try{
     const result=platform==='win32'?await run('powershell.exe',['-NoProfile','-NonInteractive','-Command','(Get-CimInstance Win32_VideoController).Name | ConvertTo-Json -Compress'],{windowsHide:true,timeout:10000,maxBuffer:65536,signal}):await run('nvidia-smi',['--query-gpu=name','--format=csv,noheader'],{timeout:5000,maxBuffer:65536,signal});
     signal?.throwIfAborted();
-    return /nvidia|geforce|quadro|tesla/i.test(result.stdout);
-  }catch(error){if(signal?.aborted)throw error;return false;}
+    const names=String(result.stdout||'').trim().slice(0,500);return {checked:true,nvidia:/nvidia|geforce|quadro|tesla/i.test(names)};
+  }catch(error){if(signal?.aborted)throw error;return {checked:false,nvidia:false};}
 }
+async function detectNvidia(platform=process.platform,run=execute,signal){return (await detectNvidiaDetails(platform,run,signal)).nvidia;}
 class RuntimeManager{
-  constructor({dataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute}){
-    Object.assign(this,{dataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run});
+  constructor({dataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
+    Object.assign(this,{dataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run,hardwareRun});
     this.root=path.join(dataRoot,'runtime');this.phase='idle';this.error=null;this.progress=null;this.controller=null;this.downloader=null;
   }
   emit(phase,extra={}){this.phase=phase;this.error=extra.error||null;this.progress=extra.progress||null;this.notify({phase,...extra});}
@@ -76,7 +77,7 @@ class RuntimeManager{
     }
     return {ready:false,root:null,python:'',ffmpeg:'',flavor:null};
   }
-  async status(){const current=await this.current(),catalog=await this.catalog();return {...current,phase:this.phase,error:this.error,progress:this.progress,variants:Object.keys(catalog.variants||{}),version:catalog.version};}
+  async status(){const [current,catalog,hardware]=await Promise.all([this.current(),this.catalog(),this.hardwarePromise||=detectNvidiaDetails(this.platform,this.hardwareRun)]);return {...current,hardware,phase:this.phase,error:this.error,progress:this.progress,variants:Object.keys(catalog.variants||{}),version:catalog.version};}
   async choose(requested,catalog,signal){
     signal?.throwIfAborted();
     if(!['auto','cpu','cu124'].includes(requested))throw Error('无效的运行环境选项');
@@ -138,4 +139,4 @@ class RuntimeManager{
   }
   cancel(){this.controller?.abort();this.downloader?.cancel();}
 }
-module.exports={RuntimeManager,extractRuntimeZip,safeEntry,hashFile,detectNvidia};
+module.exports={RuntimeManager,extractRuntimeZip,safeEntry,hashFile,detectNvidia,detectNvidiaDetails};

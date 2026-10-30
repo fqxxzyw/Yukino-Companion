@@ -1,0 +1,10 @@
+# Preserve digest-pinned JSON/modules and source parsing on every checkout.
+* text=auto eol=lf
+*.glb -text
+*.gz -text
+*.png -text
+*.ico -text
+*.mp4 -text
+*.webm -text
+*.ogg -text
+*.zip -text

@@ -38,7 +38,7 @@ class WorkerClient {
     // The embedded Python ._pth enables isolation and ignores PYTHON* variables.
     // Keep UTF-8 explicit so Japanese JSONL works on every Windows locale.
     this.child = spawnImpl(python, ['-X', 'utf8', '-u', script], { cwd, windowsHide: true, shell: false,
-      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', ORT_DISABLE_TELEMETRY: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
     const decoder = new StringDecoder('utf8'); let buffer = '';
     this.child.stdout.on('data', chunk => {
       buffer += decoder.write(chunk);
@@ -94,7 +94,9 @@ async function voiceReadiness(input) {
       for(const child of children){const part=await fs.stat(path.join(filename,child));if(!part.isFile()||part.size===0)throw Error('incomplete');}
     }catch{missing.push({key,label:CONFIG_LABELS[key],reason:'missing-file'});}
   }
-  if(!config.promptText.trim())missing.push({key:'promptText',label:CONFIG_LABELS.promptText,reason:'not-selected'});
+  // GPT-SoVITS v1/v2 can use reference-free text conditioning; v3/v4/v5
+  // vocoder models require the transcript as well as the reference audio.
+  if(['v3','v4','v5dev','v5turbo'].includes(config.version)&&!config.promptText.trim())missing.push({key:'promptText',label:CONFIG_LABELS.promptText,reason:'not-selected'});
   return {configured:missing.length===0,needsSetup:missing.length>0,missing,
     message:missing.length?'语音尚未准备好：'+missing.map(item=>item.label).join('、')+'。请打开“声音与语音”完成一键配置。':'语音资源已准备好，首次朗读时会自动加载。'};
 }

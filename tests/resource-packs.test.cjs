@@ -32,3 +32,30 @@ test('unknown existing resource directory is preserved rather than recursively o
 test('pet-only first setup never installs Python and skips inference steps',async()=>{
  const calls=[];let ready=false;const setup=new SetupService({inspect:async()=>({steps:[{id:'runtime',state:'missing'},{id:'chat',state:'missing'},{id:'translation',state:'missing'},{id:'voiceCore',state:'missing'},{id:'voicePreset',state:'missing'},{id:'pet',state:ready?'ready':'missing'}]}),installRuntime:async()=>calls.push('runtime'),refresh:async()=>calls.push('refresh'),installPet:async()=>{calls.push('pet');ready=true;}});const state=await setup.install({features:['pet']});assert.deepEqual(calls,['pet']);assert.equal(state.ready,true);assert.equal(state.steps.find(row=>row.id==='runtime').state,'skipped');
 });
+
+test('selected-only validation receives exact features and API-only validation skips every dependency',async()=>{
+ const selections=[],setup=new SetupService({inspect:async({features})=>{selections.push(features);return {steps:[{id:'runtime',state:'missing'},{id:'chat',state:'missing'},{id:'pet',state:'missing'}]};}});
+ let state=await setup.status({features:['pet']});assert.deepEqual(selections.at(-1),['pet']);assert.equal(state.steps.find(step=>step.id==='runtime').state,'skipped');assert.equal(state.steps.find(step=>step.id==='chat').state,'skipped');
+ state=await setup.status({features:[]});assert.deepEqual(selections.at(-1),[]);assert.equal(state.ready,true);assert.ok(state.steps.every(step=>step.state==='skipped'));
+});
+test('an earlier disk inspection cannot overwrite a newly completed resource install',async()=>{
+ let release,ready=false,calls=0;const setup=new SetupService({inspect:async()=>{if(++calls===1)return new Promise(resolve=>{release=()=>resolve({steps:[{id:'pet',state:'missing'}]});});return{steps:[{id:'pet',state:ready?'ready':'missing'}]};},installPet:async()=>{ready=true;}});
+ const old=setup.status({features:['pet']});await setup.install({features:['pet']});release();const state=await old;assert.equal(state.ready,true);assert.equal(state.steps[0].state,'ready');assert.equal(state.phase,'ready');
+});
+test('failed selected resource remains a red-cross state and missing paths are actionable',async()=>{
+ const setup=new SetupService({inspect:async()=>({steps:[{id:'pet',state:'missing'}]}),installPet:async()=>{const error=Error('ENOENT /private/path');error.code='ENOENT';throw error;}});
+ await assert.rejects(setup.install({features:['pet']}),/资源尚未安装/);const state=await setup.status();assert.equal(state.steps[0].state,'error');assert.doesNotMatch(state.error,/ENOENT|private/);
+});
+test('setup starts runtime, chat, translation, pet and both voice components concurrently',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),started=[],ready=new Set();
+ const pause=async name=>{started.push(name);await gate;ready.add(name);};
+ const setup=new SetupService({inspect:async()=>({steps:['runtime','chat','translation','pet','voiceCore','voicePreset'].map(id=>({id,state:ready.has(id)?'ready':'missing'}))}),installRuntime:()=>pause('runtime'),refresh:async()=>{},installChat:()=>pause('chat'),installTranslation:()=>pause('translation'),installPet:()=>pause('pet'),installVoice:async()=>{await pause('voiceCore');return {};},saveVoice:async()=>{},installVoicePreset:()=>pause('voicePreset')});
+ const job=setup.install({features:['chat','translation','voice','pet']});await new Promise(setImmediate);
+ assert.deepEqual(new Set(started),new Set(['runtime','chat','translation','pet','voiceCore','voicePreset']));assert.equal(setup.activeSteps.size,6);release();
+ assert.equal((await job).ready,true);
+});
+test('setup starts speech core and selected voice together after the runtime is ready',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),started=[],ready=new Set(['runtime']);
+ const setup=new SetupService({inspect:async()=>({steps:['runtime','voiceCore','voicePreset'].map(id=>({id,state:ready.has(id)?'ready':'missing'}))}),installRuntime:async()=>{},refresh:async()=>{},installVoice:async()=>{started.push('voiceCore');await gate;ready.add('voiceCore');return {};},saveVoice:async()=>{},installVoicePreset:async()=>{started.push('voicePreset');await gate;ready.add('voicePreset');}});
+ const job=setup.install({features:['voice']});await new Promise(setImmediate);assert.deepEqual(new Set(started),new Set(['voiceCore','voicePreset']));release();assert.equal((await job).ready,true);
+});

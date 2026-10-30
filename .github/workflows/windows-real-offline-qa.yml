@@ -1,0 +1,41 @@
+name: Verify real offline CPU voice chain
+on:
+  push:
+    branches: [verify/offline-chain-20261030, verify/offline-chain-prewarm-20261030]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-offline-cpu:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare pinned downloader and runtime catalogue
+        shell: pwsh
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/mirror-resources.py --runtime-catalog-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run real local generation, translation and synthesis
+        run: node scripts/run-real-offline-qa.cjs
+      - name: Preserve generated audio and timing evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-cpu-evidence-${{ github.run_id }}
+          path: |
+            build/offline-qa/evidence/report.json
+            build/offline-qa/evidence/*.wav
+          if-no-files-found: warn
+          retention-days: 7

@@ -53,10 +53,11 @@ async function downloadGitBlob({file,dest,fetcher,signal,notify=()=>{}}){
 
 class VoiceResources {
   constructor({ root, catalog, bundledRoot=null, bundledPackId=null, fetcher=fetch, notify=()=>{} }) {
-    Object.assign(this,{root,catalog,bundledRoot,bundledPackId,fetcher,notify});this.controller=null;this.status={phase:'idle'};
+    Object.assign(this,{root,catalog,bundledRoot,bundledPackId,fetcher,notify});this.controllers=new Map();this.status={phase:'idle'};
   }
-  emit(status){this.status=status;this.notify(status)}
-  summary(){return { ...this.status, root:this.root,packs:Object.entries(this.catalog.packs).map(([id,p])=>({id,label:p.label,kind:p.kind||'core',version:p.version,requiresReference:Boolean(p.requiresReference),bundled:id===this.bundledPackId,bytes:p.files.reduce((n,f)=>n+f.bytes,0)})) }}
+  get controller(){return this.controllers.values().next().value||null;}
+  emit(status){this.status=status;this.notify({...status,activePacks:[...this.controllers.keys()]})}
+  summary(){return { ...this.status,activePacks:[...this.controllers.keys()],root:this.root,packs:Object.entries(this.catalog.packs).map(([id,p])=>({id,label:p.label,kind:p.kind||'core',version:p.version,requiresReference:Boolean(p.requiresReference),bundled:id===this.bundledPackId,bytes:p.files.reduce((n,f)=>n+f.bytes,0)})) }}
   async packAvailable(pack,root,{hash=false}={}) {
     if(!root)return false;
     for(const file of pack.files){
@@ -73,56 +74,82 @@ class VoiceResources {
       const pack=this.catalog.packs[item.id];
       item.bundled=pack.kind==='voice'&&item.id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot);
       item.installed=item.bundled||await this.packAvailable(pack,this.root);
+      if(pack.kind==='voice'&&pack.paths){item.components={};for(const key of ['gpt','sovits']){const files=pack.files.filter(file=>file.path===pack.paths[key]||file.extract?.path===pack.paths[key]);const component={...pack,files};item.components[key]=files.length>0&&(await this.packAvailable(component,this.root)||item.id===this.bundledPackId&&await this.packAvailable(component,this.bundledRoot));}}
     }
     summary.coreReady=Boolean(summary.packs.find(pack=>pack.id==='core')?.installed);
     return summary;
   }
-  async install(id='core') {
-    const pack=this.catalog.packs[id];if(!pack)throw Error('未知公共模型组件');
-    if(this.controller)throw Error('已有资源下载进行中');
-    const controller=new AbortController();this.controller=controller;
-    const total=pack.files.reduce((n,f)=>n+f.bytes,0);let complete=0;
+  async install(id='core',{component}={}) {
+    const original=this.catalog.packs[id];if(!original)throw Error('未知公共模型组件');
+    if(component!==undefined&&(!['gpt','sovits'].includes(component)||original.kind!=='voice'||!original.paths?.[component]))throw Error('未知音色模型文件');
+    const pack=component?{...original,files:original.files.filter(file=>file.path===original.paths[component]||file.extract?.path===original.paths[component])}:original;
+    if(!pack.files.length)throw Error('音色文件不在下载清单中');
+    const key=component?`${id}:${component}`:id,targets=new Set(pack.files.flatMap(file=>[safeDestination(this.root,file.path),...(file.extract?[safeDestination(this.root,file.extract.path)]:[])]).map(value=>value.toLowerCase()));
+    if(this.controllers.has(key)||[...this.controllers.values()].some(other=>[...targets].some(target=>other.targets?.has(target))))throw Error('此音色资源正在下载，请等待或先取消');
+    const controller=new AbortController();controller.targets=targets;this.controllers.set(key,controller);
+    const voicePaths=root=>({...Object.fromEntries((component?[component]:['gpt','sovits']).map(name=>[name,safeDestination(root,pack.paths[name])])),version:pack.version,textLang:'all_ja'});
+    const total=pack.files.reduce((n,f)=>n+f.bytes,0);let failure=null;
+    const files=pack.files.map(file=>({file:file.path,received:0,total:file.bytes,phase:'pending'}));
+    const fileProgress=(index,progress)=>{
+      const file=pack.files[index],received=progress.received??0;
+      files[index]={...files[index],phase:progress.phase,received};
+      this.emit({...progress,phase:progress.phase==='complete'?'checking':progress.phase,packId:id,file:file.path,fileIndex:index,fileCount:files.length,fileReceived:received,fileTotal:file.bytes,files:files.map(item=>({...item})),received:files.reduce((sum,item)=>sum+item.received,0),total});
+    };
     try {
     if(pack.kind==='voice'&&id===this.bundledPackId&&await this.packAvailable(pack,this.bundledRoot,{hash:true})){
       controller.signal.throwIfAborted();
+      this.controllers.delete(key);
       this.emit({phase:'complete',source:'bundled',packId:id,received:0,total:0});
-      return {gpt:safeDestination(this.bundledRoot,pack.paths.gpt),sovits:safeDestination(this.bundledRoot,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
+      return voicePaths(this.bundledRoot);
     }
       await fs.mkdir(this.root,{recursive:true});
-      for(const file of pack.files){
+      const destinations=pack.files.map(file=>safeDestination(this.root,file.path));
+      if(new Set(destinations.map(item=>item.toLowerCase())).size!==destinations.length)throw Error('资源清单包含重复文件');
+      const cached=await Promise.all(pack.files.map((file,index)=>verified(destinations[index],file)));
+      const extracted=await Promise.all(pack.files.map(file=>file.extract?verified(safeDestination(this.root,file.extract.path),{bytes:file.extract.bytes,algorithm:'sha256',digest:file.extract.digest}):true));
+      controller.signal.throwIfAborted();
+      const required=pack.files.reduce((sum,file,index)=>sum+(cached[index]?0:file.bytes*2)+(extracted[index]?0:file.extract.bytes),0);
+      if(required){const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<required+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');}
+      let next=0;
+      const downloadOne=async(index)=>{
+        const file=pack.files[index];
         controller.signal.throwIfAborted();
-        const dest=safeDestination(this.root,file.path);
-        this.emit({phase:'checking',file:file.path,received:complete,total});
-        if(await verified(dest,file)){complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);controller.signal.throwIfAborted();continue}
+        const dest=destinations[index];
+        fileProgress(index,{phase:'checking',received:0});
+        if(cached[index]){fileProgress(index,{phase:'checking',received:file.bytes,engine:'cache'});await this.extract(file,dest,controller.signal,()=>fileProgress(index,{phase:'extracting',received:file.bytes}));controller.signal.throwIfAborted();fileProgress(index,{phase:'complete',received:file.bytes,engine:'cache'});return;}
         controller.signal.throwIfAborted();
-        const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<file.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，请释放空间后重试');
         await fs.mkdir(path.dirname(dest),{recursive:true});
         if(file.algorithm==='sha256'){
           // Older releases used .part for contiguous HTTPS bytes. Adopt only a
           // regular file when the new HTTPS partial does not already exist.
           try{await fs.access(dest+'.https.partial');}catch(error){if(error.code!=='ENOENT')throw error;try{const legacy=await fs.lstat(dest+'.part');if(legacy.isFile()&&!legacy.isSymbolicLink()&&legacy.size<file.bytes)await fs.rename(dest+'.part',dest+'.https.partial');}catch(legacyError){if(legacyError.code!=='ENOENT')throw legacyError;}}
           controller.signal.throwIfAborted();
-          await downloadResource({url:file.url,sources:resourceSources(file.url,file.sources),dest,bytes:file.bytes,sha256:file.digest,fetcher:this.fetcher,signal:controller.signal,onProgress:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});
-          controller.signal.throwIfAborted();complete+=file.bytes;await this.extract(file,dest,controller.signal,complete,total);continue;
+          await downloadResource({url:file.url,sources:resourceSources(file.url,file.sources),dest,bytes:file.bytes,sha256:file.digest,fetcher:this.fetcher,signal:controller.signal,onProgress:progress=>fileProgress(index,progress)});
+          controller.signal.throwIfAborted();await this.extract(file,dest,controller.signal,()=>fileProgress(index,{phase:'extracting',received:file.bytes}));fileProgress(index,{phase:'complete',received:file.bytes});return;
         }
-        await downloadGitBlob({file,dest,fetcher:this.fetcher,signal:controller.signal,notify:progress=>this.emit({...progress,file:file.path,received:complete+(progress.received||0),total})});complete+=file.bytes;
-        await this.extract(file,dest,controller.signal,complete,total);
-      }
+        await downloadGitBlob({file,dest,fetcher:this.fetcher,signal:controller.signal,notify:progress=>fileProgress(index,progress)});fileProgress(index,{phase:'complete',received:file.bytes,engine:'https'});
+        await this.extract(file,dest,controller.signal,()=>fileProgress(index,{phase:'extracting',received:file.bytes}));fileProgress(index,{phase:'complete',received:file.bytes});
+      };
+      const worker=async()=>{while(next<pack.files.length&&!controller.signal.aborted){const index=next++;try{await downloadOne(index);}catch(error){if(!controller.signal.aborted){failure=error;controller.abort(error);}return;}}};
+      // Independent files and their real release parts progress concurrently.
+      // Wait for every worker to stop before reporting errors or cleaning up.
+      await Promise.all(Array.from({length:Math.min(24,pack.files.length)},worker));
+      if(failure)throw failure;
       controller.signal.throwIfAborted();
-      this.emit({phase:'complete',received:total,total});
-      if(pack.kind==='voice')return {gpt:safeDestination(this.root,pack.paths.gpt),sovits:safeDestination(this.root,pack.paths.sovits),version:pack.version,textLang:'all_ja'};
+      this.controllers.delete(key);this.emit({phase:'complete',packId:id,files:files.map(item=>({...item})),received:total,total});
+      if(pack.kind==='voice')return voicePaths(this.root);
       return {bert:path.join(this.root,'chinese-roberta-wwm-ext-large'),hubert:path.join(this.root,'chinese-hubert-base')};
-    }catch(e){this.emit({phase:controller.signal.aborted?'cancelled':'error',error:controller.signal.aborted?'已取消，保留可续传的临时文件':e.message,received:complete,total});throw e}
-    finally{if(this.controller===controller)this.controller=null}
+    }catch(e){const cancelled=controller.signal.aborted&&!failure;this.controllers.delete(key);this.emit({...this.status,packId:id,phase:cancelled?'cancelled':'error',error:cancelled?'已取消，保留可续传的临时文件':e.message,total});throw e}
+    finally{if(this.controllers.get(key)===controller)this.controllers.delete(key);}
   }
-  async extract(file,archive,signal,received,total){
+  async extract(file,archive,signal,report=()=>{}){
     if(!file.extract)return;
     const item=file.extract,destination=safeDestination(this.root,item.path);
     if(await verified(destination,{bytes:item.bytes,algorithm:'sha256',digest:item.digest}))return;
     const disk=await fs.statfs(this.root);if(disk.bavail*disk.bsize<item.bytes+128*1024*1024)throw Error('磁盘剩余空间不足，无法解压语音权重');
-    this.emit({phase:'extracting',file:item.path,received,total});
+    report();
     await extractPinnedWeight({archive,member:item.member,destination,bytes:item.bytes,digest:item.digest,signal});
   }
-  cancel(){this.controller?.abort()}
+  cancel(){for(const controller of this.controllers.values())controller.abort()}
 }
 module.exports={VoiceResources,verified,safeDestination};

@@ -18,3 +18,20 @@ build/
 *.gguf
 *.part
 /artifacts/
+
+# Losslessly reconstructed from resources/character-source (connector size limit).
+/public/characters/Yukino05_UVDomainRepair.glb
+
+# Exact garment variants reconstructed from digest-pinned gzip sources.
+/public/characters/Yukino01_GarmentNormal_20261027.glb
+/public/characters/Yukino02_GarmentNormal_20261027.glb
+/public/characters/Yukino03_GarmentNormal_20261027.glb
+/public/characters/Yukino04_GarmentNormal_20261027.glb
+/public/characters/Yukino05_GarmentNormal_20261027.glb
+/public/characters/Yukino06_GarmentNormal_20261027.glb
+/public/characters/Yukino07_GarmentNormal_20261027.glb
+
+# Recovered character inputs and review models stay out of public source trees.
+/public/characters/*.glb
+/resources/character-source/*.glb.gz
+/review-assets/*.glb
