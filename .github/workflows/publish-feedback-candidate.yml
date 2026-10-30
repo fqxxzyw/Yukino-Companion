@@ -1,0 +1,80 @@
+name: Publish verified feedback candidate as a test prerelease
+on:
+  push:
+    branches: [release/publish-feedback-41015168431]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    if: github.repository == 'fqxxzyw/Yukino-Companion' && github.ref == 'refs/heads/release/publish-feedback-41015168431'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    concurrency:
+      group: yukino-feedback-candidate-41015168431
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_REPOSITORY: fqxxzyw/Yukino-Companion
+      EXPECTED_COMMIT: 7439e84873b3601281f280039eac08b7f497f755
+      EXPECTED_RUN: '41015168431'
+    steps:
+      - name: Check out the exact candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: 7439e84873b3601281f280039eac08b7f497f755
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the original build and candidate job
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          gh api "repos/$EXPECTED_REPOSITORY/actions/runs/$EXPECTED_RUN" > "$RUNNER_TEMP/candidate-run.json"
+          gh api --paginate "repos/$EXPECTED_REPOSITORY/actions/runs/$EXPECTED_RUN/jobs?per_page=100" --slurp > "$RUNNER_TEMP/candidate-jobs.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          temp = Path(os.environ['RUNNER_TEMP'])
+          run = json.loads((temp/'candidate-run.json').read_text())
+          pages = json.loads((temp/'candidate-jobs.json').read_text())
+          jobs = [job for page in pages for job in page['jobs']]
+          expected_commit = os.environ['EXPECTED_COMMIT']
+          if (str(run['id']) != os.environ['EXPECTED_RUN'] or run['head_sha'] != expected_commit
+              or run['head_branch'] != 'candidate/feedback-20261030-safe' or run['event'] != 'push'):
+              raise SystemExit('Original candidate run identity does not match')
+          candidates = [job for job in jobs if job['name'] == 'candidate']
+          if len(candidates) != 1 or candidates[0]['status'] != 'completed' or candidates[0]['conclusion'] != 'success':
+              raise SystemExit('The original candidate build is not confirmed successful')
+          PY
+      - name: Download the exact candidate from its original run
+        uses: actions/download-artifact@v4
+        with:
+          name: Yukino-revision-candidate-7439e84873b3601281f280039eac08b7f497f755
+          path: .
+          run-id: 41015168431
+          github-token: ${{ github.token }}
+      - name: Validate source tree and publish the exact installer as a prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          source = json.loads(Path('release/candidate-source.json').read_text(encoding='utf-8-sig'))
+          tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+          if source.get('commit') != os.environ['EXPECTED_COMMIT'] or str(source.get('runId')) != os.environ['EXPECTED_RUN'] or source.get('tree') != tree:
+              raise SystemExit('Candidate artifact does not match the exact source tree')
+          PY
+          env GITHUB_SHA="$EXPECTED_COMMIT" GITHUB_RUN_ID="$EXPECTED_RUN" python scripts/publish-candidate.py
+      - name: Preserve publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-feedback-publication-41015168431
+          path: build/candidate-publication.json
+          if-no-files-found: warn
+          retention-days: 30
