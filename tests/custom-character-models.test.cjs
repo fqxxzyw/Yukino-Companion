@@ -120,7 +120,9 @@ test('packaged ASAR built-ins tolerate virtual inode differences but still verif
  const store=new CharacterModelStore({dataRoot:path.join(f.root,'data'),builtinRoot:path.join(root,'app.asar','dist'),builtins:{models:[entry]}});
  const oldLstat=fs.lstat,oldResources=process.resourcesPath,oldElectron=Object.getOwnPropertyDescriptor(process.versions,'electron');
  Object.defineProperty(process.versions,'electron',{value:'test-electron',configurable:true});process.resourcesPath=root;
- fs.lstat=async function(name,...args){const stat=await oldLstat.call(this,name,...args);return path.resolve(name)===file?new Proxy(stat,{get(target,key,receiver){return key==='ino'?target.ino+1:Reflect.get(target,key,receiver)}}):stat;};
+ // Windows inode numbers can exceed JavaScript's safe integer range, where
+ // adding one may round back to the same number. Force a distinct value.
+ fs.lstat=async function(name,...args){const stat=await oldLstat.call(this,name,...args);return path.resolve(name)===file?new Proxy(stat,{get(target,key,receiver){return key==='ino'?(target.ino===0?1:0):Reflect.get(target,key,receiver)}}):stat;};
  try{
   assert.deepEqual(Buffer.from(await store.read(entry.id)),f.data);
   await assert.rejects(store.inspectFile(file),/文件在检查时发生变化/);
