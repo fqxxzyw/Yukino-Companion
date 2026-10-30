@@ -11,7 +11,8 @@ def stop_tree(process):
         return
     if os.name == 'nt':
         try:
-            subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],timeout=10,check=False)
+            subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],timeout=10,check=False,
+                           stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         except (OSError,subprocess.TimeoutExpired):
             pass
     if process.poll() is None:
@@ -20,16 +21,22 @@ def stop_tree(process):
 
 def run_with_watchdog(command, timeout, output):
     output.mkdir(parents=True,exist_ok=True)
-    process=subprocess.Popen(command)
-    try:
-        code=process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        stop_tree(process)
-        try: process.wait(timeout=10)
-        except subprocess.TimeoutExpired: pass
-        (output/'watchdog.json').write_text(json.dumps({'passed':False,'timeoutSeconds':timeout,'reason':'native smoke process exceeded its time limit'},indent=2)+'\n',encoding='utf8')
-        print('Native smoke timed out; the last checkpoint and watchdog evidence are retained.',file=sys.stderr)
-        return 1
+    # Installers and GUI applications may leave descendants alive. If any of
+    # them inherit the Actions runner's stdout/stderr pipes, the runner can
+    # wait for pipe EOF even after this watchdog has exited. A real file avoids
+    # that dependency and still preserves the complete diagnostic output.
+    with (output/'native-smoke.log').open('wb') as log:
+        process=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT)
+        try:
+            code=process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_tree(process)
+            try: process.wait(timeout=10)
+            except subprocess.TimeoutExpired: pass
+            (output/'watchdog.json').write_text(json.dumps({'passed':False,'timeoutSeconds':timeout,'reason':'native smoke process exceeded its time limit'},indent=2)+'\n',encoding='utf8')
+            print('Native smoke timed out; the last checkpoint and watchdog evidence are retained.',file=sys.stderr)
+            return 1
+    print(f'Native smoke exited {code}; detailed output: {output / "native-smoke.log"}')
     return code
 
 
