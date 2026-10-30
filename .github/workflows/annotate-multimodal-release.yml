@@ -1,0 +1,95 @@
+name: Append verified core native checks to the exact multimodal prerelease
+on:
+  push:
+    branches: [release/annotate-multimodal-41029585625]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  annotate:
+    if: github.repository == 'fqxxzyw/Yukino-Companion' && github.ref == 'refs/heads/release/annotate-multimodal-41029585625'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: yukino-multimodal-native-note-41029585625
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download the actual same-installer native report
+        uses: actions/download-artifact@v4
+        with:
+          name: Yukino-native-exact-41029585625
+          path: native-evidence
+          run-id: 41032217074
+          github-token: ${{ github.token }}
+      - name: Verify all six immutable assets and append only the native result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          repo='fqxxzyw/Yukino-Companion';release_id=428824457;tag='v0.4.0-test.41029585625'
+          commit='a60bd0581bc93904b6d7f3f968ca1f508496fe6e';installer_sha='2c75821d389d062179026fb29ec35033b761ba92ac833b9e49879608e4f44546'
+          expected={
+            'base-installer.json':(312,'334a444d7966717d8fd968799f7c2dc5519d5bf404191c561238e4227db09039'),
+            'base-package.json':(1134,'894fb3ddbc68edb91b880efbd6c583275e307184db2d6bd014cf68c5c6c4affc'),
+            'base-payload.json':(15937,'4679b4499c04cdfee4150b55988fd06654c1678026de8c339d1508c0b6f43a6b'),
+            'candidate-source.json':(428,'0f294615b24e68330cffd8119f5cc25a5a05f2a892dfee72ae349bf985c2a20a'),
+            'SHA256SUMS.txt':(105,'13afb3f63bb57ac7a9717ebde620369650a939fda97c064646720cdbed21027c'),
+            'Yukino-Companion-0.4.0-Base-Setup.exe':(265093333,installer_sha)}
+          def api(path,*args):return json.loads(subprocess.check_output(['gh','api',path,*args],text=True))
+          run=api(f'repos/{repo}/actions/runs/41032217074')
+          jobs=api(f'repos/{repo}/actions/runs/41032217074/jobs?per_page=100')['jobs']
+          if (run['head_sha']!='4fc0555e132c769c3e8f6bdb7a01852dbbf7b499' or run['status']!='completed' or run['conclusion']!='success'
+              or len(jobs)!=1 or jobs[0]['name']!='native_exact' or jobs[0]['conclusion']!='success'):
+              raise SystemExit('Exact same-installer verification run has not succeeded')
+          reports=list(Path('native-evidence').rglob('report.json'))
+          if len(reports)!=1:raise SystemExit('Cannot uniquely identify native report')
+          report=json.loads(reports[0].read_text())
+          if (report.get('passed') is not True or report.get('fixtureOnly') is not False or report.get('installerCommit')!=commit
+              or report.get('originalRunId')!='41029585625' or report.get('installerBytes')!=265093333
+              or report.get('installerSHA256')!=installer_sha or len(report.get('checks',[]))!=6
+              or report.get('guiWelcomeAndDirectoryCaptureVerified') is not False
+              or report.get('realGPUASRMicrophoneCameraVoiceVerified') is not False):
+              raise SystemExit('Native evidence identity or test scope mismatch')
+          def verify_release(value):
+              if value['id']!=release_id or value['tag_name']!=tag or value['target_commitish']!=commit or value['draft'] is not False or value['prerelease'] is not True:
+                  raise SystemExit('Prerelease identity changed')
+              assets=value['assets']
+              if len(assets)!=6 or {asset['name'] for asset in assets}!=set(expected):raise SystemExit('Published asset inventory changed')
+              for asset in assets:
+                  size,digest=expected[asset['name']]
+                  if asset['size']!=size or asset.get('digest')!='sha256:'+digest:raise SystemExit('Published asset digest changed')
+          before=api(f'repos/{repo}/releases/{release_id}');verify_release(before)
+          addition='''\n\n---\n\n**同一安装器的 Windows 核心原生检查已通过。**\n\n[只读同包重验 41032217074](https://github.com/fqxxzyw/Yukino-Companion/actions/runs/41032217074) 核对了六项：安装器与源码身份；中文路径静默安装及 101 个 payload 文件逐字节校验；可见主窗口、真实角色 IPC 与 WebGL 帧；升级后 101 文件及保留数据；未知非空目录拒绝；真实卸载并保留新增文件和隔离用户资料哨兵。所测 EXE 为 265,093,333 字节，SHA256 `2c75821d389d062179026fb29ec35033b761ba92ac833b9e49879608e4f44546`。\n\n原先包含 GUI 页面截图的 `native_smoke` 作业仍未完成；欢迎页、目录页截图验收不在本次通过范围。实体 NVIDIA GPU、真实 ASR/API、Windows 麦克风、摄像头、日语语音实际播放、口型和眨眼仍未实测通过。\n'''
+          body=before.get('body') or ''
+          marker='**同一安装器的 Windows 核心原生检查已通过。**'
+          if marker in body:
+              if addition not in body:raise SystemExit('A different annotation already exists')
+          else:
+              body+=addition
+              Path('build/release-body-update.json').write_text(json.dumps({'body':body},ensure_ascii=False),encoding='utf8')
+              api(f'repos/{repo}/releases/{release_id}','--method','PATCH','--input','build/release-body-update.json')
+          after=api(f'repos/{repo}/releases/{release_id}');verify_release(after)
+          if after['body']!=body or after['name']!=before['name']:raise SystemExit('Release notes readback mismatch')
+          result={'releaseId':release_id,'tag':tag,'target':commit,'url':after['html_url'],'nativeValidationRun':41032217074,'allSixAssetDigestsUnchanged':True,'prerelease':True,'bodySHA256':hashlib.sha256(body.encode()).hexdigest(),'guiPageCaptureVerified':False,'realGPUASRMicrophoneCameraVoiceVerified':False}
+          Path('build/release-notes-readback.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result))
+          PY
+      - name: Preserve release note readback
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-native-release-note-41029585625
+          path: build/release-notes-readback.json
+          if-no-files-found: warn
+          retention-days: 30
