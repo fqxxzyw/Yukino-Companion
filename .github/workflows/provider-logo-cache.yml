@@ -26,6 +26,25 @@ jobs:
           $manifest.brands | ConvertTo-Json -Depth 5 | Write-Host
           $missing = @($manifest.brands.PSObject.Properties | Where-Object { $_.Value.status -eq 'missing' } | ForEach-Object { $_.Name })
           "Official icon download failures: $($missing -join ', '). No UI, service, API or hardware validation was performed." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Decode downloaded icons with Windows image support
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $manifest = Get-Content public/provider-logos/manifest.json -Raw | ConvertFrom-Json
+          $results = @()
+          foreach ($item in $manifest.brands.PSObject.Properties) {
+            if ($item.Value.status -ne 'cached') { continue }
+            $filename = (Resolve-Path (Join-Path 'public/provider-logos' $item.Value.file)).Path
+            $icon = $null
+            if ($item.Value.file.EndsWith('.ico')) { $icon = [System.Drawing.Icon]::new($filename); $image = $icon.ToBitmap() }
+            else { $image = [System.Drawing.Image]::FromFile($filename) }
+            try {
+              if ($image.Width -lt 16 -or $image.Height -lt 16) { throw "Official icon is too small: $($item.Name)" }
+              $results += @{ brand=$item.Name; width=$image.Width; height=$image.Height; windowsImageDecoded=$true; actualAppDisplayVerified=$false }
+            } finally { $image.Dispose(); if ($icon) { $icon.Dispose() } }
+          }
+          $results | ConvertTo-Json -Depth 5 | Set-Content build/provider-icon-decode.json -Encoding utf8
+          $results | ConvertTo-Json -Depth 5 | Write-Host
       # Only static public vendor icons and their source/hash manifest are kept.
       # No user wallpaper, character models, credentials or app profile is read.
       - name: Preserve only official icon results
@@ -36,5 +55,6 @@ jobs:
           path: |
             public/provider-logos/*
             build/provider-icon-sources.json
+            build/provider-icon-decode.json
           if-no-files-found: error
           retention-days: 30
