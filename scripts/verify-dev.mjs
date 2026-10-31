@@ -65,10 +65,10 @@ async function hotUpdate(page,label) {
     assert.equal(await page.getByRole('textbox',{name:'消息',exact:true}).inputValue(),marker);
     assert.equal(await page.evaluate(()=>window.__devDocumentMarker),marker);
     check(label+' CSS HMR preserves document and draft');
-    const changed = jsx.replace('<h1>与{currentCharacter.name}开始对话</h1>', '<h1>开发热更新实测通过</h1>');
+    const changed = jsx.replace('<span>与你的对话</span>', '<span>开发热更新实测通过</span>');
     assert.notEqual(changed, jsx, 'Fast Refresh probe must change the actual Release source');
     await fs.writeFile(appFile,changed);
-    await page.getByRole('heading',{name:'开发热更新实测通过'}).waitFor();
+    await page.getByText('开发热更新实测通过',{exact:true}).waitFor();
     assert.equal(await page.getByRole('textbox',{name:'消息',exact:true}).inputValue(),marker);
     assert.equal(await page.evaluate(()=>window.__devDocumentMarker),marker);
     check(label+' React Fast Refresh preserves document and draft');
@@ -76,7 +76,7 @@ async function hotUpdate(page,label) {
   } finally {
     await fs.writeFile(appFile,jsx);await fs.writeFile(cssFile,css);
   }
-  await page.getByRole('heading',{name:'与雪之下雪乃开始对话'}).waitFor();
+  await page.getByText('与你的对话',{exact:true}).waitFor();
 }
 
 await fs.mkdir(output,{recursive:true});
@@ -90,7 +90,7 @@ try {
   browser=await chromium.launch({channel:'msedge',headless:true});
   const page=await browser.newPage({viewport:{width:1280,height:840}});observe(page);
   await page.goto('http://127.0.0.1:5273/');
-  await page.getByRole('heading',{name:'与雪之下雪乃开始对话'}).waitFor();
+  await page.getByRole('textbox',{name:'消息',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>typeof window.desktop),'undefined');
   await page.getByText('浏览器 UI 预览 · 无 Electron IPC',{exact:true}).waitFor();
   await page.getByRole('button',{name:'设置',exact:true}).click();
@@ -110,7 +110,7 @@ try {
   const desktop=run(['--desktop','--inspect-renderer','9334']);
   await until(()=>desktop.log.includes('[dev] Electron ready'),'actual desktop startup');
   let appPage=await desktopPage();observe(appPage);
-  await appPage.getByRole('heading',{name:'与雪之下雪乃开始对话'}).waitFor();
+  await appPage.getByRole('textbox',{name:'消息',exact:true}).waitFor();
   await appPage.waitForFunction(()=>typeof window.desktop?.load==='function');
   // Dismiss first-use prompts without starting downloads, microphone or paid services.
   await pause(900);
@@ -150,7 +150,7 @@ try {
       assert.notEqual(desktop.pids.at(-1),previous);
       appPage=await desktopPage();observe(appPage);
       await appPage.evaluate(()=>window.desktop.window('minimize'));
-      await appPage.getByRole('heading',{name:'与雪之下雪乃开始对话'}).waitFor();
+      await appPage.getByRole('textbox',{name:'消息',exact:true}).waitFor();
       assert.equal(await appPage.evaluate(()=>typeof window.desktop.load),'function');
       assert.match(await appPage.getByRole('textbox',{name:'消息',exact:true}).inputValue(),/^desktop-/);
       check(filename+' controlled restart changes PID and preserves IPC/development draft');

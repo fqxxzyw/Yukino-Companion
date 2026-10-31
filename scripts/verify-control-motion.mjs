@@ -51,10 +51,10 @@ try{
  check('Language switch remains keyboard-operable with real pressed state');
  await sample('.chat-source-switch','本地');await sample('.chat-source-switch','API');await screenshot('source-api');
  const send=page.getByRole('button',{name:'发送消息',exact:true});assert.equal(await send.isDisabled(),true);await send.hover({force:true});assert.equal(await send.evaluate(el=>getComputedStyle(el).translate),'none');
- const suggestion=page.getByRole('button',{name:'聊聊今天发生的事',exact:true});await suggestion.hover();await settle();assert.equal(await suggestion.evaluate(el=>getComputedStyle(el).translate),'0px -1px');await page.mouse.down();await page.waitForTimeout(120);assert.ok(parseFloat(await suggestion.evaluate(el=>getComputedStyle(el).scale))<1);await page.mouse.up();
- assert.equal(await page.getByRole('textbox',{name:'消息',exact:true}).inputValue(),'聊聊今天发生的事');await page.getByRole('textbox',{name:'消息',exact:true}).fill('');
- check('Real button hover/press gives restrained feedback; disabled send remains inert');
- await page.getByRole('button',{name:'设置',exact:true}).click();await sample('.settings-nav nav','个人记忆','top');await screenshot('settings-memory');
+ const settings=page.getByRole('button',{name:'设置',exact:true});await settings.hover();await settle();assert.equal(await settings.evaluate(el=>getComputedStyle(el).translate),'0px -1px');await page.mouse.down();await page.waitForTimeout(120);assert.ok(parseFloat(await settings.evaluate(el=>getComputedStyle(el).scale))<1);await page.mouse.up();
+ await page.locator('.settings-nav').waitFor();
+ check('Real settings button hover/press opens settings; disabled send remains inert');
+ await sample('.settings-nav nav','个人记忆','top');await screenshot('settings-memory');
  await nav('模型与 API');await sample('.settings-tabs','任务分配');await sample('.settings-tabs','服务与配置');await screenshot('settings-api');
  // Search removes the old selection and restores it without a ghost surface.
  const search=page.getByRole('textbox',{name:'搜索设置',exact:true});await search.fill('no-match-qa');assert.equal(await page.locator('.settings-nav nav button').count(),0);assert.equal(await page.locator('.settings-nav nav').evaluate(el=>getComputedStyle(el,'::before').content),'none');await page.getByRole('button',{name:'清除设置搜索',exact:true}).click();await settle();assert.equal(await page.locator('.settings-nav nav .selected').count(),1);
