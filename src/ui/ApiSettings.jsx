@@ -1,11 +1,11 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {CheckCircle2, ChevronDown, KeyRound, LoaderCircle, Plus, RefreshCw, Search} from 'lucide-react';
 import Select from './Select';
+import {providerForProfile,preserveProfileOnProviderSwitch} from './api-management-ui.mjs';
 import './api-settings.css';
 
 const messageOf = error => String(error?.message || error || '操作失败，请稍后重试。').replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 const originOf = base => {try {return new URL(base).origin;} catch {return '';}};
-const providerFor = (profile, catalog) => catalog.find(p => p.id === profile.providerId) || catalog.find(p => p.base && profile.base?.replace(/\/$/, '').replace(/\/chat\/completions$/, '') === p.base) || catalog.find(p => p.id === 'custom');
 
 export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds, busy = false,editingProfileId,onProfileSelect}) {
   const [catalog, setCatalog] = useState([]);
@@ -22,23 +22,29 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   const sequence = useRef(0);
   const mounted = useRef(true);
   latest.current = state;
-  const profile = state.profiles.find(p => p.id === (editingProfileId||state.activeProfile)) || state.profiles[0];
-  const provider = providerFor(profile || {}, catalog);
+  const profiles = state.profiles || [];
+  const profile = profiles.find(p => p.id === (editingProfileId||state.activeProfile)) || profiles[0];
+  const provider = providerForProfile(profile || {}, catalog);
   const locked = busy || Boolean(working);
   const savedKey = keyIds.includes(profile?.id);
 
   useEffect(() => {
-    mounted.current = true;
+    let active = true;
+    mounted.current = true; setCatalog([]); setCatalogError('');
     Promise.resolve().then(() => {
       if (!api?.apiProviders) throw new Error('请在桌面客户端中配置 API。');
       return api.apiProviders();
-    }).then(value => {if (mounted.current) setCatalog(value);}).catch(error => {if (mounted.current) setCatalogError(messageOf(error));});
-    return () => {mounted.current = false; sequence.current++;};
+    }).then(value => {if (!Array.isArray(value)) throw Error('服务商目录格式无效'); if (active) setCatalog(value);}).catch(error => {if (active) setCatalogError(messageOf(error));});
+    return () => {active = false; mounted.current = false; sequence.current++;};
   }, [api]);
   useEffect(() => {
     sequence.current++;
     setSecret(''); setResult(null); setQuery(''); setNotice(null); setManual(false); setWorking(''); setConnection('untested');
-  }, [profile?.id]);
+  }, [profile?.id, profile?.providerId, profile?.base]);
+  useEffect(() => {
+    // Fill only a missing official base. Never replace a saved proxy/custom URL.
+    if (profile?.providerId && !profile.base && provider?.base) updateProfile({base:provider.base});
+  }, [profile?.id, profile?.providerId, profile?.base, provider?.base]);
 
   function patchState(patch) {
     latest.current = {...latest.current, ...patch};
@@ -51,11 +57,19 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
   function invalidate() {sequence.current++; setResult(null); setNotice(null); setQuery(''); setConnection('untested');}
   function selectProvider(id) {
     const next = catalog.find(p => p.id === id);
-    if (!next) return;
-    invalidate(); setSecret(''); setManual(false);
-    const base = id === 'custom' ? profile.base : next.base;
-    updateProfile({providerId:id, base, model:'',visionEnabled:false});
-    if (savedKey && originOf(base) !== originOf(profile.base)) setNotice({tone:'info', text:next.keyOptional ? '已更换服务商。若新服务无需密钥，请在高级设置中删除已存密钥；否则填写新密钥。' : '已更换服务商。请输入对应的密钥；原服务商的密钥不会发送到新地址。'});
+    if (!next || id === provider?.id) return;
+    invalidate(); setSecret(''); setManual(false); setAdvanced(false);
+    // A configured profile keeps its URL and encrypted credential identity.
+    // Switching vendors selects/creates another profile instead of reusing its key,
+    // including when two providers happen to share the same origin.
+    const existing = (latest.current.profiles || []).find(p => p.id !== profile?.id && p.providerId === id);
+    if (!profile || preserveProfileOnProviderSwitch(profile, provider, savedKey) || existing) {
+      const entry = existing || {id:crypto.randomUUID(), name:next.name, providerId:id, base:next.base || '', model:'', visionEnabled:false};
+      patchState({profiles:existing?latest.current.profiles:[...(latest.current.profiles || []),entry],...(onProfileSelect?{}:{activeProfile:entry.id})});
+      onProfileSelect?.(entry.id);
+      return;
+    }
+    updateProfile({providerId:id, base:next.base || '', model:'',visionEnabled:false});
   }
   function changeBase(base) {
     invalidate(); setSecret('');
@@ -77,6 +91,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
       if (!mounted.current || operation !== sequence.current) return;
       if (response.verified && newKey) {
         await api.save(latest.current);
+        if (!mounted.current || operation !== sequence.current) return;
         await api.saveKey(snapshot.id, newKey, snapshot.base);
         if (!mounted.current || operation !== sequence.current) return;
         rememberKey(snapshot.id); setSecret('');
@@ -95,6 +110,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     setWorking(test ? 'test' : 'save'); setNotice(null); if(test) setConnection('checking');
     try {
       await api.save(latest.current);
+      if (!mounted.current || operation !== sequence.current) return;
       if (secret.trim()) {
         await api.saveKey(snapshot.id, secret.trim(), snapshot.base);
         if (!mounted.current || operation !== sequence.current) return;
@@ -108,7 +124,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
 
   function addProfile() {
     const id = crypto.randomUUID();
-    patchState({profiles:[...latest.current.profiles, {id, name:`API 配置 ${latest.current.profiles.length + 1}`, providerId:'custom', base:'', model:''}],...(onProfileSelect?{}:{activeProfile:id})});
+    patchState({profiles:[...(latest.current.profiles || []), {id, name:`API 配置 ${(latest.current.profiles || []).length + 1}`, base:'', model:''}],...(onProfileSelect?{}:{activeProfile:id})});
     onProfileSelect?.(id);
   }
   async function removeProfile() {
@@ -139,17 +155,17 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     finally {if (mounted.current && operation === sequence.current) setWorking('');}
   }
 
-  if (!profile) return <p className="api-notice" role="status">尚无 API 配置。</p>;
+  if (!profile) return <div className="api-settings"><label className="field">先选择服务商<Select aria-label="API 服务商" value="" disabled={locked||!catalog.length} onChange={event=>selectProvider(event.target.value)}><option value="" disabled>请选择厂商，官方地址将自动填写</option>{catalog.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>{catalogError&&<p className="api-notice error" role="alert">服务商列表载入失败：{catalogError}</p>}</div>;
   const choices = result?.status === 'unsupported' ? result.suggestions || [] : result?.models || [];
   const matching = choices.filter(model => `${model.id} ${model.name}`.toLowerCase().includes(query.trim().toLowerCase()));
   // Keep the selected model visible even when a search or refreshed list excludes it.
   const selected = choices.find(model => model.id === profile.model);
   const showCurrent = Boolean(profile.model && !matching.some(model => model.id === profile.model));
   const modelOptions = showCurrent ? [{id:profile.model, name:selected?.name || `${profile.model} · 当前配置`}, ...matching] : matching;
-  const canDiscover = Boolean(profile.base.trim()) && (Boolean(secret.trim()) || savedKey || provider?.keyOptional);
+  const canDiscover = Boolean(provider && profile.base.trim()) && (Boolean(secret.trim()) || savedKey || provider?.keyOptional);
 
   return <div className="api-settings">
-    <div className="api-intro"><KeyRound size={19}/><div><strong>连接你的模型</strong><p>选择服务商，验证密钥，再从列表选择模型。</p></div></div>
+    <div className="api-intro"><KeyRound size={19}/><div><strong>连接你的模型</strong><p>先选服务商，官方地址自动填写；粘贴 API Key 后从账户列表选择模型，无需手填 URL。</p></div></div>
     <div className={'api-connection-status '+connection} role="status"><i aria-hidden="true"/><span>对话连接：{connection==='ready'?'本次测试成功':connection==='checking'?'正在测试':connection==='error'?'本次测试失败':'本次尚未测试'}</span></div>
     <label className="field">当前配置
       <div className="profile-picker">
@@ -161,15 +177,16 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     </label>
     <fieldset disabled={locked}>
       <label className="field">服务商
-        <Select aria-label="API 服务商" value={provider?.id || 'custom'} disabled={locked || !catalog.length} onChange={e => selectProvider(e.target.value)}>
-          {catalog.length ? catalog.map(p => <option key={p.id} value={p.id}>{p.name}</option>) : <option value="custom">正在载入服务商…</option>}
+        <Select aria-label="API 服务商" value={provider?.id || ''} disabled={locked || !catalog.length} onChange={e => selectProvider(e.target.value)}>
+          <option value="" disabled>{catalog.length?'请选择厂商，官方地址将自动填写':'正在载入服务商…'}</option>
+          {catalog.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         <small>{provider?.note || '选择兼容 Chat Completions 的服务商。'}</small>
       </label>
       {catalogError && <p className="api-notice error" role="alert">服务商列表载入失败：{catalogError}</p>}
-      {provider?.id === 'custom' && <label className="field">API 地址<input value={profile.base} onChange={e => changeBase(e.target.value)} placeholder="https://api.example.com/v1" spellCheck="false" autoComplete="off"/></label>}
+      <div className="field"><span>当前 API 地址</span><small style={{overflowWrap:'anywhere'}}>{profile.base||'选择厂商后自动填写；自定义兼容服务请在高级设置填写地址。'}</small><small>已有自定义地址会保留；修改地址请展开高级设置。</small></div>
       <label className="field">API 密钥 {savedKey && <span className="api-saved"><CheckCircle2 size={13}/> 已加密保存</span>}
-        <input type="password" value={secret} onChange={e => changeSecret(e.target.value)} autoComplete="new-password" spellCheck="false" maxLength={8192}
+        <input type="password" value={secret} disabled={!provider||locked} onChange={e => changeSecret(e.target.value)} autoComplete="new-password" spellCheck="false" maxLength={8192}
           placeholder={savedKey ? '留空使用此地址已保存的密钥；输入可替换' : provider?.keyOptional ? '如服务需要，请填写密钥' : '粘贴此服务商的 API Key'}/>
         <small>密钥仅在本机加密保存。更换服务商或地址时需要重新验证。</small>
       </label>
@@ -188,10 +205,10 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
         {result?.verified && <small>模型列表已获取；具体的对话权限和兼容性以连接测试为准。</small>}
       </div>
       <label className="row"><div><strong>视觉 API 能力确认</strong><small>我确认此模型支持 Chat Completions 图片输入；截图仍需每次预览和确认发送。</small></div><input type="checkbox" role="switch" checked={profile.visionEnabled===true} disabled={locked} onChange={e=>updateProfile({visionEnabled:e.target.checked})}/></label>
-      <button type="button" className="text-link api-advanced-toggle" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}><ChevronDown size={14} className={advanced ? 'expanded' : ''}/>高级设置</button>
+      <button type="button" className="text-link api-advanced-toggle" onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}><ChevronDown size={14} className={advanced ? 'expanded' : ''}/>高级设置 · 自定义地址与模型</button>
       {advanced && <div className="api-advanced">
         <label className="field">配置名称<input value={profile.name} onChange={e => updateProfile({name:e.target.value})} maxLength={80}/></label>
-        {provider?.id !== 'custom' && <label className="field">API 地址<input value={profile.base} onChange={e => changeBase(e.target.value)} spellCheck="false" autoComplete="off"/><small>支持基础地址或完整的 /chat/completions 地址。本机 HTTP 可用，远程地址须使用 HTTPS。</small></label>}
+        <label className="field">自定义 API 地址<input value={profile.base} onChange={e => changeBase(e.target.value)} placeholder={provider?.base||'https://api.example.com/v1'} spellCheck="false" autoComplete="off"/><small>默认使用所选厂商的官方地址。支持基础地址或完整的 /chat/completions 地址；本机 HTTP 可用，远程地址须使用 HTTPS。</small></label>
         {savedKey && <div className="field"><span>已保存的密钥</span><button className="secondary api-clear-key" type="button" disabled={locked} onClick={clearSavedKey}>{working === 'clearKey' ? '正在删除…' : '删除已存密钥'}</button><small>换成无需密钥的本机服务时，可在这里清除旧密钥。配置地址和模型仍会保留。</small></div>}
         <label className="api-manual-toggle"><input type="checkbox" checked={manual} onChange={e => setManual(e.target.checked)}/>手动指定模型（服务没有列表或使用自定义模型时）</label>
         {manual && <label className="field">模型 ID<input value={profile.model} onChange={e => updateProfile({model:e.target.value,visionEnabled:false})} maxLength={256} spellCheck="false" autoComplete="off" placeholder="以服务商提供的模型 ID 为准"/></label>}

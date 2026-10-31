@@ -7,3 +7,8 @@
 @media (prefers-reduced-motion:reduce){.character-summary{transition:none}.character-summary:hover:not(:disabled){transform:none}}
 .character-summary-copy strong{display:flex;align-items:center;justify-content:space-between;gap:8px}.character-summary-status{flex:none;font-size:10px;font-weight:500;border-radius:999px;padding:3px 7px;background:var(--surface);color:var(--secondary)}.character-summary-status.active{color:var(--accent-text);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}.character-summary-model>span{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}.character-summary-model img{object-fit:contain;object-position:center;background:color-mix(in srgb,var(--accent) 8%,var(--surface));height:64px}
 .character-summary-name{min-width:0;overflow-wrap:anywhere}
+.character-prompt{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface-soft);margin-block:16px}
+.character-prompt summary{font-size:12px;line-height:1.8;color:var(--accent-text);cursor:pointer;overflow-wrap:anywhere}
+.character-prompt summary:focus-visible{outline:2px solid var(--accent-text);outline-offset:4px;border-radius:3px}
+.character-prompt .hint{margin-top:12px}
+.character-prompt textarea{font-weight:400;min-height:110px}

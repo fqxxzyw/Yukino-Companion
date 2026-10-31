@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs/promises');
-const {defaultResourceDirectory,selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate,rebaseManagedResourcePath,resourceDirectoryRecord,resourceDirectoryHistory}=require('../electron/resource-directory.cjs');
+const {defaultResourceDirectory,selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate,rebaseManagedResourcePath,resourceDirectoryRecord,resourceDirectoryHistory,isolateResourceConfiguration,installationScope,installationResourceLocation}=require('../electron/resource-directory.cjs');
 const {managedRuntimeBinary}=require('../electron/runtime-paths.cjs');
 
 test('packaged downloads follow the installed executable location, profile remains separate',()=>{
@@ -16,6 +16,68 @@ test('packaged downloads follow the installed executable location, profile remai
  const custom=path.join(path.parse(process.cwd()).root,'other-volume','Yukino-models');
  assert.equal(selectResourceDirectory({configured:custom,packaged:true,executable,userData}),custom);
  assert.equal(selectResourceDirectory({configured:'relative',packaged:true,executable,userData}),chosen);
+});
+
+test('persisted resource settings and caches use per-install namespaces, never old top-level files',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-config-scope-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const userData=path.join(root,'profile'),first={packaged:true,executable:path.join(root,'old-install','Yukino.exe'),userData},second={...first,executable:path.join(root,'new-install','Yukino.exe')};
+ assert.equal(installationScope(first),path.dirname(first.executable));
+ for(const name of ['speech.json','translation.json','local-chat.json','resource-directory.json','speech-cache']){
+  const old=installationResourceLocation(first,name),current=installationResourceLocation(second,name),legacy=path.join(userData,name);
+  assert.notEqual(old,current);assert.notEqual(current,legacy);assert.equal(path.dirname(old),path.dirname(installationResourceLocation(first,'speech.json')));
+  assert.equal(installationResourceLocation({...second,executable:path.join(path.dirname(second.executable),'renamed.exe')},name),current);
+  if(name.endsWith('.json')){
+   assert.equal(installationResourceLocation(second,name+'.tmp'),current+'.tmp');
+   for(const file of [old,legacy]){await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,'custom configuration preserved');}
+   await assert.rejects(fs.access(current),{code:'ENOENT'});
+   for(const file of [old,legacy])assert.equal(await fs.readFile(file,'utf8'),'custom configuration preserved');
+  }
+ }
+ for(const name of ['state.json','keys.json','translation-runtime','speech.json.backup'])assert.equal(installationResourceLocation(second,name),path.join(userData,name));
+ const dev={...second,packaged:false,sourceRoot:path.join(root,'checkout')};
+ assert.equal(installationScope(dev),dev.sourceRoot);
+ assert.notEqual(installationResourceLocation(dev,'speech.json'),installationResourceLocation({...dev,sourceRoot:path.join(root,'other-checkout')},'speech.json'));
+ assert.equal(installationResourceLocation(dev,'speech.json'),installationResourceLocation({...dev,executable:path.join(root,'different-electron.exe')},'speech.json'));
+ if(process.platform==='win32')assert.equal(installationResourceLocation(second,'speech.json'),installationResourceLocation({...second,executable:second.executable.toUpperCase()},'speech.json'));
+ assert.throws(()=>installationScope({...second,executable:'relative.exe'}),/安装目录无效/);
+ assert.throws(()=>installationScope({...dev,sourceRoot:undefined}),/安装目录无效/);
+});
+
+test('explicit resource selection is restored only for the installation that selected it',()=>{
+ const installDirectory=path.resolve('/install-new'),oldInstall=path.resolve('/install-old'),custom=path.resolve('/custom-downloads');
+ const options={packaged:true,executable:path.join(installDirectory,'Yukino.exe'),userData:path.resolve('/profile'),installDirectory};
+ const fallback=path.join(installDirectory,'Yukino-Data');
+ assert.equal(selectResourceDirectory({...options,configured:custom}),fallback);
+ assert.equal(selectResourceDirectory({...options,configured:custom,configuredInstallDirectory:oldInstall}),fallback);
+ const record=resourceDirectoryRecord(custom,{currentDirectory:fallback,installDirectory});
+ assert.equal(record.installDirectory,installDirectory);
+ assert.equal(selectResourceDirectory({...options,configured:record.directory,configuredInstallDirectory:record.installDirectory}),custom);
+ assert.equal(selectResourceDirectory({...options,configured:custom,configuredInstallDirectory:'relative'}),fallback);
+ assert.equal(selectResourceDirectory({...options,configured:custom,installDirectory:null,configuredInstallDirectory:null}),fallback);
+ assert.throws(()=>resourceDirectoryRecord(custom,{installDirectory:'relative'}),/安装目录无效/);
+ // Omitting scope keeps the old pure-helper API compatible.
+ assert.equal(selectResourceDirectory({...options,installDirectory:undefined,configured:custom}),custom);
+});
+
+test('another installation cannot activate persisted model or runtime paths, including custom paths',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-scope-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const installDirectory=path.join(root,'new-install'),oldInstall=path.join(root,'old-install'),dataRoot=path.join(installDirectory,'Yukino-Data'),resourceRoot=path.join(installDirectory,'resources');
+ const oldModel=path.join(oldInstall,'Yukino-Data','resources','model.gguf'),custom=path.join(root,'user-models','custom.ckpt');
+ for(const file of [oldModel,custom]){await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,'preserve');}
+ const saved=Object.freeze({modelDir:path.dirname(oldModel),python:path.join(oldInstall,'python.exe'),gpt:custom,reference:path.join(root,'custom.wav'),promptText:'ユーザーの原文。',device:'cpu',enabled:true});
+ const options={installDirectory,configuredInstallDirectory:oldInstall,dataRoot,resourceRoot};
+ const isolated=isolateResourceConfiguration(saved,options);
+ for(const key of ['modelDir','python','gpt','reference']){assert.equal(isolated.active[key],'');assert.equal(isolated.inactive[key],saved[key]);}
+ assert.equal(isolated.active.promptText,saved.promptText);assert.equal(isolated.active.device,'cpu');assert.equal(isolated.active.enabled,true);
+ assert.equal(saved.gpt,custom);assert.equal(await fs.readFile(custom,'utf8'),'preserve');assert.equal(await fs.readFile(oldModel,'utf8'),'preserve');
+ const same=isolateResourceConfiguration(saved,{...options,configuredInstallDirectory:installDirectory});
+ assert.deepEqual(same.active,saved);assert.deepEqual(same.inactive,{});assert.notEqual(same.active,saved);
+ const unbound=isolateResourceConfiguration(saved,{...options,configuredInstallDirectory:undefined});assert.equal(unbound.active.modelDir,'');
+ assert.deepEqual(isolateResourceConfiguration(saved).active,saved);
+ const current={modelDir:path.join(dataRoot,'resources','chat'),python:path.join(resourceRoot,'python-runtime','python.exe')};
+ assert.deepEqual(isolateResourceConfiguration(current,options).active,current);
+ // A same-prefix sibling is not inside the current installation's resources.
+ assert.equal(isolateResourceConfiguration({modelDir:dataRoot+'-old/models'},options).active.modelDir,'');
 });
 
 test('write check preserves existing data and gives an actionable error instead of changing drive',async t=>{

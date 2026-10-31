@@ -8,18 +8,19 @@ import {GlbAvatarRenderer} from './ui/model-runtime.mjs';
 import {friendlyError} from './ui/errors.mjs';
 import catalog from '../resources/character-models.json';
 import './model-window.css';
+import './ui/control-motion.css';
 
 function ModelWindow(){
  const host=useRef(null),renderer=useRef(null),mouth=useRef(0),speechClock=useRef(new RemoteSpeechClock());
  const drag=useRef(null),loadedIdentity=useRef(null),orbit=useRef(null),hit=useRef({last:null,time:0}),through=useRef(false);
  const replyBody=useRef(null),replyPinned=useRef(true),replyId=useRef(null);
  const [state,setState]=useState({character:{},preferences:{}}),[status,setStatus]=useState({phase:'idle'});
- const [text,setText]=useState(''),[error,setError]=useState(null),[view,setView]=useState({zoom:1,yaw:0});
+ const [text,setText]=useState(''),[error,setError]=useState(null),[view,setView]=useState({zoom:1,yaw:0}),[showLatest,setShowLatest]=useState(false);
  const api=window.companion,call=(action,payload)=>api?.call(action,payload)||Promise.resolve(false);
  through.current=state.preferences?.mouseThrough===true;
  const reply=state.preferences?.showBubbles===false||!state.reply?'':state.preferences?.bubbleLanguage==='ja'?(state.reply.ja||(state.reply.zh?`中文：${state.reply.zh}`:'')):state.preferences?.bubbleLanguage==='both'?[state.reply.zh,state.reply.ja].filter(Boolean).join('\n'):(state.reply.zh||(state.reply.ja?`中文暂不可用 · 日文原文：\n${state.reply.ja}`:''));
  const reducedMotion=useReducedMotion(state.preferences?.animation===false);
- const daylightHour=useLocalDaylight(state.character?.presentation?.daylightLocation);
+ const daylightHour=useLocalDaylight();
 
  useEffect(()=>{renderer.current?.setView(view)},[view,state.character?.modelId]);
  useEffect(()=>{const element=host.current;if(!element)return;const wheel=event=>{event.preventDefault();if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;setView(current=>({...current,zoom:Math.max(1,Math.min(2.2,current.zoom-event.deltaY*.0015))}))};element.addEventListener('wheel',wheel,{passive:false});return()=>element.removeEventListener('wheel',wheel)},[]);
@@ -29,13 +30,13 @@ function ModelWindow(){
  useEffect(()=>{const value=state.character?.presentation||{};renderer.current?.setEnvironment({id:value.scene,timeOfDay:daylightHour});renderer.current?.setRenderStyle(value.renderStyle)},[state.character?.presentation?.scene,daylightHour,state.character?.presentation?.renderStyle]);
  useEffect(()=>{renderer.current?.setReducedMotion(reducedMotion);renderer.current?.setActivity(state.chatBusy?'thinking':'idle')},[reducedMotion,state.chatBusy]);
  useEffect(()=>{const stop=()=>{drag.current=null;orbit.current=null;call('drag-end').catch(()=>{})};window.addEventListener('blur',stop);return()=>window.removeEventListener('blur',stop)},[]);
- useLayoutEffect(()=>{if(replyId.current!==state.reply?.id){replyId.current=state.reply?.id;replyPinned.current=true}if(replyPinned.current&&replyBody.current)replyBody.current.scrollTop=replyBody.current.scrollHeight},[reply,state.reply?.id]);
+ useLayoutEffect(()=>{if(replyId.current!==state.reply?.id){replyId.current=state.reply?.id;replyPinned.current=true;setShowLatest(false)}if(replyPinned.current&&replyBody.current)replyBody.current.scrollTop=replyBody.current.scrollHeight},[reply,state.reply?.id]);
 
  useEffect(()=>{
   // Electron forwards mouse movement even while clicks pass through. Keep the
   // controls interactive and test the animated model rather than its full canvas.
   function move(event){
-   const control=event.target instanceof Element&&event.target.closest('header,.compact-dock,.model-window-status,.model-window-fallback');
+   const control=event.target instanceof Element&&event.target.closest('.model-toolbar,.model-bubble,.compact-dock,.model-feedback,.model-window-fallback');
    let interactive=!!control||!!drag.current||!!orbit.current;
    if(!interactive&&!through.current){
     const now=performance.now();if(now-hit.current.time<40)return;hit.current.time=now;
@@ -47,24 +48,37 @@ function ModelWindow(){
  },[]);
  async function submit(event){event.preventDefault();try{if(state.chatBusy)await call('chat-stop');else if(text.trim()){await call('chat-submit',text);setText('')}}catch(error){setError({kind:'chat',message:friendlyError(error)})}}
  const toggleThrough=()=>call('prefs',{mouseThrough:!through.current}).then(()=>{hit.current.last=null}).catch(error=>setError({kind:'operation',message:friendlyError(error)}));
- return <main className="model-companion" style={{opacity:state.preferences?.opacity||1}} onContextMenu={event=>{event.preventDefault();call('menu')}}>
-  <header onPointerDown={event=>{if(event.target.closest('button,.model-reply')||event.button!==0)return;event.currentTarget.setPointerCapture(event.pointerId);drag.current={id:event.pointerId,busy:false,moved:false,x:event.screenX,y:event.screenY};call('drag-start',{point:{x:event.screenX,y:event.screenY}}).catch(error=>setError({kind:'operation',message:friendlyError(error)}))}}
+ const language=state.preferences?.bubbleLanguage||'zh';
+ const cycleLanguage=()=>{const order=['zh','ja','both'];call('prefs',{bubbleLanguage:order[(order.indexOf(language)+1)%order.length]}).catch(error=>setError({kind:'operation',message:friendlyError(error)}))};
+ return <main className="model-companion" data-input-position={state.preferences?.inputPosition||'below'} data-reduced-motion={reducedMotion} style={{'--model-opacity':state.preferences?.opacity??1}} onContextMenu={event=>{event.preventDefault();call('menu')}}>
+  <header aria-label="角色与气泡" onPointerDown={event=>{if(event.target.closest('button,select,.model-bubble')||event.button!==0)return;event.currentTarget.setPointerCapture(event.pointerId);drag.current={id:event.pointerId,busy:false,moved:false,x:event.screenX,y:event.screenY};call('drag-start',{point:{x:event.screenX,y:event.screenY}}).catch(error=>setError({kind:'operation',message:friendlyError(error)}))}}
    onPointerMove={event=>{const active=drag.current;if(!active||active.id!==event.pointerId)return;if(event.screenX!==active.x||event.screenY!==active.y)active.moved=true;if(active.busy)return;active.busy=true;call('drag-move').finally(()=>{active.busy=false})}}
    onPointerUp={event=>{const active=drag.current;if(!active||active.id!==event.pointerId)return;drag.current=null;call('drag-end',{moved:active.moved,point:{x:event.screenX,y:event.screenY}});if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId)}}
    onPointerCancel={()=>{if(!drag.current)return;drag.current=null;call('drag-cancel')}}>
-   <span className="model-name" title={state.character?.name||'人物模型'}>{state.character?.name||'人物模型'}</span>
-   {reply&&<div ref={replyBody} className="model-reply" tabIndex={0} role="region" aria-label="角色回复" onScroll={event=>{const el=event.currentTarget;replyPinned.current=el.scrollHeight-el.scrollTop-el.clientHeight<24}}>{reply}</div>}
-   <button aria-label="恢复全身正面" disabled={status.phase==='walking'} title="人物位置固定；滚轮缩放，拖动仅旋转；点击复位" onClick={()=>{if(!renderer.current?.walkingMotion&&!renderer.current?.walkExitHeld)setView({zoom:1,yaw:0})}}>↺</button>
-   <button aria-label="人物设置" onClick={()=>call('settings')}>⚙</button>
-   <button aria-label={through.current?'关闭人物鼠标穿透':'开启人物鼠标穿透'} aria-pressed={through.current} title={through.current?'人物穿透已开启':'人物可交互'} onClick={toggleThrough}>◎</button>
+   <div className="model-toolbar">
+    <span className="model-name" title={`${state.character?.name||'人物模型'} · 拖动此处移动窗口`}>{state.character?.name||'人物模型'}</span>
+    <button aria-label="恢复全身正面" disabled={status.phase==='walking'} title="人物位置固定；滚轮缩放，拖动仅旋转；点击复位" onClick={()=>{if(!renderer.current?.walkingMotion&&!renderer.current?.walkExitHeld)setView({zoom:1,yaw:0})}}>↺</button>
+    <button aria-label="人物设置" title="人物设置" onClick={()=>call('settings')}>⚙</button>
+    <button aria-label={through.current?'关闭人物鼠标穿透':'开启人物鼠标穿透'} aria-pressed={through.current} title={through.current?'人物穿透已开启 · 按钮仍可操作':'人物可交互'} onClick={toggleThrough}>◎</button>
+   </div>
+   {reply&&<section className="model-bubble" aria-label={`${state.character?.name||'角色'}的回复`}>
+    <div ref={replyBody} className="model-reply" tabIndex={0} role="region" aria-label="角色回复" lang={language==='ja'&&state.reply?.ja?'ja':language==='both'?undefined:'zh-CN'} onScroll={event=>{const el=event.currentTarget;replyPinned.current=el.scrollHeight-el.scrollTop-el.clientHeight<24;setShowLatest(!replyPinned.current)}}>{reply}</div>
+    <footer className="model-reply-actions">
+     <button type="button" aria-label={`气泡语言：${{zh:'中文',ja:'日本語',both:'双语'}[language]}，点击切换`} title="切换气泡语言，不改变日语朗读" onClick={cycleLanguage}>{{zh:'中文',ja:'日本語',both:'双语'}[language]}</button>
+     {showLatest&&<button type="button" onClick={()=>{if(replyBody.current){replyBody.current.scrollTop=replyBody.current.scrollHeight;replyBody.current.focus?.()}replyPinned.current=true;setShowLatest(false)}}>回到最新</button>}
+     <button type="button" title="在当前会话查看完整回复" onClick={()=>call('open-main').catch(error=>setError({kind:'operation',message:friendlyError(error)}))}>打开聊天</button>
+    </footer>
+   </section>}
   </header>
   <div ref={host} className="model-window-canvas" tabIndex={0} role="group" aria-label="模型预览，左右键旋转，上下键缩放" onKeyDown={event=>{if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key))return;event.preventDefault();setView(current=>event.key==='Home'?{zoom:1,yaw:0}:{zoom:Math.max(1,Math.min(2.2,current.zoom+(event.key==='ArrowUp'?.1:event.key==='ArrowDown'?-.1:0))),yaw:((current.yaw+(event.key==='ArrowLeft'?-15:event.key==='ArrowRight'?15:0)+180)%360+360)%360-180})}} hidden={!state.character?.modelId}
    onPointerDown={event=>{if(through.current||event.button!==0||renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;event.currentTarget.setPointerCapture(event.pointerId);orbit.current={id:event.pointerId,x:event.clientX,yaw:view.yaw}}}
    onPointerMove={event=>{if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld){orbit.current=null;return;}const active=orbit.current;if(active?.id===event.pointerId)setView(current=>({...current,yaw:((active.yaw+(event.clientX-active.x)*.4+180)%360+360)%360-180}))}} onPointerUp={()=>{orbit.current=null}} onPointerCancel={()=>{orbit.current=null}}/>
   {(!state.character?.modelId||status.phase==='error'&&!renderer.current?.entry)&&<div className="model-window-fallback"><img src="./yukino-q.png" alt="Q版角色"/><button onClick={()=>call('settings')}>选择人物模型</button></div>}
-  {(status.phase==='loading'||status.phase==='error'||status.phase==='walking')&&<p className="model-window-status" role="status">{status.message}</p>}
   <CompactDock value={text} onChange={setText} busy={state.chatBusy} visualActive={state.visionActive} onSubmit={submit} label={`与${state.character?.name||'角色'}对话`} onVisual={()=>call(state.visionActive?'vision-stop':'vision-open').catch(error=>setError({kind:'vision',message:friendlyError(error)}))}/>
-  {error&&<p className="model-window-status" role="alert">{error.message}</p>}
+  <div className="model-feedback">
+   {(status.phase==='loading'||status.phase==='error'||status.phase==='walking')&&<p className="model-window-status" role="status">{status.message}</p>}
+   {error&&<p className="model-window-status" role="alert">{error.message}</p>}
+  </div>
  </main>;
 }
 createRoot(document.getElementById('root')).render(<ModelWindow/>);

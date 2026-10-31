@@ -102,7 +102,7 @@ export default function Select({children, value, onChange, disabled, className =
       <span>{options[selected]?.label ?? '请选择'}</span><ChevronDown size={15}/>
     </button>
     {open && createPortal(<div id={`${id}-menu`} ref={menu} className="select-menu" role="listbox"
-      aria-label={props['aria-label'] || '可选项目'} style={position}>
+      aria-label={props['aria-label'] || '可选项目'} data-reduced-motion={position.animation==='none'||undefined} style={position}>
       {options.map((option,index) => <div key={`${option.value}-${index}`} id={`${id}-option-${index}`}
         role="option" aria-selected={index === selected} aria-disabled={option.disabled || undefined}
         className={`select-option ${index === active ? 'highlighted' : ''}`}

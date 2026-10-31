@@ -1,0 +1,3 @@
+.speech-current-segment{margin:0 0 8px;padding:9px 12px;max-height:5em;overflow:auto;overflow-wrap:anywhere;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13px;line-height:1.6;color:var(--text)}
+.speech-current-segment mark{color:var(--accent-text);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+@media(forced-colors:active){.speech-current-segment mark{background:Highlight;color:HighlightText}}

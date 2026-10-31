@@ -5,9 +5,9 @@ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:
 const asar=require('@electron/asar');
 const root=path.resolve(__dirname,'..');
 const digest=data=>crypto.createHash('sha256').update(data).digest('hex');
-async function restore(archive,catalog,destination){
- const models=catalog?.models?.filter(m=>m.bundled===true);
- if(!models||models.length!==17||new Set(models.map(m=>m.outfitGroup)).size!==7)throw Error('Expected 17 bundled variants across seven outfits');
+async function restore(archive,catalog,destination,{baseOnly=false}={}){
+ const models=catalog?.models?.filter(m=>m.bundled===true&&(!baseOnly||/^yukino-0[1-7]-v1$/.test(m.id)));
+ if(!models||models.length!==(baseOnly?7:17)||new Set(models.map(m=>m.outfitGroup)).size!==7)throw Error(baseOnly?'Expected the original seven models':'Expected 17 bundled variants across seven outfits');
  const names=new Set(),items=[];
  for(const model of models){
   const match=/^\.\/characters\/([A-Za-z0-9_-]+\.glb)$/.exec(model.url||'');
@@ -36,8 +36,8 @@ async function restore(archive,catalog,destination){
  }finally{await fs.rm(stage,{recursive:true,force:true});}
 }
 if(require.main===module){
- const args=process.argv.slice(2);
- if(args.length!==1){console.error('Usage: node scripts/restore-character-inputs.cjs <installed-app.asar>');process.exitCode=1;}
- else restore(path.resolve(args[0]),require('../resources/character-models.json'),path.join(root,'public','characters')).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
+ const baseOnly=process.argv.includes('--base-only'),args=process.argv.slice(2).filter(arg=>arg!=='--base-only');
+ if(args.length!==1){console.error('Usage: node scripts/restore-character-inputs.cjs [--base-only] <installed-app.asar>');process.exitCode=1;}
+ else restore(path.resolve(args[0]),require('../resources/character-models.json'),path.join(root,'public','characters'),{baseOnly}).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
 }
 module.exports={restore};

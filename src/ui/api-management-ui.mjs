@@ -5,6 +5,28 @@ export function managementFrom(state={}){
  const defaultRoute=task=>['asr','vision'].includes(task)?'unassigned':task==='tts'||(['chat','proactive'].includes(task)&&state.chatMode==='local')||(task==='translation'&&state.translationMode==='local')?'builtin-local':'inherit';
  return {...saved,version:1,configs,defaultConfigId:saved.defaultConfigId||state.activeProfile||configs[0]?.id||'',taskRoutes:{...Object.fromEntries(API_TASKS.map(([id])=>[id,defaultRoute(id)])),...saved.taskRoutes}};
 }
+// Form defaults come only from the supplied main-process provider metadata.
+export function providerForProfile(profile={},catalog=[]){
+ const normalized=value=>String(value||'').replace(/\/$/,'').replace(/\/chat\/completions$/,'');
+ return catalog.find(provider=>provider.id===profile.providerId)||catalog.find(provider=>provider.base&&normalized(profile.base)===normalized(provider.base))||(profile.base||profile.providerId?catalog.find(provider=>provider.id==='custom'):undefined);
+}
+export function providerConfigDefaults(provider,id){
+ const fields=Object.fromEntries((provider.fields||[]).filter(field=>!secretProviderField(field)&&!['base','model'].includes(field.id)&&field.defaultValue!==undefined).map(field=>[field.id,field.defaultValue]));
+ return {id,name:provider.name,providerId:provider.id,credentialId:id,protocol:provider.protocol||'openai-chat',base:provider.base||'',model:provider.model||'',capabilities:[...(provider.defaultCapabilities||provider.capabilities||['chat','proactive','translation'])],fields};
+}
+export function secretProviderField(field){return field.secret===true||['secret','password'].includes(field.type);}
+export function providerFormFields(provider){
+ const basic=field=>secretProviderField(field)||['region','appId','resourceId'].includes(field.id)||field.required&&field.defaultValue===undefined&&!['base','model'].includes(field.id);
+ return {basic:(provider.fields||[]).filter(basic),advanced:(provider.fields||[]).filter(field=>!basic(field))};
+}
+export function preserveProfileOnProviderSwitch(profile,provider,savedKey){
+ const normalized=value=>String(value||'').replace(/\/$/,'').replace(/\/chat\/completions$/,'');
+ return Boolean(savedKey||profile?.model||profile?.base&&normalized(profile.base)!==normalized(provider?.base));
+}
+export function preferredBrandService(entries,task,need='all'){
+ const requested=task||(['chinese','bilingual','latency','yukino','cloud'].includes(need)?'asr':'chat');
+ return entries.find(entry=>(entry.capabilities||[]).includes(requested))||entries[0];
+}
 export function configSupports(config,task){const capabilities=config?.capabilities||[];return capabilities.includes(task)||(task==='proactive'&&capabilities.includes('chat'));}
 export function validationLabel(value){const state=typeof value==='string'?value:value?.code||value?.state||value?.status;return ({unconfigured:'未配置',saved:'已保存',untested:'未验证',checking:'验证中',valid:'已验证可用',verified:'已验证可用',ready:'已验证可用',passed:'已验证',failed:'验证失败',invalid:'无效凭据',invalid_credentials:'无效凭据',unsupported_model:'模型不支持',unsupported:'协议未适配',protocol_unadapted:'协议未适配',permission_denied:'权限不足',quota_exceeded:'额度或频率限制',network_error:'网络失败',error:'验证失败'})[state]||'未验证';}
 export function providerBrand(provider={}){if(provider.brand)return provider.brand;const id=provider.id||'';if(id.startsWith('dashscope')||id==='aliyun-asr')return 'aliyun';if(id.startsWith('volcengine')||id.startsWith('doubao'))return 'volcengine';if(id.startsWith('tencent'))return 'tencent';return id.replace(/-asr$/,'');}

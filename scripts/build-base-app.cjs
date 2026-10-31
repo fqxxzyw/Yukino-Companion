@@ -60,7 +60,7 @@ async function main(){
   await fs.mkdir(path.join(root,'build'),{recursive:true});
   const filename=path.join(root,'build/electron-builder-base.json');await fs.writeFile(filename,JSON.stringify(config,null,2));
   const run=args=>{const r=spawnSync(process.execPath,args,{cwd:root,env:{...process.env,YUKINO_BASE_BUILD:'1',CSC_IDENTITY_AUTO_DISCOVERY:'false'},stdio:'inherit',shell:false});if(r.error||r.status!==0)throw r.error||Error('Base build failed: '+args[0]);};
-  run([path.join(__dirname,'prepare-character-assets.cjs')]);
+  run([path.join(__dirname,'prepare-character-assets.cjs'),'--base-only']);
   run([path.join(__dirname,'prepare-companion-assets.cjs'),'--artwork-only']);
   run([path.join(__dirname,'prepare-wallpapers.cjs')]);
   await fs.access(path.join(root,'public/provider-logos/manifest.json')).catch(()=>run([path.join(__dirname,'cache-provider-logos.cjs'),'--allow-missing']));
@@ -109,8 +109,11 @@ async function verifyBaseApp(output){
   const executable=await verifyWindowsExecutable(path.join(output,'Yukino Companion.exe'));
   const resources=path.join(output,'resources'),entries=asar.listPackage(path.join(resources,'app.asar')).map(x=>x.replaceAll('\\','/'));
   if(entries.some(x=>/\/assets\/voices\//.test(x)||/\.(gguf|ckpt|pth|safetensors|onnx)$/i.test(x)))throw Error('Heavy model/audio resources entered the base app');
-  const characterCatalog=require('../resources/character-models.json');
+  const characterCatalog={...require('../resources/character-models.json'),models:require('../resources/character-models.json').models.filter(model=>/^yukino-0[1-7]-v1$/.test(model.id))};
+  if(characterCatalog.models.length!==7)throw Error('Expected the original seven character models');
   verifyBundledCharacters(path.join(resources,'app.asar'),characterCatalog.models);
+  const approved=new Set(characterCatalog.models.map(model=>'/dist/'+model.url.slice(2)));
+  if(entries.some(entry=>entry.endsWith('.glb')&&!approved.has(entry)))throw Error('Unrequested extension model entered the base package');
   const wallpapersEmbedded=verifyBundledWallpapers(path.join(resources,'app.asar'));
   const providerLogos=verifyBundledProviderLogos(path.join(resources,'app.asar'));
   for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html'])if(!entries.includes('/'+file))throw Error('Missing application file '+file);

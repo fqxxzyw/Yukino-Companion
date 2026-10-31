@@ -58,14 +58,14 @@ TitleFontSize=11
 [Messages]
 SetupWindowTitle=安装 Yukino Companion
 WelcomeLabel1=一方安静的空间。
-WelcomeLabel2=先安装应用，再按需要添加资源。
+WelcomeLabel2=文字聊天、人物陪伴。其他能力，按需要慢慢开启。
 SelectDirLabel3=选择安装位置
 SelectDirDesc=为 Yukino Companion 选择一个专用文件夹。
 SelectDirBrowseLabel=应用只为当前 Windows 用户安装。
 WizardInstalling=正在安装 Yukino Companion
 InstallingLabel=正在将应用文件写入所选文件夹。
-FinishedHeadingLabel=准备好开始对话了。
-FinishedLabel=应用已安装。打开后可配置 API；本地模型、音色与公共环境可在首次引导中按需安装，也可以跳过。
+FinishedHeadingLabel=安装完成，欢迎来到雪乃身边。
+FinishedLabel=应用已安装完成。启动后可先配置文字聊天，再按需添加语音与视觉。所有可选配置都可以跳过，不会自动下载大模型或推理环境。
 ButtonNext=继续(&N)
 ButtonInstall=安装(&I)
 ButtonFinish=完成(&F)
@@ -74,22 +74,24 @@ ButtonCancel=取消(&C)
 [Files]
 Source: "{#SOURCE_DIR}\*"; DestDir: "{app}"; Excludes: "yukino-installation.json,uninstall-app-payload.ps1,Uninstall.exe,unins*.exe,unins*.dat"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
-Name: "{autoprograms}\Yukino Companion"; Filename: "{app}\Yukino Companion.exe"
+Name: "{autoprograms}\Yukino Companion"; Filename: "{app}\Yukino Companion.exe"; Check: CreateStartMenuShortcut
 Name: "{autodesktop}\Yukino Companion"; Filename: "{app}\Yukino Companion.exe"; Check: CreateDesktopShortcut
 [INI]
 Filename: "{app}\yukino-base-installation.ini"; Section: "Installation"; Key: "AppId"; String: "{#ProductAppId}"; Flags: uninsdeleteentry uninsdeletesectionifempty
 [Registry]
 Root: HKCU; Subkey: "Software\Yukino Companion\Base"; ValueType: string; ValueName: "InstallDir"; ValueData: "{app}"; Flags: uninsdeletevalue uninsdeletekeyifempty
 [Run]
-Filename: "{app}\Yukino Companion.exe"; Description: "打开 Yukino Companion"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Yukino Companion.exe"; Description: "启动雪乃 · Yukino Companion"; Flags: nowait postinstall skipifsilent
 [Code]
 const
   ColorInk=$56321C;
   ColorMuted=$765D48;
   ColorSky=$FCF7F1;
+  ColorSuccess=$557C42;
 var
-  DesktopShortcutCheck:TNewCheckBox;
-  ProgressPercent:TNewStaticText;
+  DesktopShortcutCheck,StartMenuShortcutCheck:TNewCheckBox;
+  ProgressPercent,InstallStageNote:TNewStaticText;
+  FilesWritten:Boolean;
 function NormalPath(Value:String):String;
 begin Result:=RemoveBackslash(ExpandFileName(Value)); end;
 function HasEntries(Directory:String):Boolean;
@@ -161,6 +163,8 @@ function PrepareToInstall(var NeedsRestart:Boolean):String;
 begin Result:=DirectoryProblem; end;
 function CreateDesktopShortcut:Boolean;
 begin Result:=DesktopShortcutCheck.Checked; end;
+function CreateStartMenuShortcut:Boolean;
+begin Result:=StartMenuShortcutCheck.Checked; end;
 procedure StyleLabel(Control:TNewStaticText; Size:Integer; Bold:Boolean);
 begin Control.Font.Name:='Microsoft YaHei UI'; Control.Font.Size:=Size; Control.Font.Color:=ColorInk; if Bold then Control.Font.Style:=[fsBold] else Control.Font.Style:=[]; end;
 function AddText(Parent:TWinControl; Text:String; Left,Top,Width,Height,Size:Integer; Bold:Boolean):TNewStaticText;
@@ -176,8 +180,9 @@ begin
   WizardForm.Bevel.Visible:=False; WizardForm.Bevel1.Visible:=False;
   WizardForm.WizardBitmapImage.Visible:=False; WizardForm.WizardBitmapImage2.Visible:=False; WizardForm.WizardSmallBitmapImage.Visible:=False; WizardForm.SelectDirBitmapImage.Visible:=False;
   W:=WizardForm.WelcomePage.ClientWidth-ScaleX(80);
-  WizardForm.WelcomeLabel1.AutoSize:=False; WizardForm.WelcomeLabel1.SetBounds(ScaleX(40),ScaleY(36),W,ScaleY(48)); StyleLabel(WizardForm.WelcomeLabel1,23,True);
-  WizardForm.WelcomeLabel2.AutoSize:=False; WizardForm.WelcomeLabel2.SetBounds(ScaleX(42),ScaleY(94),W,ScaleY(32)); StyleLabel(WizardForm.WelcomeLabel2,11,False);
+  Note:=AddText(WizardForm.WelcomePage,'YUKINO COMPANION  /  {#SetupSetting("AppVersion")}',ScaleX(42),ScaleY(14),W,ScaleY(24),9,True); Note.Font.Color:=ColorMuted;
+  WizardForm.WelcomeLabel1.AutoSize:=False; WizardForm.WelcomeLabel1.SetBounds(ScaleX(40),ScaleY(46),W,ScaleY(48)); StyleLabel(WizardForm.WelcomeLabel1,23,True);
+  WizardForm.WelcomeLabel2.AutoSize:=False; WizardForm.WelcomeLabel2.SetBounds(ScaleX(42),ScaleY(104),W,ScaleY(36)); StyleLabel(WizardForm.WelcomeLabel2,11,False);
   Card:=TPanel.Create(WizardForm); Card.Parent:=WizardForm.WelcomePage; Card.SetBounds(ScaleX(40),ScaleY(143),W,ScaleY(143)); Card.BevelOuter:=bvNone; Card.ParentBackground:=False; Card.Color:=clWhite;
   AddText(Card,'01  安装应用',ScaleX(20),ScaleY(16),W-ScaleX(40),ScaleY(26),11,True);
   AddText(Card,'轻量安装，直接开始配置 API 对话。',ScaleX(20),ScaleY(47),W-ScaleX(40),ScaleY(26),10,False);
@@ -190,23 +195,37 @@ begin
   W:=WizardForm.SelectDirPage.ClientWidth; WizardForm.SelectDirLabel.SetBounds(0,ScaleY(12),W,ScaleY(45));
   WizardForm.SelectDirLabel.Caption:='只为当前 Windows 用户安装。请选择一个专用文件夹。'; WizardForm.SelectDirBrowseLabel.Visible:=False;
   WizardForm.DirEdit.SetBounds(0,ScaleY(70),W-ScaleX(98),ScaleY(28)); WizardForm.DirBrowseButton.SetBounds(W-ScaleX(88),ScaleY(69),ScaleX(88),ScaleY(30));
-  DesktopShortcutCheck:=TNewCheckBox.Create(WizardForm); DesktopShortcutCheck.Parent:=WizardForm.SelectDirPage; DesktopShortcutCheck.Caption:='在桌面创建快捷方式'; DesktopShortcutCheck.Checked:=True; DesktopShortcutCheck.SetBounds(0,ScaleY(121),W,ScaleY(28));
+  DesktopShortcutCheck:=TNewCheckBox.Create(WizardForm); DesktopShortcutCheck.Parent:=WizardForm.SelectDirPage; DesktopShortcutCheck.Caption:='在桌面创建快捷方式'; DesktopShortcutCheck.Checked:=True; DesktopShortcutCheck.SetBounds(0,ScaleY(121),(W-ScaleX(20)) div 2,ScaleY(28));
+  StartMenuShortcutCheck:=TNewCheckBox.Create(WizardForm); StartMenuShortcutCheck.Parent:=WizardForm.SelectDirPage; StartMenuShortcutCheck.Caption:='添加到开始菜单'; StartMenuShortcutCheck.Checked:=True; StartMenuShortcutCheck.SetBounds((W+ScaleX(20)) div 2,ScaleY(121),(W-ScaleX(20)) div 2,ScaleY(28));
   Note:=AddText(WizardForm.SelectDirPage,'聊天与设置保存在用户数据目录。之后下载的资源默认保存在本安装文件夹的 Yukino-Data 子目录，卸载时保留。',0,ScaleY(170),W,ScaleY(60),9,False); Note.Font.Color:=ColorMuted;
   W:=WizardForm.InstallingPage.ClientWidth; WizardForm.StatusLabel.SetBounds(0,ScaleY(16),W,ScaleY(34));
-  ProgressPercent:=AddText(WizardForm.InstallingPage,'0%',0,ScaleY(66),W,ScaleY(48),25,True);
+  ProgressPercent:=AddText(WizardForm.InstallingPage,'0% · 文件写入',0,ScaleY(66),W,ScaleY(48),23,True);
   WizardForm.ProgressGauge.SetBounds(0,ScaleY(130),W,ScaleY(12)); WizardForm.FilenameLabel.Visible:=False;
-  AddText(WizardForm.InstallingPage,'正在解压应用文件。这一步不联网下载，也不会修改已有的聊天和资源。',0,ScaleY(165),W,ScaleY(60),10,False);
+  InstallStageNote:=AddText(WizardForm.InstallingPage,'百分比仅表示当前文件写入进度。安装器还会完成快捷方式与卸载信息；出现完成页后，才表示应用安装成功。',0,ScaleY(165),W,ScaleY(80),10,False);
+  W:=WizardForm.FinishedPage.ClientWidth-ScaleX(80);
+  Note:=AddText(WizardForm.FinishedPage,'✓  应用已安装',ScaleX(42),ScaleY(26),W,ScaleY(28),12,True); Note.Font.Color:=ColorSuccess;
 end;
 procedure CurPageChanged(CurPageID:Integer);
 var W:Integer;
 begin
   if CurPageID=wpFinished then begin
     W:=WizardForm.FinishedPage.ClientWidth-ScaleX(80); WizardForm.FinishedHeadingLabel.AutoSize:=False;
-    WizardForm.FinishedHeadingLabel.SetBounds(ScaleX(40),ScaleY(45),W,ScaleY(58)); StyleLabel(WizardForm.FinishedHeadingLabel,23,True);
-    WizardForm.FinishedLabel.SetBounds(ScaleX(42),ScaleY(125),W,ScaleY(100)); StyleLabel(WizardForm.FinishedLabel,11,False);
+    WizardForm.FinishedHeadingLabel.SetBounds(ScaleX(40),ScaleY(72),W,ScaleY(66)); StyleLabel(WizardForm.FinishedHeadingLabel,21,True);
+    WizardForm.FinishedLabel.SetBounds(ScaleX(42),ScaleY(150),W,ScaleY(92)); StyleLabel(WizardForm.FinishedLabel,11,False);
     WizardForm.RunList.SetBounds(ScaleX(42),ScaleY(258),W,ScaleY(52));
   end;
 end;
+procedure CurStepChanged(CurStep:TSetupStep);
+begin
+  if CurStep=ssPostInstall then begin
+    FilesWritten:=True;
+    ProgressPercent.Caption:='文件已写入';
+    InstallStageNote.Caption:='应用文件已写入，正在结束安装。请等待安装器进入完成页；此时尚未启动应用，也没有下载推理资源。';
+  end;
+end;
 procedure CurInstallProgressChanged(CurProgress,MaxProgress:Integer);
-begin if MaxProgress>0 then ProgressPercent.Caption:=IntToStr(Round(100.0*CurProgress/MaxProgress))+'%'; end;
+begin
+  if (MaxProgress>0) and (not FilesWritten) then
+    ProgressPercent.Caption:=IntToStr(Round(100.0*CurProgress/MaxProgress))+'% · 文件写入';
+end;
 { Inno's uninstall log removes only installed files; user data is never registered. }

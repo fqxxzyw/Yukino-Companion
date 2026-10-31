@@ -38,10 +38,12 @@ function partialJSONString(input, offset) {
 }
 
 class BilingualStream {
-  constructor(onText) { this.raw = ''; this.emitted = ''; this.onText = onText; }
+  constructor(onText,onJapanese=()=>{}) { this.raw = ''; this.emitted = ''; this.onText = onText;this.onJapanese=onJapanese;this.japaneseEmitted=''; }
   push(token) {
     this.raw += token;
     if (this.raw.length > 160000) throw Error('模型回复过长，请缩短提问后重试');
+    const japanese=require('./japanese-envelope.cjs').japanesePrefix(this.raw,partialJSONString);
+    if(japanese.startsWith(this.japaneseEmitted)&&japanese.length>this.japaneseEmitted.length){this.onJapanese(japanese.slice(this.japaneseEmitted.length));this.japaneseEmitted=japanese;}
     // A valid envelope starts at the beginning; never match a quoted zh key inside prose.
     const match = this.raw.match(/^\s*(?:```(?:json)?\s*)?\{\s*"zh"\s*:\s*"/i);
     if (!match) return;

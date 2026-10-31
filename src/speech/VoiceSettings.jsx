@@ -5,16 +5,19 @@ import React, { useEffect, useState } from 'react';
 import VoiceAudition from './VoiceAudition.jsx';
 import ReferenceAudioCheck from './ReferenceAudioCheck.jsx';
 import VoiceGuide from './VoiceGuide.jsx';
+import SpeechCacheSettings from './SpeechCacheSettings.jsx';
+import InferenceSettings,{inferenceDefaults} from './InferenceSettings.jsx';
 
 export const voiceDefaults = { enabled:false, python:'', root:'', gpt:'', sovits:'', reference:'', bert:'', hubert:'', ffmpeg:'',
   promptText:'', promptLang:'ja', textLang:'all_ja', version:'v1', device:'auto', half:false, cpuFallback:true, cpuThreads:4,
-  speed:1, volume:0.8, timeout:300 };
+  speed:1, volume:0.8, timeout:300,...inferenceDefaults };
 export const phaseNames = { unloaded:'语音模型尚未加载', loading:'正在加载语音模型', ready:'语音模型已就绪', synthesizing:'正在合成', playing:'正在播放', waiting:'等待文字', idle:'待机', paused:'已停止，待重新加载', error:'语音异常' };
 const pathLabels = { python:'Python 可执行文件', root:'GPT-SoVITS 推理目录', gpt:'GPT 权重（.ckpt）', sovits:'SoVITS 权重（.pth）',
   reference:'参考音频（3–10 秒 WAV / FLAC）', bert:'BERT 基础模型目录', hubert:'HuBERT 基础模型目录', ffmpeg:'FFmpeg 可执行文件（可选，自动查找）' };
 const langs = [['zh','中英混合'],['ja','日英混合'],['en','英语'],['auto','自动多语言'],['all_zh','中文'],['all_ja','日语'],['yue','粤英混合'],['ko','韩英混合']];
 
-export default function VoiceSettings({api,config,onChange,onRemote,onSave,status,playbackStatus,onPreview,onStop,onOpenSetup}) {
+export default function VoiceSettings({api,config,onChange,onRemote,onSave,status,playbackStatus,onPreview,onStop,onOpenSetup,page='all',onOpenResources,onOpenAdvanced}) {
+  const playback=page==='all'||page==='playback',resourcePage=page==='all'||page==='resources',advanced=page==='all'||page==='advanced';
   const [notice,setNotice]=useState(''),[working,setWorking]=useState(false),[hardware,setHardware]=useState(null),[weights,setWeights]=useState({}),[pendingDelete,setPendingDelete]=useState(null),[inspection,setInspection]=useState(null);
   const [resources,setResources]=useState({phase:'idle'}),[selectedPack,setSelectedPack]=useState('yukino-e2');
   const downloading=resources.activePacks?.length>0||['checking','downloading','extracting','merging','assembling'].includes(resources.phase);
@@ -27,8 +30,8 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
   const incompleteCustomReference=Boolean(!config.reference&&config.promptText.trim());
   useEffect(()=>setWeights({}),[config.gpt,config.sovits]);
   useEffect(()=>setPendingDelete(null),[selectedPack]);
-  useEffect(()=>{let current=true;setInspection(null);const timer=setTimeout(async()=>{try{if(!api?.voiceStatus)return;await onSave();const result=await api.voiceStatus();if(current)setInspection(result);}catch{if(current)setInspection(null);}},500);return()=>{current=false;clearTimeout(timer);};},[api,config.python,config.root,config.gpt,config.sovits,config.bert,config.hubert,config.reference,config.promptText,config.version]);
-  useEffect(()=>{if(!api)return;api.voiceResources().then(setResources).catch(e=>setNotice(cleanError(e)));return api.onVoiceDownload(status=>setResources(old=>({...old,...status})))},[api]);
+  useEffect(()=>{if(!advanced)return;let current=true;setInspection(null);const timer=setTimeout(async()=>{try{if(!api?.voiceStatus)return;await onSave();const result=await api.voiceStatus();if(current)setInspection(result);}catch{if(current)setInspection(null);}},500);return()=>{current=false;clearTimeout(timer);};},[api,advanced,config.python,config.root,config.gpt,config.sovits,config.bert,config.hubert,config.reference,config.promptText,config.version]);
+  useEffect(()=>{if(!api||!resourcePage)return;api.voiceResources().then(setResources).catch(e=>setNotice(cleanError(e)));return api.onVoiceDownload(status=>setResources(old=>({...old,...status})))},[api,resourcePage]);
   const patch = value => onChange({...value,textLang:'all_ja'});
   async function action(fn) {
     if(!api){setNotice('请在桌面应用中配置本地语音。');return;}
@@ -40,11 +43,11 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
   const downloadWeight=key=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true,component:key});onRemote(await api.voiceSettings());await refresh();setNotice(result.applied?'文件已校验并选用；两个模型和运行资源齐全后可试听。':'文件已下载；期间该选择已改变，未覆盖你的设置。')});
   async function save() { const value=await onSave();setNotice('配置已保存；模型、语言、语速等推理设置修改后需重新加载。');return value; }
   return <>
-    <ResourceHelp api={api}/>
-    <p className="intro">用雪乃的声音朗读日语回复。准备好后，开启自动朗读即可。</p>
-    {onOpenSetup&&<div className="settings-card"><strong>一键准备声音</strong><p className="hint">自动检查并准备所需环境和默认声音；优先使用可用的 GPU。</p><button type="button" className="primary" onClick={onOpenSetup}>检查 / 一键配置</button></div>}
-    <details className="advanced-settings"><summary>当前配置检查</summary><div className="voice-status">{[['python','Python 推理环境'],['root','GPT-SoVITS 推理组件'],['bert','BERT 公共模型'],['hubert','HuBERT 公共模型'],['gpt','GPT .ckpt 权重'],['sovits','SoVITS .pth 权重'],['reference','参考音频'],...(['v3','v4','v5dev','v5turbo'].includes(config.version)?[['promptText','参考原文']]:[])].map(([key,label])=>{const missing=inspection?.missing?.find(item=>item.key===key);return <span key={key}>{label}：{!inspection?'待检查':missing?(missing.reason==='missing-file'?'文件不存在或无效':'需要配置'):'文件或配置检查通过，推理待验证'}</span>;})}</div></details>
-    <details className="advanced-settings"><summary>音色与资源管理（可选）</summary>
+    {(resourcePage||advanced)&&<ResourceHelp api={api}/>}
+    {page==='all'&&<p className="intro">用雪乃的声音朗读日语回复。准备好后，开启自动朗读即可。</p>}
+    {playback&&onOpenSetup&&<div className="settings-inline-setup"><div><strong>{status.configured?'声音资源':'准备雪乃的声音'}</strong><p>{status.configured?'已保存配置，可在下方试听确认效果。':'按需准备声音资源，不必安装本地聊天模型。'}</p></div><button type="button" className={status.configured?'secondary':'primary'} onClick={onOpenSetup}>{status.configured?'检查资源':'开始配置'}</button></div>}
+    {advanced&&<section className="settings-section"><h3>当前配置检查</h3><div className="voice-status">{[['python','Python 推理环境'],['root','GPT-SoVITS 推理组件'],['bert','BERT 公共模型'],['hubert','HuBERT 公共模型'],['gpt','GPT .ckpt 权重'],['sovits','SoVITS .pth 权重'],['reference','参考音频'],...(['v3','v4','v5dev','v5turbo'].includes(config.version)?[['promptText','参考原文']]:[])].map(([key,label])=>{const missing=inspection?.missing?.find(item=>item.key===key);return <span key={key}>{label}：{!inspection?'待检查':missing?(missing.reason==='missing-file'?'文件不存在或无效':'需要配置'):'文件或配置检查通过，推理待验证'}</span>;})}</div></section>}
+    {resourcePage&&<section className="settings-section"><h3>音色与资源管理</h3>
     <div className="voice-status resource-card">
       <span className="card-kicker">01 · 运行资源</span><strong>{resources.bundled?'语音运行环境已就绪':'语音运行环境待准备'}</strong>
       <span>{resources.bundled?'已找到 Python、语音推理组件和 FFmpeg。':'应用专用 Python 与推理库为本地对话、翻译和声音提供运行环境。'}</span>
@@ -65,8 +68,8 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
       <div className="button-row"><button className="secondary" disabled={working||downloading} onClick={()=>action(async()=>{const result=await api.voiceInstall(selectedPack,{apply:true});onRemote(await api.voiceSettings());await refresh();setNotice(result.applied?'两个音色文件已校验并选用，首次朗读时自动加载。':'文件已下载；期间选择已改变，未覆盖你的设置。')})}>{selectedBundled?'使用内置音色':selectedInfo?.installed?'使用这组音色':'同时下载这组音色'}</button></div>
       <span>{readyReference?'参考声音已配置。':incompleteCustomReference?'自定义文本尚未匹配参考音频；不影响默认资源下载。':'参考声音尚未配置，请先检查 / 一键配置。'}</span>
     </div>
-    </details>
-    <div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
+    </section>}
+    {playback&&<><div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
       {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · GPU 不可用，已回退 CPU':''}</span>}
       {status.metadata?.cpuFallbackReason&&<span>回退原因：{status.metadata.cpuFallbackReason}</span>}
       {status.phase==='unloaded'&&<span>{status.configured?'资源已齐全；当前没有占用模型内存，首次朗读时会自动加载。':'这里指语音合成模型，和本地对话模型、翻译模型的状态相互独立。'}</span>}
@@ -75,13 +78,15 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
     </div>
     <label className="row"><div><strong>自动朗读新回复</strong><small>中文回复先完成日语翻译再朗读。气泡显示语言不会改变语音语言。</small></div><input type="checkbox" role="switch" checked={config.enabled} onChange={e=>patch({enabled:e.target.checked})}/></label>
     <label className="field">播放音量 · {Math.round(config.volume*100)}%<input type="range" min="0" max="1" step="0.05" value={config.volume} onChange={e=>patch({volume:Number(e.target.value)})}/></label>
-    <label className="field">语速 · {config.speed.toFixed(1)}×<input type="range" min="0.5" max="2" step="0.1" value={config.speed} onChange={e=>patch({speed:Number(e.target.value)})}/></label>
+    <label className="field">语速 · {config.speed.toFixed(1)}×<input type="range" min="0.5" max="2" step="0.1" value={config.speed} onChange={e=>patch({speed:Number(e.target.value)})}/></label></>}
+    {(playback||advanced)&&<InferenceSettings api={api} config={config} patch={patch} status={status} playbackStatus={playbackStatus} advanced={advanced} onSave={onSave} onRemote={onRemote} onStop={onStop}/>}
+    {playback&&<SpeechCacheSettings api={api}/>}
     <fieldset disabled={working}>
-      <details className="advanced-settings"><summary>参考声音：默认 / 自定义</summary><p className="hint">自定义时，音频和文本必须来自同一段录音。填写文本不影响资源下载。</p><button type="button" className="secondary" onClick={()=>action(async()=>{await onSave();await api.voicePatch({reference:'',promptText:'',promptLang:'all_ja'});onRemote(await api.voiceSettings());setNotice('已改用默认参考声音，自定义参考文本已清除。')})}>改用默认参考声音</button>{pathField('reference')}
+      {resourcePage&&<section className="settings-section"><h3>参考声音：默认 / 自定义</h3><p className="hint">自定义时，音频和文本必须来自同一段录音。填写文本不影响资源下载。</p><button type="button" className="secondary" onClick={()=>action(async()=>{await onSave();await api.voicePatch({reference:'',promptText:'',promptLang:'all_ja'});onRemote(await api.voiceSettings());setNotice('已改用默认参考声音，自定义参考文本已清除。')})}>改用默认参考声音</button>{pathField('reference')}
       <label className="field">参考音频对应文本<textarea rows="3" maxLength={3000} value={config.promptText} onChange={e=>patch({promptText:e.target.value})} placeholder="填写参考音频中实际说出的内容。"/></label>
-      <label className="field">参考音频语言<Select value={config.promptLang} onChange={e=>patch({promptLang:e.target.value})}>{langs.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select></label><ReferenceAudioCheck api={api} reference={config.reference} onSave={onSave}/></details>
-      <details className="advanced-settings"><summary>推理环境与基础模型路径</summary><p className="hint">一键配置会自动填入这些路径。使用自己的环境或模型目录时，再修改它们。</p>{['python','root','bert','hubert','ffmpeg'].map(pathField)}</details>
-      <details className="advanced-settings"><summary>高级：设备与合成参数</summary><p className="hint">默认自动优先使用 GPU，通常无需更改。</p>
+      <label className="field">参考音频语言<Select value={config.promptLang} onChange={e=>patch({promptLang:e.target.value})}>{langs.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select></label><ReferenceAudioCheck api={api} reference={config.reference} onSave={onSave}/></section>}
+      {advanced&&<><section className="settings-section"><h3>推理环境与基础模型路径</h3><p className="hint">一键配置会自动填入这些路径。使用自己的环境或模型目录时，再修改它们。</p>{['python','root','bert','hubert','ffmpeg'].map(pathField)}</section>
+      <section className="settings-section"><h3>设备与合成参数</h3><p className="hint">默认自动优先使用 GPU，通常无需更改。</p>
       <h3 className="settings-section-title">合成偏好</h3><div className="voice-grid">
         <label className="field">模型版本<Select value={config.version} onChange={e=>patch({version:e.target.value})}>{['v1','v2','v2Pro','v2ProPlus','v3','v4','v5dev','v5turbo'].map(v=><option key={v}>{v}</option>)}</Select></label>
         <label className="field">推理设备<Select value={config.device} onChange={e=>patch({device:e.target.value})}><option value="auto">自动：CUDA 可用时使用 GPU</option><option value="cpu">CPU</option><option value="cuda" disabled={hardware?.cudaAvailable!==true}>{hardware?.cudaAvailable===true?'NVIDIA CUDA GPU':'NVIDIA GPU · 检测 CUDA 可用后可选'}</option></Select><small>CPU 支持情况和速度取决于当前权重与运行环境，仍需试听确认。</small></label>
@@ -93,14 +98,15 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
         <label className="field">CPU 线程（1–32）<input type="number" min="1" max="32" value={config.cpuThreads} onChange={e=>patch({cpuThreads:Number(e.target.value)})}/></label>
         <label className="field">单次超时（30–900 秒）<input type="number" min="30" max="900" value={config.timeout} onChange={e=>patch({timeout:Number(e.target.value)})}/></label>
       </div>
-      <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();const latest=await save();await api.voiceLoad(latest);setNotice('声音已加载，可以试听。')})}>加载 / 重新加载</button></div></details>
+      <div className="button-row"><button className="secondary" onClick={()=>action(save)}>保存配置</button><button className="secondary" onClick={()=>action(async()=>setHardware(await api.voiceProbe(config)))}>检测 GPU / CPU</button><button className="primary" disabled={!readyReference} onClick={()=>action(async()=>{onStop();const latest=await save();await api.voiceLoad(latest);setNotice('声音已加载，可以试听。')})}>加载 / 重新加载</button></div></section></>}
     </fieldset>
-    {!readyReference&&<p className="notice">{incompleteCustomReference?'请为自定义文本选择对应录音，或改用默认参考声音；资源下载可以继续。':needsTranscript?'当前模型版本需要参考音频及对应原文，请配置参考声音。':'参考声音尚未就绪，请先检查 / 一键配置。'}</p>}
-    {hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
-    <VoiceAudition api={api} config={config} onSave={onSave} onPreview={onPreview} onStop={onStop} status={playbackStatus||status}/>
-    <button type="button" className="secondary" onClick={()=>action(async()=>{onStop();await api.voiceUnload();setNotice('已卸载模型并释放推理进程。')})}>释放音色模型内存</button>
-    <VoiceGuide api={api}/>
+    {(playback||resourcePage)&&!readyReference&&<p className="notice">{incompleteCustomReference?'请为自定义文本选择对应录音，或改用默认参考声音；资源下载可以继续。':needsTranscript?'当前模型版本需要参考音频及对应原文，请配置参考声音。':'参考声音尚未就绪，请先检查 / 一键配置。'}</p>}
+    {advanced&&hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
+    {playback&&<VoiceAudition api={api} config={config} onSave={onSave} onPreview={onPreview} onStop={onStop} status={playbackStatus||status}/>}
+    {playback&&(onOpenResources||onOpenAdvanced)&&<div className="settings-related-links">{onOpenResources&&<button type="button" className="text-link" onClick={onOpenResources}>音色与参考声音</button>}{onOpenAdvanced&&<button type="button" className="text-link" onClick={onOpenAdvanced}>语音环境与诊断</button>}</div>}
+    {advanced&&<button type="button" className="secondary" onClick={()=>action(async()=>{onStop();await api.voiceUnload();setNotice('已卸载模型并释放推理进程。')})}>释放音色模型内存</button>}
+    {advanced&&<VoiceGuide api={api} expanded={page!=='all'}/>}
     {notice&&<p className="notice" role="status">{notice}</p>}
-    <p className="hint">中止正在合成的语音会结束本软件启动的推理进程，下次朗读自动重新加载。CPU 运行环境即使检测到显卡也不能启用 CUDA；使用带 CUDA 的运行环境后，自动模式才会优先使用 GPU。</p>
+    {advanced&&<p className="hint">中止正在合成的语音会结束本软件启动的推理进程，下次朗读自动重新加载。CPU 运行环境即使检测到显卡也不能启用 CUDA；使用带 CUDA 的运行环境后，自动模式才会优先使用 GPU。</p>}
   </>;
 }

@@ -8,7 +8,7 @@ import {SCENES,AvatarPresentationController} from './avatar-presentation.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
 import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
-import {createEnvironment,disposeEnvironment,sunlightConfig,updateEnvironmentSunlight} from './procedural-scenes.mjs';
+import {sunlightConfig} from './sunlight.mjs';
 import {walkingContract,travelDistance,makeWalkingPlan,sampleWalkingPlan} from './walking-transition.mjs';
 export function reviewBlinkModelAllowed(entry,optIn){return optIn===true&&entry?.reviewOnly===true&&entry.id===BLINK_REVIEW_MODEL.id&&entry.sha256===BLINK_REVIEW_V5.assetSha256;}
 export function selectModel(catalog,id,{reviewOptIn=false}={}){return catalog.find(item=>item.id===id&&item.url&&(item.reviewOnly||item.sha256===BLINK_REVIEW_V5.assetSha256?reviewBlinkModelAllowed(item,reviewOptIn):item.ready))||null}
@@ -46,7 +46,18 @@ export class GlbAvatarRenderer{
  }
  resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;if(this.walkingMotion)this.resetTransition({finish:true});this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.fitCamera();}
  hitTest(x,y){return modelHitTest({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,raycaster:this.hitRaycaster||=new THREE.Raycaster()});}
- fitCamera(){if(!this.bounds)return;const frame=cameraFrame(this.bounds,this.camera.aspect,this.zoom,this.yaw);this.camera.position.copy(frame.position);this.camera.lookAt(frame.target);this.camera.near=frame.near;this.camera.far=frame.far;this.camera.updateProjectionMatrix();}
+ fitCamera(){
+  const width=this.container?.clientWidth,height=this.container?.clientHeight;
+  if(width>0&&height>0)this.portraitAspect=width/height;
+
+  // setViewOffset changes aspect to the FULL window ratio; clearing its crop
+  // alone does not undo that. Restore the portrait lens even when a scene
+  // switch produces no ResizeObserver notification (or settings hide the host).
+  this.camera.clearViewOffset?.();this.camera.fov=30;
+  if(this.portraitAspect>0)this.camera.aspect=this.portraitAspect;
+  if(this.bounds){const frame=cameraFrame(this.bounds,this.camera.aspect,this.zoom,this.yaw);this.camera.position.copy(frame.position);this.camera.lookAt(frame.target);this.camera.near=frame.near;this.camera.far=frame.far;}
+  this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
+ }
  setView({zoom=this.zoom,yaw=this.yaw}={}){if(this.walkingMotion||this.walkExitHeld)return {zoom:this.zoom,yaw:this.yaw};this.zoom=Math.max(1,Math.min(2.2,Number(zoom)||1));this.yaw=Number.isFinite(yaw)?((yaw+180)%360+360)%360-180:0;if(!this.walkingMotion&&!this.walkExitHeld){if(this.pivot)this.pivot.rotation.y=THREE.MathUtils.degToRad(this.yaw);this.fitCamera();}return {zoom:this.zoom,yaw:this.yaw};}
 
  async prepareOutfit(id,{signal}={}){
@@ -77,7 +88,7 @@ export class GlbAvatarRenderer{
   applyRenderStyle(prepared.gltf.scene,this.renderStyle);
   const blinkBinding=this.prepareBlinkBinding(prepared);
   this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();
-  const old=this.root;this.mixer?.stopAllAction();if(old){this.scene.remove(old);this.mixer?.uncacheRoot(old);disposeObject(old);}
+  const old=this.root;this.mixer?.stopAllAction();if(old){old.removeFromParent();this.mixer?.uncacheRoot(old);disposeObject(old);}
   this.entry=prepared.entry;if(this.loadController)this.loadController.outfit=this.entry.id;this.root=prepared.gltf.scene;this.root.updateMatrixWorld(true);this.walkExitHeld=false;
   this.authoredPose=[];this.root.traverse(node=>this.authoredPose.push({node,position:node.position.clone(),quaternion:node.quaternion.clone(),scale:node.scale.clone()}));
   // Parent transform leaves the supplied bind pose, authored bones and clips intact.
@@ -90,18 +101,27 @@ export class GlbAvatarRenderer{
   // This keeps the full body large and stable without refitting on every frame.
   wrapper.updateMatrixWorld(true);const idleBox=new THREE.Box3().setFromObject(wrapper,true);
   const idleSize=idleBox.getSize(new THREE.Vector3());if([idleSize.x,idleSize.y,idleSize.z].every(Number.isFinite)&&idleSize.y>0)this.bounds={size:idleSize,center:idleBox.getCenter(new THREE.Vector3())};
-  this.container.dataset.modelReady=this.entry.id;this.gl.domElement.dataset.rendered='false';this.currentPrepared=prepared;this.blinkBinding=blinkBinding;this.blinkScheduler=blinkBinding?new BlinkScheduler():null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;this.resetBlink();this.setView();this.onStatus({phase:'ready',message:this.entry.label+' · '+this.entry.version});
+  this.container.dataset.modelReady=this.entry.id;this.gl.domElement.dataset.rendered='false';this.currentPrepared=prepared;if(this.sceneStage)this.setEnvironment();this.blinkBinding=blinkBinding;this.blinkScheduler=blinkBinding?new BlinkScheduler():null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;this.resetBlink();this.setView();this.onStatus({phase:'ready',message:this.entry.label+' · '+this.entry.version});
  }
  cancelLoad(){this.epoch++;this.loadController?.active?.abort();}
  async load(id,{animate=false}={}){const epoch=++this.epoch;let prepared;try{if(animate){if(!this.loadController){this.loadController=new AvatarPresentationController(this);this.loadController.outfit=this.entry?.id||null;}await this.loadController.changeOutfit(id,{reducedMotion:this.reducedMotion});return;}this.loadController?.active?.abort();prepared=await this.prepareOutfit(id);if(epoch!==this.epoch){this.disposePrepared(prepared);prepared=null;return;}await this.commitOutfit(prepared);prepared=null;}catch(error){if(prepared&&this.currentPrepared!==prepared)this.disposePrepared(prepared);if(epoch===this.epoch&&!this.disposed)this.onStatus({phase:'error',message:error.message})}}
  play(name){if(this.speechMotion||this.walkingMotion||this.walkExitHeld||this.entry?.importMode==='static'||!Object.hasOwn(this.entry?.clips||{},name))return false;const clip=this.clips?.get(name);if(!clip)return false;const next=this.mixer.clipAction(clip);(this.bodyActions ||= new Set()).add(next);if(this.currentAction===next&&next.isRunning())return true;next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1);const loop=this.entry.clips[name]?.loop===true;next.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);next.clampWhenFinished=!loop;next.play();if(this.currentAction)this.currentAction.crossFadeTo(next,.3,false);this.currentAction=next;return true;}
  setActivity(activity){if(this.activity===activity)return;this.activity=activity;this.resetBlink();if(activity==='thinking')this.play('Listen_Attentive');else this.play(this.entry?.defaultClip||'Idle_Breathe');}
  setGaze(gaze){this.gaze=gaze;}
- setEnvironment({id=this.environmentId,timeOfDay=this.timeOfDay}={}){const selected=SCENES[id]?id:'studio';if(this.renderEnvironment){if(!this.environment||selected!==this.environmentId){if(this.environment){this.scene.remove(this.environment);disposeEnvironment(this.environment)}this.environment=createEnvironment(selected,{shadows:false,timeOfDay});this.scene.add(this.environment);}else if(timeOfDay!==this.timeOfDay)updateEnvironmentSunlight(this.environment,timeOfDay);}this.environmentId=selected;this.timeOfDay=(typeof timeOfDay==='number'&&Number.isFinite(timeOfDay))||(timeOfDay?.kind==='solar'&&Number.isFinite(timeOfDay.elevation)&&Math.abs(timeOfDay.elevation)<=90&&Number.isFinite(timeOfDay.hourAngle)&&Math.abs(timeOfDay.hourAngle)<=180)?timeOfDay:['morning','noon','evening'].includes(timeOfDay)?timeOfDay:'noon';const light=sunlightConfig(this.timeOfDay),scene=(SCENES[selected]||SCENES.studio).lighting;this.ambient.intensity=light.ambient*scene.ambient*2;this.ambient.color.set(light.ambientColor);this.ambient.groundColor.set(light.groundColor);this.key.intensity=light.intensity*scene.key;this.key.color.set(light.color);this.key.position.set(...light.position);}
+ setVisible(value){this.visible=value!==false;}
+ setSceneStage(value){const next=value===true;if(this.sceneStage===next)return;this.sceneStage=next;this.setEnvironment();this.fitCamera();}
+ setSceneWeather(value){this.sceneWeather=value;this.setEnvironment();}
+ setEnvironment({id=this.environmentId,timeOfDay=this.timeOfDay}={}){
+  // Models remain draft/replacement assets. No scene owns or edits their rig.
+  this.environmentId=Object.hasOwn(SCENES,id)?id:'classroom';this.timeOfDay=timeOfDay;
+  const light=sunlightConfig(timeOfDay),preset=SCENES[this.environmentId].lighting;
+  this.ambient.intensity=light.ambient*preset.ambient*2;this.ambient.color.set(light.ambientColor);this.ambient.groundColor.set(light.groundColor);
+  this.key.intensity=light.intensity*preset.key;this.key.color.set(light.color);this.key.position.set(...light.position);
+ }
  setRenderStyle(style){this.renderStyle=['natural','toon'].includes(style)?style:'lit';if(this.container?.dataset)this.container.dataset.renderStyle=this.renderStyle;applyRenderStyle(this.root,this.renderStyle);}
 
  setReducedMotion(value){this.reducedMotion=value;if(value){this.resetBlink();this.stopSpeechMotion(true);this.resetTransition({finish:true});}}
- clear(){this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();this.epoch++;this.loadController?.active?.abort();if(this.loadController)this.loadController.outfit=null;this.resetTransition();this.mixer?.stopAllAction();if(this.root){this.scene.remove(this.root);this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.root=null;this.pivot=null;this.authoredPose=[];this.basePosition=null;this.entry=null;this.currentPrepared=null;this.mixer=null;this.clips=null;this.bodyActions?.clear();this.currentAction=null;this.head=null;this.headBase=null;this.bounds=null;this.meshes=[];delete this.container.dataset.modelReady;this.gl.domElement.dataset.rendered='false';this.onStatus({phase:'idle',message:''});}
+ clear(){this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();this.epoch++;this.loadController?.active?.abort();if(this.loadController)this.loadController.outfit=null;this.resetTransition();this.mixer?.stopAllAction();if(this.root){this.root.removeFromParent();this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.root=null;this.pivot=null;this.authoredPose=[];this.basePosition=null;this.entry=null;this.currentPrepared=null;this.mixer=null;this.clips=null;this.bodyActions?.clear();this.currentAction=null;this.head=null;this.headBase=null;this.bounds=null;this.meshes=[];delete this.container.dataset.modelReady;this.gl.domElement.dataset.rendered='false';this.onStatus({phase:'idle',message:''});}
  restoreAuthoredPose(){for(const item of this.authoredPose||[]){item.node.position.copy(item.position);item.node.quaternion.copy(item.quaternion);item.node.scale.copy(item.scale)}if(this.head)this.headBase=this.head.quaternion.clone();}
  resetTransition({finish=false}={}){this.transitionAnimation?.cancel();this.transitionAnimation=null;this.container.style.opacity='';this.container.style.transform='';const motion=this.walkingMotion;this.walkingMotion=null;if(motion){clearTimeout(motion.timer);motion.signal?.removeEventListener('abort',motion.abort)}if(motion||this.walkExitHeld){this.walkExitHeld=false;this.mixer?.stopAllAction();this.restoreAuthoredPose();this.currentAction=null;if(this.root){this.root.visible=true;this.root.position.copy(this.basePosition);this.pivot.rotation.y=THREE.MathUtils.degToRad(this.yaw||0)}this.play(this.activity==='thinking'?'Listen_Attentive':this.entry?.defaultClip||'Idle_Breathe');this.fitCamera();}if(motion){this.onStatus?.({phase:'ready',message:this.entry?.label||''});this.container.dataset.transitionPhase=finish?'skipped':'cancelled';if(finish)motion.resolve();else motion.reject(motion.signal?.reason||new DOMException('行走过渡已取消','AbortError'));}}
  beginWalking(kind,signal){
@@ -161,7 +181,7 @@ export class GlbAvatarRenderer{
   this.mixer?.update(this.reducedMotion?0:dt);if(this.head){this.headBase.copy(this.head.quaternion);if(!this.reducedMotion&&!walking&&!this.speechMotion){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-3,Math.min(3,this.gaze?.headPitch||0))),this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-4,Math.min(4,this.gaze?.headYaw||0))),0));this.head.quaternion.multiply(q);}}
   if(!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.speechMotion&&!snapshot?.playing&&this.activity==='idle'&&now>=this.nextMicro){this.nextMicro=now+16000+Math.random()*12000;const clips=microClipNames(this.entry,this.clips);if(clips.length)this.play(clips[Math.floor(Math.random()*clips.length)]);}
   this.updateGarment(dt,{visible:!document.hidden});
-  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());this.gl.render(this.scene,this.camera);if(this.gl.domElement.dataset.rendered!=='true')this.gl.domElement.dataset.rendered='true';if(walking?.sample.done)this.finishWalking(walking);
+  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(this.visible!==false&&!document.hidden&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.gl.domElement.dataset.rendered!=='true')this.gl.domElement.dataset.rendered='true';}if(walking?.sample.done)this.finishWalking(walking);
  }
  async exit({signal}={}){if(this.entry?.walking)return this.beginWalking('exit',signal);await this.transition([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-15%)'}],signal,true);}
  async enter({signal}={}){if(this.entry?.walking)return this.beginWalking('enter',signal);await this.transition([{opacity:0,transform:'translateX(15%)'},{opacity:1,transform:'translateX(0)'}],signal);}
@@ -175,5 +195,5 @@ export class GlbAvatarRenderer{
  }
 
  async greet(){if(!this.reducedMotion)this.play('Nod_Subtle');}
- dispose(){this.disposeBlink();this.disposeGarment();if(this.blinkVisibility)document.removeEventListener('visibilitychange',this.blinkVisibility);this.stopSpeechMotion(true);this.speechDirector?.reset();this.loadController?.dispose();if(this.environment)disposeEnvironment(this.environment);this.resetTransition();this.disposed=true;this.epoch++;cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.mixer?.stopAllAction();if(this.root){this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.gl.domElement.removeEventListener('webglcontextlost',this.contextLost);this.authoredPose=[];this.basePosition=null;this.bodyActions?.clear();this.gl.dispose();this.gl.domElement.remove();}
+ dispose(){this.disposeBlink();this.disposeGarment();if(this.blinkVisibility)document.removeEventListener('visibilitychange',this.blinkVisibility);this.stopSpeechMotion(true);this.speechDirector?.reset();this.loadController?.dispose();this.key?.shadow?.dispose();this.resetTransition();this.disposed=true;this.epoch++;cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.mixer?.stopAllAction();if(this.root){this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.gl.domElement.removeEventListener('webglcontextlost',this.contextLost);this.authoredPose=[];this.basePosition=null;this.bodyActions?.clear();this.gl.dispose();this.gl.domElement.remove();}
 }

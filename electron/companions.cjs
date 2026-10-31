@@ -3,6 +3,7 @@ const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const fs = require('node:fs/promises');
 const { UsageTracker } = require('./usage.cjs');
+const {developmentRendererURL} = require('./development.cjs');
 const { PET_DEFAULTS, petPreferences, parseLegacySettings, QuotePicker } = require('./pet-features.cjs');
 const petQuotes = require('./companion-view/quotes.json');
 const {CompanionReminderPolicy,validateReminderConfig,validateProactiveConfig,withinHours,PROACTIVE_DEFAULTS}=require('./companion-reminders.cjs');
@@ -70,7 +71,7 @@ function validDragPoint(value) {
   return value&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Math.abs(value.x)<=1000000&&Math.abs(value.y)<=1000000
     ? {x:Math.round(value.x),y:Math.round(value.y)} : null;
 }
-function moveDraggedWindow(win, drag, screen, finalInputPoint=null) {
+function moveDraggedWindow(win, drag, screen, finalInputPoint=null, body=drag.body) {
   // Pointer coordinates describe the release event itself. The native cursor
   // may already have moved again by the time this IPC is handled.
   const point=finalInputPoint&&drag.inputPoint
@@ -79,7 +80,7 @@ function moveDraggedWindow(win, drag, screen, finalInputPoint=null) {
   const area=screen.getDisplayNearestPoint(point).workArea;
   const candidate={x:drag.x+point.x-drag.point.x,y:drag.y+point.y-drag.point.y,width:drag.width,height:drag.height};
   const areas=screen.getAllDisplays?.().map(item=>item.workArea)||[area];
-  const bounds=clampSubject(candidate,drag.body,areas)||clampBounds(candidate,area);
+  const bounds=clampSubject(candidate,body,areas)||clampBounds(candidate,area);
   const current=win.getBounds();
   if(['x','y','width','height'].some(key=>current[key]!==bounds[key]))moveWindow(win,bounds);
 }
@@ -101,7 +102,7 @@ class CompanionManager {
     }
     try { this.preferences = sanitizePreferences(JSON.parse(await fs.readFile(path.join(this.dataDir, 'companions.json'), 'utf8'))); }
     catch (error) { if (error.code !== 'ENOENT') { this.preferencesReadError = true; this.onError(new Error('桌面形象设置读取失败，已使用默认设置；原文件已保留。', { cause: error })); } }
-    if (process.env.LOCALAPPDATA && !this.preferencesReadError) {
+    if (this.e.app.isPackaged !== false && process.env.LOCALAPPDATA && !this.preferencesReadError) {
       try { await fs.access(path.join(this.dataDir,'companions.json')); } catch (error) {
         if(error.code==='ENOENT')try { const old=await fs.readFile(path.join(process.env.LOCALAPPDATA,'YukinoPet/settings.ini'),'utf8'); this.preferences=sanitizePreferences(parseLegacySettings(old),this.preferences); await this.persist(); } catch(legacyError) { if(legacyError.code!=='ENOENT')this.onError(new Error('旧桌宠设置未能导入，已保留原文件。')); }
       }
@@ -226,7 +227,22 @@ class CompanionManager {
     // Chat already has its own 160k generation limit; never truncate a reply
     // when forwarding it to the desktop windows. Their body scrolls separately.
     this.reply = { zh: typeof reply?.zh === 'string' ? reply.zh : '', ja: typeof reply?.ja === 'string' ? reply.ja : '', id: typeof reply?.id === 'string' ? reply.id : '' };
-    for (const [kind, win] of this.windows) this.sendState(win, kind);
+    let moved=false;
+    for (const [kind, win] of this.windows) { moved=this.keepReplyVisible(win,kind)||moved; this.sendState(win, kind); }
+    if(moved)this.persist().catch(this.onError);
+  }
+  // Body-only clamping is still used without a reply. Once a reply is visible,
+  // protect its controls too, including replies arriving after an edge drag.
+  visibleBody(kind,body) {
+    return kind==='pet'&&this.reply&&(this.reply.zh||this.reply.ja)&&this.preferences.showBubbles&&!this.preferences.quietMode
+      ? {x:0,y:0,width:1,height:1} : body;
+  }
+  keepReplyVisible(win,kind) {
+    if(win.isDestroyed()||this.drag?.kind===kind||!this.visibleBody(kind,null))return false;
+    const current=win.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:current.x+current.width/2,y:current.y+current.height/2}).workArea;
+    const bounds=clampSubject(current,this.visibleBody(kind,null),this.e.screen.getAllDisplays?.().map(display=>display.workArea)||[area])||clampBounds(current,area);
+    if(bounds.x===current.x&&bounds.y===current.y)return false;
+    moveWindow(win,bounds);this.preferences.positions[kind]={...this.preferences.positions[kind],x:bounds.x,y:bounds.y};return true;
   }
   clearReply() { this.reply = null; for (const [kind, win] of this.windows) this.sendState(win, kind); }
   boundsFor(kind) {
@@ -234,10 +250,10 @@ class CompanionManager {
     const saved = this.preferences.positions[kind];
     const area = (saved ? this.e.screen.getDisplayNearestPoint(saved) : this.e.screen.getPrimaryDisplay()).workArea;
     const {width,height}=viewportSize(kind,scale,area);
-    const offset = this.preferences.mode === 'both' && kind === 'model' ? Math.round(230 * scale) : 0;
+    const offset = this.preferences.mode === 'both' && kind === 'model' ? viewportSize('pet',scale,area).width+12 : 0;
     const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: saved?.y ?? area.y + area.height - height, width, height };
     const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
-    return clampSubject(bounds,saved?.body,areas)||clampBounds(bounds,area);
+    return clampSubject(bounds,this.visibleBody(kind,saved?.body),areas)||clampBounds(bounds,area);
   }
   applyMode() {
     const desired = kindsForMode(this.preferences.mode);
@@ -253,7 +269,8 @@ class CompanionManager {
     win.webContents.on('did-finish-load', () => this.sendState(win, kind));
     win.on('ready-to-show', () => { if (!win.isDestroyed()) { win.showInactive(); this.refreshActivity(); } });
     win.on('closed', () => { this.closeMenu(kind); if (this.windows.get(kind) === win) this.windows.delete(kind); this.refreshActivity(); });
-    win.loadFile(path.join(__dirname, kind==='model'?'../dist/model-window.html':'companion-view/index.html'), { query: { kind } }).catch(error => this.onError(error));
+    const devURL = kind === 'model' && developmentRendererURL(this.e.app, 'model-window.html');
+    (devURL ? win.loadURL(devURL + '?kind=model') : win.loadFile(path.join(__dirname, kind==='model'?'../dist/model-window.html':'companion-view/index.html'), { query: { kind } })).catch(error => this.onError(error));
     return win;
   }
   sendState(win, kind, menu=false) { if (!win.isDestroyed()) win.webContents.send('companion-state', { kind, menu, playbackPaused:this.pauses.size>0, speechBusy:this.speechBusy===true, chatBusy:this.chatBusy, visionActive:this.visionActive, viewportScale:Math.min(this.preferences.scale,Math.max(.25,(win.getBounds().height-190)/(kind==='pet'?208:280)),Math.max(.25,(win.getBounds().width-28)/192)), startupAvailable:this.startupAvailable, preferences: this.preferences, voiceRevision:this.voiceRevision||0, reply: this.reply, focus:{active:this.preferences.focusEnds>Date.now(),remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, character:{...this.character}, modelReady:Boolean(this.character.modelId) }); }
@@ -297,13 +314,13 @@ class CompanionManager {
     if (action === 'hit-test') { if(typeof payload!=='boolean')throw Error('无效的命中状态');if(this.drag?.kind===kind&&!payload)return true;win.setIgnoreMouseEvents(!payload, { forward: true }); return true; }
     if (action === 'drag-start') { this.onUse(); this.walkFraction={x:0,y:0}; const point = this.e.screen.getCursorScreenPoint(); const [x,y] = win.getPosition(); this.closeMenu(kind); this.drag = { kind, point, inputPoint:validDragPoint(payload?.point), x, y, width:win.getBounds().width, height:win.getBounds().height,body:validBody(payload?.body) }; win.setIgnoreMouseEvents(false); return true; }
     if (action === 'drag-move' && this.drag?.kind === kind) {
-      moveDraggedWindow(win,this.drag,this.e.screen); return true;
+      moveDraggedWindow(win,this.drag,this.e.screen,null,this.visibleBody(kind,this.drag.body)); return true;
     }
     if (['drag-end','drag-cancel'].includes(action) && this.drag?.kind === kind) {
       // A release can arrive before the coalesced animation-frame move. Flush
       // its release position, but never move a click or a cancel.
-      if(action==='drag-end'&&payload?.moved===true)moveDraggedWindow(win,this.drag,this.e.screen,validDragPoint(payload.point));
-      const body=this.drag.body;this.drag = null;const [x,y] = win.getPosition();this.preferences.positions[kind] = {x,y,...(body?{body}:{})};this.sendState(win,kind);await this.persist(); return true;
+      if(action==='drag-end'&&payload?.moved===true)moveDraggedWindow(win,this.drag,this.e.screen,validDragPoint(payload.point),this.visibleBody(kind,this.drag.body));
+      const body=this.drag.body;this.drag = null;this.keepReplyVisible(win,kind);const [x,y] = win.getPosition();this.preferences.positions[kind] = {x,y,...(body?{body}:{})};this.sendState(win,kind);await this.persist(); return true;
     }
     if (action === 'walk-step' && kind === 'pet' && !this.drag && this.preferences.animation && !this.preferences.interactionPaused && !this.preferences.quietMode && this.preferences.focusEnds<=Date.now() && !this.chatBusy && !this.menus.has(kind) && (payload === -1 || payload === 1 || (payload&&Number.isFinite(payload.x)&&Number.isFinite(payload.y)&&Math.abs(payload.x)<=1&&Math.abs(payload.y)<=1))) {
       const bounds = win.getBounds(); const area = this.e.screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }).workArea;
@@ -319,7 +336,7 @@ class CompanionManager {
       // Dragging permits transparent window margins outside a display while the
       // visible figure stays on screen. Walking must use that same body, or a
       // full-window clamp can abruptly move the pet opposite its gait.
-      const body=validBody(this.preferences.positions[kind]?.body);
+      const savedBody=validBody(this.preferences.positions[kind]?.body),body=this.visibleBody(kind,savedBody);
       const areas=this.e.screen.getAllDisplays?.().map(display=>display.workArea)||[area];
       const candidate={...bounds,x:bounds.x+dx,y:bounds.y+dy};
       const next=clampSubject(candidate,body,areas)||clampBounds(candidate,area);
@@ -330,7 +347,7 @@ class CompanionManager {
          (dy===0?movedY!==0:movedY*dy<0||Math.abs(movedY)>Math.abs(dy))){
         this.walkFraction={x:0,y:0};return false;
       }
-      if (next.x === bounds.x && next.y === bounds.y) {this.walkFraction={x:0,y:0};return false;} moveWindow(win,next); this.preferences.positions[kind] = { x: next.x, y: next.y, ...(body?{body}:{}) }; return true;
+      if (next.x === bounds.x && next.y === bounds.y) {this.walkFraction={x:0,y:0};return false;} moveWindow(win,next); this.preferences.positions[kind] = { x: next.x, y: next.y, ...(savedBody?{body:savedBody}:{}) }; return true;
     }
     if (action === 'menu') { this.contextMenu(kind, win); return true; }
     return false;

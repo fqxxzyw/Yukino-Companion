@@ -13,6 +13,7 @@ async function hookHarness(t,component,api={}){
  export default {};export function begin(){cursor=0;dirty=false}
  export function useState(initial){const n=cursor++;if(!(n in values))values[n]=typeof initial==='function'?initial():initial;return [values[n],v=>{const next=typeof v==='function'?v(values[n]):v;if(!Object.is(next,values[n])){values[n]=next;dirty=true}}]}
  export function useRef(value){const n=cursor++;return values[n]||(values[n]={current:value})}
+ export const useContext=context=>context._currentValue;
  export function useEffect(fn,deps){const n=cursor++,old=values[n];if(!old||!deps||deps.length!==old.length||deps.some((v,i)=>!Object.is(v,old[i]))){values[n]=deps;effects.push(()=>{cleanups.get(n)?.();cleanups.set(n,fn())})}}
  export const useLayoutEffect=useEffect;export function flush(){effects.splice(0).forEach(fn=>fn())}
  export function unmount(){for(const fn of cleanups.values())fn?.();cleanups.clear()}
@@ -31,7 +32,7 @@ async function hookHarness(t,component,api={}){
  async greet(){}async enter(){}async exit(){}
  }
  `);
- let unmount=()=>{};const saved={};for(const name of ['window','document','requestAnimationFrame','cancelAnimationFrame'])saved[name]=globalThis[name];
+ let unmount=()=>{};const saved={};for(const name of ['window','document','requestAnimationFrame','cancelAnimationFrame','getComputedStyle'])saved[name]=globalThis[name];
  globalThis.window={desktop:api,companion:api,addEventListener(){},removeEventListener(){}};
  globalThis.document={addEventListener(){},removeEventListener(){}};globalThis.requestAnimationFrame=()=>1;globalThis.cancelAnimationFrame=()=>{};
  t.after(()=>{unmount();for(const [name,value]of Object.entries(saved)){if(value===undefined)delete globalThis[name];else globalThis[name]=value}});
@@ -41,7 +42,7 @@ async function hookHarness(t,component,api={}){
  code=code.replace(/import ["'][^"']+\.css["'];?/g,'');
  code=code.replaceAll('"react"',JSON.stringify(pathToFileURL(hooksFile).href));
  for(const name of ['react/jsx-runtime','react-dom/client','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
- code=code.replace(/(["'])(\.[^"']+)\1/g,(all,_quote,specifier)=>{
+ code=code.replace(/(["'])(\.{1,2}\/[^"']+)\1/g,(all,_quote,specifier)=>{
   let file;if(specifier.endsWith('model-runtime.mjs'))file=runtimeFile;
   else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
   else file=path.resolve(root,path.dirname(component),specifier);
@@ -98,6 +99,37 @@ test('desktop model reply is inside its drag header and defaults to Chinese',asy
  receive({character:{id:'a',name:'雪乃'},preferences:{},reply:{zh:'',ja:'こんにちは。'}});h.render();await h.settle();assert.match(walk(h.tree).find(node=>node.props?.className==='model-reply').props.children,/中文暂不可用 · 日文原文/);
 });
 
+test('desktop model opacity applies only to the figure, not readable bubble and input controls',async t=>{
+ let receive;const api={onState:fn=>(receive=fn,()=>{}),call:async()=>true};
+ const h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
+ receive({character:{id:'a',name:'雪乃'},preferences:{opacity:.35},reply:{id:'layout',zh:'保持气泡清晰'}});h.render();await h.settle();
+ assert.equal(h.tree.props.style.opacity,undefined);assert.equal(h.tree.props.style['--model-opacity'],.35);
+ const css=await fs.readFile(path.join(root,'src/model-window.css'),'utf8');
+ assert.match(css,/\.model-window-canvas,\.model-window-fallback\{opacity:var\(--model-opacity,1\)\}/);
+});
+
+test('model bubble actions preserve reading position and use prefs and current-chat actions, never submit',async t=>{
+ let receive,failOpen=false;const calls=[];
+ const api={onState:fn=>(receive=fn,()=>{}),call:async(action,payload)=>{calls.push({action,payload});if(action==='open-main'&&failOpen)throw Error('无法打开聊天窗口');return true;}};
+ const h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
+ const snapshot={character:{id:'a',name:'雪乃'},preferences:{},reply:{id:'reply-1',zh:'较长的第一段回复。'}};
+ receive(snapshot);h.render();await h.settle();
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const nodes=()=>walk(h.tree),body=()=>nodes().find(node=>node.props?.className==='model-reply');
+ const scroll=body().props.ref.current;Object.assign(scroll,{scrollHeight:900,clientHeight:150,scrollTop:120});
+ body().props.onScroll({currentTarget:scroll});h.render();
+ receive({...snapshot,reply:{...snapshot.reply,zh:snapshot.reply.zh+'继续增加的内容。'}});h.render();await h.settle();
+ assert.equal(scroll.scrollTop,120,'streaming the same reply cannot pull a reader to the bottom');
+ nodes().find(node=>node.type==='button'&&node.props.children==='回到最新').props.onClick();h.render();
+ assert.equal(scroll.scrollTop,900);assert.ok(!nodes().some(node=>node.props?.children==='回到最新'));
+ nodes().find(node=>node.type==='button'&&node.props['aria-label']?.startsWith('气泡语言')).props.onClick();await h.settle();
+ assert.deepEqual(calls.find(item=>item.action==='prefs').payload,{bubbleLanguage:'ja'});
+ await nodes().find(node=>node.type==='button'&&node.props.children==='打开聊天').props.onClick();
+ assert.ok(calls.some(item=>item.action==='open-main'));assert.ok(!calls.some(item=>item.action==='chat-submit'));
+ failOpen=true;await nodes().find(node=>node.type==='button'&&node.props.children==='打开聊天').props.onClick();await h.settle();
+ assert.match(nodes().find(node=>node.props?.role==='alert').props.children,/无法打开聊天窗口/);
+});
+
 test('a pointer captured before gait and a render-delayed reset button cannot change the locked view',async t=>{
  let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[{id:'school'}]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();receive({character:{id:'a',modelId:'school'},preferences:{}});h.render();await h.settle();
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[],host=walk(h.tree).find(node=>node.props?.className==='model-window-canvas'),reset=walk(h.tree).find(node=>node.props?.['aria-label']==='恢复全身正面');
@@ -118,8 +150,71 @@ test('scene changes retain the user\'s saved daylight location',async t=>{
  const location={latitude:35,longitude:139},props={side:'right',width:300,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',daylightLocation:location},reducedMotion:true};
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render();
- walk(h.tree).find(node=>node.type==='button'&&node.props?.children==='海边').props.onClick();
+ walk(h.tree).find(node=>node.type==='button'&&node.props?.['data-scene']==='beach').props.onClick();
  assert.equal(update.scene,'beach');assert.deepEqual(update.daylightLocation,location);
+});
+
+test('character scene choices pair Chinese names with decorative scene previews and preserve saved preferences',async t=>{
+ const {SCENES}=await import('../src/ui/scene-catalog.mjs'),h=await hookHarness(t,'src/ui/CharacterPanel.jsx');let update;
+ const props={side:'left',width:220,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',liveWeather:true,customPreference:'keep'},reducedMotion:true};
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render(props);
+ for(const [id,scene] of Object.entries(SCENES)){
+  const choices=walk(h.tree).filter(node=>node.type==='button'&&node.props?.['data-scene']);assert.equal(choices.length,5);
+  const choice=choices.find(node=>node.props['data-scene']===id);
+  assert.equal(choice.props['aria-label'],scene.label);assert.match(scene.label,/^[\p{Script=Han}]+$/u);
+  const preview=walk(choice).find(node=>node.props?.className==='scene-choice-swatch'),label=walk(choice).find(node=>node.props?.className==='scene-choice-name');
+  assert.equal(preview.props['aria-hidden'],'true');assert.equal(preview.props.style.background,scene.background);assert.equal(typeof preview.props.children.type,'object');assert.equal(label.props.children,scene.label);
+  choice.props.onClick();assert.equal(update.scene,id);assert.equal(update.liveWeather,true);assert.equal(update.customPreference,'keep');
+  h.render({...props,presentation:update});const selected=walk(h.tree).filter(node=>node.type==='button'&&node.props?.['data-scene']&&node.props['aria-pressed']);assert.equal(selected.length,1);assert.equal(selected[0].props['data-scene'],id);
+ }
+ const css=await fs.readFile(path.join(root,'src/style.css'),'utf8');assert.match(css,/\.character-panel \.character-scene-menu \.scene-picker\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);assert.match(css,/\.scene-choice:focus-visible\{outline:2px/);
+});
+
+async function dragPanelHarness(t,{reducedMotion=false}={}){
+ const h=await hookHarness(t,'src/ui/CharacterPanel.jsx'),walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const offsets=new Map(),animations=[],changes=[],listeners=new Map();let side='left',captured=false,releases=0;
+ const rect=left=>({left,top:10,width:300,height:500}),chat={getBoundingClientRect:()=>({...rect(side==='left'?540:220),width:640}),animate:animate('chat')};
+ function animate(kind){return (frames,options)=>{let reject;const animation={finished:new Promise((_resolve,r)=>reject=r),cancel(){reject(new DOMException('cancelled','AbortError'));}};animations.push({kind,frames,options,animation});return animation;};}
+ const main={clientWidth:1000,getBoundingClientRect:()=>({left:200,width:1000}),querySelector:selector=>selector==='.chat'?chat:null};
+ globalThis.getComputedStyle=()=>({paddingLeft:'20px',paddingRight:'20px',columnGap:'20px'});
+ globalThis.window.addEventListener=(name,fn)=>listeners.set(name,fn);globalThis.window.removeEventListener=(name,fn)=>{if(listeners.get(name)===fn)listeners.delete(name);};
+ const props={side,width:300,onChange:change=>{changes.push(change);side=change.side||side;},onSettings(){},containerRef:{current:main},character:{id:'a',modelId:''},reducedMotion};
+ const render=(patch={})=>h.render({...props,side,...patch}),nodes=()=>walk(h.tree),panel=()=>nodes().find(node=>node.props?.['aria-label']==='人物区域'),handle=()=>nodes().find(node=>node.props?.className==='stage-top character-drag-handle');
+ render();const element=panel().props.ref.current;
+ element.style={setProperty:(key,value)=>offsets.set(key,value),removeProperty:key=>offsets.delete(key)};
+ element.getBoundingClientRect=()=>rect((side==='left'?220:880)+(panel().props.className.includes('is-dragging')?parseFloat(offsets.get('--drag-offset-x'))||0:0));
+ element.animate=animate('panel');
+ const owner={setPointerCapture(){captured=true;},hasPointerCapture(){return captured;},releasePointerCapture(){captured=false;releases++;}},event=(clientX,patch={})=>({button:0,isPrimary:true,pointerId:1,clientX,currentTarget:owner,target:{closest:()=>null},preventDefault(){},...patch});
+ return {h,render,panel,handle,event,offsets,animations,changes,listeners,get releases(){return releases;},get side(){return side;}};
+}
+
+test('actual panel follows the pointer across the full content width and FLIPs chat on release',async t=>{
+ const d=await dragPanelHarness(t);d.handle().props.onPointerDown(d.event(250));d.render();
+ assert.match(d.panel().props.style.transform,/translate3d\(var\(--drag-offset-x/);
+ d.handle().props.onPointerMove(d.event(1100));d.render();assert.equal(d.offsets.get('--drag-offset-x'),'660px','not clamped to half of the 1000px workspace');
+ assert.equal(d.side,'left','do not reflow chat while dragging');
+ d.handle().props.onPointerMove(d.event(900));assert.equal(d.offsets.get('--drag-offset-x'),'650px');
+ assert.equal(d.h.hooks.dirty,false,'same-zone pointer moves paint directly without a React render');
+ d.handle().props.onPointerUp(d.event(1100));d.render();assert.equal(d.side,'right');assert.deepEqual(d.changes,[{side:'right'}]);assert.equal(d.releases,1);
+ const person=d.animations.find(item=>item.kind==='panel'),chat=d.animations.find(item=>item.kind==='chat');
+ assert.ok(person&&chat,'both live regions are animated, not just the person');assert.equal(person.options.duration,chat.options.duration);
+ assert.match(chat.frames[0].transform,/translate\(320px,0px\) scale\(1,1\)/);assert.equal(chat.frames[1].transform,'translate(0,0) scale(1,1)','chat text has no decorative rebound');
+ d.handle().props.onLostPointerCapture(d.event(1100));assert.equal(d.changes.length,1);
+});
+
+test('actual panel rejects secondary touches and controls, and cancellation never changes sides',async t=>{
+ const d=await dragPanelHarness(t);
+ d.handle().props.onPointerDown(d.event(250,{isPrimary:false}));d.handle().props.onPointerMove(d.event(900));assert.equal(d.offsets.size,0);
+ d.handle().props.onPointerDown(d.event(250,{target:{closest:()=>({tagName:'BUTTON'})}}));assert.equal(d.offsets.size,0);
+ d.handle().props.onPointerDown(d.event(250));d.render();d.handle().props.onPointerMove(d.event(900,{pointerId:2}));assert.equal(d.offsets.get('--drag-offset-x'),'0px');
+ d.handle().props.onPointerMove(d.event(900));d.render();d.handle().props.onPointerCancel(d.event(900));d.render();assert.equal(d.side,'left');assert.equal(d.changes.length,0);assert.equal(d.releases,1);
+ d.handle().props.onPointerDown(d.event(250));d.render();d.handle().props.onPointerMove(d.event(900));d.listeners.get('blur')();d.render();assert.equal(d.changes.length,0);assert.equal(d.releases,2);
+});
+
+test('actual reduced-motion docking still follows the pointer but starts no panel or chat animations',async t=>{
+ const d=await dragPanelHarness(t,{reducedMotion:true});d.handle().props.onPointerDown(d.event(250));d.render();d.handle().props.onPointerMove(d.event(1100));assert.equal(d.offsets.get('--drag-offset-x'),'660px');
+ d.handle().props.onPointerUp(d.event(1100));d.render();assert.equal(d.side,'right');assert.equal(d.animations.length,0);
 });
 
 test('actual CharacterSettings coalesces same-turn duplicate create submissions before rerender',async t=>{
@@ -130,14 +225,23 @@ test('actual CharacterSettings coalesces same-turn duplicate create submissions 
  const first=submit({preventDefault(){}}),second=submit({preventDefault(){}});finish();await Promise.all([first,second]);await h.settle();assert.equal(creates,1);
 });
 
-test('manual daylight location requires valid coordinates and can be cleared',async t=>{
- const h=await hookHarness(t,'src/ui/SunlightLocationSettings.jsx');let submitted='unchanged';
- const props={value:null,onChange:value=>submitted=value},walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
- const find=(type)=>walk(h.tree).filter(node=>node.type===type);
- h.render(props);assert.equal(find('button')[0].props.disabled,true);
- find('input')[0].props.onChange({target:{value:'35.6895'}});find('input')[1].props.onChange({target:{value:'181'}});h.render();assert.equal(find('button')[0].props.disabled,true);
- find('input')[1].props.onChange({target:{value:'139.6917'}});h.render();assert.equal(find('button')[0].props.disabled,false);find('button')[0].props.onClick();assert.deepEqual(submitted,{latitude:35.6895,longitude:139.6917});
- h.render({...props,value:submitted});h.render({...props,value:submitted});assert.equal(find('button').length,2);find('button')[1].props.onClick();assert.equal(submitted,null);
+test('automatic climate settings explain consent, remove manual coordinates and explicitly enable or cancel',async t=>{
+ const {SceneClimateContext}=await import('../src/ui/use-scene-climate.mjs');
+ const saved=SceneClimateContext._currentValue;let requested=0,cleared=0,submitted='unchanged';
+ SceneClimateContext._currentValue={status:'尚未请求位置',phase:'consent',requestLocation:()=>requested++,disable:()=>cleared++};
+ t.after(()=>{SceneClimateContext._currentValue=saved});
+ const h=await hookHarness(t,'src/ui/SunlightLocationSettings.jsx'),props={enabled:false,onChange:value=>submitted=value};
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const nodes=()=>walk(h.tree),toggle=()=>nodes().find(node=>node.props?.role==='switch');
+ h.render(props);assert.equal(requested,0);assert.equal(nodes().filter(node=>node.type==='input').length,1);assert.equal(toggle().props.type,'checkbox');assert.equal(toggle().props.checked,false);
+ const text=JSON.stringify(h.tree);for(const pattern of [/系统时钟/,/操作系统/,/小数点后两位/,/https:\/\/api\.open-meteo\.com\/v1\/forecast/,/不保存精确坐标/,/不使用 IP 定位/])assert.match(text,pattern);
+ toggle().props.onChange({target:{checked:true}});assert.equal(submitted,true);assert.equal(requested,1);
+ SceneClimateContext._currentValue={...SceneClimateContext._currentValue,phase:'locating',status:'正在请求系统位置授权'};
+ h.render({...props,enabled:true});const cancel=nodes().find(node=>node.type==='button'&&node.props.children==='取消并关闭自动天气');assert.ok(cancel);cancel.props.onClick();assert.equal(submitted,false);assert.equal(cleared,1);
+ SceneClimateContext._currentValue={...SceneClimateContext._currentValue,phase:'denied',status:'系统位置授权被拒绝；继续使用本地时间'};
+ h.render({...props,enabled:true});assert.match(nodes().find(node=>node.props?.role==='status').props.children,/拒绝/);
+ nodes().find(node=>node.type==='button'&&node.props.children==='授权 / 重新获取位置与天气').props.onClick();assert.equal(requested,2);
+ toggle().props.onChange({target:{checked:false}});assert.equal(submitted,false);assert.equal(cleared,2);
 });
 
 async function cpuRenderer(){
@@ -263,4 +367,4 @@ test('native model QA uses the production player and demands clock, pause, gestu
  assert.match(source,/src\/speech\/player\.mjs/);assert.match(source,/__qaAudio\.play\(bytes/);assert.match(source,/getSnapshot\(\)/);assert.match(source,/context\.suspend\(\)/);assert.match(source,/context\.resume\(\)/);assert.match(source,/!started\|\|!paused\|\|!gesture\|\|!complete\|\|!cleared/);assert.match(source,/Actual AudioContext suspension did not freeze speech/);assert.match(source,/Suspended audio did not release gesture weight/);assert.match(source,/await checkActualAudioClock\(\)/);assert.match(preload,/onSpeech/);
 });
 
-test('independent model preserves lighting/toon settings and available-language visual bubble',async t=>{let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();const runtime=h.runtime.instances[0],environments=[],styles=[];runtime.setEnvironment=value=>environments.push(value);runtime.setRenderStyle=value=>styles.push(value);receive({character:{id:'a',modelId:'',presentation:{scene:'beach',timeOfDay:'evening',renderStyle:'toon',daylightLocation:{latitude:35,longitude:139}}},preferences:{bubbleLanguage:'ja'},reply:{zh:'当前视觉回复',ja:''}});h.render();await h.settle();assert.deepEqual(environments.at(-1),{id:'beach',timeOfDay:{kind:'solar',elevation:40,hourAngle:0}});assert.equal(styles.at(-1),'toon');const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];assert.equal(walk(h.tree).find(n=>n.props?.className==='model-reply').props.children,'中文：当前视觉回复')});
+test('independent model preserves lighting/toon settings and available-language visual bubble',async t=>{let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();const runtime=h.runtime.instances[0],environments=[],styles=[];runtime.setEnvironment=value=>environments.push(value);runtime.setRenderStyle=value=>styles.push(value);receive({character:{id:'a',modelId:'',presentation:{scene:'beach',timeOfDay:'evening',renderStyle:'toon',daylightLocation:{latitude:35,longitude:139}}},preferences:{bubbleLanguage:'ja'},reply:{zh:'当前视觉回复',ja:''}});h.render();await h.settle();assert.deepEqual(environments.at(-1),{id:'beach',timeOfDay:12},'independent window follows the system clock, not retired manual coordinates');assert.equal(styles.at(-1),'toon');const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];assert.equal(walk(h.tree).find(n=>n.props?.className==='model-reply').props.children,'中文：当前视觉回复')});

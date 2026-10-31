@@ -84,6 +84,8 @@ function renderBubble(){
  bubble.hidden=false;
  if(zh.textContent!==nextZh)zh.textContent=nextZh;
  if(ja.textContent!==nextJa)ja.textContent=nextJa;
+ const language=settings.bubbleLanguage||'zh',languageButton=document.getElementById('bubble-language');
+ languageButton.textContent={zh:'中文',ja:'日本語',both:'双语'}[language];languageButton.setAttribute('aria-label',`气泡语言：${languageButton.textContent}，点击切换`);
  bubbleKey=key;bubbleBody.scrollTop=same?(atBottom?bubbleBody.scrollHeight:oldTop):0;updateBubbleLatest();
 }
 async function quote(trigger,action=clipName){
@@ -167,7 +169,7 @@ api?.onState(state=>{speechBusy=state.speechBusy===true;if(speechBusy)stopAudio(
  lastCharacterId=identity;
  if(state.voiceRevision!==voiceRevision){voiceRevision=state.voiceRevision;refreshVoiceCatalog();}
  const rendererChanged=settings.petRenderer!==state.preferences.petRenderer;kind=state.kind;settings=state.preferences;playbackPaused=state.playbackPaused===true;if(rendererChanged)resetMotion();const title=state.character?.name||'雪之下雪乃';document.querySelector('.pet-menu h2').textContent=title;input.placeholder=`和${title}说话…`;canvas.setAttribute('aria-label',`${title}桌宠，拖动移动，双击打开聊天，右键打开设置`);chatBusy=!!state.chatBusy;visionActive=!!state.visionActive;startupAvailable=!!state.startupAvailable;focus=state.focus||{active:false};
- const displayScale=menuView?1:(state.viewportScale||settings.scale);viewportScale=displayScale;document.documentElement.style.setProperty('--scale',displayScale);document.body.dataset.inputPosition=settings.inputPosition||'below';document.documentElement.style.setProperty('--pet-opacity',settings.opacity??1);
+ const displayScale=menuView?1:(state.viewportScale||settings.scale);viewportScale=displayScale;document.documentElement.style.setProperty('--scale',displayScale);document.body.dataset.inputPosition=settings.inputPosition||'below';document.body.dataset.reducedMotion=String(settings.animation===false);document.documentElement.style.setProperty('--pet-opacity',settings.opacity??1);
  canvas.hidden=menuView||kind!=='pet';model.hidden=menuView||kind!=='model';composer.hidden=menuView;document.documentElement.style.setProperty('--figure-height',`${(kind==='model'?280:208)*displayScale}px`);
  void syncVideoPreview();refreshDrawLoop();updateCursorTimer();
  renderChat();
@@ -233,6 +235,8 @@ function updateCursorTimer(){const enabled=!menuView&&!document.hidden&&!playbac
 updateCursorTimer();
 function refreshVoiceCatalog(){return call('catalog').then(catalog=>{voiceFiles=(catalog?.voices||[]).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name));lastVoice=-1;if(!menu.hidden)renderMenu()}).catch(()=>{});}
 composer.addEventListener('pointerenter',()=>{dockHover=true;stopWalk();updateDock()});composer.addEventListener('pointerleave',()=>{dockHover=false;updateDock()});composer.addEventListener('focusin',()=>{dockFocus=true;updateDock()});composer.addEventListener('focusout',event=>{if(!composer.contains(event.relatedTarget)){dockFocus=false;updateDock()}});function focusDockInput(){composer.classList.add('expanded');input.focus()}expandButton.addEventListener('click',focusDockInput);expandButton.addEventListener('focus',focusDockInput);
+document.getElementById('bubble-language').addEventListener('click',()=>{const order=['zh','ja','both'];safely('prefs',{bubbleLanguage:order[(order.indexOf(settings.bubbleLanguage)+1)%order.length]})});
+document.getElementById('bubble-chat').addEventListener('click',()=>safely('open-main'));
 bubble.addEventListener('pointerenter',()=>{bubbleHover=true;stopWalk()});bubble.addEventListener('pointerleave',()=>{bubbleHover=false});bubbleBody.addEventListener('scroll',updateBubbleLatest);bubbleLatest.addEventListener('click',()=>{bubbleBody.scrollTop=bubbleBody.scrollHeight;updateBubbleLatest();bubbleBody.focus()});
 composer.addEventListener('submit',submitChat);input.addEventListener('input',renderChat);input.addEventListener('compositionstart',()=>{composing=true});input.addEventListener('compositionend',()=>{composing=false});input.addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.isComposing||composing||event.keyCode===229))event.preventDefault();});
 cameraButton.addEventListener('click',()=>{if(visionActive){call('vision-stop').catch(showError);return;}chatStatus.textContent='在独立视觉面板选择屏幕或摄像头；确认前不采集、不发送。';chatStatus.hidden=false;call('vision-open').catch(showError);});

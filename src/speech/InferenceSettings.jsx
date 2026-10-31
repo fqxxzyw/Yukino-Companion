@@ -1,0 +1,38 @@
+import React,{useEffect,useState} from 'react';
+import Select from '../ui/Select.jsx';
+export const inferenceDefaults={engine:'auto',aquaPython:'',aquaGraph:'lazy',aquaSovitsBase:'',aquaBigvgan:'',aquaSpeaker:'',aquaLangdetect:'',minSegmentChars:8,targetSegmentChars:35,maxSegmentChars:80,splitOnComma:'adaptive',mergeShortSegments:true,preservePunctuation:true,synthesisMode:'auto',maxConcurrentTasks:2,maxPendingSegments:12,maxPreparedSegments:4,maxBufferedAudioSeconds:20,failurePolicy:'abort'};
+const engineName=value=>value==='aqua'?'Aqua-TTS 高性能推理':value==='standard'?'GPT-SoVITS 标准推理':'尚未加载（不代表正在使用 Aqua）';
+export default function InferenceSettings({api,config,patch,status={},playbackStatus={},advanced=false,onSave,onRemote,onStop}){
+  const c={...inferenceDefaults,...config},[notice,setNotice]=useState(''),[working,setWorking]=useState(false),[environment,setEnvironment]=useState(null);
+  useEffect(()=>api?.onAquaEnvironmentProgress?.(progress=>setEnvironment(old=>({...old,...progress,ready:false}))),[api]);
+  const metadata=status.metadata||{},metrics=playbackStatus.metrics;
+  async function action(fn){setWorking(true);setNotice('');try{await fn();}catch(e){setNotice(String(e.message||e).replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/,''));}finally{setWorking(false);}}
+  const pathField=(key,label)=> <label className="field" key={key}>{label}<div className="voice-path"><input value={c[key]} onChange={e=>patch({[key]:e.target.value})} placeholder="仅保存本机路径，不复制模型"/><button type="button" className="secondary" disabled={working||!api} onClick={()=>action(async()=>{const selected=await api.voicePick(key);if(selected)patch({[key]:selected});})}>浏览</button></div></label>;
+  const number=(key,label,min,max)=><label className="field" key={key}>{label}<input type="number" min={min} max={max} value={c[key]} onChange={e=>patch({[key]:Number(e.target.value)})}/></label>;
+  return <>
+    <section className="settings-section"><h3>推理引擎</h3>
+      <label className="field">语音引擎<Select value={c.engine} onChange={e=>{onStop();patch({engine:e.target.value});}}><option value="auto">智能模式（推荐）</option><option value="aqua">Aqua-TTS 高性能推理</option><option value="standard">GPT-SoVITS 标准推理</option></Select></label>
+      <p className="hint">智能模式检查模型、隔离环境与真实 CUDA，再决定使用哪个引擎。现有 CKPT / PTH 原位使用；v1、v4、v5 暂由标准引擎处理。</p>
+      <div className="voice-status" role="status"><strong>实际引擎：{engineName(status.phase==='unloaded'?null:metadata.engine)}</strong>{metadata.engineVersion&&<span>运行版本：{metadata.engineVersion}</span>}{(metadata.engineFallbackReason||status.fallbackReason||status.enginePlan?.reason)&&<span>选择 / 回退原因：{metadata.engineFallbackReason||status.fallbackReason||status.enginePlan.reason}</span>}<span>当前适配：单模型、单 GPU 推理；播放期间预合成下一句。不是两个模型同时占用显存。</span></div>
+    </section>
+    {advanced&&<>
+      <section className="settings-section"><h3>Aqua 环境与依赖</h3><p className="hint">可选组件，不影响打开应用或使用标准引擎。需要 NVIDIA CUDA 和 aqua-tts 0.3.0；CUDA Graph 默认惰性捕获，适合 6 GiB 显存。Aqua 使用 GPU FP16，不受标准引擎的半精度开关控制。</p>
+        {pathField('aquaPython','Aqua Python（独立环境）')}
+        <div className="button-row"><button type="button" className="secondary" disabled={working||!api?.aquaEnvironmentStatus} onClick={()=>action(async()=>setEnvironment(await api.aquaEnvironmentStatus()))}>检查隔离环境</button><button type="button" className="secondary" disabled={working||!api?.aquaEnvironmentInstall||!c.python} onClick={()=>action(async()=>{setNotice('正在创建隔离扩展，仅下载约 107 KiB 的 Aqua 包；不下载音色、PyTorch 或 CUDA。');const result=await api.aquaEnvironmentInstall(c.python);setEnvironment(result);if(result.ready){patch({aquaPython:result.python});setNotice('Aqua 扩展环境已校验；音色与推理仍需加载 / 试听验证。');}})}>创建可选 Aqua 扩展</button><button type="button" className="secondary" disabled={!api?.aquaEnvironmentCancel} onClick={()=>api.aquaEnvironmentCancel().catch(e=>setNotice(e.message))}>取消环境准备</button></div>
+        <p className="hint">扩展环境只新增 Aqua 包，底层依赖只读复用所选完整 CPython 环境；不改原 GPT 环境。嵌入式 Python 无法创建 venv，或依赖冲突时，请选择另行配置的完整独立环境；不会强行升级依赖。</p>
+        {environment&&<p className="notice">{environment.ready?'环境验证通过（尚非音色推理验证）':environment.error||'环境未就绪'}{environment.phase?` · ${environment.phase}`:''}</p>}
+        <label className="field">CUDA Graph<Select value={c.aquaGraph} onChange={e=>patch({aquaGraph:e.target.value})}><option value="lazy">惰性捕获（低显存推荐）</option><option value="off">关闭 Graph（保留静态 KV）</option><option value="minimal">最小预捕获（增加加载时间与显存）</option><option value="full">完整预捕获（高显存）</option></Select></label>
+        <details><summary>版本专用基础模型路径</summary>{pathField('aquaSovitsBase','v3 SoVITS 基础权重（可选指定）')}{pathField('aquaBigvgan','v3 BigVGAN 本地目录（可选指定）')}{pathField('aquaSpeaker','v2Pro / Plus ERes2Net 权重（可选指定）')}{pathField('aquaLangdetect','fast-langdetect 本地模型目录（可选指定）')}<p className="hint">留空时仅检查上游规定的本地路径。缺失会明确报错，不在加载或朗读过程中隐式下载。</p></details>
+      </section>
+      <section className="settings-section"><h3>流式分句</h3><p className="hint">完整短语立即入队，不等待全部回复。长度为语言感知预算，不等同于各语言的语音秒数；URL、数字、缩写、引号与括号受到保护。</p><div className="voice-grid">{number('minSegmentChars','最小片段预算',1,40)}{number('targetSegmentChars','目标片段预算',4,120)}{number('maxSegmentChars','最大片段预算',8,160)}<label className="field">逗号与弱标点<Select value={c.splitOnComma} onChange={e=>patch({splitOnComma:e.target.value})}><option value="adaptive">自适应（推荐）</option><option value="never">不按弱标点拆分</option><option value="always">满足最小长度时拆分</option></Select></label></div>
+        <label className="row"><div><strong>合并已到达的短片段</strong><small>不为等待下一句而扣住首句。</small></div><input type="checkbox" role="switch" checked={c.mergeShortSegments} onChange={e=>patch({mergeShortSegments:e.target.checked})}/></label>
+      </section>
+      <section className="settings-section"><h3>并发调度与播放优化</h3><label className="field">调度方式<Select value={c.synthesisMode} onChange={e=>patch({synthesisMode:e.target.value})}><option value="auto">自动（按引擎真实能力）</option><option value="serial">串行合成 + 异步播放</option><option value="concurrent">有界并发（当前本地引擎限 1）</option><option value="batch" disabled>原生批处理（逐句时间轴模式暂未开放）</option></Select></label>
+        <div className="voice-grid">{number('maxConcurrentTasks','提交并发上限（非 GPU 实际并发）',1,4)}{number('maxPendingSegments','待处理片段上限',1,32)}{number('maxPreparedSegments','已准备片段上限',1,8)}{number('maxBufferedAudioSeconds','待播音频上限 / 秒',1,60)}</div>
+        <label className="field">片段失败时<Select value={c.failurePolicy} onChange={e=>patch({failurePolicy:e.target.value})}><option value="abort">终止本次朗读并提示（推荐）</option><option value="retry">最多重试一次，再终止</option><option value="skip">明确跳过失败片段，继续后续</option></Select></label><p className="hint">复用持续 AudioContext，提前解码下一句；按序播放，最后一段音频实际结束才完成。停止 / 新回复会隔离迟到结果。当前按句返回 WAV，不宣称已经接通 Aqua 的原生 PCM 首包流。</p>
+      </section>
+    </>}
+    <section className="settings-section"><h3>性能诊断</h3><div className="voice-status"><span>模型加载：{Number.isFinite(metadata.loadMs)?`${Math.round(metadata.loadMs)} ms`:'尚未测量'}</span><span>最近合成：{Number.isFinite(metadata.synthesisMs)?`${metadata.synthesisMs} ms`:'尚未测量'} · RTF：{Number.isFinite(metadata.rtf)?metadata.rtf.toFixed(3):'尚未测量'}</span><span>显存峰值：{Number.isFinite(metadata.vramPeakBytes)?`${Math.round(metadata.vramPeakBytes/1048576)} MiB`:'尚未测量'}</span>{metrics&&<><span>本次首段分句 / 首段合成 / 播放启动：{[metrics.firstSegmentMs,metrics.firstSynthesisMs,metrics.firstPlaybackMs].map(v=>Number.isFinite(v)?`${Math.round(v)} ms`:'待测').join(' / ')}</span><span>队列峰值 {metrics.queuedPeak} · 已准备峰值 {metrics.preparedPeak} · 当前待播缓冲 {metrics.bufferedSeconds.toFixed(1)} s · 已播 {metrics.played} 段 · 失败 {metrics.failed} 次</span></>}<span>播放启动取 AudioContext 源启动事件，不等于硬件扬声器出声测量；不冒充 LLM 首 token 或端到端首声。未运行同硬件配对基准时，不显示加速比。</span></div></section>
+    {notice&&<p className="notice" role="status">{notice}</p>}
+  </>;
+}

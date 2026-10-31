@@ -7,6 +7,7 @@ const {execFile} = require('node:child_process');
 const {promisify} = require('node:util');
 const yauzl = require('yauzl');
 const {VoiceResources} = require('./voice-resources.cjs');
+const {ResourceJobs} = require('./resource-jobs.cjs');
 const execute = promisify(execFile);
 const {OFFICIAL_CUDA_VERSION,RUNTIME_PROBE,validateProbe,installOfficialCuda}=require('./official-runtime.cjs');
 async function hashFile(file){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file))hash.update(chunk);return hash.digest('hex');}
@@ -57,7 +58,7 @@ async function detectNvidia(platform=process.platform,run=execute,signal){return
 class RuntimeManager{
   constructor({dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
     Object.assign(this,{dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run,hardwareRun});
-    this.root=path.join(dataRoot,'runtime');this.phase='idle';this.error=null;this.progress=null;this.controller=null;this.downloader=null;
+    this.jobs=new ResourceJobs();this.root=path.join(dataRoot,'runtime');this.phase='idle';this.error=null;this.progress=null;this.controller=null;this.downloader=null;
   }
   emit(phase,extra={}){this.phase=phase;this.error=extra.error||null;this.progress=extra.progress||null;this.notify({phase,...extra});}
   async catalog(){try{const catalog=JSON.parse(await fs.readFile(this.catalogPath,'utf8'));if(this.platform==='win32'&&catalog.variants?.cpu&&!catalog.variants.cu124)catalog.variants.cu124={...catalog.variants.cpu,officialPip:true,baseFlavor:'cpu'};return catalog;}catch(e){if(e.code==='ENOENT')return {schemaVersion:1,variants:{}};throw Error('运行环境下载清单无法读取');}}
@@ -102,9 +103,12 @@ class RuntimeManager{
     if(requested!=='auto')return requested;
     return catalog.variants?.cu124&&await detectNvidia(this.platform,this.hardwareRun,signal)?'cu124':'cpu';
   }
-  async install(requested='auto'){
-    if(this.controller)throw Error('运行环境正在安装');
-    const controller=new AbortController();this.controller=controller;
+  async install(requested='auto',{signal}={}){
+    if(!['auto','cpu','cu124'].includes(requested))throw Error('无效的运行环境选项');
+    return this.jobs.run(requested,controller=>this.installTask(requested,controller),{signal,targets:[this.root]});
+  }
+  async installTask(requested,controller){
+    this.controller=controller;
     let stage;
     try{
       const catalog=await this.catalog();controller.signal.throwIfAborted();
@@ -160,6 +164,6 @@ class RuntimeManager{
       finally{this.downloader=null;if(this.controller===controller)this.controller=null;}
     }
   }
-  cancel(){this.controller?.abort();this.downloader?.cancel();}
+  cancel(){this.jobs.cancel();this.downloader?.cancel();}
 }
 module.exports={RuntimeManager,extractRuntimeZip,safeEntry,hashFile,detectNvidia,detectNvidiaDetails};

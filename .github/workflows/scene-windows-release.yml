@@ -1,0 +1,94 @@
+name: Build scene Windows EXE
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: scene-windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    env:
+      YUKINO_BASE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Restore only the seven original digest-pinned character inputs
+        shell: pwsh
+        run: ./scripts/restore-character-inputs-windows.ps1 -BaseOnly
+      - name: Scene, control, speech and download regressions
+        shell: pwsh
+        run: |
+          node --test tests/scene-overview.test.cjs tests/coastal-scene-factories.test.cjs tests/scene-climate.test.cjs tests/scene-weather.test.cjs tests/scene-location-permission.test.cjs tests/walking-transition.test.cjs tests/speech-renderer.test.cjs tests/speech-scheduler.test.cjs tests/speech-segmenter.test.cjs tests/tts-engine.test.cjs tests/aqua-environment.test.cjs tests/resource-directory.test.cjs tests/resource-jobs.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-four-scenes.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Real Electron scene selection, miniature orbit and character placement checks
+        run: node scripts/verify-scene-ui.mjs
+      - name: Prepare verified build tools and optional-resource catalogue
+        shell: pwsh
+        run: |
+          python scripts/prepare-aria2.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/mirror-resources.py --runtime-catalog-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build application, verify seven-model package and record payload
+        shell: pwsh
+        run: |
+          node scripts/build-base-app.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/base-payload.cjs record build/base-app build/base-payload.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows installer
+        shell: pwsh
+        run: ./scripts/build-base-installer.ps1
+      - name: Bind installer bytes to this exact source revision
+        shell: pwsh
+        run: |
+          $exe = Get-Item release/Yukino-Companion-0.4.0-Base-Setup.exe
+          $sha = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{ commit=$env:GITHUB_SHA; tree=(git rev-parse 'HEAD^{tree}'); runId=$env:GITHUB_RUN_ID; installer=$exe.Name; bytes=$exe.Length; sha256=$sha; characterVariants=7; aquaGpuInferenceVerified=$false } | ConvertTo-Json | Set-Content release/candidate-source.json -Encoding utf8
+          "$sha  $($exe.Name)" | Set-Content release/SHA256SUMS.txt -Encoding utf8
+      - name: Native install, launch, upgrade and uninstall in disposable runner directory
+        timeout-minutes: 12
+        run: python scripts/run-native-smoke.py
+      - name: Preserve built EXE and checksums (consult validation report before installing)
+        if: ${{ always() && hashFiles('release/*Setup.exe') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-scene-installer-${{ github.sha }}
+          path: |
+            release/Yukino-Companion-0.4.0-Base-Setup.exe
+            release/SHA256SUMS.txt
+            release/base-installer.json
+            release/candidate-source.json
+            build/base-package.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve visual and native validation evidence (no profiles or models)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yukino-scene-review-${{ github.sha }}
+          path: |
+            build/scene-ui-review/*.png
+            build/scene-ui-review/report.json
+            build/base-installer-review/*.png
+            build/base-installer-review/report.json
+            build/base-installer-review/watchdog.json
+          if-no-files-found: warn
+          retention-days: 14

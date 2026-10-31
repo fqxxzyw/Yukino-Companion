@@ -12,6 +12,16 @@ test('recovers and verifies all 17 bundled model inputs from an actual ASAR with
  const f=await fixture(t);assert.deepEqual(await restore(f.archive,f.catalog,f.destination),{variants:17,outfits:7});assert.equal((await fs.readdir(f.destination)).length,17);
  assert.deepEqual(await restore(f.archive,f.catalog,f.destination),{variants:17,outfits:7});
 });
+test('base-only recovery restores exactly seven original entries without altering hold flags',async t=>{
+ const f=await fixture(t);
+ for(let i=0;i<7;i++)f.catalog.models[i].id=`yukino-0${i+1}-v1`;
+ Object.assign(f.catalog.models[0],{ready:false,hold:true,status:'HOLD_eight_weight_GPU_validation'});
+ const before=structuredClone(f.catalog);
+ assert.deepEqual(await restore(f.archive,f.catalog,f.destination,{baseOnly:true}),{variants:7,outfits:7});
+ assert.equal((await fs.readdir(f.destination)).length,7);
+ assert.deepEqual(f.catalog,before);
+ await assert.rejects(fs.stat(path.join(f.destination,'fixture-7.glb')),{code:'ENOENT'});
+});
 test('rejects corruption before writing any inputs and preserves a conflicting existing file',async t=>{
  const f=await fixture(t);f.catalog.models[16].sha256='0'.repeat(64);await assert.rejects(restore(f.archive,f.catalog,f.destination),/does not match/);await assert.rejects(fs.stat(f.destination),{code:'ENOENT'});
  f.catalog.models[16].sha256=crypto.createHash('sha256').update('synthetic model 16').digest('hex');await fs.mkdir(f.destination);await fs.writeFile(path.join(f.destination,'fixture-16.glb'),'keep');await assert.rejects(restore(f.archive,f.catalog,f.destination),/Existing model input differs/);assert.deepEqual(await fs.readdir(f.destination),['fixture-16.glb']);assert.equal(await fs.readFile(path.join(f.destination,'fixture-16.glb'),'utf8'),'keep');
