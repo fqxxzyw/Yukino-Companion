@@ -1,3 +1,4 @@
+param([switch]$BaseOnly)
 # Only for a disposable GitHub-hosted Windows runner: installation registers a
 # temporary app with Windows, and is explicitly uninstalled on exit.
 $ErrorActionPreference='Stop'
@@ -16,7 +17,8 @@ try {
  if($setup.ExitCode -ne 0){throw 'Previous installer failed on temporary runner'}
  $archive=Join-Path $target 'resources/app.asar'
  if(-not(Test-Path -LiteralPath $archive -PathType Leaf)){throw 'Previous installer did not provide app.asar'}
- & node (Join-Path $root 'scripts/restore-character-inputs.cjs') $archive
+ $restoreArguments=@((Join-Path $root 'scripts/restore-character-inputs.cjs'));if($BaseOnly){$restoreArguments+='--base-only'};$restoreArguments+=$archive
+ & node @restoreArguments
  if($LASTEXITCODE -ne 0){throw 'Pinned model recovery failed'}
 } finally {
  $uninstaller=Join-Path $target 'unins000.exe'

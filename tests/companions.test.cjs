@@ -99,11 +99,21 @@ async function fixture(t) {
   const workArea = { x:0,y:0,width:1920,height:1040 };
   screen.getPrimaryDisplay = screen.getDisplayNearestPoint = () => ({ workArea }); screen.getCursorScreenPoint = () => ({ x:800,y:800 });
   let requested = 0, quit = 0;
-  const manager = new CompanionManager({ electron:{ BrowserWindow:FakeWindow,screen,powerMonitor,ipcMain:{ handle:(k,v)=>handlers.set(k,v),removeHandler:k=>handlers.delete(k) },app:{ quit:()=>quit++ } },dataDir:dir,onCloseRequested:()=>requested++,onQuit:()=>quit++ });
+  const manager = new CompanionManager({ electron:{ BrowserWindow:FakeWindow,screen,powerMonitor,ipcMain:{ handle:(k,v)=>handlers.set(k,v),removeHandler:k=>handlers.delete(k) },app:{ isPackaged:false, quit:()=>quit++ } },dataDir:dir,onCloseRequested:()=>requested++,onQuit:()=>quit++ });
   await manager.initialize(); t.after(async () => { await manager.dispose(); await fs.rm(dir,{ recursive:true,force:true }); });
   const main = new FakeWindow(); manager.attachMainWindow(main);
   return { manager,main,screen,workArea,powerMonitor,handlers,requested:()=>requested,quit:()=>quit };
 }
+test('unpackaged companion fixture never imports settings from another installation', async t => {
+  const previous=process.env.LOCALAPPDATA,legacy=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-legacy-fixture-'));
+  t.after(async()=>{if(previous===undefined)delete process.env.LOCALAPPDATA;else process.env.LOCALAPPDATA=previous;await fs.rm(legacy,{recursive:true,force:true});});
+  await fs.mkdir(path.join(legacy,'YukinoPet'));
+  await fs.writeFile(path.join(legacy,'YukinoPet/settings.ini'),'Scale=1.75\nPaused=true\nQuietMode=true');
+  process.env.LOCALAPPDATA=legacy;
+  const f=await fixture(t);
+  assert.equal(f.manager.preferences.scale,1);assert.equal(f.manager.preferences.animation,true);assert.equal(f.manager.preferences.quietMode,false);
+  assert.equal(await fs.readFile(path.join(legacy,'YukinoPet/settings.ini'),'utf8'),'Scale=1.75\nPaused=true\nQuietMode=true');
+});
 test('closing asks first, then pet/both selection hides main and persists', async t => {
   const f = await fixture(t); let prevented = false;
   f.main.emit('close',{ preventDefault:()=>prevented=true }); assert.equal(prevented,true); assert.equal(f.requested(),1); assert.equal(f.main.visible,true);
@@ -251,6 +261,31 @@ test('walking after an edge drag never jumps opposite the chosen gait or forgets
  assert.equal(await f.manager.viewCall(event,'walk-step',{x:-1,y:0,elapsedMs:100}),true);
  assert.equal(win.bounds.x,right-3);assert.deepEqual(f.manager.preferences.positions.pet.body,body);
 });
+test('a new pet reply recovers an off-screen body-only window without losing its drag footprint',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),body={x:.2,y:.3,width:.6,height:.5};
+ await f.manager.setPreferences({positions:{pet:{x:-66,y:-137,body}}});assert.ok(win.bounds.x<0&&win.bounds.y<0);
+ f.manager.showReply({id:'edge-reply',zh:'气泡不能落在屏幕外'});assert.equal(win.bounds.x,0);assert.equal(win.bounds.y,0);
+ assert.deepEqual(f.manager.preferences.positions.pet,{x:0,y:0,body});await f.manager.writeQueue;
+ assert.deepEqual(JSON.parse(await fs.readFile(path.join(f.manager.dataDir,'companions.json'),'utf8')).positions.pet,{x:0,y:0,body});
+ const stable={...win.bounds};f.manager.showReply({id:'edge-reply',zh:'继续更新同一条回复'});assert.deepEqual(win.bounds,stable);
+});
+test('visible reply clamps drag release and walking without persisting a full-window body',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame},body={x:.2,y:.3,width:.6,height:.5};
+ f.manager.showReply({id:'reading',zh:'正在阅读'});
+ await f.manager.viewCall(event,'drag-start',{body,point:{x:0,y:0}});await f.manager.viewCall(event,'drag-end',{moved:true,point:{x:-100000,y:-100000}});
+ assert.equal(win.bounds.x,0);assert.equal(win.bounds.y,0);assert.deepEqual(f.manager.preferences.positions.pet.body,body);
+ await f.manager.viewCall(event,'walk-step',{x:1,y:0});assert.equal(win.bounds.x,3);assert.deepEqual(f.manager.preferences.positions.pet.body,body);
+ f.manager.clearReply();await f.manager.viewCall(event,'drag-start',{body,point:{x:0,y:0}});await f.manager.viewCall(event,'drag-end',{moved:true,point:{x:-100000,y:-100000}});
+ assert.ok(win.bounds.x<0&&win.bounds.y<0,'without a reply, only the character footprint needs to remain on screen');
+});
+test('reply arriving mid-drag defers repositioning until release, while hidden bubbles keep body-only placement',async t=>{
+ const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame},body={x:.2,y:.3,width:.6,height:.5};
+ await f.manager.setPreferences({positions:{pet:{x:-66,y:-137,body}}});const initial={...win.bounds};
+ await f.manager.viewCall(event,'drag-start',{body});f.manager.showReply({id:'late',zh:'拖动中收到回复'});assert.deepEqual(win.bounds,initial);
+ await f.manager.viewCall(event,'drag-end',{moved:false});assert.equal(win.bounds.x,0);assert.equal(win.bounds.y,0);
+ await f.manager.setPreferences({showBubbles:false,positions:{pet:{x:-66,y:-137,body}}});f.manager.showReply({id:'hidden',zh:'已隐藏的气泡'});assert.ok(win.bounds.x<0&&win.bounds.y<0);
+ await f.manager.setPreferences({showBubbles:true});assert.equal(win.bounds.x,0);assert.equal(win.bounds.y,0);
+});
 test('walking with stale window geometry stops instead of teleporting to a work-area edge',async t=>{
  const f=await fixture(t);await f.manager.setMode('pet');const win=f.manager.windows.get('pet'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
  win.setPosition(-90,100);f.manager.preferences.positions.pet={x:-90,y:100};
@@ -289,6 +324,14 @@ test('settings uses one adjacent window and cannot cover or resize the pet',asyn
  await f.manager.viewCall(event,'menu-close');assert.equal(f.manager.menus.size,0);assert.equal(popup.destroyed,true);assert.deepEqual(owner.bounds,before);
 });
 
+test('default simultaneous windows use their real widths rather than a scaled fixed offset',async t=>{
+ const f=await fixture(t);
+ for(const scale of [.6,1,2])for(const position of ['left','right']){
+  await f.manager.setPreferences({mode:'both',scale,position,positions:{}});
+  const pet=f.manager.windows.get('pet').getBounds(),model=f.manager.windows.get('model').getBounds();
+  assert.ok(pet.x+pet.width+12<=model.x||model.x+model.width+12<=pet.x,`default windows overlap at ${scale} / ${position}`);
+ }
+});
 test('small desktops use bounded canonical viewports and avoid overlapping popup fallback',async t=>{
  assert.deepEqual(viewportSize('pet',2,{width:320,height:240}),{width:320,height:240});
  assert.equal(adjacentMenuBounds({x:0,y:0,width:320,height:240},{x:0,y:0,width:320,height:240}),null);

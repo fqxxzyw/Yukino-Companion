@@ -5,7 +5,14 @@
 <title>Yukino · 桌面陪伴</title><link rel="stylesheet" href="view.css">
 </head><body>
 <main id="stage">
-  <div id="bubble" class="bubble" hidden><div id="bubble-body" class="bubble-body" tabindex="0" aria-label="桌宠回复"><div id="zh"></div><div id="ja" lang="ja"></div></div><button id="bubble-latest" class="bubble-latest" type="button" hidden>回到最新</button></div>
+  <section id="bubble" class="bubble" aria-label="角色气泡" hidden>
+    <div id="bubble-body" class="bubble-body" tabindex="0" role="region" aria-label="桌宠回复"><div id="zh" lang="zh-CN"></div><div id="ja" lang="ja"></div></div>
+    <footer class="bubble-actions">
+      <button id="bubble-language" type="button" title="切换气泡语言">中文</button>
+      <button id="bubble-latest" class="bubble-latest" type="button" hidden>回到最新</button>
+      <button id="bubble-chat" type="button" title="在当前会话查看完整回复">打开聊天</button>
+    </footer>
+  </section>
   <canvas id="pet" width="192" height="208" aria-label="雪乃桌宠，拖动移动，双击打开聊天，右键打开设置" role="img" tabindex="0"></canvas>
   <div id="pet-video-layer" aria-hidden="true" hidden></div>
   <div id="model" class="model" hidden><div class="orb">Y</div><strong>人物模型位置</strong><span>3D 模型与动作正在准备</span><button id="model-open">打开对话</button></div>

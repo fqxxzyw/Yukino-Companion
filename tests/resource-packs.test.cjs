@@ -5,13 +5,16 @@ const path=require('node:path');
 const os=require('node:os');
 const crypto=require('node:crypto');
 const {ResourcePacks}=require('../electron/resource-packs.cjs');
+const {downloadResource}=require('../electron/resource-download.cjs');
+// Never spawn the bundled external downloader in these fixture-only tests.
+const fixtureDownloader=options=>downloadResource({...options,aria2Path:null});
 const {SetupService}=require('../electron/setup.cjs');
 const {zipBuffer}=require('./helpers/zip-fixture.cjs');
 const hash=data=>crypto.createHash('sha256').update(data).digest('hex');
 async function fixture(t,id,entries,options={}){
  const dataRoot=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-pack-'));t.after(()=>fs.rm(dataRoot,{recursive:true,force:true}));const archive=zipBuffer(entries),calls=[];
  const catalog={schemaVersion:1,packs:{[id]:{url:'https://example.test/model.zip',bytes:archive.length,sha256:hash(archive),maxUnpackedBytes:1024**2,expectedFiles:options.expectedFiles||2}}};
- const service=new ResourcePacks({dataRoot,catalog,fetcher:async(url,init)=>{calls.push(url);return new Response(archive);},...options});return{dataRoot,service,calls};
+ const service=new ResourcePacks({dataRoot,catalog,downloader:fixtureDownloader,fetcher:async(url,init)=>{calls.push(url);return new Response(archive);},...options});return{dataRoot,service,calls};
 }
 function chatEntries(overrides={}){const model=Buffer.from('GGUFactual-small-test-fixture');const manifest={file:'model.gguf',bytes:model.length,sha256:hash(model),training:{completed:true},...overrides};return[{name:'trained/manifest.json',data:JSON.stringify(manifest)},{name:'trained/model.gguf',data:model}];}
 test('chat installs a verified trained GGUF into userData and reuses it without fetching',async t=>{
@@ -60,16 +63,62 @@ test('setup starts speech core and selected voice together after the runtime is 
  const job=setup.install({features:['voice']});await new Promise(setImmediate);assert.deepEqual(new Set(started),new Set(['voiceCore','voicePreset']));release();assert.equal((await job).ready,true);
 });
 
-test('legacy pack is identified but installation prepares the selected directory',async t=>{
+test('old installed packs stay on disk but cannot make a new installation ready',async t=>{
  const old=await fixture(t,'chat',chatEntries());const installed=await old.service.install('chat');
  const selected=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-new-location-'));t.after(()=>fs.rm(selected,{recursive:true,force:true}));
- const service=new ResourcePacks({dataRoot:selected,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,fetcher:async()=>new Response(zipBuffer(chatEntries()))});
- assert.equal((await service.status('chat')).root,installed.root);
- assert.equal((await service.status('chat')).legacy,true);
+ const service=new ResourcePacks({dataRoot:selected,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,downloader:fixtureDownloader,fetcher:async()=>new Response(zipBuffer(chatEntries()))});
+ assert.equal((await service.status('chat')).root,'');
+ assert.equal((await service.status('chat')).installed,false);
+ assert.equal((await service.status('chat')).legacy,false);
+ assert.equal((await service.status('chat',{currentOnly:false})).installed,false);
+ assert.equal((await service.status('chat',{legacyOnly:true})).root,installed.root);
+ assert.equal((await service.status('chat',{legacyOnly:true})).legacy,true);
  assert.equal((await service.status('chat',{currentOnly:true})).installed,false);
  const prepared=await service.install('chat');assert.equal(prepared.legacy,false);assert.ok(prepared.root.startsWith(selected+path.sep));assert.notEqual(prepared.root,installed.root);
  assert.ok(service.root.startsWith(selected+path.sep));
  assert.equal((await fs.readFile(path.join(installed.root,'model.gguf'))).subarray(0,4).toString(),'GGUF');
+});
+
+test('legacy pet audio never enables a new installation and explicit legacy inspection is read-only',async t=>{
+ const old=await fixture(t,'pet',[{name:'A.ogg',data:'OggSone'},{name:'B.ogg',data:'OggStwo'}]);const installed=await old.service.install('pet');
+ const dataRoot=path.join(old.dataRoot,'new-selected');
+ const service=new ResourcePacks({dataRoot,legacyDataRoot:old.dataRoot,catalog:old.service.catalog,downloader:fixtureDownloader,fetcher:async()=>new Response(zipBuffer([{name:'A.ogg',data:'OggSone'},{name:'B.ogg',data:'OggStwo'}]))});
+ assert.equal((await service.status('pet')).installed,false);
+ assert.equal((await service.status('pet',{legacyOnly:true})).root,installed.root);
+ assert.equal((await service.status('pet')).installed,false);
+ const prepared=await service.install('pet');assert.equal(prepared.installed,true);assert.equal(prepared.legacy,false);
+ assert.equal((await service.status('pet')).root,prepared.root);
+ assert.equal(await fs.readFile(path.join(installed.root,'voices','A.ogg'),'utf8'),'OggSone');
+ await assert.rejects(service.status('pet',{currentOnly:true,legacyOnly:true}),/不能同时/);
+});
+
+test('resource packs can use this installation resource root but never a different install root',async t=>{
+ const bundled=await fixture(t,'chat',chatEntries());const installed=await bundled.service.install('chat');
+ const dataRoot=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-pack-current-'));t.after(()=>fs.rm(dataRoot,{recursive:true,force:true}));
+ const options={dataRoot,resourceRoot:bundled.dataRoot,catalog:bundled.service.catalog,fetcher:async()=>{throw Error('unexpected download');}};
+ const service=new ResourcePacks(options);
+ assert.equal((await service.status('chat')).installed,true);assert.equal((await service.status('chat')).root,installed.root);
+ assert.equal((await service.status('chat',{currentOnly:true})).installed,false);
+ const missing=new ResourcePacks({...options,resourceRoot:path.join(dataRoot,'empty-resources'),legacyDataRoot:bundled.dataRoot});
+ assert.equal((await missing.status('chat')).installed,false);
+ assert.equal((await fs.readFile(path.join(installed.root,'model.gguf'))).subarray(0,4).toString(),'GGUF');
+});
+
+test('resource pack callers share one install and only the last owner can abort its worker',async t=>{
+ let enter,release,fetches=0,networkSignal;const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+ const {service}=await fixture(t,'chat',chatEntries(),{fetcher:async(_url,{signal})=>{fetches++;networkSignal=signal;enter();await gate;return new Response(zipBuffer(chatEntries()));}});
+ const settings=service.install('chat');await entered;
+ const controller=new AbortController(),wizard=service.install('chat',{signal:controller.signal}),rejected=assert.rejects(wizard,{name:'AbortError'});
+ controller.abort();await rejected;assert.equal(networkSignal.aborted,false);release();const installed=await settings;
+ assert.equal(installed.installed,true);assert.equal(fetches,1);assert.equal(service.controller,null);
+});
+
+test('a failed feature does not abort independent setup downloads',async()=>{
+ let enter,release;const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);let voiceReady=false;
+ const setup=new SetupService({inspect:async()=>({steps:[{id:'runtime',state:'ready'},{id:'translation',state:'missing'},{id:'voiceCore',state:voiceReady?'ready':'missing'},{id:'voicePreset',state:'ready'}]}),installRuntime:async()=>{},refresh:async()=>{},installTranslation:async()=>{await entered;throw Error('translation source failed');},installVoice:async signal=>{enter();await gate;assert.equal(signal.aborted,false);voiceReady=true;return{};},saveVoice:async()=>{},installVoicePreset:async()=>{}});
+ const operation=setup.install({features:['translation','voice']}),rejected=assert.rejects(operation,/translation source failed/);
+ await entered;await new Promise(setImmediate);assert.equal(setup.controller.signal.aborted,false);release();await rejected;
+ assert.equal(voiceReady,true);assert.equal(setup.failedStep,'translation');assert.equal(setup.phase,'error');
 });
 
 test('setup refuses a false successful installer when final disk inspection remains incomplete',async()=>{

@@ -135,7 +135,7 @@ class WorkerTests(unittest.TestCase):
 
     def test_protocol_survives_error_without_stdout_pollution(self):
         commands = [{'id':'a','method':'unknown'}, {'id':'b','method':'synthesize','text':'hello'}]
-        result = subprocess.run([sys.executable, str(ROOT/'inference/worker.py')],
+        result = subprocess.run([sys.executable, '-X', 'utf8', str(ROOT/'inference/worker.py')],
                                 input=''.join(json.dumps(x)+'\n' for x in commands), text=True,
                                 encoding='utf-8', capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0)
@@ -177,6 +177,30 @@ class WorkerTests(unittest.TestCase):
                 engine.synthesize('こんにちは。', 1)
             self.assertTrue(load.call_args.kwargs['force_cpu'])
             self.assertIn('invalid device function',load.call_args.kwargs['fallback_reason'])
+
+    def test_native_sentence_batch_uses_one_pipeline_with_order_preserved(self):
+        captured = []
+        engine = worker.Engine()
+        class Pipeline:
+            def run(self, params):
+                captured.append(params)
+                raise RuntimeError('captured-batch')
+        engine.pipeline = Pipeline()
+        engine.torch = SimpleNamespace(inference_mode=contextlib.nullcontext)
+        engine.cfg = {'reference':'ref.wav','promptText':'','promptLang':'ja'}
+        engine.metadata = {'device':'cpu'}
+        with self.assertRaisesRegex(RuntimeError, 'captured-batch'):
+            engine.synthesize_batch(['こんにちは。', 'お元気ですか。'], 1)
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]['text'], 'こんにちは。\nお元気ですか。')
+        self.assertEqual(captured[0]['batch_size'], 2)
+        self.assertTrue(captured[0]['parallel_infer'])
+        self.assertFalse(captured[0]['split_bucket'])
+        self.assertEqual(captured[0]['text_split_method'], 'cut0')
+        for texts in [[], ['です。']*4, ['こんにちは。','你好。'], ['あ'*250,'い'*250]]:
+            with self.assertRaises(ValueError):
+                engine.synthesize_batch(texts, 1)
+        self.assertEqual(len(captured), 1)
 
     def test_synthesis_language_is_fixed_even_if_stale_config_requests_chinese(self):
         captured = {}

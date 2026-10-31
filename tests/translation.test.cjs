@@ -103,11 +103,12 @@ test('valid bundled translation weights are reused without Python or any network
   assert.equal(f.fetches(),0);assert.equal(status.modelDir,f.bundled);assert.equal(status.modelInstalled,true);assert.equal(status.runtimeAvailable,false);assert.equal(status.ready,false);assert.equal(status.modelSource,'bundled');assert.equal(status.phase,'installed');assert.equal(status.loaded,false);
   f.service.configure({python:process.execPath});const ready=await f.service.status();assert.equal(ready.ready,true);assert.equal(ready.runtimeAvailable,true);assert.equal(ready.loaded,false);
 });
-test('concurrent translation installs are rejected during manifest and in-place hash checks',async t=>{
-  const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});
-  const first=f.service.install();await assert.rejects(f.service.install(),/正在准备/);
-  await gate.entered;await assert.rejects(f.service.install(),/正在准备/);gate.release(true);await first;
-  assert.equal(f.fetches(),0);assert.equal(f.service.installToken,null);
+test('concurrent translation installs reuse one operation during manifest and in-place hash checks',async t=>{
+  let checks=0;const gate=barrier(),f=await installFixture(t,{verifyFile:()=>{checks++;return gate.wait();}});
+  const first=f.service.install(),second=f.service.install();
+  await gate.entered;const third=f.service.install();gate.release(true);
+  const results=await Promise.all([first,second,third]);assert.ok(results.every(result=>result.modelInstalled));
+  assert.equal(checks,1);assert.equal(f.fetches(),0);assert.equal(f.service.installToken,null);
 });
 test('cancelling during existing-model verification prevents later downloads and permits retry',async t=>{
   const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});
@@ -130,6 +131,14 @@ test('stopping all chat requests and changing the shared Python do not cancel a 
  const gate=barrier(),f=await installFixture(t,{verifyFile:()=>gate.wait()});const operation=f.service.install();await gate.entered;
  f.service.cancelRequests();f.service.configure({python:path.resolve('/new/shared/python')});gate.release(true);
  assert.equal((await operation).modelInstalled,true);assert.equal(f.service.installToken,null);
+});
+test('cancel then immediate translation retry waits for old verification and keeps the new token',async t=>{
+  const gate=barrier();let checks=0;
+  const f=await installFixture(t,{verifyFile:async()=>{if(++checks===1)return gate.wait();return true;}});
+  const old=f.service.install(),rejected=assert.rejects(old,{name:'AbortError'});await gate.entered;
+  f.service.cancelInstall();const next=f.service.install();await new Promise(setImmediate);assert.equal(checks,1);
+  gate.release(false);await rejected;const result=await next;
+  assert.equal(result.modelInstalled,true);assert.equal(checks,2);assert.equal(f.fetches(),0);assert.equal(f.service.installToken,null);assert.equal(f.service.phase,'installed');
 });
 test('failed translation installation releases the entire lifecycle guard',async t=>{
   const f=await installFixture(t,{verifyFile:async()=>{throw Error('cannot read model')}});

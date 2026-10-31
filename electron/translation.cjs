@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { WorkerClient } = require('./speech.cjs');
 const { VoiceResources, verified } = require('./voice-resources.cjs');
+const { ResourceJobs } = require('./resource-jobs.cjs');
 const DEFAULTS = Object.freeze({ python: '', modelDir: '', device: 'auto', cpuThreads: 4, cpuFallback: true, timeout: 180 });
 
 function validateConfig(input = {}) {
@@ -26,6 +27,7 @@ class TranslationService {
     this.bundledModelDir = modelDir;
     this.config = validateConfig({ modelDir, python });
     this.worker = null; this.loadedConfig = ''; this.pending = new Map(); this.active = null;
+    this.installJobs = new ResourceJobs();
     this.installer = null; this.installToken = null; this.progress = null; this.error = null;
     this.queue = Promise.resolve(); this.phase = 'unloaded'; this.metadata = null; this.disposed = false;
   }
@@ -54,16 +56,18 @@ class TranslationService {
     const modelSource = this.config.modelDir === this.bundledModelDir ? 'bundled' : this.config.modelDir.startsWith(downloaded + path.sep) ? 'downloaded' : 'custom';
     return { ready: available, phase: this.phase, available, modelInstalled, runtimeAvailable, modelSource, loaded:Boolean(this.worker&&!this.worker.closed&&this.loadedConfig), model: 'tencent/Hy-MT2-1.8B-GGUF', device: this.metadata?.device || this.config.device, error: this.error, config: { ...this.config }, progress: this.progress, metadata: this.metadata, modelDir: this.config.modelDir, python: this.config.python, source: 'zh', target: 'ja' };
   }
-  async install() {
+  async install({ signal } = {}) {
     if (this.disposed) throw Error('翻译服务已关闭');
-    // Reserve the entire operation before the first await, including manifest
-    // reading and in-place hashing. A second click must not start a parallel job.
-    if (this.installToken) throw Error('翻译模型正在准备，请等待当前操作结束');
-    this.cancel();
+    return this.installJobs.run('translation', controller => this.installTask(controller), { signal });
+  }
+  async installTask(controller) {
+    this.cancelRequests();
     const token = { cancelled: false, installer: null };
     this.installToken = token;
+    const onAbort = () => { token.cancelled = true; token.installer?.cancel(); this.update('paused'); };
+    controller.signal.addEventListener('abort', onAbort, { once: true });
     const check = () => {
-      if (token.cancelled || this.disposed || this.installToken !== token) throw abortError();
+      if (controller.signal.aborted || token.cancelled || this.disposed || this.installToken !== token) throw abortError();
     };
     try {
       this.progress = null;
@@ -118,6 +122,7 @@ class TranslationService {
       this.update('error', { error: error.message });
       throw error;
     } finally {
+      controller.signal.removeEventListener('abort', onAbort);
       if (this.installer === token.installer) this.installer = null;
       if (this.installToken === token) this.installToken = null;
     }
@@ -184,7 +189,7 @@ class TranslationService {
     }
     this.cancelRequests(requestId);
   }
-  cancelInstall(){if(this.installToken)this.installToken.cancelled=true;this.installer?.cancel();}
+  cancelInstall(){this.installJobs.cancel();}
   cancelRequests(requestId){
     for (const [id, token] of this.pending) if (!requestId || id === requestId) token.cancelled = true;
     if (!requestId || this.active?.requestId === requestId) {

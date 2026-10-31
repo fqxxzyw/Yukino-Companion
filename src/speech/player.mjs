@@ -16,21 +16,28 @@ export class AudioPlayer {
     if(!record||!this.source)return {token:this.lastStartedToken||0,clockSeconds:this.context?.currentTime||0,playing:false,paused:false,elapsedSeconds:0,durationSeconds:0,level:0,hint:'neutral'};
     const elapsedSeconds=Math.max(0,Math.min(record.durationSeconds,this.context.currentTime-record.startedAt));
     const playing=elapsedSeconds<record.durationSeconds,paused=this.context.state!=='running';
-    return {token:record.token,clockSeconds:this.context.currentTime,playing,paused,elapsedSeconds,durationSeconds:record.durationSeconds,level:playing&&!paused?this.getLevel():0,hint:record.hint};
+    return {token:record.token,clockSeconds:this.context.currentTime,playing,paused,elapsedSeconds,durationSeconds:record.durationSeconds,level:playing&&!paused?this.getLevel():0,hint:record.hint,text:record.text,sequence:record.sequence,requestId:record.requestId};
   }
   setVolume(value) { this.volume = value; if (this.gain) this.gain.gain.value = value; }
-  async play(bytes,{hint='neutral'}={}) {
+  async prepare(bytes) {
+    await this.unlock();
+    const data=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
+    if(data.byteLength>32*1024*1024)throw Error('播放音频超过大小限制');
+    const buffer=await this.context.decodeAudioData(data.slice().buffer);
+    if(!Number.isFinite(buffer.duration)||buffer.duration<=0)throw Error('音频时长无效');
+    const prepared={buffer,duration:buffer.duration};(this.prepared ||= new WeakSet()).add(prepared);return prepared;
+  }
+  async play(bytes,{hint='neutral',onStarted=()=>{},text='',sequence=null,requestId=null}={}) {
     this.stop();const epoch=this.epoch;
+    const prepared=this.prepared?.has(bytes)?bytes:await this.prepare(bytes);
     await this.unlock();
     if(epoch!==this.epoch)return;
-    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-    const audio = await this.context.decodeAudioData(data.slice().buffer);
-    if (epoch !== this.epoch) return;
+    const audio=prepared.buffer;
     const source = this.context.createBufferSource(); source.buffer = audio; source.connect(this.gain); this.source = source;
     await new Promise((resolve, reject) => {
       this.resolve = resolve;
       source.onended = () => { source.disconnect(); if (this.source === source) { this.source = null; this.playback=null; this.resolve = null; } resolve(); };
-      try { const startedAt=this.context.currentTime;source.start();this.lastStartedToken=epoch;this.playback={token:epoch,startedAt,durationSeconds:audio.duration,hint:HINTS.has(hint)?hint:'neutral'}; }
+      try { const startedAt=this.context.currentTime;source.start();this.lastStartedToken=epoch;this.playback={token:epoch,startedAt,durationSeconds:audio.duration,hint:HINTS.has(hint)?hint:'neutral',text,sequence,requestId};onStarted({clockSeconds:startedAt,durationSeconds:audio.duration}); }
       catch (e) { source.disconnect(); if(this.source===source){this.source=null;this.playback=null;this.resolve=null;}reject(e); }
     });
   }

@@ -174,7 +174,18 @@ class Engine:
                          "referenceSeconds": round(audio_info.duration, 2)}
         return self.metadata
 
-    def synthesize(self, text, speed):
+    def synthesize_batch(self, texts, speed):
+        if not isinstance(texts, list) or not 1 <= len(texts) <= 3:
+            raise ValueError("每组合成必须为 1–3 句")
+        for text in texts:
+            if not isinstance(text, str) or not text.strip() or not re.search(r"[ぁ-ゖァ-ヺｦ-ﾝ]", text):
+                raise ValueError("每句必须为包含假名的完整日语译文")
+        text = "\n".join(texts)
+        if len(text) > 500:
+            raise ValueError("每组合成最多 500 字符")
+        return self.synthesize(text, speed, batch_size=len(texts))
+
+    def synthesize(self, text, speed, batch_size=1):
         if not self.pipeline:
             raise RuntimeError("语音模型尚未加载")
         if not isinstance(text, str) or not text.strip() or len(text) > 500:
@@ -187,8 +198,11 @@ class Engine:
         cfg = self.cfg
         params = {"text": text, "text_lang": "all_ja", "ref_audio_path": cfg["reference"],
                   "prompt_text": cfg["promptText"], "prompt_lang": cfg["promptLang"],
-                  "text_split_method": "cut5", "batch_size": 1, "speed_factor": speed,
-                  "streaming_mode": False, "return_fragment": False, "parallel_infer": False,
+                  # Use the engine's own bounded tensor batch, not competing
+                  # threads/model copies. Disable buckets to preserve input order.
+                  "text_split_method": "cut0" if batch_size > 1 else "cut5",
+                  "batch_size": batch_size, "split_bucket": False, "speed_factor": speed,
+                  "streaming_mode": False, "return_fragment": False, "parallel_infer": batch_size > 1,
                   "use_cuda_graph": False, "use_flash_attention": False, "gpt_streaming": False, "super_sampling": False,
                   "seed": -1}
         try:
@@ -198,7 +212,7 @@ class Engine:
             if self.metadata["device"] != "cpu" and cfg.get("cpuFallback") and is_gpu_failure(exc):
                 self.pipeline = None; release_cuda_cache(self.torch)
                 self.load(cfg, force_cpu=True, fallback_reason=str(exc)[:500])
-                return self.synthesize(text, speed)
+                return self.synthesize(text, speed, batch_size=batch_size)
             raise
         import numpy as np
         if not parts or any(rate != parts[0][0] for rate, _ in parts):
@@ -210,7 +224,8 @@ class Engine:
             raise RuntimeError("单段音频过大，请缩短文本")
         buffer = io.BytesIO()
         self.sf.write(buffer, data, parts[0][0], format="WAV", subtype="PCM_16")
-        return {"audio": base64.b64encode(buffer.getvalue()).decode("ascii"), "metadata": self.metadata}
+        return {"audio": base64.b64encode(buffer.getvalue()).decode("ascii"),
+                "metadata": {**self.metadata, "batchSize": batch_size, "parallelInference": batch_size > 1}}
 
 
 def main():
@@ -229,9 +244,16 @@ def main():
                     import torch
                     result = device_info(torch)
                 elif request["method"] == "load":
+                    if request["config"].get("engine") == "aqua":
+                        from aqua_adapter import AquaEngine
+                        engine = AquaEngine()
+                    else:
+                        engine = Engine()
                     result = engine.load(request["config"])
                 elif request["method"] == "synthesize":
                     result = engine.synthesize(request["text"], request.get("speed", 1))
+                elif request["method"] == "synthesize_batch":
+                    result = engine.synthesize_batch(request["texts"], request.get("speed", 1))
                 else:
                     raise ValueError("Unknown worker method")
             response = {"id": request["id"], "ok": True, "result": result}

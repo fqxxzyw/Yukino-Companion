@@ -12,13 +12,19 @@ const speechModule = require('../../electron/speech.cjs');
 const {mergeVoiceDefaults} = require('../../electron/bundled-voice.cjs');
 const localModule = require('../../electron/local-chat.cjs');
 
-async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=true, files = {}, directoryChoice = null, asrClass} = {}) {
+async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=true, files = {}, legacyFiles = {}, executable = path.resolve('/virtual-install/Yukino Companion.exe'), directoryChoice = null, asrClass, translationClass, cacheClass} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
   const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[],copied=[];
   const missingVoiceFields=new Set(voiceMissing),installedCorePaths=new Set();let coreInstalled=!voiceMissing.some(field=>['bert','hubert'].includes(field));
-  const storage = new Map(Object.entries({'state.json':JSON.stringify(state),...files}));
   const dataRoot = path.resolve('/virtual-user');
+  const {installationResourceLocation}=require('../../electron/resource-directory.cjs');
+  const installationOptions={packaged,executable,sourceRoot:path.resolve(__dirname,'../..'),userData:dataRoot};
+  const resourceKey=name=>path.relative(dataRoot,installationResourceLocation(installationOptions,name));
+  const storage = new Map([...Object.entries(legacyFiles),...Object.entries({'state.json':JSON.stringify(state),...files}).map(([name,value])=>[resourceKey(name),value])]);
+  // Existing fixtures describe this installation. Expose a logical view for old
+  // assertions, plus diskStorage for tests of real install-scope persistence.
+  const storageView={get:name=>storage.get(resourceKey(name)),has:name=>storage.has(resourceKey(name)),set:(name,value)=>storage.set(resourceKey(name),value),delete:name=>storage.delete(resourceKey(name)),entries:()=>storage.entries(),keys:()=>storage.keys(),values:()=>storage.values()};
   const defaultModelRoot = packaged ? path.join('/virtual-resources','translation-models',translationManifest.id) : path.resolve(__dirname,'../../translation/models',translationManifest.id);
   function fileKey(file) { return path.relative(dataRoot, file); }
   const virtualFS = {
@@ -92,6 +98,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
     async load(config){this.configure(config);voiceActions.push({method:'load'});this.status={...this.status,phase:'ready'};return this.status;}
     begin(id){voiceActions.push({method:'begin',id,config:this.config});if(!this.config)throw Error('Voice configuration must be applied before begin');this.session=id;}
     async synthesize(id,text){voiceActions.push({method:'synthesize',id,text});if(this.session!==id)throw Error('expired session');return Buffer.from('RIFFtestWAVE');}
+    async synthesizeBatch(id,texts){voiceActions.push({method:'synthesizeBatch',id,texts});if(this.session!==id)throw Error('expired session');return Buffer.from('RIFFbatchWAVE');}
     stop(id){voiceActions.push({method:'stop',id});this.session=null;}
     unload(){voiceActions.push({method:'unload'});this.config=null;this.session=null;this.status={...this.status,phase:'unloaded'};}
     async probe(){return {cudaAvailable:false,devices:[]};}
@@ -126,20 +133,24 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   let companions,local,runtime,voice,setup;
   const sandbox = {
     __dirname:path.dirname(filename),AbortController,AbortSignal,Buffer,URL,Response,structuredClone,queueMicrotask,setTimeout,clearTimeout,
-    process:{env:{},platform:process.platform,resourcesPath:'/virtual-resources',execPath:path.resolve('/virtual-install/Yukino Companion.exe')},
+    process:{env:{},platform:process.platform,resourcesPath:'/virtual-resources',execPath:executable},
     require:name=>{
       if(name==='electron')return fakeElectron;
+      // This in-memory business harness must not create real appData/Chromium files.
+      // Isolation is covered by development.test.cjs and the real-window QA script.
+      if(name==='./development.cjs')return {configureDevelopment:()=>({enabled:false,url:null})};
       if(name==='./aliyun-asr.cjs'&&asrClass)return {AliyunRealtimeAsr:asrClass};
       if(name==='node:fs/promises')return virtualFS;
       if(name==='./resource-directory.cjs')return {...originalRequire(name),assertWritableDirectory:async()=>{}};
       if(name==='./bundled-voice.cjs')return {mergeVoiceDefaults,bundledVoiceDefaults:async()=>{if(bundleGate)await bundleGate;return ({defaults:{...speechModule.DEFAULTS,python:runtime?.ready===false?'':path.resolve('/embedded/python'),root:runtime?.ready===false?'':path.resolve('/embedded/voice'),bert:path.resolve('/embedded/bert'),hubert:path.resolve('/embedded/hubert'),gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),reference:path.resolve('/embedded/voice-models/ref.wav'),promptText:'',promptLang:'all_ja'},modelRoot:path.resolve('/embedded/models'),bundled:runtime?.ready!==false,preset:{packId:'yukino-e2',durationSeconds:3.083}})}};
       if(name==='./speech.cjs')return {...speechModule,SpeechService:class extends MockSpeech{constructor(options){super(options);voice=this;}}};
+      if(name==='./speech-cache.cjs')return {SpeechCache:cacheClass||class {constructor({root}){this.root=root;this.enabled=false;this.retentionDays=7;}async configure(input){if(typeof input.enabled!=='boolean'||input.retentionDays!==undefined&&(!Number.isInteger(input.retentionDays)||input.retentionDays<1||input.retentionDays>30))throw Error('invalid cache settings');this.enabled=input.enabled;if(input.retentionDays!==undefined)this.retentionDays=input.retentionDays;return this.status();}async status(){return {root:this.root,enabled:this.enabled,retentionDays:this.retentionDays,files:0,bytes:0,error:null};}}};
       if(name==='./voice-resources.cjs')return {VoiceResources:MockVoiceResources};
       if(name==='./local-chat.cjs')return {...localModule,LocalChatService:class extends MockLocalChat{constructor(options){super(options);local=this;}}};
       if(name==='./resource-packs.cjs')return {ResourcePacks:class {constructor(){this.root=path.join(dataRoot,'resources');}async status(id){return {id,installed:false,root:'',downloadBytes:123,downloadSources:[]};}async install(id){return {id,installed:true,root:path.join(this.root,id)};}cancel(){}}};
       if(name==='./setup.cjs'){const actual=originalRequire(name);return {...actual,SetupService:class extends actual.SetupService{constructor(options){super(options);setup=this;}}};}
       if(name==='./runtime-manager.cjs')return {RuntimeManager:class extends MockRuntime{constructor(options){super(options);runtime=this;}}};
-      if(name==='./translation.cjs')return {TranslationService:MockTranslation,validateConfig};
+      if(name==='./translation.cjs')return {TranslationService:translationClass||MockTranslation,validateConfig};
       if(name==='./companions.cjs')return {CompanionManager:class extends MockCompanions{constructor(options){super(options);companions=this;}}};
       if(name==='./chat.cjs')return {endpoint,chat:options=>chat({...options,fetcher:async(_url,init)=>{
         requests.push(JSON.parse(init.body));transport.push({url:_url,headers:init.headers,body:requests.at(-1)});
@@ -150,10 +161,10 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
     },
   };
   vm.runInNewContext(fs.readFileSync(filename,'utf8'),sandbox,{filename});
-  for(let i=0;i<20&&!handlers.has('community')&&!errors.length;i++)await new Promise(setImmediate);
+  for(let i=0;i<1000&&!handlers.has('community')&&!errors.length;i++)await new Promise(resolve=>setTimeout(resolve,2));
   if(errors.length)throw Error('main initialization failed: '+errors.join('; '));
   if(!handlers.has('community'))throw Error('main did not register startup IPC');
   const window=windows[0],event={sender:window.webContents,senderFrame:window.webContents.mainFrame};
-  return {permissionAllowed:()=>permissionCheck?.(window.webContents,'media','file://',{mediaType:'audio',isMainFrame:true}),handlers,sent,requests,transport,translated,cancelled,storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,copied,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
+  return {permissionAllowed:()=>permissionCheck?.(window.webContents,'media','file://',{mediaType:'audio',isMainFrame:true}),handlers,sent,requests,transport,translated,cancelled,storage:storageView,diskStorage:storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,copied,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
 }
 module.exports={mainHarness};

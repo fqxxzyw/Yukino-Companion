@@ -12,10 +12,25 @@ export function advanceDragStretch(state,target,elapsed){
  const nextVelocity=(velocity+(goal-position)*.00022*dt)*Math.exp(-.014*dt);
  return {position:Math.max(-.012,Math.min(.045,position+nextVelocity*dt)),velocity:nextVelocity};
 }
-export function snapFrames(from,to){const dx=from.left-to.left,dy=from.top-to.top,sx=from.width/to.width,sy=from.height/to.height;return [{transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`,offset:0},{transform:`translate(${-Math.max(-12,Math.min(12,dx*.025))}px,0) scale(.995,1.005)`,offset:.72},{transform:'translate(0,0) scale(1,1)',offset:1}]}
+export function dragOffset(pointerX,gesture,bounds){
+ const left=bounds.left,right=Math.max(left,bounds.right-gesture.width);
+ const position=gesture.left+pointerX-gesture.startX;
+ return Math.max(left,Math.min(right,position))-gesture.left;
+}
+export const DOCK_SETTLE_MS=720;
+export function snapFrames(from,to,{rebound=true}={}){
+ const dx=from.left-to.left,dy=from.top-to.top,sx=from.width/to.width,sy=from.height/to.height;
+ // Ease into the move rather than launching at full speed. Most time belongs
+ // to the approach; the small, bounded rebound has its own gentle deceleration.
+ return [
+  {transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`,offset:0,easing:'cubic-bezier(.32,0,.2,1)'},
+  {transform:rebound?`translate(${-Math.max(-6,Math.min(6,dx*.015))}px,0) scale(.998,1.002)`:'translate(0,0) scale(1,1)',offset:.82,easing:'cubic-bezier(.2,.65,.3,1)' },
+  {transform:'translate(0,0) scale(1,1)',offset:1}
+ ];
+}
 export class DockMotion{
  constructor(){this.animation=null}
  cancel(){this.animation?.cancel();this.animation=null}
  rebase(element){const before=element.getBoundingClientRect();this.cancel();const after=element.getBoundingClientRect();return before.left-after.left}
- settle(element,from,reduced=false){this.cancel();if(reduced||!element?.animate||!from)return;const to=element.getBoundingClientRect();if(!to.width||!to.height)return;const animation=element.animate(snapFrames(from,to),{duration:440,easing:'cubic-bezier(.18,.75,.25,1)',fill:'both'});this.animation=animation;animation.finished.catch(()=>{}).finally(()=>{if(this.animation===animation){animation.cancel();this.animation=null}})}
+ settle(element,from,reduced=false,options={}){this.cancel();if(reduced||!element?.animate||!from)return;const to=element.getBoundingClientRect();if(!to.width||!to.height||from.left===to.left&&from.top===to.top&&from.width===to.width&&from.height===to.height)return;const animation=element.animate(snapFrames(from,to,options),{duration:DOCK_SETTLE_MS,easing:'linear',fill:'both'});this.animation=animation;animation.finished.catch(()=>{}).finally(()=>{if(this.animation===animation){animation.cancel();this.animation=null}})}
 }

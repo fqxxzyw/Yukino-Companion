@@ -5,17 +5,23 @@ const crypto=require('node:crypto');
 const {extractRuntimeZip}=require('./runtime-manager.cjs');
 const {downloadResource}=require('./resource-download.cjs');
 const {resourceSources}=require('./resource-sources.cjs');
+const {ResourceJobs}=require('./resource-jobs.cjs');
 const defaultCatalog=require('../resources/resource-packs.json');
 async function hashFile(file,signal){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file)){signal?.throwIfAborted();hash.update(chunk);}return hash.digest('hex');}
 async function manifests(root,depth=0){let result=[];for(const item of await fs.readdir(root,{withFileTypes:true})){if(item.isSymbolicLink())throw Error('资源目录不支持链接');const target=path.join(root,item.name);if(item.isDirectory()&&depth<2)result.push(...await manifests(target,depth+1));else if(item.isFile()&&item.name==='manifest.json')result.push(target);}return result;}
 class ResourcePacks {
-  constructor({dataRoot,legacyDataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.legacyRoot=legacyDataRoot&&path.resolve(legacyDataRoot)!==path.resolve(dataRoot)?path.join(legacyDataRoot,'resources'):null;this.controllers=new Map();this.petCheck=null;}
-  get controller(){return this.controllers.values().next().value||null;}
+  constructor({dataRoot,resourceRoot,legacyDataRoot,catalog=defaultCatalog,fetcher=fetch,notify=()=>{},downloader=downloadResource}){Object.assign(this,{catalog,fetcher,notify,downloader});this.root=path.join(dataRoot,'resources');this.bundledRoot=resourceRoot?path.join(resourceRoot,'resources'):null;this.legacyRoot=legacyDataRoot&&path.resolve(legacyDataRoot)!==path.resolve(dataRoot)?path.join(legacyDataRoot,'resources'):null;this.jobs=new ResourceJobs();this.controllers=new Map();this.petCheck=null;}
+  get controller(){return this.jobs.controller;}
   pack(id){const pack=this.catalog?.packs?.[id];if(!['chat','pet'].includes(id)||!pack||!Number.isSafeInteger(pack.bytes)||pack.bytes<1||!/^[a-f0-9]{64}$/.test(pack.sha256)||!Number.isSafeInteger(pack.maxUnpackedBytes)||pack.maxUnpackedBytes<pack.bytes||pack.maxUnpackedBytes>8*1024**3)throw Error('资源清单无效');return pack;}
   directory(id){return path.join(this.root,id+'-'+this.pack(id).sha256.slice(0,16));}
-  async status(id,{currentOnly=false}={}){
-    const pack=this.pack(id);let installed=false,root='';
-    for(const directory of [this.directory(id),...(!currentOnly&&this.legacyRoot?[path.join(this.legacyRoot,id+'-'+pack.sha256.slice(0,16))]:[])]){
+  async status(id,{currentOnly=false,legacyOnly=false}={}){
+    if(currentOnly&&legacyOnly)throw Error('不能同时检查当前与旧资源目录');
+    const pack=this.pack(id);let installed=false,root='',legacy=false;
+    // Legacy inspection is an explicit migration operation, never a readiness
+    // fallback. Existing files are only read and are never moved or removed.
+    const roots=legacyOnly?[this.legacyRoot]:[this.root,...(currentOnly?[]:[this.bundledRoot])];
+    const directories=[...new Set(roots.filter(Boolean).map(base=>path.join(base,id+'-'+pack.sha256.slice(0,16))))];
+    for(const directory of directories){
     try{
       const marker=JSON.parse(await fs.readFile(path.join(directory,'.resource-pack.json'),'utf8'));
       if(marker.sha256!==pack.sha256||typeof marker.root!=='string'||marker.root.includes('\\')||path.isAbsolute(marker.root)||marker.root.split('/').some(x=>x==='..'))throw Error('资源安装标记无效');
@@ -24,14 +30,17 @@ class ResourcePacks {
       else {const indexPath=path.join(root,'voices.json'),voicesPath=path.join(root,'voices');const index=JSON.parse(await fs.readFile(indexPath,'utf8'));if(index.archiveSha256!==pack.sha256||!Array.isArray(index.files)||index.files.length!==pack.expectedFiles)throw Error('桌宠资源不完整');
         const key=root+':'+(await fs.stat(indexPath)).mtimeMs+':'+(await fs.stat(voicesPath)).mtimeMs;
         if(this.petCheck!==key){for(const item of index.files){if(!/^[A-Za-z0-9_-]+\.ogg$/.test(item.file)||!Number.isSafeInteger(item.bytes)||item.bytes<1||(await fs.stat(path.join(voicesPath,item.file))).size!==item.bytes)throw Error('桌宠语音索引不完整');}this.petCheck=key;}}
-      installed=true;break;
+      installed=true;legacy=legacyOnly;break;
     }catch{root='';}
     }
-    return {id,installed,root,legacy:Boolean(installed&&this.legacyRoot&&root.startsWith(this.legacyRoot+path.sep)),targetDirectory:this.directory(id),downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
+    return {id,installed,root,legacy,targetDirectory:this.directory(id),downloadBytes:pack.bytes,downloadSources:resourceSources(pack.url,pack.sources),label:pack.label};
   }
   async install(id,{signal}={}){
-    if(this.controllers.has(id))throw Error('此资源正在安装，请等待或先取消');
-    const controller=new AbortController();this.controllers.set(id,controller);const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();const active=controller.signal;let stage;
+    const pack=this.pack(id);
+    return this.jobs.run(id+':'+pack.sha256,controller=>this.installTask(id,controller),{signal,targets:[this.directory(id).toLowerCase()]});
+  }
+  async installTask(id,controller){
+    this.controllers.set(id,controller);const active=controller.signal;let stage;
     try{
       active.throwIfAborted();const existing=await this.status(id,{currentOnly:true});if(existing.installed)return existing;
       const pack=this.pack(id),destination=this.directory(id);await fs.mkdir(this.root,{recursive:true});
@@ -61,8 +70,8 @@ class ResourcePacks {
       // Never recursively replace an existing directory containing user files.
       try{await fs.access(destination);throw Error('资源目录已存在但不完整，请在帮助文档中查看修复方法；原文件已保留');}catch(error){if(error.code!=='ENOENT')throw error;}
       await fs.rename(stage,destination);stage=null;const result=await this.status(id,{currentOnly:true});if(!result.installed)throw Error('资源安装后的检查未通过');this.notify(id,{phase:'ready',bytes:pack.bytes,total:pack.bytes});return result;
-    }finally{signal?.removeEventListener('abort',cancel);if(this.controllers.get(id)===controller)this.controllers.delete(id);if(stage)await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
+    }finally{if(this.controllers.get(id)===controller)this.controllers.delete(id);if(stage)await fs.rm(stage,{recursive:true,force:true}).catch(()=>{});}
   }
-  cancel(){for(const controller of this.controllers.values())controller.abort();}
+  cancel(){this.jobs.cancel();}
 }
 module.exports={ResourcePacks,hashFile};

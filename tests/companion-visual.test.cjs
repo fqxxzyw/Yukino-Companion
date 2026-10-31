@@ -48,6 +48,31 @@ test('destroyed vision window revokes camera permission and can be reopened with
  assert.equal(await f.manager.open(f.owner,'pet'),true);assert.notEqual(f.manager.entry,entry);
 });
 
+test('development visual window permits only its Vite HTTP/WebSocket origin, keeps IPC and camera gates',async t=>{
+ const previous=process.env.YUKINO_DEV_SERVER_URL;
+ process.env.YUKINO_DEV_SERVER_URL='http://127.0.0.1:5274/';
+ t.after(()=>{if(previous===undefined)delete process.env.YUKINO_DEV_SERVER_URL;else process.env.YUKINO_DEV_SERVER_URL=previous;});
+ const f=fixture();t.after(()=>f.manager.close());
+ f.manager.e.app={isPackaged:false};
+ f.owner.constructor.prototype.loadURL=async function(url){this.url=url;this.emit('ready-to-show');};
+ t.after(()=>{delete f.owner.constructor.prototype.loadURL;});
+ await f.manager.open(f.owner,'model');
+ assert.equal(f.manager.entry.url,'http://127.0.0.1:5274/visual-window.html');
+ assert.equal(f.manager.entry.win.url,f.manager.entry.url);
+ assert.equal(f.captures(),0);assert.equal(f.profiles.length,0);
+ assert.equal((await f.call('info')).profile.model,'vision-model');
+ for(const [url,cancel] of [
+  ['http://127.0.0.1:5274/src/visual-window.jsx',false],
+  ['ws://127.0.0.1:5274/?token=hmr',false],
+  ['http://127.0.0.1:5173/',true],['ws://127.0.0.1:5173/',true],
+  ['http://localhost:5274/',true],['https://example.test/',true],
+ ]){let result;f.sessions[0].before({url},value=>result=value);assert.equal(result.cancel,cancel,url);}
+ const entry=f.manager.entry;
+ assert.equal(f.sessions[0].check(entry.contents,'media','http://127.0.0.1:5274',{isMainFrame:true,requestingUrl:entry.url,mediaType:'video'}),false);
+ entry.win.url='http://127.0.0.1:5274/index.html';
+ await assert.rejects(f.call('info'),/不允许/);
+});
+
 test('configuration change after a destroyed visual window cannot send on a dead webContents',async()=>{
  const f=fixture();await f.manager.open(f.owner,'pet');const entry=f.manager.entry,contents=entry.win.webContents;
  Object.defineProperty(entry.win,'webContents',{get(){if(this.destroyed)throw Error('Object has been destroyed');return contents;}});

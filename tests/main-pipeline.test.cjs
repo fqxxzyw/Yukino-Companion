@@ -165,7 +165,7 @@ test('first-use setup installs one shared runtime and keeps model/runtime states
   const local=await app.invoke('local-chat-settings'),translation=await app.invoke('translation-status'),voice=await app.invoke('voice-settings');
   assert.equal(local.python,path.resolve('/embedded/python'));assert.equal(translation.config.python,local.python);assert.equal(voice.python,local.python);
   assert.equal(JSON.parse(app.storage.get('speech.json')).bert,path.resolve('/embedded/models/chinese-roberta-wwm-ext-large'));
-  await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);
+  await app.invoke('setup-cancel');assert.notEqual(app.runtime.cancelled,true);assert.notEqual(app.voiceDownloads.at(-1)?.cancelled,true);
 });
 
 test('replaced app-managed Python paths follow the selected runtime across chat, translation and voice',async()=>{
@@ -217,7 +217,7 @@ test('setup cancellation during startup preparation blocks all subsequent instal
   const app=await mainHarness({state,runtimeReady:false,voiceMissing:['bert','hubert'],bundleGate:gate.promise});
   const installing=app.invoke('setup-install',{features:['chat','translation','voice']});
   await assert.rejects(app.invoke('setup-install',{features:['voice']}),/正在进行/);
-  await app.invoke('setup-cancel');assert.equal(app.runtime.cancelled,true);gate.resolve();
+  await app.invoke('setup-cancel');assert.equal(app.setup.controller.signal.aborted,true);assert.notEqual(app.runtime.cancelled,true);gate.resolve();
   await assert.rejects(installing,/已取消准备/);
   assert.deepEqual(app.runtime.installs,[]);assert.deepEqual(app.voiceInstallCalls,[]);assert.equal(app.network.length,0);
   const status=await app.invoke('setup-status');assert.equal(status.phase,'cancelled');
@@ -350,7 +350,7 @@ test('resource directory selection and installation exclude each other across aw
 
 test('restart after repeated resource moves maps only previously managed configuration paths',async()=>{
  const first=path.resolve('/volume-d/Yukino'),selected=path.resolve('/volume-e/Yukino');
- const files={'resource-directory.json':JSON.stringify({directory:selected,previousDirectories:[first]}),'speech.json':JSON.stringify({python:path.join(first,'runtime','old','python-runtime','python.exe'),bert:path.join(first,'speech-models','bert'),hubert:path.join(first,'speech-models','hubert'),gpt:path.join(first,'speech-models','voice.ckpt'),sovits:path.join(first,'speech-models','voice.pth'),reference:path.join(first,'voice-presets','yukino-reference.wav')}),'translation.json':JSON.stringify({modelDir:path.join(first,'translation-runtime','models','japanese')}),'local-chat.json':JSON.stringify({modelDir:path.join(first,'resources','chat','payload')})};
+ const files={'resource-directory.json':JSON.stringify({directory:selected,previousDirectories:[first],installDirectory:path.resolve('/virtual-install')}),'speech.json':JSON.stringify({python:path.join(first,'runtime','old','python-runtime','python.exe'),bert:path.join(first,'speech-models','bert'),hubert:path.join(first,'speech-models','hubert'),gpt:path.join(first,'speech-models','voice.ckpt'),sovits:path.join(first,'speech-models','voice.pth'),reference:path.join(first,'voice-presets','yukino-reference.wav')}),'translation.json':JSON.stringify({modelDir:path.join(first,'translation-runtime','models','japanese')}),'local-chat.json':JSON.stringify({modelDir:path.join(first,'resources','chat','payload')})};
  const app=await mainHarness({state,packaged:true,runtimeReady:false,files});
  const voice=await app.invoke('voice-settings');assert.equal(voice.python,'');assert.equal(voice.bert,path.join(selected,'speech-models','bert'));assert.equal(voice.reference,path.join(selected,'voice-presets','yukino-reference.wav'));
  assert.equal((await app.invoke('local-chat-settings')).modelDir,path.join(selected,'resources','chat','payload'));

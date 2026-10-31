@@ -1,0 +1,123 @@
+/* Shared tactile language. Geometry stays in layout; only the control surface
+   moves, never a window, a drag handle or the character canvas. */
+:root {
+  --control-ease: cubic-bezier(.22,.8,.24,1);
+  --control-spring: cubic-bezier(.2,.9,.25,1.12);
+  --control-fast: 160ms;
+  --control-settle: 320ms;
+}
+.app button,.model-companion button,.select-option,
+.app :is(a[href],summary,.file-button) {
+  transition: color var(--control-fast) ease,
+    background-color var(--control-fast) ease,
+    border-color var(--control-fast) ease,
+    box-shadow 220ms ease, opacity var(--control-fast) ease,
+    translate var(--control-settle) var(--control-ease),
+    scale var(--control-settle) var(--control-spring);
+}
+@media (hover:hover) and (pointer:fine) {
+  .app button:not(:disabled):not([aria-disabled=true]):not(:where(.segmented>button,.settings-tabs>button,.settings-nav nav>button,.settings-subnav>button,.window-actions>button)):hover,
+  .model-companion button:not(:disabled):not(.dock-handle):hover,
+  .app :is(a[href],summary,.file-button):hover {
+    translate: 0 -1px;
+  }
+  .app :is(.primary,.secondary,.new-chat):not(:disabled):hover {
+    box-shadow: 0 5px 16px color-mix(in srgb,var(--accent) 15%,transparent),
+      inset 0 1px 0 color-mix(in srgb,var(--surface) 60%,transparent);
+    border-color: color-mix(in srgb,var(--accent) 32%,var(--line));
+  }
+  .app .icon:not(:disabled):hover {background-color:color-mix(in srgb,var(--accent) 10%,var(--surface));}
+  .app :is(summary,.text-link):hover {color:var(--accent-text);}
+}
+.app button:not(:disabled):not([aria-disabled=true]):active,
+.model-companion button:not(:disabled):not(.dock-handle):active,
+.app :is(a[href],summary,.file-button):active {
+  translate: 0 0;
+  scale: .965;
+  transition-duration: 90ms;
+}
+/* No hover motion on a disabled, native-window, or drag-surface control. */
+.app button:is(:disabled,[aria-disabled=true]),.model-companion button:disabled,
+.app .window-actions button,.model-companion .dock-handle {
+  translate: none;
+  scale: none;
+}
+/* Options sit inside a clipped portal: color and inset light, not a moving hitbox. */
+.select-option:not([aria-disabled=true]):is(:hover,.highlighted) {
+  background-color:color-mix(in srgb,var(--accent-text) 9%,var(--surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent-text) 9%,transparent);
+}
+.select-option:not([aria-disabled=true]):active {background-color:color-mix(in srgb,var(--accent-text) 16%,var(--surface));}
+.app input[type=checkbox][role=switch]::after {
+  transition:transform var(--control-settle) var(--control-spring);
+}
+.app input[type=range]::-webkit-slider-thumb {transition:scale 180ms var(--control-spring),box-shadow 180ms ease;}
+.app input[type=range]:not(:disabled):active::-webkit-slider-thumb {scale:1.12;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 12%,transparent);}
+
+/* One real moving surface per group. CSS anchor scope keeps independent chat,
+   language and settings switches isolated. Older engines retain the existing
+   static selected background: no measured DOM, timers or per-button listeners. */
+@supports (anchor-name:--control-selection) and (anchor-scope:--control-selection) {
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav) {
+    position:relative;
+    isolation:isolate;
+    anchor-scope:--control-selection;
+  }
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav)>button {
+    position:relative;
+    z-index:1;
+    translate:none;
+  }
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav)>button:is(.active,.selected,[aria-selected=true],[aria-current=page]) {
+    anchor-name:--control-selection;
+    background:transparent;
+    box-shadow:none;
+    color:var(--accent-text);
+  }
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav):has(>button:is(.active,.selected,[aria-selected=true],[aria-current=page]))::before {
+    content:"";
+    position:absolute;
+    position-anchor:--control-selection;
+    z-index:0;
+    pointer-events:none;
+    left:anchor(left);
+    top:anchor(top);
+    width:anchor-size(width);
+    height:anchor-size(height);
+    border:1px solid color-mix(in srgb,var(--accent) 14%,var(--line));
+    border-radius:9px;
+    background:linear-gradient(155deg,color-mix(in srgb,var(--surface) 96%,transparent),color-mix(in srgb,var(--accent) 6%,var(--surface)));
+    box-shadow:0 2px 7px color-mix(in srgb,var(--accent) 9%,transparent),inset 0 1px 0 color-mix(in srgb,var(--surface) 85%,transparent);
+    transition:left var(--control-settle) var(--control-ease),
+      top var(--control-settle) var(--control-ease),
+      width var(--control-settle) var(--control-ease),
+      height var(--control-settle) var(--control-ease);
+  }
+  .app .settings-nav nav:has(>button.selected)::before {
+    background:linear-gradient(110deg,color-mix(in srgb,var(--accent) 12%,var(--surface)),color-mix(in srgb,var(--accent) 5%,var(--surface)));
+    box-shadow:inset 2px 0 var(--accent-text),0 3px 10px color-mix(in srgb,var(--accent) 6%,transparent);
+  }
+  .app .settings-subnav::before {box-shadow:inset 0 -2px var(--accent-text);}
+}
+
+/* The OS and the in-app preference both suppress displacement, not just its
+   transition. Keyboard focus rings remain owned by the existing renderer. */
+.app.reduce :is(button,a[href],summary,.file-button),
+.app.reduce input[type=range]::-webkit-slider-thumb,
+.model-companion[data-reduced-motion=true] button,
+.select-menu[data-reduced-motion=true] .select-option {
+  translate:none!important;scale:none!important;
+}
+.app.reduce *,.app.reduce *::before,.app.reduce *::after,
+.model-companion[data-reduced-motion=true] *,.model-companion[data-reduced-motion=true] *::before,
+.select-menu[data-reduced-motion=true] * {
+  transition:none!important;animation:none!important;
+}
+@media (prefers-reduced-motion:reduce) {
+  button,a[href],summary,.file-button,.select-option,input[type=range]::-webkit-slider-thumb {translate:none!important;scale:none!important;}
+  *,*::before,*::after {transition:none!important;animation:none!important;}
+}
+@media (forced-colors:active) {
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav)::before {background:Canvas!important;border-color:Highlight!important;box-shadow:none!important;}
+  .app :is(.segmented,.settings-tabs,.settings-nav nav,.settings-subnav)>button:is(.active,.selected,[aria-selected=true],[aria-current=page]) {color:Highlight;outline:1px solid Highlight;outline-offset:-2px;}
+}

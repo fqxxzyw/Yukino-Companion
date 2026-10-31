@@ -1,5 +1,5 @@
 import React from 'react';
-export default function VoiceGuide({api}){return <details className="advanced-settings"><summary>完整中文配置教程</summary>
+export default function VoiceGuide({api,expanded=false}){const Container=expanded?'section':'details';return <Container className={expanded?'settings-section voice-guide':'advanced-settings'}>{expanded?<h3>完整中文配置教程</h3>:<summary>完整中文配置教程</summary>}
  <h3>1. 准备推理环境</h3><p>点击“一键准备声音”，选择资源目录。自动模式在环境确实支持 CUDA 时使用 GPU，否则可使用 CPU。显卡名称或依赖下载完成都不代表模型已经推理成功。</p>
  <h3>2. 选择音色来源</h3><p>预设音色只下载缺少或校验失败的资源。使用自己的音色时，分别选择 GPT 的 .ckpt 与 SoVITS 的 .pth；文件只按原路径引用。两者需要来自匹配的训练版本，文件扩展名不能证明兼容。</p>
  <h3>3. 检查公共模型</h3><p>BERT 提供文本特征，HuBERT 提供参考声音特征。这些是公共组件，不能用它们替代训练好的音色权重。检查资源状态和真实保存位置；“文件可读”与“已通过真实推理”会分别显示。</p>
@@ -9,4 +9,4 @@ export default function VoiceGuide({api}){return <details className="advanced-se
  <h3>参数说明</h3><dl><dt>语速与音量</dt><dd>语速传给合成器；音量只影响播放响度。</dd><dt>自动朗读</dt><dd>新回复准备好日语后自动朗读；与聊天文字的显示语言独立。</dd><dt>半精度</dt><dd>只在相容 GPU 环境使用；CPU 使用 FP32。失败时先关闭半精度再试听。</dd><dt>CPU 回退</dt><dd>仅在启用且遇到可识别的 GPU 故障时尝试，界面会报告实际设备。</dd><dt>线程和超时</dt><dd>线程限制 CPU 计算并发；超时只决定等待多久，不保证速度。</dd><dt>未提供的上游参数</dt><dd>当前封装未开放采样温度、top-p、分句算法等选项，不能将其写入配置假装生效。</dd></dl>
  <h3>遇到错误</h3><p>缺文件：检查路径或重新下载对应单项。摘要不符：校验后删除受管理的下载文件，再重试。版本不匹配：重新配对权重和版本。参考录音错误：播放原录音并核对原文。CUDA 或显存错误：根据检测结果选 CPU 或修复环境；不要仅凭安装了驱动就认定可用。</p>
  <button type="button" className="text-link" onClick={()=>api?.openVoiceDocs?.()}>打开 GPT-SoVITS 官方安装与使用说明</button>
- </details>;}
+ </Container>;}

@@ -34,8 +34,14 @@ async function readVoicePreset(resourceRoot) {
       referenceSource:manifest.referenceSource,transcriptVerification:manifest.transcriptVerification,ready:true} };
 }
 
-async function bundledVoiceDefaults({ resourceRoot, dataRoot, legacyDataRoot, runtimeRoot }) {
-  const candidates=[runtimeRoot,resourceRoot,path.join(dataRoot,'runtime','current')].filter(Boolean);
+async function bundledVoiceDefaults({ resourceRoot, dataRoot, runtimeRoot }) {
+  // Runtime selection is a hint, not authority to revive another installation's
+  // files. Only this installation's data and packaged resources are eligible.
+  const currentRoots=[dataRoot,resourceRoot].map(root=>path.resolve(root));
+  const currentRuntime=typeof runtimeRoot==='string'&&path.isAbsolute(runtimeRoot)&&currentRoots.some(root=>{
+    const relative=path.relative(root,path.resolve(runtimeRoot));return relative===''||(!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative));
+  })?runtimeRoot:null;
+  const candidates=[...new Set([currentRuntime,resourceRoot,path.join(dataRoot,'runtime','current')].filter(Boolean))];
   const result={...DEFAULTS};
   const engine=(await Promise.all(candidates.map(async root=>{const item=path.join(root,'inference-engine');return await exists(path.join(item,'yukino-runtime.json'))?item:null;}))).find(Boolean);
   if(engine) {

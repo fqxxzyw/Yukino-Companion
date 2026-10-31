@@ -68,3 +68,31 @@ test('public speech components and a selected voice pack can download together',
  const meet=rendezvous(3),installer=new VoiceResources({root,catalog,fetcher:async url=>{active++;maximum=Math.max(active,maximum);await meet();active--;return new Response(data[Number(new URL(url).pathname.slice(1))]);}});
  const [core,voice]=await Promise.all([installer.install('core'),installer.install('voice')]);assert.equal(maximum,3);assert.equal(voice.gpt,path.join(root,'file-1'));assert.equal(voice.sovits,path.join(root,'file-2'));assert.ok(core.bert);assert.equal(installer.controller,null);
 });
+
+function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve};}
+test('duplicate speech downloads share one network operation and cancelling setup keeps the settings owner',async t=>{
+ const entered=deferred(),release=deferred();let fetches=0,networkSignal;
+ const {installer}=await setup(t,Buffer.from('shared core'),async(_url,{signal})=>{fetches++;networkSignal=signal;entered.resolve();await release.promise;return new Response('shared core');});
+ const settings=installer.install('core');await entered.promise;
+ const controller=new AbortController(),wizard=installer.install('core',{signal:controller.signal}),rejected=assert.rejects(wizard,{name:'AbortError'});
+ controller.abort();await rejected;assert.equal(networkSignal.aborted,false);release.resolve();await settings;
+ assert.equal(fetches,1);assert.equal(installer.controller,null);
+});
+test('whole voice packs wait for an overlapping single weight and reuse its verified bytes',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-overlap-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data={gpt:Buffer.from('shared GPT'),sovits:Buffer.from('shared SoVITS')},entered=deferred(),release=deferred(),requests=[];
+ const files=Object.entries(data).map(([key,value])=>({...file(value),path:`voice/${key}`,url:`https://example.test/${key}`}));
+ const catalog={packs:{voice:{kind:'voice',version:'v1',paths:{gpt:'voice/gpt',sovits:'voice/sovits'},files}}};
+ const installer=new VoiceResources({root,catalog,fetcher:async url=>{const key=new URL(url).pathname.slice(1);requests.push(key);if(key==='gpt'){entered.resolve();await release.promise;}return new Response(data[key]);}});
+ const single=installer.install('voice',{component:'gpt'});await entered.promise;
+ const pair=installer.install('voice');await new Promise(setImmediate);assert.deepEqual(requests,['gpt']);release.resolve();
+ const [a,b]=await Promise.all([single,pair]);assert.equal(a.gpt,b.gpt);assert.ok(b.sovits);assert.deepEqual(requests,['gpt','sovits']);assert.equal(installer.controller,null);
+});
+test('aliases sharing a pinned weight serialize without writing that destination twice',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-alias-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const data=Buffer.from('same weight'),entered=deferred(),release=deferred(),item={...file(data),path:'voice/shared.ckpt'};let fetches=0;
+ const pack={kind:'voice',version:'v1',paths:{gpt:item.path},files:[item]};
+ const installer=new VoiceResources({root,catalog:{packs:{a:pack,b:pack}},fetcher:async()=>{fetches++;entered.resolve();await release.promise;return new Response(data);}});
+ const a=installer.install('a',{component:'gpt'});await entered.promise;const b=installer.install('b',{component:'gpt'});release.resolve();
+ const results=await Promise.all([a,b]);assert.equal(results[0].gpt,results[1].gpt);assert.equal(fetches,1);
+});

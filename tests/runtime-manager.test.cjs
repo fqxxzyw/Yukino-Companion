@@ -63,6 +63,15 @@ async function previousRuntime(fixture, flavor='cpu') {
   return {root,pointer};
 }
 
+test('same runtime requests share downloads and cancelling one caller preserves the other owner',async t=>{
+ let enter,release,probes=0,probeSignal;const entered=new Promise(resolve=>enter=resolve),gate=new Promise(resolve=>release=resolve);
+ const f=await fixture(t,{run:async(_python,_args,{signal})=>{probes++;probeSignal=signal;enter();await gate;return{stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true})};}});
+ const settings=f.manager.install('cu124');await entered;
+ const controller=new AbortController(),wizard=f.manager.install('cu124',{signal:controller.signal}),rejected=assert.rejects(wizard,{name:'AbortError'});
+ controller.abort();await rejected;assert.equal(probeSignal.aborted,false);release();const status=await settings;
+ assert.equal(status.ready,true);assert.equal(probes,1);assert.equal(f.calls.length,2);assert.equal(f.manager.controller,null);
+});
+
 test('runtime ZIP extracts nested files and enforces traversal, links, duplicates and size/count limits',async t=>{
   const root=await temporary(t);
   const cases=[

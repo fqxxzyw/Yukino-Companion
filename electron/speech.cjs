@@ -3,10 +3,15 @@ const { StringDecoder } = require('node:string_decoder');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const { speechCacheKey } = require('./speech-cache-key.cjs');
+const {enginePlan}=require('./tts-engine.cjs');
 
 const DEFAULTS = Object.freeze({ enabled: false, python: '', root: '', gpt: '', sovits: '', reference: '',
   bert: '', hubert: '', ffmpeg: '', promptText: '', promptLang: 'ja', textLang: 'all_ja', version: 'v1',
-  device: 'auto', half: false, cpuFallback: true, cpuThreads: 4, speed: 1, volume: 0.8, timeout: 300 });
+  device: 'auto', half: false, cpuFallback: true, cpuThreads: 4, speed: 1, volume: 0.8, timeout: 300,
+  engine:'auto',aquaPython:'',aquaGraph:'lazy',aquaSovitsBase:'',aquaBigvgan:'',aquaSpeaker:'',aquaLangdetect:'',
+  minSegmentChars:8,targetSegmentChars:35,maxSegmentChars:80,splitOnComma:'adaptive',mergeShortSegments:true,preservePunctuation:true,
+  synthesisMode:'auto',maxConcurrentTasks:2,maxPendingSegments:12,maxPreparedSegments:4,maxBufferedAudioSeconds:20,failurePolicy:'abort' });
 
 function validateSettings(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('无效语音配置');
@@ -16,10 +21,13 @@ function validateSettings(input) {
     if (typeof input[key] !== typeof DEFAULTS[key]) throw Error(`无效语音设置：${key}`);
     config[key] = input[key];
   }
-  for (const key of ['python', 'root', 'gpt', 'sovits', 'reference', 'bert', 'hubert', 'ffmpeg']) {
+  for (const key of ['python', 'root', 'gpt', 'sovits', 'reference', 'bert', 'hubert', 'ffmpeg','aquaPython','aquaSovitsBase','aquaBigvgan','aquaSpeaker','aquaLangdetect']) {
     if (config[key] && (!path.isAbsolute(config[key]) || config[key].includes('\0') || config[key].length > 4096)) throw Error(`请使用本机绝对路径：${key}`);
   }
   if (!['auto', 'cpu', 'cuda'].includes(config.device)) throw Error('无效设备');
+  for(const [key,values] of Object.entries({engine:['auto','aqua','standard'],aquaGraph:['lazy','off','minimal','full'],splitOnComma:['adaptive','never','always'],synthesisMode:['auto','serial','concurrent','batch'],failurePolicy:['abort','retry','skip']}))if(!values.includes(config[key]))throw Error('无效语音设置：'+key);
+  for(const [key,min,max] of [['minSegmentChars',1,40],['targetSegmentChars',4,120],['maxSegmentChars',8,160],['maxConcurrentTasks',1,4],['maxPendingSegments',1,32],['maxPreparedSegments',1,8],['maxBufferedAudioSeconds',1,60]])if(!Number.isInteger(config[key])||config[key]<min||config[key]>max)throw Error('无效语音队列或分句上限：'+key);
+  if(config.minSegmentChars>config.targetSegmentChars||config.targetSegmentChars>config.maxSegmentChars)throw Error('分句长度需满足最小 ≤ 目标 ≤ 最大');
   if (!['v1', 'v2', 'v2Pro', 'v2ProPlus', 'v3', 'v4', 'v5dev', 'v5turbo'].includes(config.version)) throw Error('无效模型版本');
   const langs = ['zh', 'en', 'ja', 'auto', 'auto_yue', 'yue', 'ko', 'all_zh', 'all_ja', 'all_yue', 'all_ko'];
   if (!langs.includes(config.promptLang) || !langs.includes(config.textLang)) throw Error('无效语音语言');
@@ -84,9 +92,10 @@ class WorkerClient {
 
 const CONFIG_LABELS = Object.freeze({python:'语音运行环境',root:'语音推理组件',gpt:'GPT 音色权重',sovits:'SoVITS 音色权重',reference:'参考音频',bert:'BERT 公共模型',hubert:'HuBERT 公共模型',promptText:'参考音频对应文本'});
 async function voiceReadiness(input) {
-  const config=validateSettings(input), missing=[];
+  const config=validateSettings(input), missing=[],plan=enginePlan(config);
+  if(plan.blocked)missing.push({key:'engine',label:plan.reason,reason:'incompatible'});
   for (const key of ['python','root','gpt','sovits','reference','bert','hubert']) {
-    const filename=config[key];
+    const filename=key==='python'&&config.engine==='aqua'?config.aquaPython:config[key];
     if(!filename){missing.push({key,label:CONFIG_LABELS[key],reason:'not-selected'});continue;}
     try {
       const stat=await fs.stat(filename), directory=['root','bert','hubert'].includes(key);
@@ -98,14 +107,15 @@ async function voiceReadiness(input) {
   // GPT-SoVITS v1/v2 can use reference-free text conditioning; v3/v4/v5
   // vocoder models require the transcript as well as the reference audio.
   if(['v3','v4','v5dev','v5turbo'].includes(config.version)&&!config.promptText.trim())missing.push({key:'promptText',label:CONFIG_LABELS.promptText,reason:'not-selected'});
-  return {configured:missing.length===0,needsSetup:missing.length>0,missing,
+  return {configured:missing.length===0,needsSetup:missing.length>0,missing,enginePlan:plan,
     message:missing.length?'语音尚未准备好：'+missing.map(item=>item.label).join('、')+'。请打开“声音与语音”完成一键配置。':'语音资源已准备好，首次朗读时会自动加载。'};
 }
 
 class SpeechService {
-  constructor({ script, stateDir, notify = () => {}, workerFactory = options => new WorkerClient(options), readinessChecker = voiceReadiness }) {
-    Object.assign(this, { script, stateDir, notify, workerFactory, readinessChecker });
+  constructor({ script, stateDir, notify = () => {}, workerFactory = options => new WorkerClient(options), readinessChecker = voiceReadiness, cache = null, cacheKey = speechCacheKey }) {
+    Object.assign(this, { script, stateDir, notify, workerFactory, readinessChecker, cache, cacheKey });
     this.worker = null; this.config = null; this.session = null; this.loading = null; this.epoch = 0;
+    this.sessionGeneration = 0; this.synthesisTask = null;
     this.readinessState = {configured:false,needsSetup:true,missing:[],message:'尚未检查语音资源。'};
     this.status = { phase: 'unloaded', ...this.readinessState }; this.probes = new Set();
   }
@@ -129,7 +139,7 @@ class SpeechService {
   }
   async makeWorker(config) {
     await fs.access(config.python); await fs.access(this.script);
-    return this.workerFactory({ python: config.python, script: this.script, cwd: config.root || this.stateDir });
+    return this.workerFactory({ python: config.python, script: this.script, cwd: this.stateDir });
   }
   async probe(input) {
     const epoch = this.epoch;
@@ -145,7 +155,7 @@ class SpeechService {
   async load(input) {
     const config = validateSettings(input);
     for (const key of ['python', 'root', 'gpt', 'sovits', 'reference', 'bert', 'hubert']) {
-      if (!config[key]) throw Error(`语音尚未准备好：${CONFIG_LABELS[key]}。请打开“声音与语音”完成一键配置。`);
+      if (!(key==='python'&&config.engine==='aqua'?config.aquaPython:config[key])) throw Error(`语音尚未准备好：${CONFIG_LABELS[key]}。请打开“声音与语音”完成一键配置。`);
     }
     this.unload(); this.config = config;
     return this.ensureLoaded();
@@ -162,13 +172,22 @@ class SpeechService {
       this.readinessState=ready;
       if(!ready.configured)throw Error(ready.message);
       await fs.mkdir(this.stateDir, { recursive: true });
-      const client = await this.makeWorker(config);
-      if (epoch !== this.epoch) { client.close(); throw Error('加载已取消'); }
-      this.worker = client;
-      const loadingStarted=Date.now();
-      const metadata = {...await client.request('load', { config: { ...config, stateDir: this.stateDir } }, config.timeout * 1000),loadMs:Date.now()-loadingStarted};
+      const plan=enginePlan(config);if(plan.blocked)throw Error(plan.reason);
+      const loadingStarted=Date.now();let selected=plan.engine,fallbackReason=plan.reason,metadata;
+      for(let attempt=0;attempt<2;attempt++){
+        let client;
+        try{client=await this.makeWorker({...config,python:selected==='aqua'?config.aquaPython:config.python});
+          if(epoch!==this.epoch){client.close();throw Error('加载已取消');}this.worker=client;
+          metadata=await client.request('load',{config:{...config,engine:selected,stateDir:this.stateDir}},config.timeout*1000);break;}
+        catch(error){client?.close();if(this.worker===client)this.worker=null;if(epoch!==this.epoch)throw Error('加载已取消');
+          if(selected!=='aqua'||config.engine!=='auto')throw error;
+          fallbackReason='Aqua 初始化失败：'+String(error.message).slice(0,800);selected='standard';
+          this.update('loading',{requestedEngine:config.engine,actualEngine:'standard',fallbackReason});
+        }
+      }
       if (epoch !== this.epoch) throw Error('加载已取消');
-      this.update('ready', { metadata }); return this.status;
+      metadata={...metadata,engine:selected,requestedEngine:config.engine,engineFallbackReason:fallbackReason||null,loadMs:Date.now()-loadingStarted,capabilities:{maxConcurrentTasks:1,nativeBatch:selected==='standard',audioStreaming:false,...metadata?.capabilities}};
+      this.update('ready', { metadata,actualEngine:selected,requestedEngine:config.engine,fallbackReason:fallbackReason||null }); return this.status;
     })();
     this.loading = promise;
     try { return await promise; }
@@ -178,28 +197,59 @@ class SpeechService {
   begin(id) {
     if (typeof id !== 'string' || !id || id.length > 128) throw Error('无效语音会话');
     if (this.session && this.session !== id) this.stop(this.session);
-    this.session = id;
+    this.session = id; this.sessionGeneration++;
   }
-  async synthesize(id, text) {
+  synthesize(id, text) { return this.synthesizeGroup(id, [text]); }
+  synthesizeBatch(id, texts) { return this.synthesizeGroup(id, texts); }
+  async synthesizeGroup(id, texts) {
     if (!id || this.session !== id) throw Error('语音会话已过期');
-    if (typeof text !== 'string' || !text.trim() || text.length > 500) throw Error('无效语音片段');
-    assertJapaneseSpeech(text);
-    await this.ensureLoaded();
-    if (this.session !== id) throw Error('语音会话已过期');
-    this.update('synthesizing', { metadata: this.status.metadata });
+    if (!Array.isArray(texts) || !texts.length || texts.length > 3 || texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 500) || texts.join('\n').length > 500) throw Error('无效语音片段；每组最多三句、合计 500 字符');
+    texts.forEach(assertJapaneseSpeech);
+    // One model owner, one bounded batch. Never run concurrent requests against
+    // the upstream mutable pipeline or let a rejected extra call kill its owner.
+    if (this.synthesisTask) throw Error('语音推理忙，请等待当前任务完成');
+    const task = {}, epoch = this.epoch, generation = this.sessionGeneration;
+    this.synthesisTask = task;
+    const current = () => this.session === id && this.sessionGeneration === generation && this.epoch === epoch;
+    const check = () => { if (!current()) throw Error('语音会话已过期'); };
+    let key = null;
+    const synthesisStarted = Date.now();
     try {
-      const synthesisStarted=Date.now();
-      const result = await this.worker.request('synthesize', { text, speed: this.config.speed }, this.config.timeout * 1000);
-      if (this.session !== id) throw Error('语音会话已过期');
+      const plan=enginePlan(this.config||DEFAULTS);
+      if(plan.engine==='aqua'){await this.ensureLoaded();check();}
+      if (this.cache?.enabled && this.config) {
+        const actual=this.status.metadata?.engine||plan.engine;
+        const cacheConfig={...this.config,engine:actual,engineVersion:this.status.metadata?.engineVersion||'',python:actual==='aqua'?this.config.aquaPython:this.config.python};
+        try { key = await this.cacheKey(cacheConfig, texts, this.script); } catch {}
+        check();
+        if (key) {
+          let cached; try { cached = await this.cache.read(key); } catch {}
+          check();
+          if (cached) {
+            this.update('ready', { metadata: { ...this.status.metadata, sessionId:id, batchSentences:texts.length, cacheHit:true, synthesisMs:Date.now()-synthesisStarted } });
+            return cached;
+          }
+        }
+      }
+      await this.ensureLoaded(); check();
+      this.update('synthesizing', { metadata: this.status.metadata });
+      const data = texts.length === 1 ? {text:texts[0],speed:this.config.speed} : {texts,speed:this.config.speed};
+      const result = await this.worker.request(texts.length === 1 ? 'synthesize' : 'synthesize_batch', data, this.config.timeout * 1000);
+      check();
       if (typeof result.audio !== 'string' || result.audio.length > 17 * 1024 * 1024) throw Error('音频数据超过限制');
       const audio = Buffer.from(result.audio, 'base64');
       if (audio.length < 44 || audio.toString('ascii', 0, 4) !== 'RIFF' || audio.toString('ascii', 8, 12) !== 'WAVE') throw Error('推理未返回有效 WAV');
-      this.update('ready', { metadata: {...this.status.metadata,...result.metadata,sessionId:id,synthesisMs:Date.now()-synthesisStarted} }); return audio;
-    } catch (e) { if (this.session === id) { this.worker?.close(); this.worker = null; this.update('error', { error: e.message }); } throw e; }
+      if (key && this.cache?.enabled) { try { await this.cache.write(key, audio); } catch {} check(); }
+      this.update('ready', { metadata: {...this.status.metadata,...result.metadata,sessionId:id,batchSentences:texts.length,cacheHit:false,synthesisMs:Date.now()-synthesisStarted} });
+      return audio;
+    } catch (e) {
+      if (current()) { this.worker?.close(); this.worker = null; this.update('error', { error:e.message }); }
+      throw e;
+    } finally { if (this.synthesisTask === task) this.synthesisTask = null; }
   }
   stop(id) {
     if (id && this.session !== id) return;
-    this.session = null;
+    this.session = null; this.sessionGeneration++; this.synthesisTask = null;
     // Termination guarantees cancellation of kernels; next utterance reloads.
     if (this.loading || this.worker?.pending) {
       this.epoch++; this.worker?.close(); this.worker = null; this.loading = null;
@@ -207,7 +257,7 @@ class SpeechService {
     }
   }
   unload() {
-    this.epoch++; this.session = null; this.config = null; this.loading = null;
+    this.epoch++; this.sessionGeneration++; this.synthesisTask = null; this.session = null; this.config = null; this.loading = null;
     this.worker?.close(); this.worker = null; this.update('unloaded');
   }
   dispose() { this.unload(); for (const probe of this.probes) probe.close(); this.probes.clear(); }

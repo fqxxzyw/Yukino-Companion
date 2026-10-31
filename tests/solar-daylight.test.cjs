@@ -28,5 +28,5 @@ test('location-based light varies smoothly and shares the same sky/light snapsho
  const {solarPosition}=await import('../src/ui/solar-daylight.mjs');
  const l={latitude:35.6895,longitude:139.6917},a=solarPosition(new Date('2026-10-29T21:01:00Z'),l),b=solarPosition(new Date('2026-10-29T21:02:00Z'),l),first=sunlightConfig(a),next=sunlightConfig(b);
  assert.ok(Math.abs(first.intensity-next.intensity)<.06);assert.notEqual(first.color,sunlightConfig(solarPosition(new Date('2026-10-30T02:25:00Z'),l)).color);
- const env=createEnvironment('beach',{timeOfDay:a}),sky=env.children.find(mesh=>mesh.userData.role==='sky');assert.equal(sky.material.color.getHexString(),first.skyColor.slice(1));updateEnvironmentSunlight(env,b);assert.equal(sky.material.color.getHexString(),next.skyColor.slice(1));disposeEnvironment(env);
+ const env=createEnvironment('beach',{timeOfDay:a});assert.equal(env.children.some(mesh=>mesh.userData.role==='sky'),false,'bounded dioramas have no infinite sky geometry');assert.deepEqual(env.userData.sunlight,first);updateEnvironmentSunlight(env,b);assert.deepEqual(env.userData.sunlight,next);assert.deepEqual(env.userData.timeOfDay,b);disposeEnvironment(env);
 });

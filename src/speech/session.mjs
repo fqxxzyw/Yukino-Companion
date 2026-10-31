@@ -8,7 +8,7 @@ export class SpeechSession {
   }
   start(id) {
     this.cancel();
-    const job = { id, stream: this.japaneseOnly ? new JapaneseSentenceStream() : new SentenceStream(), queue: [], final: false, running: false, playing: false, next: null, count: 0, played:0,synthesized:0 };
+    const job = { id, stream: this.japaneseOnly ? new JapaneseSentenceStream() : new SentenceStream(), queue: [], final: false, running: false, playing: false, next: null, count: 0, played:0,synthesized:0, issued:0 };
     job.completion=new Promise(resolve=>job.complete=resolve);
     this.current = job;
     job.ready = Promise.resolve(this.bridge.begin(id)).then(() => {
@@ -37,13 +37,22 @@ export class SpeechSession {
   prepareNext(job) {
     if (this.current !== job) return null;
     if (job.next || !job.queue.length) return job.next;
-    const next = { segment: job.queue.shift(), result: null };
-    job.next = next;
-    // Exactly one lookahead slot: no parallel TTS requests or unbounded WAVs.
+    const segments = [job.queue.shift()];
+    // Send the first sentence immediately. Subsequent text shares one bounded
+    // native inference batch (up to three sentences / 500 characters), while the
+    // previous audio plays. Never issue concurrent calls to one mutable worker.
+    if (job.issued && this.bridge.synthesizeBatch) {
+      let length = segments[0].length;
+      while (segments.length < 3 && job.queue.length && length + 1 + job.queue[0].length <= 500) {
+        const text = job.queue.shift(); segments.push(text); length += text.length + 1;
+      }
+    }
+    const next = { segments, segment:segments.join(''), sentenceIndex:job.issued, result:null };
+    job.issued += segments.length; job.next = next;
     // Observe rejection immediately, even when playback is paused or cancelled.
     next.result = Promise.resolve().then(() => {
       if (this.current !== job) return null;
-      return this.bridge.synthesize(job.id, next.segment);
+      return segments.length > 1 ? this.bridge.synthesizeBatch(job.id, segments) : this.bridge.synthesize(job.id, segments[0]);
     }).then(audio => ({ audio }), error => ({ error }));
     return next;
   }
@@ -59,13 +68,13 @@ export class SpeechSession {
         if (this.current !== job) return;
         job.next = null;
         if (result.error) throw result.error;
-        job.synthesized++;
+        job.synthesized += next.segments.length;
         job.playing = true;
-        this.onState({ phase: 'playing', id: job.id, pending: job.queue.length });
+        this.onState({ phase: 'playing', id: job.id, pending: job.queue.length, sentenceIndex:next.sentenceIndex, batchSentences:next.segments.length });
         const playback = this.player.play(result.audio, { hint: speechHint(next.segment) });
         this.prepareNext(job);
         await playback;
-        if(this.current===job)job.played++;
+        if(this.current===job)job.played += next.segments.length;
         job.playing = false;
       }
       if (this.current === job) {

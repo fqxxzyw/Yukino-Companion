@@ -1,24 +1,73 @@
-*{box-sizing:border-box}html,body,#root{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:system-ui,sans-serif;color:#294361}button,input{font:inherit}button{cursor:pointer;background:#f3f8fff0;border:1px solid #aac2dc;border-radius:9px;padding:6px 9px;color:inherit}.model-companion{position:relative;width:100%;height:100%;padding:8px;display:flex;flex-direction:column}.model-companion header{display:flex;align-items:center;justify-content:space-between;cursor:grab;touch-action:none;background:#f3f8ffda;border-radius:12px;font-size:12px;padding:6px 10px;z-index:3}.model-window-canvas{position:absolute;inset:40px 0 53px;pointer-events:auto;touch-action:none;cursor:grab}.model-window-canvas canvas{display:block;width:100%;height:100%}.model-window-status{font-size:11px;background:#fff4e8ef;padding:9px;border-radius:10px;z-index:3;max-height:80px;overflow:auto}.model-companion form{display:flex;gap:5px;margin-top:auto;z-index:3;padding:7px;background:#f3f8fff0;border-radius:12px}.model-companion input{min-width:0;width:100%;border:0;background:transparent;outline:none;padding:5px}.model-reply{position:relative;margin:8px auto;max-height:112px;width:min(280px,100%);overflow:auto;overflow-wrap:anywhere;white-space:pre-wrap;background:#fffffff0;border:1px solid #bfd3e6;border-radius:13px;padding:10px;font-size:12px;line-height:1.6}.model-window-fallback{display:flex;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:8px}.model-window-fallback img{height:70%;max-height:230px}
+:root{font-family:"Segoe UI Variable","Segoe UI","Microsoft YaHei UI","Yu Gothic UI",sans-serif;color:#23364f;color-scheme:light;--surface:rgba(250,253,255,.97);--line:#c6d6e8;--accent:#477fd1}
+*{box-sizing:border-box}
+html,body,#root{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
+button,input{font:inherit}button{cursor:pointer;color:inherit}button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.model-companion{--reply-space:clamp(136px,32vh,184px);--canvas-top:calc(var(--reply-space) + 24px);--canvas-bottom:88px;position:relative;width:100%;height:100%;isolation:isolate;pointer-events:none}
 
-.vision-active{background:#a9253e!important;color:white!important;outline:2px solid white}
+/* PET-002/006: tools occupy their own bounded row. Text never shares a flex
+   line with the buttons, and the reply panel is smaller than the native view. */
+.model-companion header{position:absolute;z-index:4;top:8px;left:50%;translate:-50% 0;display:flex;flex-direction:column;align-items:center;gap:8px;width:min(340px,84%,calc(100% - 24px));max-height:var(--reply-space);pointer-events:none}
+.model-toolbar{display:flex;align-items:center;gap:4px;width:100%;min-height:36px;flex:0 0 auto;padding:2px 4px 2px 10px;border:1px solid #d1deec;border-radius:12px;background:#f8fcffec;box-shadow:0 3px 12px #23436b0b;opacity:.72;pointer-events:auto;cursor:grab;touch-action:none;user-select:none;transition:opacity .14s}
+.model-companion:hover .model-toolbar,.model-companion:focus-within .model-toolbar{opacity:1}
+.model-toolbar:active{cursor:grabbing}
+.model-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500;color:#4c6582}
+.model-toolbar button{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;align-self:center;padding:0;border:0;border-radius:9px;background:transparent;font-size:17px;line-height:1;transition:background .12s,color .12s}
+.model-toolbar button:hover{background:#e8f0fb;color:#315d94}.model-toolbar button[aria-pressed=true]{background:#e8f0fb;color:#315d94;box-shadow:inset 0 0 0 1px #aac4e5}
+.model-bubble{position:relative;display:flex;flex-direction:column;flex:0 1 auto;gap:8px;min-width:0;min-height:0;width:max-content;max-width:100%;max-height:calc(var(--reply-space) - 44px);padding:12px 14px 8px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(155deg,#fffffff7,var(--surface));box-shadow:0 6px 20px #23436b14,inset 0 1px 0 #fff;pointer-events:auto;animation:reply-arrive .16s ease-out}
+.model-bubble::after{content:"";position:absolute;bottom:-6px;left:calc(50% - 6px);width:11px;height:11px;rotate:45deg;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0 0 3px;background:#fafdff;pointer-events:none}
+.model-reply{flex:1 1 auto;min-width:0;min-height:0;max-width:100%;overflow-y:auto;overscroll-behavior:contain;overflow-wrap:anywhere;word-break:normal;line-break:auto;white-space:pre-wrap;color:#23364f;font-size:14px;line-height:1.65;cursor:text;user-select:text;scrollbar-width:thin;scrollbar-color:#afc3dc transparent}
+.model-reply:focus-visible{outline-offset:-2px;border-radius:5px}
+.model-reply-actions{display:flex;align-items:center;flex:0 0 auto;flex-wrap:wrap;gap:4px;min-width:0;padding-top:5px;border-top:1px solid #e3ebf5}
+.model-reply-actions button{min-width:0;min-height:28px;max-width:100%;padding:3px 6px;border:0;border-radius:8px;background:transparent;color:#45668d;font-size:11px;line-height:1.4;overflow-wrap:anywhere;transition:background .12s,color .12s}
+.model-reply-actions button:last-child{margin-left:auto}.model-reply-actions button:hover{background:#e8f0fb;color:#294e79}
 
-/* Fixed footprint: expanding the input never rescales or translates the model. */
-.model-window-canvas{bottom:72px}.model-companion header{opacity:0;transition:opacity .18s}.model-companion:hover header,.model-companion:focus-within header{opacity:1}
-.compact-dock{position:absolute;z-index:5;left:50%;bottom:12px;translate:-50% 0;width:70px;height:14px;border:1px solid #b8cadce6;border-radius:24px;background:#eef5fceb;box-shadow:0 4px 14px #15334c1b;backdrop-filter:blur(18px);transition:width .32s cubic-bezier(.2,.8,.25,1.1),height .25s ease;overflow:hidden}
-.compact-dock.expanded{width:calc(100% - 24px);height:46px}.compact-dock:focus-within{outline:2px solid #477fd1;outline-offset:2px}.dock-handle{position:absolute;inset:0;border:0;background:transparent;padding:0}.dock-handle:after{content:'';display:block;margin:auto;width:32px;height:3px;background:#6381a0;border-radius:5px}.compact-dock.expanded .dock-handle{visibility:hidden}.compact-dock form{margin:0;position:absolute;inset:0;padding:5px;background:transparent;border-radius:inherit;visibility:hidden;opacity:0;transition:opacity .13s}.compact-dock.expanded form{visibility:visible;opacity:1}.compact-dock input{font-size:12px}.compact-dock button{flex:none}.compact-dock button:focus-visible{outline:2px solid #477fd1;outline-offset:-2px}
-@media(prefers-reduced-motion:reduce){.compact-dock,.compact-dock form,.model-companion header{transition:none}}
-/* The native window and model keep their footprint; only the reply body scrolls.
-   Controls remain outside that scroll container and retain their hit targets. */
-.model-companion header{position:absolute;top:8px;left:8px;width:min(520px,calc(100% - 16px));min-height:44px;min-width:0;gap:6px;overflow:visible;align-items:flex-start}
-.model-window-canvas{top:58px}
-.model-companion header:has(.model-reply){opacity:1}
-.model-companion header .model-name{flex:0 1 68px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;align-self:center}
-.model-companion header button{flex:none;align-self:flex-start}
-.model-companion header .model-reply{display:block;flex:1 1 0;min-width:0;max-width:none;max-height:min(160px,32vh);margin:0;padding:4px 2px;overflow-y:auto;overscroll-behavior:contain;overflow-wrap:anywhere;white-space:pre-wrap;background:transparent;border:0;border-radius:0;font-size:13px;line-height:1.5;cursor:text;user-select:text;scrollbar-width:thin}
-.model-companion header .model-reply:focus-visible{outline:2px solid #477fd1;outline-offset:1px;border-radius:4px}
-/* Reserve the reply's area above the character rather than painting it over
-   the face. Its height remains bounded even for a long streaming response;
-   the text scrolls within that area and the native window does not grow. */
-.model-companion header:has(.model-reply){height:clamp(44px,28vh,152px);align-items:stretch}
-.model-companion header:has(.model-reply) .model-reply{max-height:100%;align-self:stretch}
-.model-companion header:has(.model-reply) + .model-window-canvas{top:calc(16px + clamp(44px,28vh,152px))}
+/* A stable headroom is reserved even without a reply. Streaming, language
+   changes, and opening the dock never resize or translate the model canvas. */
+/* Character opacity never fades the reply, toolbar, dock or settings. */
+.model-window-canvas,.model-window-fallback{opacity:var(--model-opacity,1)}
+.model-window-canvas{position:absolute;inset:var(--canvas-top) 0 var(--canvas-bottom);pointer-events:auto;touch-action:none;cursor:grab}
+.model-window-canvas:active{cursor:grabbing}.model-window-canvas canvas{display:block;width:100%;height:100%}
+.model-window-canvas:focus-visible{outline-offset:-3px;border-radius:16px}
+.model-window-fallback{position:absolute;inset:var(--canvas-top) 12px var(--canvas-bottom);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:0;pointer-events:auto}
+.model-window-fallback img{height:70%;max-height:230px;max-width:100%;object-fit:contain}
+.model-window-fallback button{flex:none;max-width:100%;padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px}
+.model-feedback{position:absolute;z-index:5;left:50%;bottom:60px;translate:-50% 0;width:min(340px,calc(100% - 24px));max-height:24px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;pointer-events:auto}
+.model-feedback:empty{display:none}
+.model-window-status{min-width:0;margin:0;padding:2px 8px;border:1px solid #d8dfeb;border-radius:8px;background:#f8fcfff5;font-size:11px;line-height:1.5;overflow-wrap:anywhere;user-select:text;pointer-events:auto}
+.model-window-status[role=alert]{border-color:#e4cbd0;background:#fff6f6;color:#8a3c49}
+
+/* Visible controls are never clipped by the collapsed handle's old footprint. */
+.compact-dock{position:absolute;z-index:6;left:50%;bottom:12px;translate:-50% 0;width:70px;height:18px;border:1px solid #b8cce3;border-radius:24px;background:#f8fcfffa;box-shadow:0 4px 14px #183e6414;pointer-events:auto;overflow:visible;transition:width .22s cubic-bezier(.2,.8,.2,1),height .18s ease}
+.compact-dock.expanded{width:min(340px,calc(100% - 24px));height:46px}
+.compact-dock:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px #477fd126,0 4px 14px #183e6414}
+.dock-handle{position:absolute;inset:0;border:0;border-radius:inherit;background:transparent;padding:0}
+.dock-handle::after{content:"";display:block;margin:auto;width:30px;height:3px;background:#6f89a7;border-radius:4px}
+.compact-dock.expanded .dock-handle{visibility:hidden;pointer-events:none}
+.compact-dock form{display:flex;align-items:center;gap:4px;margin:0;position:absolute;inset:0;min-width:0;padding:5px;background:transparent;border-radius:inherit;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s}
+.compact-dock.expanded form{visibility:visible;opacity:1;pointer-events:auto}
+.compact-dock input{flex:1 1 0;min-width:0;width:100%;padding:5px;border:0;background:transparent;color:#233b59;font-size:13px;outline:0}.compact-dock input::placeholder{color:#6c8099}
+.compact-dock form button{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#456a95;font-size:18px;line-height:1;transition:background .12s}
+.compact-dock form button:hover{background:#e8f0fb}.compact-dock button[type=submit]{background:var(--accent);color:#fff}.compact-dock button[type=submit]:hover{background:#3668b5}.compact-dock form:has(input:disabled) button[type=submit]{background:#a34b53;font-size:13px}
+.compact-dock button:focus-visible{outline-offset:1px}.compact-dock form .vision-active{background:#a9253e;color:#fff;box-shadow:inset 0 0 0 2px #fff}
+.model-companion[data-input-position=above]{--canvas-top:calc(var(--reply-space) + 108px);--canvas-bottom:12px}
+.model-companion[data-input-position=above] .compact-dock{top:calc(var(--reply-space) + 24px);bottom:auto}
+.model-companion[data-input-position=above] .model-feedback{top:calc(var(--reply-space) + 76px);bottom:auto}
+@media(max-height:340px){.model-companion{--reply-space:136px}.model-companion header{gap:6px}.model-bubble{padding:8px 10px 6px;gap:4px;max-height:calc(var(--reply-space) - 42px)}.model-reply-actions{padding-top:3px}}
+@media(max-width:240px){.model-toolbar{flex-wrap:wrap}.model-name{flex-basis:100%}.model-companion{--reply-space:164px}.model-bubble{max-height:calc(var(--reply-space) - 76px)}}
+@keyframes reply-arrive{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+.model-companion[data-reduced-motion=true] *,.model-companion[data-reduced-motion=true] *::before,.model-companion[data-reduced-motion=true] *::after{transition:none!important;animation:none!important}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* Match the main workspace and pet: a restrained glass surface, readable ink,
+   and a tinted language chip. Existing headroom and hit-test geometry stay put. */
+.model-toolbar,.model-bubble,.compact-dock{backdrop-filter:blur(20px) saturate(125%);-webkit-backdrop-filter:blur(20px) saturate(125%)}
+.model-toolbar{border-color:#d0dded;border-radius:14px;background:linear-gradient(145deg,#ffffffed,#f0f6ffeb);box-shadow:0 3px 12px #23436b0d,inset 0 1px 0 #fff}
+.model-bubble{border-color:#c9d9ed;background:linear-gradient(145deg,#fffffffa,#f1f7fff2);box-shadow:0 7px 22px #23436b17,0 1px 3px #23436b0c,inset 0 1px 0 #fff}
+.model-bubble::after{background:#f3f8ff;border-color:#c9d9ed}
+.model-reply-actions{border-top-color:#477fd119}
+.model-reply-actions button:first-child{background:#477fd112;color:#3569af;box-shadow:inset 0 0 0 1px #477fd11a;font-weight:600}
+.model-reply-actions button:not(:disabled):hover{background:#477fd11f;color:#284f83;box-shadow:inset 0 0 0 1px #477fd124}
+.compact-dock{background:linear-gradient(145deg,#fffffffa,#f1f7fff5);box-shadow:0 5px 18px #183e6417,inset 0 1px 0 #fff}
+@media(prefers-reduced-transparency:reduce){.model-toolbar,.model-bubble,.compact-dock,.model-window-status{background:#fafdff;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}}
+@media(forced-colors:active){.model-toolbar,.model-bubble,.compact-dock,.model-window-status{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}.model-bubble::after{background:Canvas;border-color:CanvasText}.model-reply,.model-name,.model-reply-actions button{color:CanvasText}.model-reply-actions button:first-child{background:Canvas;box-shadow:none;border:1px solid ButtonText}.compact-dock button[type=submit]{background:Highlight;color:HighlightText}}

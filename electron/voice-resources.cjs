@@ -7,6 +7,7 @@ const { pipeline } = require('node:stream/promises');
 const { extractPinnedWeight } = require('./voice-archive.cjs');
 const {downloadResource}=require('./resource-download.cjs');
 const {resourceSources}=require('./resource-sources.cjs');
+const {ResourceJobs}=require('./resource-jobs.cjs');
 
 function fileHash(file) {
   const hash = createHash(file.algorithm);
@@ -53,9 +54,9 @@ async function downloadGitBlob({file,dest,fetcher,signal,notify=()=>{}}){
 
 class VoiceResources {
   constructor({ root, catalog, bundledRoot=null, bundledPackId=null, fetcher=fetch, notify=()=>{} }) {
-    Object.assign(this,{root,catalog,bundledRoot,bundledPackId,fetcher,notify});this.controllers=new Map();this.status={phase:'idle'};
+    Object.assign(this,{root,catalog,bundledRoot,bundledPackId,fetcher,notify});this.jobs=new ResourceJobs();this.controllers=new Map();this.status={phase:'idle'};
   }
-  get controller(){return this.controllers.values().next().value||null;}
+  get controller(){return this.jobs.controller;}
   emit(status){this.status=status;this.notify({...status,activePacks:[...this.controllers.keys()]})}
   summary(){return { ...this.status,activePacks:[...this.controllers.keys()],root:this.root,packs:Object.entries(this.catalog.packs).map(([id,p])=>({id,label:p.label,kind:p.kind||'core',version:p.version,requiresReference:Boolean(p.requiresReference),bundled:id===this.bundledPackId,bytes:p.files.reduce((n,f)=>n+f.bytes,0)})) }}
   async packAvailable(pack,root,{hash=false}={}) {
@@ -119,15 +120,17 @@ class VoiceResources {
     return {id,component,removed:removable,sharedPacks:Object.entries(this.catalog.packs).filter(([,item])=>item.paths?.[component]===pack.paths[component]).map(([key])=>key)};
     }finally{this.deleting=false;}
   }
-  async install(id='core',{component}={}) {
+  async install(id='core',{component,signal}={}) {
     if(this.deleting)throw Error('正在删除音色文件，请稍后再下载。');
     const original=this.catalog.packs[id];if(!original)throw Error('未知公共模型组件');
     if(component!==undefined&&(!['gpt','sovits'].includes(component)||original.kind!=='voice'||!original.paths?.[component]))throw Error('未知音色模型文件');
     const pack=component?{...original,files:original.files.filter(file=>file.path===original.paths[component]||file.extract?.path===original.paths[component])}:original;
     if(!pack.files.length)throw Error('音色文件不在下载清单中');
     const key=component?`${id}:${component}`:id,targets=new Set(pack.files.flatMap(file=>[safeDestination(this.root,file.path),...(file.extract?[safeDestination(this.root,file.extract.path)]:[])]).map(value=>value.toLowerCase()));
-    if(this.controllers.has(key)||[...this.controllers.values()].some(other=>[...targets].some(target=>other.targets?.has(target))))throw Error('此音色资源正在下载，请等待或先取消');
-    const controller=new AbortController();controller.targets=targets;this.controllers.set(key,controller);
+    return this.jobs.run(key,controller=>this.installTask({id,component,pack,key,targets,controller}),{signal,targets});
+  }
+  async installTask({id,component,pack,key,targets,controller}) {
+    controller.targets=targets;this.controllers.set(key,controller);
     const voicePaths=root=>({...Object.fromEntries((component?[component]:['gpt','sovits']).map(name=>[name,safeDestination(root,pack.paths[name])])),version:pack.version,textLang:'all_ja'});
     const total=pack.files.reduce((n,f)=>n+f.bytes,0);let failure=null;
     const files=pack.files.map(file=>({file:file.path,received:0,total:file.bytes,phase:'pending'}));
@@ -191,6 +194,6 @@ class VoiceResources {
     report();
     await extractPinnedWeight({archive,member:item.member,destination,bytes:item.bytes,digest:item.digest,signal});
   }
-  cancel(){for(const controller of this.controllers.values())controller.abort()}
+  cancel(){this.jobs.cancel()}
 }
 module.exports={VoiceResources,verified,safeDestination};
