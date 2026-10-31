@@ -56,7 +56,7 @@ try{
   for(const stream of [processHandle.stdout,processHandle.stderr])stream.on('data',chunk=>{log+=chunk.toString();});
   await until(()=>log.includes('[dev] Electron ready'),'actual desktop startup');
   page=await connect();await page.waitForFunction(()=>typeof window.desktop?.load==='function');
-  await page.getByRole('heading',{name:'与雪之下雪乃开始对话',exact:true}).waitFor();
+  await page.getByRole('textbox',{name:'消息',exact:true}).waitFor();
   await pause(1000);
   const setup=page.locator('.setup-dialog');if(await setup.count())await setup.locator('footer .text-link').click();
   await pause(800);

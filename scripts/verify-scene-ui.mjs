@@ -18,10 +18,15 @@ try{
  application=await _electron.launch({args:[entry],cwd:root,env,timeout:90000});
  const page=await application.firstWindow();page.on('pageerror',e=>report.errors.push(e.message));
  await page.waitForFunction(()=>typeof window.desktop?.load==='function');
- await page.getByRole('heading',{name:'与雪之下雪乃开始对话',exact:true}).waitFor({timeout:60000});
+ await page.getByRole('textbox',{name:'消息',exact:true}).waitFor({timeout:60000});
  const setup=page.locator('.setup-dialog');if(await setup.count())await setup.locator('footer .text-link').click();
  const skip=page.getByRole('button',{name:'稍后再说',exact:true});if(await skip.count())await skip.click();
  await page.waitForFunction(()=>!document.querySelector('.voice-chat-wizard'));
+ assert.equal(await page.locator('.chat-scroll .message').count(),0);
+ assert.equal(await page.locator('.chat-scroll').innerText(),'');
+ assert.equal(await page.locator('.chat-scroll button,.chat-scroll .welcome,.chat-scroll .suggestions').count(),0);
+ assert.equal(await page.getByRole('textbox',{name:'消息',exact:true}).isEditable(),true);
+ report.checks.push('Empty chat has no welcome text or topic options; composer remains editable');
  const ids={city:'街角便利店',school:'雪乃学校',kasai:'葛西临海公园',wedding:'海边婚礼礼堂',forest:'林间小径',bookshop:'街边书店',classroom:'放课后教室'};
  for(const [id,label]of Object.entries(ids)){
   await page.getByRole('button',{name:'场景小菜单',exact:true}).click();
