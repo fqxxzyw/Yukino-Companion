@@ -4,17 +4,35 @@ const {endpoint} = require('./chat.cjs');
 
 // Models are discovered from the user's account, not frozen into a versioned list.
 // Documentation and the one explicit fallback catalogue are recorded in docs/API_PROVIDERS.md.
+// All entries speak the OpenAI Chat Completions protocol. Vendor availability,
+// model permissions and pricing always belong to the user's own account.
 const PROVIDERS = [
-  {id:'deepseek', name:'DeepSeek', base:'https://api.deepseek.com', note:'使用 DeepSeek 开放平台的 API 密钥。'},
-  {id:'openai', name:'OpenAI', base:'https://api.openai.com/v1', note:'使用 API 平台密钥；ChatGPT 订阅不包含 API 额度。'},
-  {id:'dashscope-cn', name:'通义千问 · 北京', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', note:'使用北京地域百炼密钥；专属工作空间域名可在高级设置中替换。'},
-  {id:'dashscope-intl', name:'通义千问 · 新加坡', base:'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', note:'使用新加坡地域百炼密钥，不能与北京地域混用。'},
-  {id:'siliconflow', name:'硅基流动', base:'https://api.siliconflow.cn/v1', note:'从账户获取可用的对话模型。'},
-  {id:'moonshot-cn', name:'Kimi · 国内', base:'https://api.moonshot.cn/v1', note:'使用 Moonshot 国内平台的 API 密钥。'},
-  {id:'moonshot-intl', name:'Kimi · 国际', base:'https://api.moonshot.ai/v1', note:'使用 Moonshot 国际平台的 API 密钥。'},
-  {id:'zhipu', name:'智谱 GLM', base:'https://open.bigmodel.cn/api/paas/v4', note:'普通按量 API；Coding Plan 的地址与密钥不同。', suggestions:[{id:'glm-5.3', name:'GLM-5.3'},{id:'glm-5.3-flash', name:'GLM-5.3-Flash'}]},
-  {id:'local', name:'本机兼容服务', base:'http://127.0.0.1:1234/v1', note:'适用于已启动的 LM Studio 等兼容服务；内置本地雪乃请在「本地模型」中启动。', keyOptional:true},
-  {id:'custom', name:'自定义兼容服务', base:'', note:'支持 OpenAI Chat Completions 协议；不直接支持 Anthropic 原生 Messages 接口。', keyOptional:true},
+  {id:'deepseek', brand:'deepseek', name:'DeepSeek', base:'https://api.deepseek.com', note:'使用 DeepSeek 开放平台的 API 密钥。'},
+  {id:'openai', brand:'openai', name:'OpenAI', base:'https://api.openai.com/v1', note:'使用 API 平台密钥；ChatGPT 订阅不包含 API 额度。'},
+  {id:'dashscope-cn', brand:'aliyun', name:'通义千问 · 北京', base:'https://dashscope.aliyuncs.com/compatible-mode/v1', note:'使用北京地域百炼密钥；专属工作空间域名可在高级设置中替换。'},
+  {id:'dashscope-intl', brand:'aliyun', name:'通义千问 · 新加坡', base:'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', note:'使用新加坡地域百炼密钥，不能与北京地域混用。'},
+  {id:'siliconflow', brand:'siliconflow', name:'硅基流动', base:'https://api.siliconflow.cn/v1', note:'从账户获取可用的对话模型。'},
+  {id:'moonshot-cn', brand:'moonshot', name:'Kimi · 国内', base:'https://api.moonshot.cn/v1', note:'使用 Moonshot 国内平台的 API 密钥。'},
+  {id:'moonshot-intl', brand:'moonshot', name:'Kimi · 国际', base:'https://api.moonshot.ai/v1', note:'使用 Moonshot 国际平台的 API 密钥。'},
+  {id:'zhipu', brand:'zhipu', name:'智谱 GLM', base:'https://open.bigmodel.cn/api/paas/v4', note:'普通按量 API；Coding Plan 的地址与密钥不同。', suggestions:[{id:'glm-5.3', name:'GLM-5.3'},{id:'glm-5.3-flash', name:'GLM-5.3-Flash'}]},
+  {id:'hunyuan', brand:'tencent', name:'腾讯混元', base:'https://api.hunyuan.cloud.tencent.com/v1', note:'使用腾讯云 API Key；可用模型以账户开通情况为准。'},
+  {id:'ark', brand:'volcengine', name:'火山方舟 · 豆包', base:'https://ark.cn-beijing.volces.com/api/v3', note:'使用火山方舟 API Key，并填写已开通的推理接入点或模型 ID。'},
+  {id:'qianfan', brand:'baidu', name:'百度智能云千帆', base:'https://qianfan.baidubce.com/v2', note:'使用千帆平台的 API Key；模型 ID 以控制台为准。'},
+  {id:'spark', brand:'xinghuo', name:'讯飞星火', base:'https://spark-api-open.xf-yun.com/v1', note:'使用星火开放平台的 HTTP API 密钥。'},
+  {id:'minimax', brand:'minimax', name:'MiniMax', base:'https://api.minimaxi.com/v1', note:'使用 MiniMax 开放平台的 API Key。'},
+  {id:'stepfun', brand:'stepfun', name:'阶跃星辰', base:'https://api.stepfun.com/v1', note:'使用阶跃开放平台的 API Key。'},
+  {id:'yi', brand:'yi', name:'零一万物', base:'https://api.lingyiwanwu.com/v1', note:'使用 01.AI 开放平台的 API Key。'},
+  {id:'sensenova', brand:'sensenova', name:'商汤日日新', base:'https://api.sensenova.cn/compatible-mode/v1', note:'使用商汤大装置开放平台的 API Key。'},
+  {id:'mistral', brand:'mistral', name:'Mistral AI', base:'https://api.mistral.ai/v1', note:'使用 Mistral 控制台创建的 API Key。'},
+  {id:'groq', brand:'groq', name:'Groq', base:'https://api.groq.com/openai/v1', note:'OpenAI 兼容入口；可用模型以账户列表为准。'},
+  {id:'together', brand:'together', name:'Together AI', base:'https://api.together.xyz/v1', note:'使用 Together 控制台的 API Key。'},
+  {id:'openrouter', brand:'openrouter', name:'OpenRouter', base:'https://openrouter.ai/api/v1', note:'通过 OpenRouter 路由多家模型；计费由该平台结算。'},
+  {id:'xai', brand:'xai', name:'xAI Grok', base:'https://api.x.ai/v1', note:'使用 xAI 控制台的 API Key。'},
+  {id:'gemini', brand:'google', name:'Google Gemini · 兼容入口', base:'https://generativelanguage.googleapis.com/v1beta/openai/', note:'Google 提供的 OpenAI 兼容入口；原生协议与此不同。'},
+  {id:'azure-openai', brand:'azure', name:'Azure OpenAI', base:'', note:'需要填写自己的资源终结点；部署名通常作为模型 ID。'},
+  {id:'ollama', brand:'local', name:'Ollama · 本机', base:'http://127.0.0.1:11434/v1', note:'适用于本机已启动的 Ollama；不经过云端。', keyOptional:true},
+  {id:'local', brand:'local', name:'LM Studio · 本机', base:'http://127.0.0.1:1234/v1', note:'适用于已启动的 LM Studio 等兼容服务；内置本地雪乃请在「本地模型」中启动。', keyOptional:true},
+  {id:'custom', brand:'custom', name:'自定义兼容服务', base:'', note:'支持 OpenAI Chat Completions 协议；不直接支持 Anthropic 原生 Messages 接口。', keyOptional:true},
 ];
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_MODELS = 1000;

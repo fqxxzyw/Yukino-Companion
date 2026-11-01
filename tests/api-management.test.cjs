@@ -76,3 +76,15 @@ test('duplicate gets its own credential identity; deleting migrates routes and r
  const noAsr=deleteConfiguration(removed,asr.id);assert.equal(noAsr.apiManagement.taskRoutes.asr,'unassigned');
  assert.equal(saved.profiles.length,1,'operations do not mutate caller state');
 });
+
+test('deletion validates replacements for direct and inherited task routes before applying them',()=>{
+ const saved=state();saved.profiles.push({...profile,id:'alternative',name:'替代'});saved.apiManagement={defaultConfigId:profile.id,configs:[asr],taskRoutes:{chat:profile.id,proactive:'inherit',translation:'inherit',asr:asr.id}};saved.translationMode='api';
+ const choices={defaultConfigId:'alternative',routes:{chat:'alternative',proactive:'builtin-local',translation:'unassigned'}};
+ const removed=deleteConfiguration(saved,profile.id,choices);
+ assert.equal(removed.apiManagement.defaultConfigId,'alternative');assert.equal(removed.activeProfile,'alternative');
+ assert.equal(removed.apiManagement.taskRoutes.chat,'alternative');assert.equal(removed.apiManagement.taskRoutes.proactive,'builtin-local');assert.equal(removed.apiManagement.taskRoutes.translation,'unassigned');assert.equal(removed.translationMode,'none');assert.equal(removed.apiManagement.taskRoutes.asr,asr.id);
+ assert.throws(()=>deleteConfiguration(saved,profile.id,{...choices,routes:{...choices.routes,chat:asr.id}}),/有效替代/);
+ assert.throws(()=>deleteConfiguration(saved,profile.id,{...choices,routes:{chat:'alternative'}}),/有效替代/);
+ assert.throws(()=>deleteConfiguration(saved,profile.id,{...choices,defaultConfigId:asr.id}),/默认配置/);
+ assert.equal(saved.apiManagement.defaultConfigId,profile.id);assert.equal(saved.translationMode,'api');
+});

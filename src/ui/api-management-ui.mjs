@@ -1,4 +1,37 @@
-export const API_TASKS=Object.freeze([['chat','文字对话'],['proactive','主动消息'],['vision','屏幕与摄像头理解'],['asr','语音识别'],['translation','日语翻译'],['tts','语音输出']]);
+export const API_TASKS=Object.freeze([['chat','文字对话'],['proactive','主动消息'],['vision','屏幕与摄像头理解'],['asr','语音识别'],['translation','翻译回复'],['tts','语音输出']]);
+export const TASK_LABELS=Object.freeze(Object.fromEntries(API_TASKS));
+// Plain-language purposes, shown before any protocol wording.
+export const CAPABILITY_PURPOSES=Object.freeze({chat:'和角色聊天',proactive:'主动发消息',asr:'把说话转成文字',tts:'让角色开口说话',translation:'翻译回复',vision:'看懂图片或画面'});
+export const CAPABILITY_ORDER=Object.freeze(['chat','tts','asr','translation','vision','proactive']);
+export function purposesFor(capabilities=[]){const set=new Set(capabilities);return CAPABILITY_ORDER.filter(task=>set.has(task)).map(task=>CAPABILITY_PURPOSES[task]);}
+export function providerPurposes(entries=[]){return purposesFor([...new Set(entries.flatMap(entry=>entry.capabilities||[]))]);}
+// Which saved configuration currently answers a task, following "inherit".
+export function routeConfigId(management,task){const route=management?.taskRoutes?.[task];return route==='inherit'?management.defaultConfigId:route;}
+export function assignedTasks(management,configId){if(!management||!configId)return [];return API_TASKS.filter(([task])=>routeConfigId(management,task)===configId).map(([task])=>task);}
+export function assignedTaskLabels(management,configId){return assignedTasks(management,configId).map(task=>TASK_LABELS[task]).filter(Boolean);}
+export function configStatusKind(validation,config){
+ const record=validation?.[config?.id]||{};const kinds=Object.values(record);
+ if(kinds.some(item=>item?.code||item?.status==='failed'))return 'error';
+ if(kinds.some(item=>item?.status==='passed'))return 'ready';
+ return 'idle';
+}
+export function configStatusDetail(validation,config,validationLabel){
+ const record=validation?.[config?.id]||{};const failed=Object.entries(record).find(([,item])=>item?.code||item?.status==='failed');
+ const passed=Object.entries(record).find(([,item])=>item?.status==='passed');
+ if(failed)return failed[1].message||validationLabel(failed[1]);
+ if(passed)return `已验证 ${validationLabel(passed[1])}${passed[1].checkedAt?' · '+(passed[1].checkedAt.slice(0,10)):''}`;
+ return '尚未通过实际任务验证';
+}
+export function providerEditorKind(provider){
+ const capabilities=provider?.capabilities||[];
+ if(capabilities.includes('asr')&&!capabilities.includes('chat'))return '语音识别';
+ if(capabilities.includes('tts')&&!capabilities.includes('chat'))return '语音合成';
+ const purposes=purposesFor(capabilities);
+ return purposes.length?purposes.slice(0,3).join('、'):'对话与理解';
+}
+export const TRANSLATION_MODES=Object.freeze([['none','不翻译'],['local','本地翻译'],['api','已配置 API 翻译']]);
+export function translationModeFromRoute(route){if(route==='unassigned')return 'none';if(route==='builtin-local')return 'local';return 'api';}
+export function translationRouteFor(mode){return mode==='none'?'unassigned':mode==='local'?'builtin-local':'inherit';}
 export function managementFrom(state={}){
  const saved=state.apiManagement||{},configs=[...(saved.configs||[])].map(item=>({...item}));
  for(const profile of state.profiles||[]){const existing=configs.find(item=>item.id===profile.id),capabilities=new Set(existing?.capabilities||['chat','proactive','translation']);if(profile.visionEnabled===true)capabilities.add('vision');if(profile.visionEnabled===false)capabilities.delete('vision');const item={...existing,...profile,credentialId:existing?.credentialId||profile.id,protocol:existing?.protocol||'openai-chat',capabilities:[...capabilities]};if(existing)Object.assign(existing,item);else configs.push(item);}

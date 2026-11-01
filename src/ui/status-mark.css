@@ -1,0 +1,13 @@
+.status-mark{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:100%;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--secondary);font-size:10px;line-height:1.5;white-space:nowrap}
+.status-mark>svg{flex:none;color:var(--tertiary)}
+.status-mark>span{overflow:hidden;text-overflow:ellipsis}
+.status-mark.ready,.status-mark.installed{color:var(--accent-text);border-color:color-mix(in srgb,var(--accent) 24%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.status-mark.ready>svg,.status-mark.installed>svg{color:var(--accent-text)}
+.status-mark.downloading,.status-mark.checking,.status-mark.loading{color:var(--accent-text)}
+.status-mark.error{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 28%,var(--line));background:var(--danger-bg)}
+.status-mark.error>svg{color:var(--danger)}
+.status-mark-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.status-mark-list{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;list-style:none;padding:0}
+.status-mark-list>li{display:flex;min-width:0;align-items:center;gap:6px}
+.status-mark-list small{font-size:10px;color:var(--secondary);overflow-wrap:anywhere}
+@media (prefers-reduced-motion:reduce){.status-mark .spin{animation-duration:2s}}

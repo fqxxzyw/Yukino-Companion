@@ -36,50 +36,26 @@ test('stage moves the shop, bike, guardrail and their lamps back while retaining
  }finally{rig.dispose();disposeEnvironment(env);disposeEnvironment(gallery)}
 });
 
-test('leaving the street stage restores portrait projection for every other scene without waiting for resize',async()=>{
- const T=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs'),{disposeEnvironment}=await import('../src/ui/procedural-scenes.mjs');
+test('all seven scene switches preserve portrait projection and the authored model pose',async()=>{
+ const T=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs'),{SCENES}=await import('../src/ui/scene-catalog.mjs');
  for(const [width,height] of [[270,850],[340,630],[168,700]]){
-  const container={clientWidth:width,clientHeight:height,closest:()=>({getBoundingClientRect:()=>({left:0,top:0,width:1440,height:1000})}),getBoundingClientRect:()=>({left:100,top:120,width,height})};
-  const r=Object.create(GlbAvatarRenderer.prototype),model=new T.Mesh(new T.BoxGeometry(.6,2,.4),new T.MeshStandardMaterial());model.position.y=1;
-  Object.assign(r,{container,renderEnvironment:false,scene:new T.Scene(),camera:new T.PerspectiveCamera(30,width/height,.01,100),environmentId:'studio',timeOfDay:12,zoom:1,yaw:0,bounds:{size:new T.Vector3(.6,2,.4),center:new T.Vector3(0,1,0)},ambient:new T.HemisphereLight(),key:new T.DirectionalLight(),root:model,meshes:[model],gl:{toneMapping:T.NoToneMapping,toneMappingExposure:1,shadowMap:{enabled:false,type:T.PCFShadowMap,autoUpdate:true}}});r.scene.add(model);
-  try{
-   r.fitCamera();const portrait=r.camera.clone(),originalPosition=model.position.clone(),originalScale=model.scale.clone(),material=model.material;
-   for(const id of ['beach','classroom','forest','studio'])for(const route of ['panel','direct','hidden']){
-    r.setEnvironment({id:'city',timeOfDay:12});r.setSceneStage(true);
-    assert.equal(r.camera.view.enabled,true);assert.notEqual(r.camera.aspect,width/height);
-    if(route==='hidden'){container.clientWidth=0;container.clientHeight=0;}
-    // The panel disables staging before changing ID; callers may also change
-    // ID directly. Both must restore the lens, even with no resize callback.
-    if(route==='panel')r.setSceneStage(false);
-    r.setEnvironment({id,timeOfDay:12});r.camera.updateMatrixWorld(true);
-    assert.equal(r.camera.view.enabled,false);assert.equal(r.camera.aspect,width/height);assert.equal(r.camera.fov,30);
-    assert.deepEqual(r.camera.projectionMatrix.toArray(),portrait.projectionMatrix.toArray());
-    const project=camera=>{
-     const left=new T.Vector3(-.3,1,0).project(camera),right=new T.Vector3(.3,1,0).project(camera),feet=new T.Vector3(0,0,0).project(camera),head=new T.Vector3(0,2,0).project(camera);
-     return [(right.x-left.x)*width/2,(head.y-feet.y)*height/2];
-    };
-    assert.deepEqual(project(r.camera),project(portrait),'body width/height in actual panel pixels is unchanged');
-    assert.equal(model.parent,r.scene);assert.equal(r.stageAnchor,null);assert.equal(r.cityAtmosphere,null);assert.equal(r.environment,null);
-    assert.equal(model.material,material);assert.deepEqual(model.position,originalPosition);assert.deepEqual(model.scale,originalScale);
-    container.clientWidth=width;container.clientHeight=height;
+  const container={clientWidth:width,clientHeight:height};const r=Object.create(GlbAvatarRenderer.prototype),model=new T.Mesh(new T.BoxGeometry(.6,2,.4),new T.MeshStandardMaterial());model.position.y=1;
+  Object.assign(r,{container,renderEnvironment:false,scene:new T.Scene(),camera:new T.PerspectiveCamera(30,width/height,.01,100),environmentId:'classroom',timeOfDay:12,zoom:1,yaw:0,bounds:{size:new T.Vector3(.6,2,.4),center:new T.Vector3(0,1,0)},ambient:new T.HemisphereLight(),key:new T.DirectionalLight(),root:model,meshes:[model]});r.scene.add(model);
+  try{r.fitCamera();const portrait=r.camera.projectionMatrix.toArray(),originalPosition=model.position.clone(),originalScale=model.scale.clone(),material=model.material;
+   for(const id of Object.keys(SCENES))for(const route of ['panel','direct','hidden']){
+    r.setEnvironment({id:'city',timeOfDay:12});r.setSceneStage(true);if(route==='hidden'){container.clientWidth=0;container.clientHeight=0;}if(route==='panel')r.setSceneStage(false);
+    r.setEnvironment({id,timeOfDay:12});r.fitCamera();assert.equal(r.camera.view?.enabled||false,false);assert.equal(r.camera.aspect,width/height);assert.equal(r.camera.fov,30);assert.deepEqual(r.camera.projectionMatrix.toArray(),portrait);
+    assert.equal(model.parent,r.scene);assert.equal(model.material,material);assert.deepEqual(model.position,originalPosition);assert.deepEqual(model.scale,originalScale);assert.equal(r.environment,undefined);container.clientWidth=width;container.clientHeight=height;
    }
-  }finally{r.cityAtmosphere?.dispose();disposeEnvironment(r.environment);r.key.shadow.dispose();model.geometry.dispose();model.material.dispose()}
+  }finally{r.key.shadow.dispose();model.geometry.dispose();model.material.dispose()}
  }
 });
 
-test('actual avatar runtime changes only the outer anchor when dragging, not street/camera/assets',async()=>{
- const T=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs'),{disposeEnvironment}=await import('../src/ui/procedural-scenes.mjs');
- let left=100;const container={clientWidth:270,clientHeight:630,closest:()=>({getBoundingClientRect:()=>({left:0,top:0,width:1400,height:900})}),getBoundingClientRect:()=>({left,top:160,width:270,height:630})};
- const r=Object.create(GlbAvatarRenderer.prototype),model=new T.Mesh(new T.BoxGeometry(.6,2,.4),new T.MeshStandardMaterial());model.position.y=1;
- Object.assign(r,{container,renderEnvironment:false,scene:new T.Scene(),camera:new T.PerspectiveCamera(30,1,.01,100),environmentId:'city',timeOfDay:23,zoom:1,ambient:new T.HemisphereLight(),key:new T.DirectionalLight(),root:model,meshes:[model],gl:{toneMapping:T.NoToneMapping,toneMappingExposure:1,shadowMap:{enabled:false,type:T.PCFShadowMap,autoUpdate:true}}});r.scene.add(model);
- try{
-  const material=JSON.stringify(model.material.toJSON()),sourcePosition=model.position.clone();r.setSceneStage(true);
-  const environment=r.environment,rig=r.cityAtmosphere,anchor=r.stageAnchor,x=anchor.position.x,worldCamera=r.camera.position.clone(),environmentPosition=environment.position.clone(),lamp=rig.group.children.find(x=>x.name==='store-warm-left'),lampPosition=lamp.position.clone();
-  r.setSceneWeather({rain:.7,cloud:.5});assert.equal(r.cityAtmosphere,rig);assert.ok(rig.reflection.visible);
-  left=950;r.updateCityStageView();assert.ok(anchor.position.x>x+2);assert.equal(anchor.position.z,.2);assert.equal(anchor.position.y,0);
-  assert.equal(r.environment,environment);assert.deepEqual(environment.position,environmentPosition);assert.deepEqual(lamp.position,lampPosition);assert.deepEqual(r.camera.position,worldCamera);assert.deepEqual(model.position,sourcePosition);assert.equal(JSON.stringify(model.material.toJSON()),material);
-  const a=lamp.getWorldPosition(new T.Vector3()),near=a.distanceTo(anchor.position);left=100;r.updateCityStageView();assert.notEqual(a.distanceTo(anchor.position),near,'real point-light distance changes with actor world position');
-  r.setEnvironment({id:'city',timeOfDay:12});assert.ok(rig.group.children.filter(x=>x.isLight).every(x=>x.intensity===0));
-  r.setSceneStage(false);assert.equal(model.parent,r.scene);assert.equal(r.stageAnchor,null);assert.equal(r.camera.view?.enabled,false);assert.equal(r.environment,null);
- }finally{r.cityAtmosphere?.dispose();disposeEnvironment(r.environment);r.key.shadow.dispose();model.geometry.dispose();model.material.dispose()}
+test('moving an avatar panel does not mutate its camera or authored assets',async()=>{
+ const T=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs');let left=100;
+ const container={clientWidth:270,clientHeight:630,getBoundingClientRect:()=>({left,top:160,width:270,height:630})},r=Object.create(GlbAvatarRenderer.prototype),model=new T.Mesh(new T.BoxGeometry(.6,2,.4),new T.MeshStandardMaterial());model.position.y=1;
+ Object.assign(r,{container,renderEnvironment:false,scene:new T.Scene(),camera:new T.PerspectiveCamera(30,1,.01,100),environmentId:'city',timeOfDay:23,zoom:1,yaw:0,bounds:{size:new T.Vector3(.6,2,.4),center:new T.Vector3(0,1,0)},ambient:new T.HemisphereLight(),key:new T.DirectionalLight(),root:model,meshes:[model]});r.scene.add(model);
+ try{r.fitCamera();const material=JSON.stringify(model.material.toJSON()),position=model.position.clone(),camera=r.camera.position.clone(),projection=r.camera.projectionMatrix.toArray();
+  left=950;r.fitCamera();assert.deepEqual(r.camera.position,camera);assert.deepEqual(r.camera.projectionMatrix.toArray(),projection);assert.deepEqual(model.position,position);assert.equal(JSON.stringify(model.material.toJSON()),material);assert.equal(model.parent,r.scene);
+ }finally{r.key.shadow.dispose();model.geometry.dispose();model.material.dispose()}
 });

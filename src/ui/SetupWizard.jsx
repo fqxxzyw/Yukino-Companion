@@ -10,7 +10,7 @@ const features=[['chat','本地对话','不用 API Key，在本机生成回复�
 const busyStates=['checking','installing','downloading','extracting','assembling','merging','running'];
 const featureFor={runtime:'runtime',chat:'chat',translation:'translation',voiceCore:'voice',voicePreset:'voice',pet:'pet'};
 export function byteLabel(value){return value>=1e9?`${(value/1e9).toFixed(2)} GB`:`${Math.round(value/1e6)} MB`;}
-export default function SetupWizard({api,status={},onStatus,onClose,onFinished,initialFeatures=['chat','translation','voice']}){
+export default function SetupWizard({api,status={},onStatus,onClose,onFinished,initialFeatures=['chat','translation','voice','pet']}){
  const [selection,setSelection]=useState(initialFeatures),[flavor,setFlavor]=useState('auto'),[working,setWorking]=useState(false),[error,setError]=useState('');
  const checkSequence=useRef(0);
  const busy=working||status.phase==='installing',steps=Array.isArray(status.steps)?status.steps:[],needsRuntime=selection.some(id=>id!=='pet');
@@ -26,7 +26,7 @@ export default function SetupWizard({api,status={},onStatus,onClose,onFinished,i
  async function install(){if(!api?.setupInstall){setError('请在桌面版中安装资源。');return}setWorking(true);setError('');try{const next=await api.setupInstall({runtimeFlavor:flavor,features:selection});if(next)onStatus(next);if(['ready','complete'].includes(next?.phase))await onFinished?.(next)}catch(error){setError(friendlyError(error,'资源准备没有完成，请重试。'))}finally{setWorking(false)}}
  return <div className="modal-backdrop setup-backdrop"><section className="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
  <header><img src="./yukino-icon.png" alt=""/><div><h2 id="setup-title">选择需要安装的本地功能</h2></div><button className="icon" aria-label={busy?'后台继续配置':'关闭首次配置'} onClick={onClose}><X size={18}/></button></header>
- <div className="setup-content"><p className="intro">按需准备本地功能；也可跳过，使用 API 聊天。</p>
+ <div className="setup-content"><p className="intro">默认选择本次提供的全部本地功能；不需要的项目可以取消。确认目录和预计下载量后才会开始，也可以跳过并仅使用 API。</p>
  <div className="setup-runtime"><strong>资源与运行环境保存位置</strong><small>{status.resourceDirectory||'正在检查目录…'}</small>{status.pendingResourceDirectory&&<small>重启后使用：{status.pendingResourceDirectory}</small>}<button className="secondary" disabled={busy} onClick={chooseDirectory}>选择资源目录</button><small>默认位于安装目录下的 Yukino-Data 文件夹。壁纸会复制到新目录；模型和运行环境仍保留原处，可能需要重新配置或下载。</small></div>
  <div className="setup-features">{features.map(([id,label,detail,Icon])=>{const result=featureStatus(id,status);return <label key={id} className={'setup-feature '+(selection.includes(id)?'selected':'')}><Icon size={20}/><span><strong>{label}</strong><small>{detail}</small><small>{selection.includes(id)?'已选择':'未选择'}</small><small className={'setup-feature-status '+result.kind} role="status"><i aria-hidden="true"/>{result.label}</small></span><input type="checkbox" role="switch" checked={selection.includes(id)} onChange={event=>setSelection(old=>event.target.checked?[...old,id]:old.filter(value=>value!==id))}/></label>})}</div>
  {busy&&<p className="setup-runtime-note">当前下载会继续；更改选择后，等本次完成即可检查并安装新增项目。</p>}

@@ -5,6 +5,7 @@ export class VoiceConfigSync {
     this.value = {...defaults};
     this.dirty = new Map();
     this.revision = 0;
+    this.saveQueue = Promise.resolve();
   }
   edit(patch) {
     const next = {...this.value};
@@ -28,5 +29,14 @@ export class VoiceConfigSync {
     for (const [key, version] of snapshot.versions) {
       if (this.dirty.get(key) === version) this.dirty.delete(key);
     }
+  }
+  save({write,read}) {
+    const job=this.saveQueue.then(async()=>{
+      const snapshot=this.pending();
+      if(Object.keys(snapshot.patch).length){await write(snapshot.patch);this.acknowledge(snapshot);}
+      return read();
+    });
+    this.saveQueue=job.catch(()=>{});
+    return job;
   }
 }

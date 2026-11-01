@@ -1,18 +1,19 @@
 import React,{useEffect,useRef,useState} from 'react';
 export const speechConfigSignature=config=>JSON.stringify(['python','root','gpt','sovits','bert','hubert','reference','promptText','promptLang','version','device','half','cpuFallback','speed'].map(key=>config?.[key]));
 
-export default function VoiceAudition({api,config,onSave,onPreview,onStop,status={},onVerified}){
- const [text,setText]=useState('こんにちは。今日もよろしくお願いします。'),[phase,setPhase]=useState('idle'),[result,setResult]=useState(null),[error,setError]=useState('');
+export default function VoiceAudition({api,config,onSave,onPreview,onStop,status={},onVerified,language='ja'}){
+ const [text,setText]=useState(language==='zh'?'你好，今天也请多关照。':'こんにちは。今日もよろしくお願いします。'),[phase,setPhase]=useState('idle'),[result,setResult]=useState(null),[error,setError]=useState('');
  const epoch=useRef(0),running=useRef(false),stop=useRef(onStop);stop.current=onStop;
  const signature=speechConfigSignature(config);
  useEffect(()=>{epoch.current++;if(running.current)stop.current?.();running.current=false;setPhase('idle');setResult(null);setError('');},[signature]);
+ useEffect(()=>{epoch.current++;if(running.current)stop.current?.();running.current=false;setText(language==='zh'?'你好，今天也请多关照。':'こんにちは。今日もよろしくお願いします。');setPhase('idle');setResult(null);setError('');},[language]);
  useEffect(()=>()=>{epoch.current++;if(running.current)stop.current?.();},[]);
  async function audition(){
   const current=++epoch.current;running.current=true;setPhase('preparing');setError('');setResult(null);const start=Date.now();
   try{
    if(!api||!onPreview)throw Error('请在桌面应用中试听。');
    await onSave?.();if(current!==epoch.current)return;
-   setPhase('running');const completed=await onPreview({text,language:'ja'});
+   setPhase('running');const completed=await onPreview({text,language});
    if(current!==epoch.current)return;
    if(completed?.completed!==true)throw Error(completed?.error||(completed?.cancelled?'试听已停止。':'试听尚未确认完成；请检查语音状态后重试。'));
    const latest=await api.voiceStatus();if(current!==epoch.current)return;
@@ -22,8 +23,8 @@ export default function VoiceAudition({api,config,onSave,onPreview,onStop,status
   finally{if(current===epoch.current)running.current=false;}
  }
  const active=['preparing','running'].includes(phase),labels={loading:'正在加载音色',synthesizing:'正在生成语音',playing:'正在播放'};
- return <section className="settings-card voice-audition"><h3>听听雪乃的声音吧</h3><p className="hint">使用当前权重真实合成日语，再播放生成的声音。</p>
-  <label className="field">日语试听文本<input value={text} maxLength={200} disabled={active} onChange={event=>{setText(event.target.value);setResult(null);setPhase('idle');}}/></label>
+ return <section className="settings-card voice-audition"><h3>听听角色的声音</h3><p className="hint">使用当前角色与语音输出设置真实合成{language==='zh'?'中文':'日语'}，再播放生成的声音。云端合成可能产生费用。</p>
+  <label className="field">{language==='zh'?'中文':'日语'}试听文本<input value={text} maxLength={200} disabled={active} onChange={event=>{setText(event.target.value);setResult(null);setPhase('idle');}}/></label>
   <div className="button-row"><button type="button" className="primary" disabled={active||!text.trim()} onClick={audition}>{result?'重新试听':'试听雪乃的声音'}</button><button type="button" className="secondary" disabled={!active} onClick={()=>{epoch.current++;running.current=false;onStop?.();setPhase('idle');setResult(null);setError('试听已停止。');}}>停止试听</button></div>
   {active&&<p role="status">{phase==='preparing'?'正在检查和保存配置':labels[status.phase]||'正在合成并播放，请稍候…'}</p>}
   {error&&<p className="notice" role="alert">{error}</p>}

@@ -44,6 +44,20 @@ function clampBounds(bounds, area) {
 function viewportSize(kind, scale, area) {
   return {width:Math.min(area.width, Math.max(320, Math.round((kind==='pet'?330:350)*scale))),height:Math.min(area.height, Math.round((kind==='pet'?410:470)*scale)+48)};
 }
+// CSS reserves 44px without a reply and clamp(112px, 26vh, 164px) with one.
+// Grow the native window upward by the difference so the canvas keeps its
+// height and bottom edge. Iteration accounts for vh using the enlarged window.
+function modelReplyExtra(baseHeight,areaHeight,active) {
+  if(!active)return 0;
+  let extra=0;
+  for(let i=0;i<12;i++){
+    const height=Math.min(areaHeight,baseHeight+extra);
+    const next=Math.min(Math.max(0,areaHeight-baseHeight),Math.round(Math.max(112,Math.min(164,height*.26))-44));
+    if(next===extra)break;
+    extra=next;
+  }
+  return extra;
+}
 function adjacentMenuBounds(anchor, area) {
   const width=Math.min(300,area.width),height=Math.min(560,area.height),gap=12;
   const candidates=[
@@ -93,7 +107,7 @@ class CompanionManager {
     this.preferences = { ...DEFAULTS, positions: {} }; this.windows = new Map(); this.menus = new Map(); this.chatBusy=false; this.listeners = [];
     this.usage = new UsageTracker({ file: path.join(dataDir, 'companionship.json') });
     this.onProactive=onProactive;this.proactiveController=null;this.proactiveStatus={phase:'idle'};
-    this.writeQueue = Promise.resolve(); this.quitting = false; this.pauses = new Set(); this.reply = null;
+    this.writeQueue = Promise.resolve(); this.quitting = false; this.pauses = new Set(); this.reply = null; this.handoffSequence=0; this.windowOpacity=new WeakMap();this.modelExtra=0;
   }
   async initialize() {
     try { await this.usage.load(); } catch (error) {
@@ -162,8 +176,10 @@ class CompanionManager {
       if (this.preferences.closeAction === 'ask') { this.onCloseRequested(); return; }
       try {
         this.preferences = sanitizePreferences({ mode: this.preferences.closeAction }, this.preferences);
-        this.applyMode(); win.hide(); this.persist().catch(this.onError); this.emit();
-      } catch (error) { this.onError(error); }
+        const sequence=++this.handoffSequence;
+        this.alignNext=this.appAvatarRect?true:false; this.preparingHandoff=true;
+        this.applyMode(); this.prepareDesktopAlignment(); this.alignNext=false; this.preparingHandoff=false; this.handoffToDesktop(sequence).catch(this.onError); this.persist().catch(this.onError); this.emit();
+      } catch (error) { this.alignNext=false;this.preparingHandoff=false;this.recoverHandoff(error); }
     });
     this.refreshActivity();
   }
@@ -174,7 +190,7 @@ class CompanionManager {
   }
   getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), proactiveStatus:{...this.proactiveStatus}, usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
   updatePrefs(patch) { return this.setPreferences(patch); }
-  async closeChoice(mode, {remember=false}={}) { if(remember && CLOSE_ACTIONS.has(mode))await this.setPreferences({closeAction:mode}); if (mode === 'quit') { this.quit(); return; } if (!MODES.has(mode)) throw Error('无效的关闭选项'); await this.setMode(mode); this.mainWindow?.hide(); this.refreshActivity(); this.emit(); return this.getState(); }
+  async closeChoice(mode, {remember=false}={}) { const sequence=++this.handoffSequence; if(remember && CLOSE_ACTIONS.has(mode))await this.setPreferences({closeAction:mode}); if(sequence!==this.handoffSequence)return this.getState(); if (mode === 'quit') { this.quit(); return; } if (!MODES.has(mode)) throw Error('无效的关闭选项'); this.alignNext=this.appAvatarRect?true:false; this.preparingHandoff=true; try { await this.setMode(mode); } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); throw error; } finally { this.alignNext=false; this.preparingHandoff=false; } if(sequence===this.handoffSequence)await this.handoffToDesktop(sequence); return this.getState(); }
   async setPreferences(patch) {
     if (this.preferencesReadError) {
       await fs.copyFile(path.join(this.dataDir, 'companions.json'), path.join(this.dataDir, `companions.corrupt-${Date.now()}.json`));
@@ -197,7 +213,7 @@ class CompanionManager {
     for (const [kind, win] of this.windows) {
       const bounds = this.boundsFor(kind);
       const current=win.getBounds();
-      if(this.drag?.kind!==kind&&['x','y','width','height'].some(key=>current[key]!==bounds[key]))win.setBounds(bounds);
+      if(this.drag?.kind!==kind){if(['x','y','width','height'].some(key=>current[key]!==bounds[key]))win.setBounds(bounds);if(kind==='model')this.modelExtra=this.computedModelExtra||0;}
       win.setAlwaysOnTop(this.preferences.alwaysOnTop, 'floating'); this.sendState(win, kind);
     }
     for(const [kind,menu] of this.menus){const owner=this.windows.get(kind);if(!owner)continue;const anchor=owner.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:anchor.x+anchor.width/2,y:anchor.y+anchor.height/2}).workArea,bounds=adjacentMenuBounds(anchor,area);if(!bounds){this.closeMenu(kind);this.openMain();this.onOpenSettings('avatar');}else{menu.setBounds(bounds);menu.setAlwaysOnTop(this.preferences.alwaysOnTop,'floating');this.sendState(menu,kind,true);}}
@@ -207,7 +223,8 @@ class CompanionManager {
     const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,renderStyle:value.presentation.renderStyle,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
     // A conversation belongs to the character identity, not the currently worn model.
     // Clear before broadcasting the new identity so no window receives its predecessor's reply.
-    if(next.id!==this.character.id){this.cancelProactive();this.walkFraction={x:0,y:0};this.reply=null;this.setMouthLevel(0);this.clearSpeechSnapshot();}
+    if(next.id!==this.character.id){this.cancelProactive();this.walkFraction={x:0,y:0};this.reply=null;this.updateModelReplyLayout();this.setMouthLevel(0);this.clearSpeechSnapshot();}
+    if(next.id!==this.character.id||next.modelId!==this.character.modelId)this.modelFrame=null;
     this.character=next;
     for(const [kind,win] of this.windows)this.sendState(win,kind);
     for(const [kind,win] of this.menus)this.sendState(win,kind,true);
@@ -228,6 +245,7 @@ class CompanionManager {
     // when forwarding it to the desktop windows. Their body scrolls separately.
     this.reply = { zh: typeof reply?.zh === 'string' ? reply.zh : '', ja: typeof reply?.ja === 'string' ? reply.ja : '', id: typeof reply?.id === 'string' ? reply.id : '' };
     let moved=false;
+    this.updateModelReplyLayout();
     for (const [kind, win] of this.windows) { moved=this.keepReplyVisible(win,kind)||moved; this.sendState(win, kind); }
     if(moved)this.persist().catch(this.onError);
   }
@@ -244,14 +262,40 @@ class CompanionManager {
     if(bounds.x===current.x&&bounds.y===current.y)return false;
     moveWindow(win,bounds);this.preferences.positions[kind]={...this.preferences.positions[kind],x:bounds.x,y:bounds.y};return true;
   }
-  clearReply() { this.reply = null; for (const [kind, win] of this.windows) this.sendState(win, kind); }
+  clearReply() { this.reply = null; this.updateModelReplyLayout(); for (const [kind, win] of this.windows) this.sendState(win, kind); }
+  hasModelReply() { return Boolean(this.preferences.showBubbles&&this.reply&&(this.reply.zh||this.reply.ja)); }
+  updateModelReplyLayout() {
+    const win=this.windows.get('model');
+    if(!win||win.isDestroyed()||this.preparingHandoff||this.handoffActive||this.drag?.kind==='model')return;
+    const current=win.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:current.x+current.width/2,y:current.y+current.height/2}).workArea;
+    const baseHeight=Math.max(1,current.height-this.modelExtra),extra=modelReplyExtra(baseHeight,area.height,this.hasModelReply());
+    const delta=extra-this.modelExtra;if(!delta)return;
+    const bounds=clampBounds({...current,y:current.y-delta,height:baseHeight+extra},area);
+    win.setBounds(bounds);this.modelExtra=extra;
+    if(this.preferences.positions.model)this.preferences.positions.model={...this.preferences.positions.model,x:bounds.x,y:bounds.y+extra};
+  }
+  // The renderer reports the in-app character area in DIP. On the next close
+  // the desktop model window starts aligned to it instead of the saved corner.
+  setAppAvatarRect(bounds) { if (bounds) this.appAvatarRect = bounds; }
   boundsFor(kind) {
     const scale = this.preferences.scale;
     const saved = this.preferences.positions[kind];
     const area = (saved ? this.e.screen.getDisplayNearestPoint(saved) : this.e.screen.getPrimaryDisplay()).workArea;
     const {width,height}=viewportSize(kind,scale,area);
+    const extra=kind==='model'?modelReplyExtra(height,area.height,this.hasModelReply()):0;
+    if(kind==='model')this.computedModelExtra=extra;
+    if (kind === 'model' && this.alignNext && this.appAvatarRect) {
+      // Mirror the model-window CSS insets (canvas top 56px, bottom 60px), so the
+      // 3D canvas lands on the in-app character area during the first close.
+      const rect = this.appAvatarRect, top = 56, bottom = 60;
+      const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
+      const alignedBase=Math.min(area.height,Math.round(rect.height)+top+bottom),alignedExtra=modelReplyExtra(alignedBase,area.height,this.hasModelReply());
+      this.computedModelExtra=alignedExtra;
+      const aligned={x:Math.round(rect.x),y:Math.round(rect.y-top-alignedExtra),width:Math.min(area.width,Math.max(240,Math.round(rect.width))),height:alignedBase+alignedExtra};
+      return clampSubject(aligned,this.visibleBody(kind,null),areas)||clampBounds(aligned,area);
+    }
     const offset = this.preferences.mode === 'both' && kind === 'model' ? viewportSize('pet',scale,area).width+12 : 0;
-    const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: saved?.y ?? area.y + area.height - height, width, height };
+    const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: (saved?.y ?? area.y + area.height - height)-extra, width, height:height+extra };
     const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
     return clampSubject(bounds,this.visibleBody(kind,saved?.body),areas)||clampBounds(bounds,area);
   }
@@ -261,14 +305,25 @@ class CompanionManager {
     for (const kind of desired) if (!this.windows.has(kind)) this.createWindow(kind);
     this.refreshActivity(); this.updateTray();
   }
+  prepareDesktopAlignment() {
+    const win=this.windows.get('model');
+    if(!this.alignNext||!win||win.isDestroyed())return;
+    const bounds=this.boundsFor('model'),current=win.getBounds();
+    if(['x','y','width','height'].some(key=>current[key]!==bounds[key]))win.setBounds(bounds);
+    this.modelExtra=this.computedModelExtra||0;
+  }
   createWindow(kind) {
     const win = new this.e.BrowserWindow({ ...this.boundsFor(kind), transparent: true, frame: false, resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, show: false, alwaysOnTop: this.preferences.alwaysOnTop, hasShadow: false, backgroundColor: '#00000000', webPreferences: { preload: path.join(__dirname, 'companion-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy:'no-user-gesture-required' } });
+    if(kind==='model')this.modelExtra=this.computedModelExtra||0;
     this.windows.set(kind, win);
+    if(this.preparingHandoff&&(kind==='model'||!kindsForMode(this.preferences.mode).includes('model'))){
+      try{this.opacity(win,0);}catch(error){this.windows.delete(kind);if(!win.isDestroyed())win.destroy();throw error;}
+    }
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.on('did-finish-load', () => this.sendState(win, kind));
-    win.on('ready-to-show', () => { if (!win.isDestroyed()) { win.showInactive(); this.refreshActivity(); } });
-    win.on('closed', () => { this.closeMenu(kind); if (this.windows.get(kind) === win) this.windows.delete(kind); this.refreshActivity(); });
+    win.on('ready-to-show', () => { if (!win.isDestroyed()&&!win.handoffSuppressed) { win.showInactive(); this.refreshActivity(); } });
+    win.on('closed', () => { this.closeMenu(kind); if (this.windows.get(kind) === win) this.windows.delete(kind); if(this.modelFrame?.win===win)this.modelFrame=null; this.refreshActivity(); });
     const devURL = kind === 'model' && developmentRendererURL(this.e.app, 'model-window.html');
     (devURL ? win.loadURL(devURL + '?kind=model') : win.loadFile(path.join(__dirname, kind==='model'?'../dist/model-window.html':'companion-view/index.html'), { query: { kind } })).catch(error => this.onError(error));
     return win;
@@ -288,7 +343,11 @@ class CompanionManager {
     }
     if(action==='model-character'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型配置');return {...this.character};}
     if(action==='model-catalog'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型目录');return this.onModelCatalog();}
-    if(action==='model-data'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型资源');const id=payload===undefined?this.character.modelId:payload;if(typeof id!=='string'||!id||id!==this.character.modelId)throw Error('请选择当前人物的模型资源');return this.onModelData(id);}
+    if(action==='model-data'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型资源');const id=payload===undefined?this.character.modelId:payload;if(typeof id!=='string'||!id||id!==this.character.modelId)throw Error('请选择当前人物的模型资源');this.modelFrame=null;return this.onModelData(id);}
+    if(action==='model-frame'||action==='model-frame-error'){
+      if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('无效的人物渲染状态');
+      this.modelFrame={win,id:payload,ready:action==='model-frame'};return true;
+    }
     if(action==='menu-open'){return this.openMenu(kind);}
     if(action==='menu-close'){this.closeMenu(kind);return true;}
     if(action==='chat-submit'){
@@ -320,7 +379,7 @@ class CompanionManager {
       // A release can arrive before the coalesced animation-frame move. Flush
       // its release position, but never move a click or a cancel.
       if(action==='drag-end'&&payload?.moved===true)moveDraggedWindow(win,this.drag,this.e.screen,validDragPoint(payload.point),this.visibleBody(kind,this.drag.body));
-      const body=this.drag.body;this.drag = null;this.keepReplyVisible(win,kind);const [x,y] = win.getPosition();this.preferences.positions[kind] = {x,y,...(body?{body}:{})};this.sendState(win,kind);await this.persist(); return true;
+      const body=this.drag.body;this.drag = null;this.keepReplyVisible(win,kind);this.updateModelReplyLayout();const [x,y] = win.getPosition();this.preferences.positions[kind] = {x,y:y+(kind==='model'?this.modelExtra:0),...(body?{body}:{})};this.sendState(win,kind);await this.persist(); return true;
     }
     if (action === 'walk-step' && kind === 'pet' && !this.drag && this.preferences.animation && !this.preferences.interactionPaused && !this.preferences.quietMode && this.preferences.focusEnds<=Date.now() && !this.chatBusy && !this.menus.has(kind) && (payload === -1 || payload === 1 || (payload&&Number.isFinite(payload.x)&&Number.isFinite(payload.y)&&Math.abs(payload.x)<=1&&Math.abs(payload.y)<=1))) {
       const bounds = win.getBounds(); const area = this.e.screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }).workArea;
@@ -429,7 +488,104 @@ class CompanionManager {
     }else if(this.preferences.focusEnds>Date.now()){for(const [kind,win] of this.windows)this.sendState(win,kind);this.emit();}
     this.petMood.annoyance=Math.max(0,this.petMood.annoyance-.035);
   }
-  openMain() { this.onOpenMain(); if (this.mainWindow && !this.mainWindow.isDestroyed()) { this.mainWindow.show(); this.mainWindow.restore(); this.mainWindow.focus(); } }
+  // Window-level fades are the only place that hides the main window; the 3D
+  // content itself is never scaled or rewritten by a transition.
+  waitForVisible(win, timeout = 1200, sequence=this.handoffSequence) {
+    return new Promise(resolve => {
+      if (!win || win.isDestroyed()) return resolve(false);
+      if (win.isVisible()) return resolve(true);
+      const start = Date.now(), timer = setInterval(() => {
+        const done = sequence!==this.handoffSequence || !win || win.isDestroyed() || win.isVisible() || Date.now() - start > timeout;
+        if (done) { clearInterval(timer); resolve(Boolean(sequence===this.handoffSequence && win && !win.isDestroyed() && win.isVisible())); }
+      }, 30);
+    });
+  }
+  opacity(win,value) { if(win && !win.isDestroyed() && typeof win.setOpacity==='function'){win.setOpacity(value);this.windowOpacity.set(win,value);} }
+  currentOpacity(win) { return this.windowOpacity.get(win) ?? win?.getOpacity?.() ?? 1; }
+  recoverHandoff(error) {
+    this.handoffSequence++;
+    const main=this.mainWindow,target=this.windows.get('model')||this.windows.get('pet');
+    if(target&&!target.isDestroyed()){target.handoffSuppressed=true;try{target.hide();}catch{}try{this.opacity(target,1);}catch{}}
+    if(main&&!main.isDestroyed()){try{this.opacity(main,1);}catch{}try{main.show();main.restore();main.focus();}catch{}}
+    this.refreshActivity();this.emit();this.onError(error);
+  }
+  async waitForModelFrame(win, id, sequence, timeout=15000) {
+    return new Promise(resolve=>{
+      const started=Date.now();
+      const check=()=>{
+        const frame=this.modelFrame;
+        if(sequence!==this.handoffSequence||!win||win.isDestroyed()||this.character.modelId!==id)return resolve(false);
+        if(frame?.win===win&&frame.id===id)return resolve(frame.ready);
+        if(Date.now()-started>=timeout)return resolve(false);
+        setTimeout(check,30);
+      };check();
+    });
+  }
+  async fadeWin(win, from, to, ms = 240, sequence=this.handoffSequence) {
+    if (!win || win.isDestroyed() || sequence!==this.handoffSequence) return false;
+    if (typeof win.setOpacity !== 'function') { if (to === 0) win.hide(); return true; }
+    let reduced=false;
+    try{reduced=this.e.systemPreferences?.getAnimationSettings?.()?.prefersReducedMotion===true;}catch{}
+    if(!this.preferences.animation||reduced)ms=0;
+    const started=Date.now();
+    for (;;) {
+      if (win.isDestroyed() || sequence!==this.handoffSequence) return false;
+      const progress=ms?Math.min(1,(Date.now()-started)/ms):1;
+      this.opacity(win,from + (to - from) * progress);
+      if(progress>=1)break;
+      await new Promise(resolve => setTimeout(resolve, Math.min(16,ms-(Date.now()-started))));
+    }
+    return sequence===this.handoffSequence && !win.isDestroyed();
+  }
+  async handoffToDesktop(sequence=++this.handoffSequence) {
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed() || sequence!==this.handoffSequence) return;
+    this.handoffActive=sequence;
+    try {
+    // Native opacity is unavailable in some environments (and fake windows):
+    // keep the original synchronous hide there.
+    if (typeof win.setOpacity !== 'function') {
+      const target = this.windows.get('model') || this.windows.get('pet');
+      if (target && !target.isDestroyed() && !target.isVisible()) target.showInactive?.();
+      if(sequence===this.handoffSequence)win.hide(); this.refreshActivity(); this.emit(); return;
+    }
+    const target = this.windows.get('model') || this.windows.get('pet');
+    if(target)target.handoffSuppressed=false;
+    if (target && !target.isDestroyed() && !target.isVisible() && typeof target.setOpacity === 'function') {
+      this.opacity(target,0); target.showInactive();
+    }
+    if(target){
+      const visible=await this.waitForVisible(target,1200,sequence);
+      const ready=visible&&(target!==this.windows.get('model')||!this.character.modelId||await this.waitForModelFrame(target,this.character.modelId,sequence));
+      if(sequence!==this.handoffSequence)return;
+      if(!ready){this.recoverHandoff(new Error('桌面人物尚未准备好，已保留主窗口。'));return;}
+    }
+    const [mainDone]=await Promise.all([this.fadeWin(win,this.currentOpacity(win),0,260,sequence),target?this.fadeWin(target,this.currentOpacity(target),1,200,sequence):Promise.resolve(true)]);
+    if(!mainDone)return;
+    if (sequence===this.handoffSequence&&!win.isDestroyed()) { win.hide(); this.opacity(win,1); }
+    this.refreshActivity(); this.emit();
+    } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); }
+    finally {if(this.handoffActive===sequence){this.handoffActive=null;this.updateModelReplyLayout();}}
+  }
+  async revealMain() {
+    const sequence=++this.handoffSequence;
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed()) { this.onOpenMain(); return false; }
+    this.handoffActive=sequence;
+    try {
+    if (!win.isVisible() && typeof win.setOpacity === 'function') this.opacity(win,0);
+    this.onOpenMain();
+    win.show(); win.restore(); win.focus();
+    const mainFade=this.fadeWin(win, this.currentOpacity(win), 1, 260, sequence);
+    const desktop = this.windows.get('model') || this.windows.get('pet');
+    if(desktop)desktop.handoffSuppressed=true;
+    const desktopFade=desktop && !desktop.isDestroyed()?this.fadeWin(desktop, this.currentOpacity(desktop), 0, 200, sequence).then(done => { if (done && sequence===this.handoffSequence && !desktop.isDestroyed()) { desktop.hide(); this.opacity(desktop,1); } }):Promise.resolve();
+    await Promise.all([mainFade,desktopFade]);
+    return true;
+    } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); return false; }
+    finally {if(this.handoffActive===sequence){this.handoffActive=null;this.updateModelReplyLayout();}}
+  }
+  openMain() { return this.revealMain(); }
   ensureTray() {
     if (this.tray || !this.e.Tray || !this.e.nativeImage) return;
     const source = this.e.nativeImage.createFromPath(path.join(__dirname, '../dist/yukino-icon.png'));
@@ -445,7 +601,7 @@ class CompanionManager {
       { type: 'separator' }, { label: '完全退出',click: () => this.quit() },
     ]));
   }
-  repositionAll() { for (const kind of [...this.menus.keys()])this.closeMenu(kind); for (const [kind, win] of this.windows) {win.setBounds(this.boundsFor(kind));this.sendState(win,kind);} }
+  repositionAll() { for (const kind of [...this.menus.keys()])this.closeMenu(kind); for (const [kind, win] of this.windows) {win.setBounds(this.boundsFor(kind));if(kind==='model')this.modelExtra=this.computedModelExtra||0;this.sendState(win,kind);} }
   emit() { this.onChange(this.getState()); }
   async persist() {
     if (this.preferencesReadError) return;
@@ -454,9 +610,9 @@ class CompanionManager {
     this.writeQueue = job.catch(() => {}); return job;
   }
   flush() { this.usage.save().then(() => this.emit()).catch(this.onError); }
-  quit() { this.quitting = true; this.onQuit(); }
+  quit() { this.handoffSequence++; this.quitting = true; this.onQuit(); }
   async dispose() {
-    this.quitting = true;this.cancelProactive(); clearInterval(this.timer); clearInterval(this.focusTimer); this.usage.update({ main: false, companion: false });
+    this.handoffSequence++;this.quitting = true;this.cancelProactive(); clearInterval(this.timer); clearInterval(this.focusTimer); this.usage.update({ main: false, companion: false });
     for (const cleanup of this.listeners.splice(0)) cleanup();
     for(const kind of [...this.menus.keys()])this.closeMenu(kind);
     for (const win of this.windows.values()) if (!win.isDestroyed()) win.destroy();

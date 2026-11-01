@@ -7,7 +7,7 @@ const { speechCacheKey } = require('./speech-cache-key.cjs');
 const {enginePlan}=require('./tts-engine.cjs');
 
 const DEFAULTS = Object.freeze({ enabled: false, python: '', root: '', gpt: '', sovits: '', reference: '',
-  bert: '', hubert: '', ffmpeg: '', promptText: '', promptLang: 'ja', textLang: 'all_ja', version: 'v1',
+  bert: '', hubert: '', ffmpeg: '', promptText: '', promptLang: 'ja', textLang: 'all_ja', speechLanguage:'ja', version: 'v1',
   device: 'auto', half: false, cpuFallback: true, cpuThreads: 4, speed: 1, volume: 0.8, timeout: 300,
   engine:'auto',aquaPython:'',aquaGraph:'lazy',aquaSovitsBase:'',aquaBigvgan:'',aquaSpeaker:'',aquaLangdetect:'',
   minSegmentChars:8,targetSegmentChars:35,maxSegmentChars:80,splitOnComma:'adaptive',mergeShortSegments:true,preservePunctuation:true,
@@ -31,8 +31,9 @@ function validateSettings(input) {
   if (!['v1', 'v2', 'v2Pro', 'v2ProPlus', 'v3', 'v4', 'v5dev', 'v5turbo'].includes(config.version)) throw Error('无效模型版本');
   const langs = ['zh', 'en', 'ja', 'auto', 'auto_yue', 'yue', 'ko', 'all_zh', 'all_ja', 'all_yue', 'all_ko'];
   if (!langs.includes(config.promptLang) || !langs.includes(config.textLang)) throw Error('无效语音语言');
-  // Migrate earlier saved Chinese/auto settings. Display language never controls TTS.
-  config.textLang = 'all_ja';
+  // A character explicitly selects the output language; legacy settings stay Japanese.
+  if(!['ja','zh'].includes(config.speechLanguage))throw Error('无效角色语音语言');
+  config.textLang = config.speechLanguage==='zh'?'all_zh':'all_ja';
   for (const [key, min, max] of [['speed', 0.5, 2], ['volume', 0, 1], ['timeout', 30, 900], ['cpuThreads', 1, 32]]) {
     if (!Number.isFinite(config[key]) || config[key] < min || config[key] > max) throw Error(`语音设置 ${key} 超出范围`);
   }
@@ -204,7 +205,7 @@ class SpeechService {
   async synthesizeGroup(id, texts) {
     if (!id || this.session !== id) throw Error('语音会话已过期');
     if (!Array.isArray(texts) || !texts.length || texts.length > 3 || texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 500) || texts.join('\n').length > 500) throw Error('无效语音片段；每组最多三句、合计 500 字符');
-    texts.forEach(assertJapaneseSpeech);
+    if(this.config?.speechLanguage!=='zh')texts.forEach(assertJapaneseSpeech);
     // One model owner, one bounded batch. Never run concurrent requests against
     // the upstream mutable pipeline or let a rejected extra call kill its owner.
     if (this.synthesisTask) throw Error('语音推理忙，请等待当前任务完成');

@@ -17,6 +17,7 @@ test('sentence boundaries, final tail, decimals, chunked hidden content and Mark
     got.push(...stream.push('',true)); assert.deepEqual(got, expected, `chunk size ${size}`);
   }
   assert.equal(spokenText('你好。<think>秘密',true),'你好。');
+  assert.equal(spokenText('<thinking>不应朗读。</thinking>你好。',true),'你好。');
   assert.equal(spokenText('正常。```unfinished',true),'正常。');
 });
 

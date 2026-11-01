@@ -7,7 +7,7 @@ import './api-settings.css';
 const messageOf = error => String(error?.message || error || '操作失败，请稍后重试。').replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 const originOf = base => {try {return new URL(base).origin;} catch {return '';}};
 
-export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds, busy = false,editingProfileId,onProfileSelect}) {
+export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds, busy = false,editingProfileId,onProfileSelect,onDeleteProfile}) {
   const [catalog, setCatalog] = useState([]);
   const [catalogError, setCatalogError] = useState('');
   const [secret, setSecret] = useState('');
@@ -128,6 +128,7 @@ export default function ApiSettings({api, state, onChange, keyIds = [], onKeyIds
     onProfileSelect?.(id);
   }
   async function removeProfile() {
+    if (onDeleteProfile) {onDeleteProfile(profile.id); return;}
     const operation = ++sequence.current;
     setWorking('delete'); setNotice(null);
     try {

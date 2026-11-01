@@ -1,12 +1,14 @@
 import {ResourceProgress} from '../ui/SetupWizard.jsx';
 import ResourceHelp from '../ui/ResourceHelp.jsx';
 import Select from '../ui/Select.jsx';
+import StatusMark from '../ui/StatusMark.jsx';
 import React, { useEffect, useState } from 'react';
 import VoiceAudition from './VoiceAudition.jsx';
 import ReferenceAudioCheck from './ReferenceAudioCheck.jsx';
 import VoiceGuide from './VoiceGuide.jsx';
 import SpeechCacheSettings from './SpeechCacheSettings.jsx';
 import InferenceSettings,{inferenceDefaults} from './InferenceSettings.jsx';
+import './voice-output.css';
 
 export const voiceDefaults = { enabled:false, python:'', root:'', gpt:'', sovits:'', reference:'', bert:'', hubert:'', ffmpeg:'',
   promptText:'', promptLang:'ja', textLang:'all_ja', version:'v1', device:'auto', half:false, cpuFallback:true, cpuThreads:4,
@@ -16,7 +18,7 @@ const pathLabels = { python:'Python 可执行文件', root:'GPT-SoVITS 推理目
   reference:'参考音频（3–10 秒 WAV / FLAC）', bert:'BERT 基础模型目录', hubert:'HuBERT 基础模型目录', ffmpeg:'FFmpeg 可执行文件（可选，自动查找）' };
 const langs = [['zh','中英混合'],['ja','日英混合'],['en','英语'],['auto','自动多语言'],['all_zh','中文'],['all_ja','日语'],['yue','粤英混合'],['ko','韩英混合']];
 
-export default function VoiceSettings({api,config,onChange,onRemote,onSave,status,playbackStatus,onPreview,onStop,onOpenSetup,page='all',onOpenResources,onOpenAdvanced}) {
+export default function VoiceSettings({api,config,onChange,onRemote,onSave,status,playbackStatus,onPreview,onStop,onOpenSetup,page='all',onOpenResources,onOpenAdvanced,output,onOutputChange}) {
   const playback=page==='all'||page==='playback',resourcePage=page==='all'||page==='resources',advanced=page==='all'||page==='advanced';
   const [notice,setNotice]=useState(''),[working,setWorking]=useState(false),[hardware,setHardware]=useState(null),[weights,setWeights]=useState({}),[pendingDelete,setPendingDelete]=useState(null),[inspection,setInspection]=useState(null);
   const [resources,setResources]=useState({phase:'idle'}),[selectedPack,setSelectedPack]=useState('yukino-e2');
@@ -28,11 +30,16 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
   const needsTranscript=['v3','v4','v5dev','v5turbo'].includes(config.version);
   const readyReference=Boolean(config.reference&&(!needsTranscript||config.promptText.trim()));
   const incompleteCustomReference=Boolean(!config.reference&&config.promptText.trim());
+  const availableCloud=(output?.cloud||[]).filter(item=>item.providerId==='dashscope-tts');
+  const cloudSelected=Boolean(output?.value&&!['builtin-local','unassigned'].includes(output.value));
+  const effectiveOutput=output?.effectiveValue??output?.value;
+  const effectiveCloud=availableCloud.some(item=>item.id===effectiveOutput);
+  const effectiveLabel=effectiveOutput==='builtin-local'?'本地 GPT-SoVITS':effectiveOutput==='unassigned'?'不使用语音':effectiveCloud?'云端语音':'音色配置不可用';
   useEffect(()=>setWeights({}),[config.gpt,config.sovits]);
   useEffect(()=>setPendingDelete(null),[selectedPack]);
   useEffect(()=>{if(!advanced)return;let current=true;setInspection(null);const timer=setTimeout(async()=>{try{if(!api?.voiceStatus)return;await onSave();const result=await api.voiceStatus();if(current)setInspection(result);}catch{if(current)setInspection(null);}},500);return()=>{current=false;clearTimeout(timer);};},[api,advanced,config.python,config.root,config.gpt,config.sovits,config.bert,config.hubert,config.reference,config.promptText,config.version]);
   useEffect(()=>{if(!api||!resourcePage)return;api.voiceResources().then(setResources).catch(e=>setNotice(cleanError(e)));return api.onVoiceDownload(status=>setResources(old=>({...old,...status})))},[api,resourcePage]);
-  const patch = value => onChange({...value,textLang:'all_ja'});
+  const patch = value => onChange({...value});
   async function action(fn) {
     if(!api){setNotice('请在桌面应用中配置本地语音。');return;}
     setWorking(true); setNotice('');
@@ -69,16 +76,29 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
       <span>{readyReference?'参考声音已配置。':incompleteCustomReference?'自定义文本尚未匹配参考音频；不影响默认资源下载。':'参考声音尚未配置，请先检查 / 一键配置。'}</span>
     </div>
     </section>}
-    {playback&&<><div className="voice-status" role="status"><strong>{phaseNames[status.phase]||status.phase}</strong>
-      {status.metadata&&<span>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · GPU 不可用，已回退 CPU':''}</span>}
-      {status.metadata?.cpuFallbackReason&&<span>回退原因：{status.metadata.cpuFallbackReason}</span>}
-      {status.phase==='unloaded'&&<span>{status.configured?'资源已齐全；当前没有占用模型内存，首次朗读时会自动加载。':'这里指语音合成模型，和本地对话模型、翻译模型的状态相互独立。'}</span>}
-      {status.missing?.length>0&&<span>还需准备：{status.missing.map(item=>item.label).join('、')}</span>}
-      {status.error&&<p>{cleanError(status.error)}</p>}
+    {playback&&<>
+    <section className="settings-section"><h3>语音输出方式</h3>
+      <div className="voice-output-options" role="radiogroup" aria-label="语音输出方式">{[['builtin-local','本地 GPT-SoVITS','使用本机音色文件，首次朗读时才加载。',true],[{cloud:true},'云端语音合成','使用已添加的百炼语音配置；合成可能产生服务费用。',false],['unassigned','不朗读','保留文字回复；手动试听仍可使用。',true]].map(([value,label,detail]) => {
+        const cloud=typeof value==='object',id=cloud?(availableCloud[0]?.id||''):value,selected=cloud?cloudSelected:output?.value===value,disabled=(cloud&&!availableCloud.length)||!onOutputChange;
+        return <label key={cloud?'cloud':value} className={'voice-output-option'+(selected?' selected':'')+(disabled?' disabled':'')}><input type="radio" name="voice-output-mode" checked={Boolean(selected)} disabled={disabled} onChange={()=>onOutputChange?.(id)}/><span><strong>{label}</strong><small>{detail}</small></span></label>;
+      })}</div>
+      {availableCloud.length>0&&cloudSelected&&<label className="field">云端语音服务<Select value={output.value} onChange={event=>onOutputChange?.(event.target.value)}>{availableCloud.map(item=><option key={item.id} value={item.id}>{item.name}{item.model?` · ${item.model}`:''}</option>)}</Select><small>文本会发送到所选服务；实际合成可能产生费用，账户和音色需通过试听验证。</small></label>}
+      {!availableCloud.length&&<p className="hint">还没有已接入的云端语音配置。可先在「模型与 API」添加阿里云百炼语音服务。</p>}
+      {output?.characterOverride&&<p className="hint" role="status">当前角色的音色设置覆盖全局输出：{effectiveLabel}。</p>}
+    </section>
+    <div className="voice-engine-card" role="status" aria-live="polite">
+      <div className="status-mark-row"><StatusMark kind={status.configured?(status.missing?.length?'pending':'installed'):'pending'} label={status.missing?.length?'缺少文件':status.configured?'资源已安装':'待下载'} detail={status.missing?.length?status.missing.map(item=>item.label).join('、'):'本地音色文件与参考声音。'}/><StatusMark kind={['loading','synthesizing'].includes(status.phase)?'loading':status.phase==='ready'?'ready':status.phase==='error'?'error':'idle'} label={phaseNames[status.phase]||'未加载'} detail={status.phase==='unloaded'?'已安装不等于已加载；首次朗读时自动加载，不占用常驻内存。':'模型引擎状态。'}/><StatusMark kind={playbackStatus?.phase==='playing'?'ready':'idle'} label={playbackStatus?.phase==='playing'?'正在播放':'待试听'} detail="只有实际合成并播放，才表示这条音色链路可用。"/></div>
+      <details className="voice-engine-details"><summary>状态详情{status.error?' · 需要处理':''}</summary>
+        {status.metadata&&<p>{status.metadata.device} · {status.metadata.half?'FP16':'FP32'} · {status.metadata.version}{status.metadata.cpuFallback?' · GPU 不可用，已回退 CPU':''}</p>}
+        {status.metadata?.cpuFallbackReason&&<p>回退原因：{status.metadata.cpuFallbackReason}</p>}
+        {status.phase==='unloaded'&&<p>{status.configured?'资源已齐全；当前没有占用模型内存，首次朗读时会自动加载。':'这里指语音合成模型，和本地对话模型、翻译模型的状态相互独立。'}</p>}
+        {status.missing?.length>0&&<p>还需准备：{status.missing.map(item=>item.label).join('、')}</p>}
+        {status.error?<p>{cleanError(status.error)}</p>:<p>尚未通过实际任务验证。试听成功后会记录为本次可播放，不会永久改变资源状态。</p>}
+      </details>
     </div>
-    <label className="row"><div><strong>自动朗读新回复</strong><small>中文回复先完成日语翻译再朗读。气泡显示语言不会改变语音语言。</small></div><input type="checkbox" role="switch" checked={config.enabled} onChange={e=>patch({enabled:e.target.checked})}/></label>
+    <label className="row"><div><strong>自动朗读新回复</strong><small>朗读语言跟随所选音色与输出设置；不会为了朗读而自动翻译原文。</small></div><input type="checkbox" role="switch" checked={config.enabled} onChange={e=>patch({enabled:e.target.checked})}/></label>
     <label className="field">播放音量 · {Math.round(config.volume*100)}%<input type="range" min="0" max="1" step="0.05" value={config.volume} onChange={e=>patch({volume:Number(e.target.value)})}/></label>
-    <label className="field">语速 · {config.speed.toFixed(1)}×<input type="range" min="0.5" max="2" step="0.1" value={config.speed} onChange={e=>patch({speed:Number(e.target.value)})}/></label></>}
+    <label className="field">语速 · {config.speed.toFixed(1)}×<input type="range" min="0.5" max="2" step="0.1" value={config.speed} disabled={effectiveCloud} onChange={e=>patch({speed:Number(e.target.value)})}/>{effectiveCloud&&<small>当前云端模型暂不支持此语速设置。</small>}</label></>}
     {(playback||advanced)&&<InferenceSettings api={api} config={config} patch={patch} status={status} playbackStatus={playbackStatus} advanced={advanced} onSave={onSave} onRemote={onRemote} onStop={onStop}/>}
     {playback&&<SpeechCacheSettings api={api}/>}
     <fieldset disabled={working}>
@@ -90,7 +110,7 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
       <h3 className="settings-section-title">合成偏好</h3><div className="voice-grid">
         <label className="field">模型版本<Select value={config.version} onChange={e=>patch({version:e.target.value})}>{['v1','v2','v2Pro','v2ProPlus','v3','v4','v5dev','v5turbo'].map(v=><option key={v}>{v}</option>)}</Select></label>
         <label className="field">推理设备<Select value={config.device} onChange={e=>patch({device:e.target.value})}><option value="auto">自动：CUDA 可用时使用 GPU</option><option value="cpu">CPU</option><option value="cuda" disabled={hardware?.cudaAvailable!==true}>{hardware?.cudaAvailable===true?'NVIDIA CUDA GPU':'NVIDIA GPU · 检测 CUDA 可用后可选'}</option></Select><small>CPU 支持情况和速度取决于当前权重与运行环境，仍需试听确认。</small></label>
-        <label className="field">合成语言<input value="日语（固定）" readOnly/><small>只朗读日语译文；翻译失败时保留文字，不朗读中文。</small></label>
+        <label className="field">当前角色朗读语言<Select value={output?.speechLanguage||'ja'} disabled><option value="ja">日语</option><option value="zh">中文</option></Select><small>请在角色管理中修改；选择「不翻译」时不会暗中翻译原文。音色需支持所选语言。</small></label>
       </div>
       <label className="row"><div><strong>GPU 半精度</strong><small>默认关闭以兼容更多设备；CPU 始终使用 FP32。</small></div><input type="checkbox" role="switch" checked={config.half} onChange={e=>patch({half:e.target.checked})}/></label>
       <label className="row"><div><strong>GPU 推理失败时回退 CPU</strong><small>显存、驱动或 CUDA 出错时重新加载模型，速度可能变慢。</small></div><input type="checkbox" role="switch" checked={config.cpuFallback} onChange={e=>patch({cpuFallback:e.target.checked})}/></label>
@@ -102,7 +122,7 @@ export default function VoiceSettings({api,config,onChange,onRemote,onSave,statu
     </fieldset>
     {(playback||resourcePage)&&!readyReference&&<p className="notice">{incompleteCustomReference?'请为自定义文本选择对应录音，或改用默认参考声音；资源下载可以继续。':needsTranscript?'当前模型版本需要参考音频及对应原文，请配置参考声音。':'参考声音尚未就绪，请先检查 / 一键配置。'}</p>}
     {advanced&&hardware&&<p className="notice">PyTorch {hardware.torch} · {hardware.cudaAvailable?hardware.devices.map(d=>`${d.name} (${d.vramGiB} GiB)`).join('，'):'无可用 CUDA，将使用 CPU'}{hardware.cudaError?`；${hardware.cudaError}`:''}</p>}
-    {playback&&<VoiceAudition api={api} config={config} onSave={onSave} onPreview={onPreview} onStop={onStop} status={playbackStatus||status}/>}
+    {playback&&<VoiceAudition api={api} config={config} onSave={onSave} onPreview={onPreview} onStop={onStop} status={playbackStatus||status} language={output?.speechLanguage||'ja'}/>}
     {playback&&(onOpenResources||onOpenAdvanced)&&<div className="settings-related-links">{onOpenResources&&<button type="button" className="text-link" onClick={onOpenResources}>音色与参考声音</button>}{onOpenAdvanced&&<button type="button" className="text-link" onClick={onOpenAdvanced}>语音环境与诊断</button>}</div>}
     {advanced&&<button type="button" className="secondary" onClick={()=>action(async()=>{onStop();await api.voiceUnload();setNotice('已卸载模型并释放推理进程。')})}>释放音色模型内存</button>}
     {advanced&&<VoiceGuide api={api} expanded={page!=='all'}/>}

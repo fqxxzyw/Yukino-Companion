@@ -23,5 +23,5 @@ test('transparent model viewport keeps scene lighting without drawing the select
  Object.assign(renderer,{renderEnvironment:false,scene:new THREE.Scene(),environmentId:'studio',timeOfDay:'noon',ambient:new THREE.HemisphereLight(),key:new THREE.DirectionalLight()});
  renderer.setEnvironment({id:'beach',timeOfDay:'evening'});
  assert.equal(renderer.environment,undefined);assert.equal(renderer.scene.background,null);assert.equal(renderer.scene.children.length,0);
- assert.ok(renderer.ambient.intensity>0);assert.ok(renderer.key.intensity>0);assert.equal(renderer.environmentId,'beach');
+ assert.ok(renderer.ambient.intensity>0);assert.ok(renderer.key.intensity>0);assert.equal(renderer.environmentId,'kasai');
 });

@@ -44,3 +44,38 @@ test('first Japanese utterance starts before finish; Chinese-only tail never rea
 test('rapid new generation cannot revive prior playback even when request ID is reused',async()=>{
  const {StreamingSpeechSession}=await import('../src/speech/streaming-session.mjs'),old=deferred(),played=[];let n=0;const flow=new StreamingSpeechSession({bridge:{begin(){},prewarm(){},stop(){},synthesize:async(_,text)=>++n===1?old.promise:text},player:{stop(){},play:async text=>played.push(text)}});flow.start('same');flow.push('古いです。');await tick();flow.start('same');const job=flow.current;flow.push('新しいです。');flow.finish();await job.completion;old.resolve('古いです。');await tick();assert.deepEqual(played,['新しいです。']);
 });
+test('standard engine batches punctuation-separated later sentences without delaying the first or changing playback order',async()=>{
+ const {StreamingSpeechSession}=await import('../src/speech/streaming-session.mjs'),gate=deferred(),calls=[],played=[];
+ const flow=new StreamingSpeechSession({settings:{maxConcurrentTasks:3},bridge:{begin(){},prewarm:async()=>({metadata:{capabilities:{maxConcurrentTasks:1,nativeBatch:true}}}),stop(){},synthesize:async(_,text)=>{calls.push([text]);await gate.promise;return text;},synthesizeBatch:async(_,texts)=>{calls.push([...texts]);return texts.join('');}},player:{stop(){},play:async text=>played.push(text)}});
+ const raw='こんにちは。お元気ですか。今日は晴れですね。また会いましょう。';flow.start('batch');const done=flow.current.completion;flow.push(raw);flow.finish();await tick();
+ assert.deepEqual(calls,[['こんにちは。']]);gate.resolve();const result=await done;
+ assert.deepEqual(calls,[['こんにちは。'],['お元気ですか。','今日は晴れですね。','また会いましょう。']]);
+ assert.equal(played.join(''),raw);assert.equal(result.metrics.played,4);
+});
+test('short upstream phrases stay individual to avoid pretending they form a native batch',async()=>{
+ const {StreamingSpeechSession}=await import('../src/speech/streaming-session.mjs'),gate=deferred(),calls=[];
+ const flow=new StreamingSpeechSession({settings:{maxConcurrentTasks:3},bridge:{begin(){},prewarm:async()=>({metadata:{capabilities:{nativeBatch:true,maxConcurrentTasks:1}}}),stop(){},synthesize:async(_,text)=>{calls.push([text]);if(calls.length===1)await gate.promise;return text},synthesizeBatch:async(_,texts)=>{calls.push([...texts]);return texts.join('')}},player:{stop(){},play:async()=>{}}});
+ flow.start('short');const done=flow.current.completion;flow.push('こんにちは。はい。お元気ですか。ありがとうございます。');flow.finish();await tick();gate.resolve();await done;
+ assert.deepEqual(calls,[['こんにちは。'],['はい。'],['お元気ですか。','ありがとうございます。']]);
+});
+test('cancelling a native batch discards late audio and never submits its remaining sentences',async()=>{
+ const {StreamingSpeechSession}=await import('../src/speech/streaming-session.mjs'),gate=deferred(),entered=deferred(),played=[],calls=[];
+ const flow=new StreamingSpeechSession({settings:{maxConcurrentTasks:2},bridge:{begin(){},prewarm:async()=>({metadata:{capabilities:{nativeBatch:true,maxConcurrentTasks:1}}}),stop(){},synthesize:async(_,text)=>{calls.push([text]);return text},synthesizeBatch:async(_,texts)=>{calls.push(texts);entered.resolve();return gate.promise}},player:{stop(){},play:async text=>played.push(text)}});
+ flow.start('old-batch');const done=flow.current.completion;flow.push('こんにちは。お元気ですか。今日は晴れですね。次に行きましょう。');flow.finish();await entered.promise;flow.cancel();gate.resolve('late');await tick();
+ assert.equal((await done).cancelled,true);assert.deepEqual(played,['こんにちは。']);assert.equal(calls.length,2);
+});
+test('native batch retry and explicit skip retain queue ordering and release every grouped sentence',async()=>{
+ const {StreamingSpeechSession}=await import('../src/speech/streaming-session.mjs');
+ for(const failurePolicy of ['retry','skip']){
+  const gate=deferred(),played=[],calls=[];let batches=0;
+  const flow=new StreamingSpeechSession({settings:{maxConcurrentTasks:2,failurePolicy},bridge:{begin(){},prewarm:async()=>({metadata:{capabilities:{nativeBatch:true,maxConcurrentTasks:1}}}),stop(){},synthesize:async(_,text)=>{calls.push([text]);if(calls.length===1)await gate.promise;return text},synthesizeBatch:async(_,texts)=>{calls.push([...texts]);if(++batches===1)throw Error('batch failure');return texts.join('')}},player:{stop(){},play:async text=>played.push(text)}});
+  flow.start('failure-'+failurePolicy);const done=flow.current.completion;flow.push('こんにちは。お元気ですか。今日は晴れですね。次に行きましょう。');flow.finish();await tick();gate.resolve();const result=await done;
+  assert.equal(result.completed,true);assert.equal(played.join(''),failurePolicy==='retry'?'こんにちは。お元気ですか。今日は晴れですね。次に行きましょう。':'こんにちは。次に行きましょう。');
+  assert.equal(batches,failurePolicy==='retry'?2:1);
+ }
+});
+test('a successful single-sentence retry reports synthesized audio rather than comparing successes to failed attempts',async()=>{
+ let attempts=0;const f=await setup({settings:{failurePolicy:'retry'},synthesize:async()=>{if(++attempts===1)throw Error('transient');return 'audio';}});
+ f.flow.submit('こんにちは。');f.flow.finish();const result=await f.flow.completion;
+ assert.equal(result.completed,true);assert.equal(result.synthesized,true);assert.equal(result.metrics.synthesized,1);assert.equal(result.metrics.failed,1);
+});

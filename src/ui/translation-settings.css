@@ -1,0 +1,21 @@
+.translation-mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 10px}
+.translation-mode-option{display:flex;gap:9px;align-items:flex-start;min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);cursor:pointer;transition:border-color .2s ease,background .2s ease}
+.translation-mode-option:hover{border-color:color-mix(in srgb,var(--accent) 26%,var(--line))}
+.translation-mode-option.selected{border-color:color-mix(in srgb,var(--accent) 44%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.translation-mode-option input{margin:3px 0 0;accent-color:var(--accent);flex:none}
+.translation-mode-option span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.translation-mode-option strong{font-size:12px;font-weight:600}
+.translation-mode-option small{font-size:11px;line-height:1.55;color:var(--secondary)}
+.resource-card .status-mark-row{margin-bottom:4px}
+.resource-card-sub{font-size:11px;color:var(--secondary)}
+.translation-test .field{max-width:100%}
+.translation-test-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.translation-test-row .field{margin:0;max-width:240px;flex:1 1 180px}
+.translation-test-row .primary{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:8px 14px;font-size:12px;flex:none}
+.translation-test-result{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);min-width:0}
+.translation-test-result.error{border-color:color-mix(in srgb,var(--danger) 28%,var(--line));background:var(--danger-bg)}
+.translation-test-result>span{font-size:10px;letter-spacing:.4px;color:var(--secondary);text-transform:uppercase}
+.translation-test-result p{margin:6px 0;font-size:13px;line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+.translation-test-result small{font-size:11px;color:var(--secondary);overflow-wrap:anywhere}
+@media(max-width:720px){.translation-mode-grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.translation-mode-option{transition:none}}

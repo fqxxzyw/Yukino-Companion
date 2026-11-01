@@ -53,7 +53,9 @@ const {CompanionManager} = require('./companions.cjs');
 const voiceCatalog = require('../resources/voice-models.json');
 const translationManifest = require('../translation/model-manifest.json');
 const outputInstruction = local => local ? '请用简体中文自然回答。不要自行附加其他语言翻译。' : BILINGUAL_INSTRUCTION;
-let win, controller, proactiveGeneration, speech, speechCache, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks,aquaEnvironment;
+// "不翻译" bypasses local/API translation entirely and never asks for a second language.
+const PLAIN_INSTRUCTION = '请直接、自然地回答，只使用当前角色惯用的语言，不要自行附加其他语言的翻译或双语格式。';
+let win, controller, proactiveGeneration, speech, speechCache, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks,aquaEnvironment,cloudSpeech;
 let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false;
 const flushResolvers=new Map();
 function flushRenderer() {
@@ -115,7 +117,10 @@ function modelStore(){return characterModels??=new CharacterModelStore({dataRoot
 function characterEntry(id){return modelStore().entry(id);}
 async function readCharacterModel(id){await modelStore().initialize();const entry=characterEntry(id),state=await read('state.json',{});if(!canUseSkin(entry,state))throw Error('此服装尚未解锁或未通过模型验收。');return modelStore().read(id);}
 async function updateCompanionCharacter(state){try{await modelStore().initialize();}catch(error){send('app-error',{message:error.message});}const selected=state?.characters?.find(item=>item.id===state.activeCharacter)||{id:'yukino',name:'雪之下雪乃',modelId:'yukino-07-v1'};let modelId='';try{const entry=characterEntry(selected.modelId);modelId=canUseSkin(entry,state)?entry.id:'yukino-07-v1'}catch{}companions?.setCharacter?.({id:selected.id,name:selected.name,modelId,presentation:state?.presentation});}
-function openMain() { if (win && !win.isDestroyed()) { win.show(); win.restore(); win.focus(); } }
+// Low-level reveal used by the companion manager itself (no recursion).
+function showMainWindow() { if (win && !win.isDestroyed()) { win.show(); win.restore(); win.focus(); } }
+// Every external reopen path goes through the same fade-in coordinator.
+function openMain() { if (companions?.revealMain) { companions.revealMain().catch(()=>{}); return; } showMainWindow(); }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -147,7 +152,25 @@ else {
     win.webContents.on('will-navigate', event => event.preventDefault());
     const workerPath = name => app.isPackaged ? path.join(process.resourcesPath, name, 'worker.py') : path.join(__dirname, '..', name, 'worker.py');
     speech = new SpeechService({script:workerPath('inference'),stateDir:assetLocation('speech-runtime'),cache:speechCache,notify:status=>send('voice-status',status)});
-    voiceStart = new VoiceSessionStart({speech,readConfig:voiceConfig,onBusy:value=>companions?.setSpeechBusy?.(value),canBegin:()=>speechClockReady&&!shuttingDown});
+    cloudSpeech=new (require('./dashscope-tts.cjs').DashScopeSpeech)({fetcher:(url,options)=>net.fetch(url,options)});
+    voiceStart = new VoiceSessionStart({speech,cloud:cloudSpeech,readConfig:()=>{if(voiceResources?.deleting)throw Error('正在删除音色文件，请稍后再朗读。');return voiceConfig();},resolveOutput:async()=>{
+      const state=await read('state.json',{}),character=state.characters?.find(item=>item.id===state.activeCharacter),voiceId=character?.voiceId||'',speechLanguage=character?.voiceLanguage==='zh'?'zh':'ja';
+      const localConfig=async()=>{if(voiceResources?.deleting)throw Error('正在删除音色文件，请稍后再朗读。');return {...await voiceConfig(),speechLanguage};};
+      if(voiceId==='none')throw Error('当前角色设置为不使用语音。');
+      if(voiceId==='yukino-e2'){
+        if(voiceResources?.deleting)throw Error('正在删除音色文件，请稍后再朗读。');
+        const config=await voiceConfig(),resources=await voiceResources.inspect(),pack=resources.packs?.find(item=>item.id==='yukino-e2');
+        if(!pack?.componentDetails?.gpt?.installed||!pack?.componentDetails?.sovits?.installed||!voiceBundle.defaults.reference)throw Error('雪乃默认音色尚未安装完整，请先准备音色资源。');
+        return {kind:'local',config:{...config,speechLanguage,gpt:pack.componentDetails.gpt.path,sovits:pack.componentDetails.sovits.path,version:voiceCatalog.packs['yukino-e2'].version,reference:voiceBundle.defaults.reference,promptText:voiceBundle.defaults.promptText||'',promptLang:voiceBundle.defaults.promptLang||'ja'}};
+      }
+      if(!state.apiManagement&&!voiceId||!voiceId&&state.apiManagement?.taskRoutes?.tts==='unassigned')return {kind:'local',config:await localConfig()};
+      const routed=voiceId?{...state,apiManagement:{...state.apiManagement,taskRoutes:{...state.apiManagement?.taskRoutes,tts:voiceId}}}:state;
+      const route=resolveTaskRoute(routed,'tts');if(route.kind==='local')return {kind:'local',config:await localConfig()};
+      if(route.config.providerId!=='dashscope-tts')throw Error('所选云端语音尚未接入。');
+      const identity=await apiManager.identity(route.config),credentials=await apiManager.credentials(route.config),latest=await apiManager.find(route.config.id);
+      if(identity!==await apiManager.identity(latest.config))throw Error('云端语音配置或凭据已改变，请重新开始。');
+      return {kind:'cloud',config:{...route.config,speechLanguage},key:credentials.apiKey,identity};
+    },onBusy:value=>companions?.setSpeechBusy?.(value),canBegin:()=>speechClockReady&&!shuttingDown});
     aquaEnvironment=new (require('./aqua-environment.cjs').AquaEnvironmentManager)({dataRoot:resourceDataRoot,fetcher:(url,options)=>net.fetch(url,options),notify:progress=>send('aqua-environment-progress',progress)});
     resourcePacks=new ResourcePacks({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),fetcher:(url,options)=>net.fetch(url,options),notify:(id,progress)=>setup?.report(id,progress)});
     runtime=new RuntimeManager({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),catalogPath:path.join(resourceRoot(),'runtime-catalog.json'),fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
@@ -245,7 +268,7 @@ else {
       installTranslation:async signal=>{const status=await translation.install({signal});signal.throwIfAborted();await write('translation.json',status.config);return status;},
       installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();const managed=await voiceResources.inspect();signal.throwIfAborted();if(managed.coreReady)return {paths:{},expected:config};const paths=await voiceResources.install('core',{signal});signal.throwIfAborted();const missing=new Set(status.missing?.map(item=>item.key));return {paths:Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key))),expected:config};},saveVoice:async result=>{const config=await updateVoice(latest=>{const current=mergeVoiceDefaults(latest,voiceBundle),paths=Object.fromEntries(Object.entries(result.paths||{}).filter(([key])=>current[key]===result.expected?.[key]));return mergeVoiceDefaults({...latest,...paths},voiceBundle);});speech.configure(config);send('voice-config-updated',config);}});
     bundleReady.catch(error=>send('app-error',{message:error.message}));
-    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:openMain,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:text=>companionChatRequests.submit(text),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind)=>companionVisual?.open(owner,kind),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
+    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:showMainWindow,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:text=>companionChatRequests.submit(text),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind)=>companionVisual?.open(owner,kind),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
     handle('flush-complete', (id,ok)=>{flushResolvers.get(id)?.(ok);});
@@ -275,6 +298,21 @@ else {
     win.on('closed',cancelModelImport);win.on('hide',cancelModelImport);win.webContents.on('render-process-gone',cancelModelImport);
     handle('character-model-import',async id=>{await modelStore().initialize();const entry=characterEntry(id);if(entry.custom)throw Error('自定义模型请使用检查后导入');const file=await pickCharacterModel('导入 '+entry.label+' 的已发布 GLB');return file?modelStore().importBuiltin(id,file):false;});
     handle('character-document', () => characterDocument());
+    const characterDraft=new (require('./character-draft.cjs').CharacterDraft)({
+      resolve:async id=>{
+        const saved=await read('state.json',{});
+        if(saved.apiManagement){
+          const management=normalizeApiManagement(saved.apiManagement,saved);
+          resolveTaskRoute({...saved,apiManagement:{...management,taskRoutes:{...management.taskRoutes,chat:id}}},'chat');
+        } else if(!(saved.profiles||[]).some(item=>item.id===id))throw Error('请选择已保存的对话 API。');
+        return config(id);
+      },transport:chat
+    });
+    handle('character-draft',request=>characterDraft.generate(request));
+    handle('character-draft-cancel',()=>{characterDraft.cancel();return true;});
+    win.on('closed',()=>characterDraft.cancel());
+    win.webContents.on('render-process-gone',()=>characterDraft.cancel());
+    win.webContents.on('did-start-navigation',details=>{if(details.isMainFrame===true&&details.isSameDocument===false)characterDraft.cancel();});
     handle('character-preview', async () => {
       const saved = migratePersonaState(await read('state.json',{}));
       const selected = saved.profiles?.find(p=>p.id===saved.activeProfile)||{};
@@ -303,17 +341,39 @@ else {
       await bundleReady;const state=await read('state.json',{}),voiceConfigValue=await voiceConfig(),voiceState=await speech.readiness(voiceConfigValue),records=await apiManager.evidence();
       const routes={},identities=[];
       for(const task of ['asr','chat','translation','vision']){try{const route=resolveTaskRoute(state,task);if(route.kind==='local'){routes[task]={kind:'local',configId:'builtin-local',model:task==='chat'?'本地文字模型':'本地翻译'};identities.push([task,'local']);}else{routes[task]={kind:'api',configId:route.config.id,provider:route.config.providerId,model:route.config.model,validation:records[route.config.id]};identities.push([task,await apiManager.identity(route.config)]);}}catch(error){routes[task]={kind:'unconfigured',error:error.message};}}
+      const voiceId=state.characters?.find(item=>item.id===state.activeCharacter)?.voiceId||'';
+      try{if(voiceId==='none')throw Error('当前角色不使用语音。');const routed=voiceId&&voiceId!=='yukino-e2'?{...state,apiManagement:{...state.apiManagement,taskRoutes:{...state.apiManagement?.taskRoutes,tts:voiceId}}}:state;const route=voiceId==='yukino-e2'?{kind:'local'}:resolveTaskRoute(routed,'tts');if(route.kind==='local'){routes.tts={kind:'local',configId:'builtin-local',model:'GPT-SoVITS'};identities.push(['tts','local',voiceId]);}else{routes.tts={kind:'api',configId:route.config.id,provider:route.config.providerId,model:route.config.model,validation:records[route.config.id]};identities.push(['tts',await apiManager.identity(route.config)]);}}catch(error){routes.tts={kind:'unconfigured',error:error.message};identities.push(['tts','unconfigured',voiceId,state.apiManagement?.taskRoutes?.tts]);}
       const files=[];for(const field of ['python','gpt','sovits','reference','bert','hubert']){const file=voiceConfigValue[field];try{const stat=await fs.stat(file);files.push([field,file,stat.size,stat.mtimeMs]);}catch{files.push([field,file,'missing']);}}
-      const configurationSignature=require('node:crypto').createHash('sha256').update(JSON.stringify([identities,voiceConfigValue,files,state.voiceInput,state.activeCharacter,state.persona,state.memory,state.useMemory])).digest('hex');
+      const configurationSignature=require('node:crypto').createHash('sha256').update(JSON.stringify([identities,voiceConfigValue,files,state.voiceInput,state.activeCharacter,state.characters?.find(item=>item.id===state.activeCharacter)?.voiceLanguage||'ja',state.persona,state.memory,state.useMemory])).digest('hex');
       return {configurationSignature,...routes,voice:{status:voiceState,config:voiceConfigValue},microphone:{permission:'user-action-required'},localCapabilities:{chat:await localChat.status(),translation:await translation.status(),voice:voiceState,pet:await resourcePacks.status('pet')},defaultLocalAsr:false,defaultLocalVision:false};
     });
-    handle('api-credential-save',async(id,values)=>{stopVoiceInput('credentials-changed');vision?.cancel();companionVisual?.stop();companions?.cancelProactive?.();return apiManager.saveCredentials(id,values);});
+    handle('api-credential-save',async(id,values)=>{stopVoiceInput('credentials-changed');if(cloudSpeech?.session)voiceStart.stop(cloudSpeech.session.id);vision?.cancel();companionVisual?.stop();companions?.cancelProactive?.();return apiManager.saveCredentials(id,values);});
     handle('api-config-validate',request=>apiManager.check(request));
     handle('api-config-duplicate',id=>apiManager.duplicate(id));
-    handle('api-config-delete',async id=>{stopVoiceInput('configuration-deleted');vision?.cancel();companionVisual?.stop();companions?.cancelProactive?.();return apiManager.remove(id);});
+    handle('api-config-delete',async request=>{const {id,replacements}=typeof request==='string'?{id:request}:request||{};stopVoiceInput('configuration-deleted');if(cloudSpeech?.session)voiceStart.stop(cloudSpeech.session.id);vision?.cancel();companionVisual?.stop();companions?.cancelProactive?.();return apiManager.remove(id,replacements);});
+    const cloneService=new (require('./dashscope-voice-clone.cjs').VoiceCloneService)({fetcher:(url,options)=>net.fetch(url,options)});let clonePickEpoch=0;
+    const cancelVoiceClone=()=>{clonePickEpoch++;return cloneService.cancel();};
+    handle('voice-clone-pick',async()=>{cancelVoiceClone();const epoch=clonePickEpoch,selection=await dialog.showOpenDialog(win,{title:'选择用于创建音色的录音',properties:['openFile'],filters:[{name:'录音（WAV、MP3、M4A）',extensions:['wav','mp3','m4a']}]});return selection.canceled||epoch!==clonePickEpoch?null:cloneService.selectFile(selection.filePaths[0]);});
+    handle('voice-clone-recording',bytes=>{clonePickEpoch++;return cloneService.selectRecording(bytes);});
+    handle('voice-clone-cancel',cancelVoiceClone);
+    handle('voice-clone-create',async request=>{
+      if(!request||typeof request!=='object'||Array.isArray(request)||typeof request.configId!=='string'||request.authorized!==true)throw Error('请确认录音使用授权并选择百炼配置。');
+      const ticket=cloneService.ticket();
+      const {config,management}=await apiManager.find(request.configId);if(config.providerId!=='dashscope-tts')throw Error('请选择百炼语音配置。');if(management.configs.length>=200)throw Error('API 配置数量已达上限，请先整理配置。');
+      const identity=await apiManager.identity(config),credentials=await apiManager.credentials(config);
+      if(!cloneService.isCurrent(ticket))throw Error('音色创建已取消。');
+      const result=await cloneService.create({config,credentials,authorized:true,language:request.language});
+      const clone={...config,id:require('node:crypto').randomUUID(),name:config.name+' · 复刻音色',model:result.model,fields:{...config.fields,voice:result.voiceId}};
+      try{
+        await updateJson('state.json',async current=>{const currentManagement=normalizeApiManagement(current.apiManagement,current),source=currentManagement.configs.find(item=>item.id===config.id);if(!source||await apiManager.identity(source)!==identity)throw Error('原配置或凭据已改变');currentManagement.configs.push(clone);return {...current,apiManagement:normalizeApiManagement(currentManagement,current)};});
+      }catch{return {...result,configId:'',message:'音色已在百炼创建，但无法保存本机配置。请记录音色 ID，并手动在百炼配置中填写。'};}
+      return {...result,configId:clone.id,config:clone};
+    });
+    win.on('closed',cancelVoiceClone);win.webContents.on('render-process-gone',cancelVoiceClone);win.webContents.on('did-start-navigation',details=>{if(details.isMainFrame===true&&details.isSameDocument===false)cancelVoiceClone();});
     handle('api-open-official',({providerId,kind}={})=>{if(!['website','console','key','docs','tutorial'].includes(kind))throw Error('未知官方入口');const provider=apiServiceCatalog().providers.find(item=>item.id===providerId),url=provider?.[kind+'Url'];if(!url||new URL(url).protocol!=='https:')throw Error('尚未提供已核实的官方链接');return shell.openExternal(url);});
     asr=new AliyunRealtimeAsr({notify:event=>{send('asr-status',event);const context=asrContext;if(['error','closed','finished'].includes(event.type)){const hadPermission=microphoneAllowedUntil>0;microphoneAllowedUntil=0;asrContext=null;if(hadPermission)send('microphone-revoked',{reason:'asr-'+event.type});}if(event.type==='final'&&event.text?.trim()&&context)void (async()=>{try{const {config:entry}=await apiManager.find(context.configId);if(await apiManager.identity(entry)===context.identity)await apiManager.record(entry.id,'stream',{status:'passed',message:'本次实时会话已收到服务商返回的最终转写文字。'},context.identity);}catch{/* A replaced configuration cannot receive stale evidence. */}})();}});
     handle('microphone-permission',({consent}={})=>{if(consent!==true)throw Error('请先同意使用麦克风');microphoneAllowedUntil=Date.now()+60000;return {allowed:true};});
+    handle('microphone-release',()=>{microphoneAllowedUntil=0;return true;});
     handle('asr-start',async({consent,mode='click',locale='zh',silenceDurationMs=400}={})=>{
       if(consent!==true)throw Error('开始前请同意将麦克风音频发送给所选语音识别服务。');
       stopVoiceInput('replaced',false);const state=await read('state.json',{}),route=resolveTaskRoute(state,'asr');
@@ -404,27 +464,28 @@ else {
         if(useLocal){await bundleReady;clearTimeout(timer);timer=setTimeout(()=>ctrl.abort(),(localChat.config.timeout+30)*1000);}
         ctrl.signal.throwIfAborted();
         const prepared = preparePersonaChat(settings.state,settings.profile,messages);
-        let translationTarget=null;if(state.apiManagement){try{translationTarget=await taskSettings('translation',settings.profile.id);}catch(error){translationTarget={kind:'unconfigured',error:error.message};}}
-        const localTranslation = translationTarget?translationTarget.kind==='local':useLocal || settings.state.translationMode === 'local' || prepared.localRoleplay;
-        const separateTranslation=localTranslation||Boolean(translationTarget&&translationTarget.profile?.id!==settings.profile.id);
-        prepared.messages[0].content += '\n\n' + outputInstruction(separateTranslation);
+        const noTranslation=settings.state.translationMode==='none';
+        let translationTarget=null;if(!noTranslation&&state.apiManagement){try{translationTarget=await taskSettings('translation',settings.profile.id);}catch(error){translationTarget={kind:'unconfigured',error:error.message};}}
+        const localTranslation = noTranslation?false:translationTarget?translationTarget.kind==='local':useLocal || settings.state.translationMode === 'local' || prepared.localRoleplay;
+        const separateTranslation=noTranslation?false:localTranslation||Boolean(translationTarget&&translationTarget.profile?.id!==settings.profile.id);
+        prepared.messages[0].content += '\n\n' + (noTranslation?PLAIN_INSTRUCTION:outputInstruction(separateTranslation));
         const translateRequest=async(request,options)=>{if(translationTarget?.kind==='unconfigured')throw Error(translationTarget.error);if(!localTranslation)return translateWithApi({...translationTarget||settings,...request,...options,transport:chat});await bundleReady;return translation.translate(request,options);};
         let translationStream=null;
-        if(streamSpeech===true&&separateTranslation){
+        if(!noTranslation&&streamSpeech===true&&separateTranslation){
           const {createStreamingTranslation}=require('./streaming-translation.cjs');
           translationStream=await createStreamingTranslation({signal:ctrl.signal,translate:text=>translateRequest({text,source:'zh',target:'ja',requestId:id},{signal:ctrl.signal}),onText:text=>{if(!ctrl.signal.aborted)send('speech-text',{id,text});}});
           ctrl.signal.addEventListener('abort',()=>translationStream.cancel(),{once:true});
         }
         let raw = '';
         const onChinese=text=>{send('chunk',{id,text});translationStream?.push(text);};
-        const parser = new BilingualStream(onChinese,text=>{if(streamSpeech===true&&!separateTranslation&&!ctrl.signal.aborted)send('speech-text',{id,text});});
+        const parser = new BilingualStream(onChinese,text=>{if(!noTranslation&&streamSpeech===true&&!separateTranslation&&!ctrl.signal.aborted)send('speech-text',{id,text});});
         const onToken=text=>{
           raw+=text; if(raw.length>160000) throw Error('模型回复过长');
           // Even models asked for plain text occasionally return a JSON pair.
           // Parse it instead of leaking its Japanese field or closing braces
           // into the Chinese display. Plain Chinese retains streaming.
           parser.push(text);
-          if(separateTranslation&&!/^\s*(?:\{|`)/.test(raw))onChinese(text);
+          if((separateTranslation||noTranslation)&&!/^\s*(?:\{|`)/.test(raw))onChinese(text);
         };
         if(useLocal)await localChat.generate(prepared.messages,{requestId:id,signal:ctrl.signal,onChunk:onToken});
         else await chat({...settings,...prepared,signal:ctrl.signal,onToken});
@@ -432,7 +493,7 @@ else {
         clearTimeout(timer); timer=setTimeout(()=>ctrl.abort(),300000);
         const pair = parser.value();
         const streamed=translationStream?await translationStream.finish():null;
-        const bilingual = streamed?.text&&!streamed.error?{zh:pair.zh,ja:streamed.text,translationStatus:'ready',source:localTranslation?'local':'api'}:streamed?.error?{zh:pair.zh,ja:streamed.text,translationStatus:'error',translationError:'逐句翻译中断，已生成的日语片段保留。',source:localTranslation?'local':'api'}:await completeBilingual(pair,{requestId:id,signal:ctrl.signal,preferLocal:localTranslation,forceTranslation:separateTranslation,translationSource:localTranslation?'local':'api',translate:translateRequest,translateToChinese:useLocal?undefined:async(request,options)=>translateWithApi({...settings,...request,...options,transport:chat})});
+        const bilingual = noTranslation?{zh:pair.zh||pair.ja,ja:'',translationStatus:'skipped',source:'none'}:streamed?.text&&!streamed.error?{zh:pair.zh,ja:streamed.text,translationStatus:'ready',source:localTranslation?'local':'api'}:streamed?.error?{zh:pair.zh,ja:streamed.text,translationStatus:'error',translationError:'逐句翻译中断，已生成的日语片段保留。',source:localTranslation?'local':'api'}:await completeBilingual(pair,{requestId:id,signal:ctrl.signal,preferLocal:localTranslation,forceTranslation:separateTranslation,translationSource:localTranslation?'local':'api',translate:translateRequest,translateToChinese:useLocal?undefined:async(request,options)=>translateWithApi({...settings,...request,...options,transport:chat})});
         ctrl.signal.throwIfAborted();
         companions.showReply({id,...bilingual});
         companions.clearCapabilityError?.('chat');
@@ -502,10 +563,10 @@ else {
     handle('voice-probe',config=>speech.probe(config));
     handle('voice-load',config=>{if(voiceResources?.deleting)throw Error('正在删除音色文件，请稍后再加载。');voiceStart.cancel();return speech.load(config);});
     handle('voice-unload',()=>{voiceStart.cancel();return speech.unload();});
-    handle('voice-begin',id=>{if(voiceResources?.deleting)throw Error('正在删除音色文件，请稍后再朗读。');return voiceStart.begin(id);});
-    handle('voice-prewarm',async id=>{if(!id||speech.session!==id)throw Error('语音会话已过期');const status=await speech.ensureLoaded();if(speech.session!==id)throw Error('语音会话已过期');return status;});
-    handle('voice-synthesize',async(id,text)=>{const audio=await speech.synthesize(id,text);companions?.clearCapabilityError?.('voice');return audio;});
-    handle('voice-synthesize-batch',async(id,texts)=>{const audio=await speech.synthesizeBatch(id,texts);companions?.clearCapabilityError?.('voice');return audio;});
+    handle('voice-begin',id=>voiceStart.begin(id));
+    handle('voice-prewarm',async id=>{if(cloudSpeech.session?.id===id)return cloudSpeech.prewarm(id);if(!id||speech.session!==id)throw Error('语音会话已过期');const status=await speech.ensureLoaded();if(speech.session!==id)throw Error('语音会话已过期');return status;});
+    handle('voice-synthesize',async(id,text)=>{const session=cloudSpeech.session?.id===id?cloudSpeech.session:null;const audio=session?await cloudSpeech.synthesize(id,text):await speech.synthesize(id,text);if(session?.identity){try{await apiManager.record(session.config.id,'connection',{status:'passed',message:'已返回有效云端合成音频；播放效果仍需试听确认。'},session.identity);}catch{/* 配置改变后不写入过期的验证记录。 */}}companions?.clearCapabilityError?.('voice');return audio;});
+    handle('voice-synthesize-batch',async(id,texts)=>{const audio=cloudSpeech.session?.id===id?await cloudSpeech.synthesize(id,Array.isArray(texts)?texts.join(''):''):await speech.synthesizeBatch(id,texts);companions?.clearCapabilityError?.('voice');return audio;});
     handle('speech-cache-status',()=>speechCache.status());
     let cacheConfigQueue=Promise.resolve();
     handle('speech-cache-save',input=>{
@@ -571,6 +632,13 @@ else {
     handle('companion-state',()=>companions.getState());
     handle('companion-set',patch=>companions.updatePrefs(patch));
     handle('companion-action',action=>companions.performAction(action));
+    handle('avatar-rect',rect=>{
+      if(!win||win.isDestroyed())return false;
+      if(!rect||!['x','y','width','height'].every(key=>Number.isFinite(rect[key])))throw Error('人物区域无效');
+      const content=win.getContentBounds();
+      companions?.setAppAvatarRect({x:Math.round(content.x+rect.x),y:Math.round(content.y+rect.y),width:Math.round(rect.width),height:Math.round(rect.height)});
+      return true;
+    });
     handle('close-choice',(mode,options)=>companions.closeChoice(mode,options));
     handle('window',action=>{if(action==='minimize')win.minimize();if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();if(action==='close')win.close();});
     handle('community',()=>shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/'));

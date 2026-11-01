@@ -5,6 +5,7 @@ const jsx=require('react/jsx-runtime');
 // No browser, desktop IPC, AI request, model renderer or GUI is started.
 async function harness(t,{clipboard,props={}}={}){
  const {transformWithOxc}=await import('vite');
+ const iconModule=await import('lucide-react'),icons=Object.fromEntries(['Check','Copy','LoaderCircle','Mic','Plus','UserRound','X'].map(name=>[name,iconModule[name]]));
  const {getSkinStatus}=await import('../src/companion/skin-unlocks.mjs');
  const {buildCharacterPrompt}=await import('../src/ui/character-prompt.mjs');
  const source=await fs.readFile(path.join(__dirname,'../src/ui/CharacterSettings.jsx'),'utf8');
@@ -17,13 +18,13 @@ async function harness(t,{clipboard,props={}}={}){
   useEffect(fn,deps){const n=cursor++,old=values[n];if(!old||deps.some((value,i)=>!Object.is(value,old[i]))){values[n]=deps;effects.push(()=>{cleanups.get(n)?.();cleanups.set(n,fn());});}},
  };
  const Select=()=>null,SkinPicker=()=>null;
- const deps={React:{},...hooks,Select,SkinPicker,getSkinStatus,buildCharacterPrompt,modelCardPreviews:{get(){throw Error('No preview rendering in handler tests');}},globalThis:{navigator:clipboard===undefined?undefined:{clipboard}},_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
+ const deps={React:{},...icons,...hooks,Select,SkinPicker,getSkinStatus,buildCharacterPrompt,modelCardPreviews:{get(){throw Error('No preview rendering in handler tests');}},globalThis:{navigator:clipboard===undefined?undefined:{clipboard}},_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
  const component=new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;\n${code}`)(deps);
  let currentProps={characters:[{id:'yukino',name:'雪之下雪乃',builtin:true}],current:{id:'yukino',name:'雪之下雪乃',builtin:true},models:[],onCreate:async()=>{},onSelect(){},onModelChange(){},...props};
  function render(next=currentProps){currentProps=next;let limit=0;do{cursor=0;dirty=false;tree=component(currentProps);effects.splice(0).forEach(fn=>fn());assert.ok(++limit<12,'effects must settle');}while(dirty);return tree;}
  function walk(node){return !node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];}
  const nodes=()=>walk(tree),byType=type=>nodes().filter(node=>node.type===type);
- const h={render,nodes,byType,get props(){return currentProps;},get stateWrites(){return stateWrites;},input:()=>byType('input')[0],persona:()=>byType('textarea').find(node=>node.props.placeholder==='身份、性格与交流风格'),preview:()=>byType('textarea').find(node=>node.props['aria-label']==='角色设定提示词'),copy:()=>byType('button').find(node=>node.props.className==='secondary'),create:()=>byType('button').find(node=>node.props.type==='submit'),submit:()=>byType('form')[0].props.onSubmit({preventDefault(){}}),selects:()=>byType(Select),picker:()=>byType(SkinPicker)[0],dispose(){for(const cleanup of cleanups.values())cleanup?.();}};
+ const h={render,nodes,byType,get props(){return currentProps;},get stateWrites(){return stateWrites;},input:()=>byType('input')[0],persona:()=>byType('textarea').find(node=>node.props.placeholder==='身份、性格与交流风格'),preview:()=>byType('textarea').find(node=>node.props['aria-label']==='角色设定提示词'),copy:()=>byType('button').find(node=>node.props['aria-label']==='复制角色设定提示词'),select:label=>byType(Select).find(node=>node.props['aria-label']===label),create:()=>byType('button').find(node=>node.props.type==='submit'),submit:()=>byType('form')[0].props.onSubmit({preventDefault(){}}),selects:()=>byType(Select),picker:()=>byType(SkinPicker)[0],dispose(){for(const cleanup of cleanups.values())cleanup?.();}};
  h.name=value=>{h.input().props.onChange({target:{value}});render();};
  h.setPersona=value=>{h.persona().props.onChange({target:{value}});render();};
  render();t.after(()=>h.dispose());return h;
@@ -31,12 +32,23 @@ async function harness(t,{clipboard,props={}}={}){
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const messages=(h,role)=>h.nodes().filter(node=>node.props?.role===role).map(node=>node.props.children).join(' ');
 
+test('API persona draft waits for an explicit request and review before replacing user text',async t=>{
+ const gate=deferred(),calls=[],api={characterDraft:request=>{calls.push(request);return gate.promise;},characterDraftCancel:async()=>{}};
+ const h=await harness(t,{props:{api,draftConfigs:[{id:'writer',name:'服务',model:'model'}],onPrepareDraft:async()=>{}}});
+ h.name('绫波丽');h.setPersona('原有设定');
+ const button=()=>h.byType('button').find(node=>node.props['aria-label']==='用 API 起草角色设定');
+ assert.equal(calls.length,0);const request=button().props.onClick();h.render();assert.equal(button().props.disabled,true);await Promise.resolve();
+ assert.equal(calls[0].configId,'writer');assert.match(calls[0].prompt,/绫波丽/);assert.equal(h.persona().props.value,'原有设定');
+ gate.resolve({text:'生成的设定'});await request;h.render();assert.equal(h.persona().props.value,'原有设定');
+ h.byType('button').find(node=>node.props.children==='使用此结果').props.onClick();h.render();assert.equal(h.persona().props.value,'生成的设定');
+});
+
 test('prompt names follow actual creation trim and UTF-16 length rules, including duplicate names',async()=>{
  const {buildCharacterPrompt}=await import('../src/ui/character-prompt.mjs');
  const {createCharacter,normalizeCharacters}=await import('../src/companion/characters.mjs');
  const state=normalizeCharacters({});
  for(const name of ['  三笠  ','雪之下雪乃','x'.repeat(60),' '.repeat(20)+'x'.repeat(60)+'  ','😀'.repeat(30),'原创「A」\n同名','<img src=x onerror=alert(1)>']){
-  const next=createCharacter(state,{name}),created=next.characters.at(-1),prompt=buildCharacterPrompt(name);
+  const next=createCharacter(state,{name,persona:'有效人设'}),created=next.characters.at(-1),prompt=buildCharacterPrompt(name);
   assert.equal(created.name,name.trim());assert.ok(prompt.includes(JSON.stringify(created.name)));
  }
  for(const name of ['', ' \n\t ', 'x'.repeat(61), '😀'.repeat(31),null,undefined]){
@@ -50,6 +62,23 @@ test('Chinese prompt requests editable persona text, not a generated import or m
  const prompt=buildCharacterPrompt('绫波丽');
  for(const expected of ['身份','背景','核心价值观','性格','说话方式','相处边界','原作','先询问','原创角色','中文纯文本','最多 6000 字符','不要 JSON','手动完成角色创建'])assert.ok(prompt.includes(expected),expected);
  assert.ok(prompt.length<6000);assert.ok(!prompt.includes('```'));
+});
+
+test('creating a character requires a nonblank persona in both the form and data model',async t=>{
+ const {createCharacter,normalizeCharacters}=await import('../src/companion/characters.mjs');
+ assert.throws(()=>createCharacter(normalizeCharacters({}),{name:'角色',persona:'  '}),/请填写角色设定/);
+ const h=await harness(t);h.name('角色');assert.equal(h.create().props.disabled,true);
+ h.setPersona('设定');assert.equal(h.create().props.disabled,false);
+});
+
+test('character voice language is selected at creation and retained separately for each character',async t=>{
+ const {createCharacter,normalizeCharacters,selectCharacter}=await import('../src/companion/characters.mjs');
+ let state=normalizeCharacters({});state=createCharacter(state,{name:'中文角色',persona:'设定',voiceLanguage:'zh'});
+ const id=state.activeCharacter;assert.equal(state.characters.find(item=>item.id===id).voiceLanguage,'zh');
+ state=selectCharacter(state,'yukino');assert.equal(state.characters.find(item=>item.id==='yukino').voiceLanguage,'ja');
+ const created=[],h=await harness(t,{props:{onCreate:async value=>created.push(value)}});h.name('角色');h.setPersona('设定');
+ h.select('新角色生成语音语言').props.onChange({target:{value:'zh'}});h.render();await h.submit();
+ assert.equal(created[0].voiceLanguage,'zh');
 });
 
 test('optional prompt stays collapsed, validates names and never replaces the editable persona',async t=>{
@@ -113,11 +142,11 @@ test('real creation keeps raw payload, pending guard and success reset after man
  const creation=deferred(),copying=deferred(),created=[];
  const h=await harness(t,{clipboard:{writeText:()=>copying.promise},props:{models:[{id:'custom-local',label:'本地模型',ready:true}],onCreate:async value=>{created.push(value);await creation.promise;}}});
  h.name('  新角色  ');const copy=h.copy().props.onClick();h.setPersona('从外部 AI 粘贴后，用户手动修改的人设');
- h.selects()[1].props.onChange({target:{value:'custom-local'}});h.render();
+ h.select('新建角色的 3D 模型').props.onChange({target:{value:'custom-local'}});h.render();
  const submit=h.byType('form')[0].props.onSubmit,first=submit({preventDefault(){}}),second=submit({preventDefault(){}});h.render();
- assert.equal(h.create().props.disabled,true);assert.deepEqual(created,[{name:'  新角色  ',persona:'从外部 AI 粘贴后，用户手动修改的人设',modelId:'custom-local'}]);
+ assert.equal(h.create().props.disabled,true);assert.deepEqual(created,[{name:'  新角色  ',persona:'从外部 AI 粘贴后，用户手动修改的人设',modelId:'custom-local',voiceLanguage:'ja'}]);
  creation.resolve();await Promise.all([first,second]);h.render();
- assert.equal(h.input().props.value,'');assert.equal(h.persona().props.value,'');assert.equal(h.selects()[1].props.value,'');
+ assert.equal(h.input().props.value,'');assert.equal(h.persona().props.value,'');assert.equal(h.select('新建角色的 3D 模型').props.value,'');
  copying.resolve();await copy;h.render();assert.equal(messages(h,'status'),'');assert.equal(h.copy().props.disabled,true);
 });
 
@@ -127,7 +156,7 @@ test('prompt validation does not change real creation validation, busy state or 
  h.name('x'.repeat(61));h.setPersona('保留草稿');assert.equal(h.copy().props.disabled,true);
  assert.equal(h.create().props.disabled,false,'creation retains its existing name.trim() UI rule');
  await h.submit();h.render();assert.match(messages(h,'alert'),/1–60/);assert.equal(received[0].name,'x'.repeat(61));assert.equal(h.persona().props.value,'保留草稿');
- h.name('  雪之下雪乃  ');h.render({...h.props,busy:true});assert.equal(h.create().props.disabled,true);assert.equal(h.selects()[0].props.disabled,true);
+ h.name('  雪之下雪乃  ');h.render({...h.props,busy:true});assert.equal(h.create().props.disabled,true);assert.equal(h.select('当前角色的 3D 模型').props.disabled,true);
  h.render({...h.props,busy:false});await h.submit();h.render();assert.equal(received.length,2);assert.equal(h.input().props.value,'');assert.equal(messages(h,'alert'),'');
 });
 
@@ -138,11 +167,11 @@ test('prompt UI preserves built-in hold, resource and progression model gates an
   const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
   return walk(select.props.children).includes(node);
  });
- const selected=()=>options(h.selects()[1]).map(node=>node.props.value);
+ const selected=()=>options(h.select('新建角色的 3D 模型')).map(node=>node.props.value);
  assert.deepEqual(selected(),['','yukino-07-v1','custom-ready']);
- for(const node of options(h.selects()[0]).filter(node=>node.props.value))assert.equal(node.props.disabled,!['yukino-07-v1','custom-ready'].includes(node.props.value));
+ for(const node of options(h.select('当前角色的 3D 模型')).filter(node=>node.props.value))assert.equal(node.props.disabled,!['yukino-07-v1','custom-ready'].includes(node.props.value));
  h.name('原创角色');assert.deepEqual(selected(),['','yukino-07-v1','custom-ready']);
- h.selects()[0].props.onChange({target:{value:'custom-ready'}});assert.deepEqual(changes,['custom-ready']);
+ h.select('当前角色的 3D 模型').props.onChange({target:{value:'custom-ready'}});assert.deepEqual(changes,['custom-ready']);
  h.render({...h.props,relationship:{affection:100},usedDates:Array.from({length:7},(_,i)=>`2026-10-0${i+1}`)});
  assert.deepEqual(selected(),['','yukino-07-v1','yukino-02-v1','yukino-03-v1','custom-ready']);
  assert.equal(h.picker().props.models,models);assert.equal(h.picker().props.selectedId,undefined);
