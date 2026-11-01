@@ -19,9 +19,19 @@ try{
  const page=await application.firstWindow();page.on('pageerror',e=>report.errors.push(e.message));
  await page.waitForFunction(()=>typeof window.desktop?.load==='function');
  await page.getByRole('textbox',{name:'消息',exact:true}).waitFor({timeout:60000});
- const setup=page.locator('.setup-dialog');if(await setup.count())await setup.locator('footer .text-link').click();
- const skip=page.getByRole('button',{name:'稍后再说',exact:true});if(await skip.count())await skip.click();
- await page.waitForFunction(()=>!document.querySelector('.voice-chat-wizard'));
+ const setup=page.locator('.setup-dialog');
+ await setup.waitFor({state:'visible',timeout:60000});
+ await setup.locator('footer .text-link').click();
+ await setup.waitFor({state:'hidden'});
+ // On a fresh profile, an unconfigured voice opens its wizard asynchronously
+ // after the setup dialog closes and the voice status request completes.
+ const voiceStatus=await page.evaluate(()=>window.desktop.voiceStatus());
+ if(!voiceStatus.configured){
+  const wizard=page.locator('.voice-chat-wizard');
+  await wizard.waitFor({state:'visible',timeout:60000});
+  await wizard.getByRole('button',{name:'稍后再说',exact:true}).click();
+  await wizard.waitFor({state:'hidden',timeout:60000});
+ }
  assert.equal(await page.locator('.chat-scroll .message').count(),0);
  assert.equal(await page.locator('.chat-scroll').innerText(),'');
  assert.equal(await page.locator('.chat-scroll button,.chat-scroll .welcome,.chat-scroll .suggestions').count(),0);
