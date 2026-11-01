@@ -9,7 +9,7 @@ $installer=Join-Path $temp 'verified-previous-setup.exe'
 $target=Join-Path $temp 'installed-app'
 [void][IO.Directory]::CreateDirectory($temp)
 try {
- $uri='https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-test.40913001300/Yukino-Companion-0.4.0-Base-Setup.exe'
+ $uri='https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-test.20261102.1/Yukino-Companion-0.4.0-Character-Restore-40913001300.exe'
  Invoke-WebRequest -Uri $uri -OutFile $installer -TimeoutSec 600
  $file=Get-Item -LiteralPath $installer
  if($file.Length -ne 258519106 -or (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant() -ne '9303829072f1e97eba172bf88f2c3e279312dae13a8879308142f7aae4ef0011'){throw 'Previous installer integrity mismatch'}

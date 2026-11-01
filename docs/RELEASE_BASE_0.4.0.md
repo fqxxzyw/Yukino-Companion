@@ -2,7 +2,7 @@
 
 记录日期：2026-10-26。发布标签：`v0.4.0-base.6`。
 
-[下载基础安装器](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-base.6/Yukino-Companion-0.4.0-Base-Setup.exe) · [完整发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-base.6) · [社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/)
+此历史发行页已整理至[当前测试版的历史记录](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.20261102.1)；当前安装器不是下表记录的旧文件。另见[社区与帮助](https://fqxxzyw.github.io/Yukino-Companion/)。
 
 ## 已发布资产
 
@@ -38,4 +38,4 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm S
 
 个人广告仍待用户确认，未插入公开帮助正文。完整需求、已实现范围与后续验收条件见 [下一阶段功能文档](NEW_FEATURES_0.5.md)。
 
-历史测试版 `v0.4.0-base.3` 在真实安装测试中发现目录保护检查使用无效安装器常量，不能完成安装；请使用本记录指向的修正版。修正版同时固定校验文件换行和 UTF-8 读取，避免 Windows 验证脚本的编码误报。
+历史测试版 `v0.4.0-base.3` 在真实安装测试中发现目录保护检查使用无效安装器常量，不能完成安装；本记录所述的后续版本修正了该问题，同时固定校验文件换行和 UTF-8 读取，避免 Windows 验证脚本的编码误报。

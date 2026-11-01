@@ -55,7 +55,7 @@ EXE 和公共网站独立发布，未来可共享公开 GitHub 社区数据，�
 - 普通源码分支不自动发布；手动工作流或指定 `release/0.4.0-local` 分支可触发 Windows 发布。
 - 用户已解除早期打包暂停，要求先交付测试包。小型 EXE 安装器与完整应用分卷提供模型、音色、参考音频、桌宠、角色文件和图标；Python/PyTorch/CUDA 公共环境独立下载，不塞进主安装包。
 - 首次引导提供安装与跳过；共享环境和所需语音 BERT/HuBERT 齐备后才具备完整本地推理能力。已内置的对话、翻译和默认音色权重不重复下载。专属图标不代表安装包有证书签名。
-- 历史版本 [v0.2.0-persona.4](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.2.0-persona.4) 不包含本轮所有整合功能；不得把源码版本号当作已发布安装包。
+- 历史版本 `v0.2.0-persona.4` 不包含本轮所有整合功能；该发行页已整理至[当前测试版的历史记录](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.20261102.1)，不得把源码版本号当作已发布安装包。
 - Windows CPU 真实翻译、默认音色真实合成、主界面 67 项及桌宠 9 项检查已通过；安装器 7 项检查使用微小测试文件。完整应用安装、人工听音、真实供应商与 NVIDIA GPU 实机仍待验收，详见[验证记录](VALIDATION_0.4.0.md)。
 
 当前发行设计见 [v0.4.0 发行说明](releases/v0.4.0.md)。[v0.3.0 集成记录](INTEGRATION_2026-10-25.md)保留为历史范围；当前组件说明见[本地翻译](TRANSLATION.md)、[语音推理](VOICE_INFERENCE.md)、[角色规范与性格训练](角色规范与性格专项训练.md)。早期完整需求仍用于记录目标，不作为完成证明。

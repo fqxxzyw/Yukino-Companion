@@ -1,10 +1,11 @@
 # Desktop revision status · 2026-10-30
 
 This work continues from `c972a26e561ef299440012c4489fbe16a4bbc915` on
-`handoff/codex-current-20261028`. The previously published
-[`v0.4.0-test.40913001300`](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.40913001300)
-is built from `3f7eb207d7bb15ede50bce1f9165da7778bc18e0`; it does **not** contain
-the changes described here. Keep the history and release assets intact.
+`handoff/codex-current-20261028`. The historical release
+`v0.4.0-test.40913001300` was built from `3f7eb207d7bb15ede50bce1f9165da7778bc18e0`;
+it does **not** contain the changes described here. Its release record is now
+collected in the [current preview's history](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.20261102.1);
+the current installer is a different file.
 
 ## Changes in this branch
 
