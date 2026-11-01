@@ -4,12 +4,12 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 ## 下载与安装
 
-1. 打开 [2026-11-01 Windows 测试版发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.20261101.2)，下载 [Yukino-Companion-0.4.0-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-test.20261101.2/Yukino-Companion-0.4.0-Base-Setup.exe)。请先阅读发行页中的已知问题和验收范围；其他版本可在 [Releases 下载页](https://github.com/fqxxzyw/Yukino-Companion/releases)查看。
+1. 打开 [2026-11-02 Windows 测试版发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.0-test.20261102.1)，下载 [Yukino-Companion-0.4.0-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-test.20261102.1/Yukino-Companion-0.4.0-Base-Setup.exe)。请先阅读发行页中的已知问题和验收范围；其他版本可在 [Releases 下载页](https://github.com/fqxxzyw/Yukino-Companion/releases)查看。
 2. 运行安装器，按提示选择安装位置。安装文件和数据建议放在有足够空闲空间的磁盘；请勿选择包含其他重要文件的非空目录。安装程序及其附件的大小、校验值以对应发行页为准。
 3. 启动 Yukino Companion。首次配置可按需选择本地对话、日语翻译、语音合成和桌宠语音，也可以先跳过，使用 API 文字聊天。
 4. 选择本地功能时，确认资源目录、预计下载量和运行环境，再开始准备。资源文件会按清单下载并校验；下载量、所需空间及耗时取决于所选功能、已有文件与网络条件。
 
-本次安装器的 SHA-256 为 `44d00b8a2e306761ad358afe7d131561590f4a2e55d73669eca4b7d9bbcaa127`。在下载目录打开 PowerShell，可用以下命令计算并与该值比较：
+本次安装器的 SHA-256 为 `6b791a79a96ef8afc89d1e55d399e2861f12f27fc7876c54211d7ccc0f3ffe0b`。在下载目录打开 PowerShell，可用以下命令计算并与该值比较：
 
 ```powershell
 Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm SHA256
