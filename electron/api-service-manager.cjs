@@ -29,6 +29,7 @@ class ApiServiceManager{
   const {config}=await this.find(configId),provider=apiServiceCatalog().providers.find(item=>item.id===config.providerId);
   const identity=await this.identity(config);
   if(!['credentials','models','connection','vision','stream'].includes(kind))throw Error('未知 API 检查类型');
+  if(provider.kind==='tts')return {configId,kind,status:'untested',message:'请在语音输出页面试听；实际合成可能产生费用。',validation:await this.evidence()};
   if((kind==='vision'&&!config.capabilities.includes('vision'))||(kind==='stream'&&!config.capabilities.includes('asr'))){const result={status:'unsupported',code:'unsupported_model',message:'当前配置不支持这项任务，请分配兼容模型与协议。'};return {configId,kind,...result,validation:await this.record(configId,kind,result,identity)};}
   if(kind==='stream'&&provider.implementation!=='catalog-only')return {configId,kind,status:'untested',message:'需要点击麦克风测试并收到真实转写文字，才能验证实时语音。',validation:await this.evidence()};
   let result;
@@ -48,8 +49,8 @@ class ApiServiceManager{
   await this.update('state.json',current=>({...current,apiManagement:next.apiManagement,...(next.profiles?{profiles:next.profiles}:{})}));
   return {state:await this.state(),apiManagement:next.apiManagement,keyIds:Object.keys(await this.read('keys.json',{}))};
  }
- async remove(id){const {state}=await this.find(id),next=deleteConfiguration(state,id),unused=unusedCredentialIds(state,next);
-  await this.update('state.json',current=>({...current,apiManagement:next.apiManagement,profiles:next.profiles,activeProfile:next.activeProfile}));
+ async remove(id,replacements){const {state}=await this.find(id),next=deleteConfiguration(state,id,replacements),unused=unusedCredentialIds(state,next);
+  await this.update('state.json',current=>({...current,apiManagement:next.apiManagement,profiles:next.profiles,activeProfile:next.activeProfile,translationMode:next.translationMode,...(next.characters?{characters:next.characters}:{})}));
   await this.update('keys.json',keys=>{for(const key of unused)delete keys[key];return keys;});
   await this.update('api-validation.json',records=>{delete records[id];return records;});
   return {state:await this.state(),apiManagement:next.apiManagement,keyIds:Object.keys(await this.read('keys.json',{}))};

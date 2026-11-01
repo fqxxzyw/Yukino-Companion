@@ -116,6 +116,15 @@ test('local JSON reply is parsed before forwarding, never leaving JSON syntax in
   assert.equal(result.bilingual.ja,'ローカルで翻訳しました。');
 });
 
+test('plain local Chinese reply streams without starting translation when translation is disabled',async()=>{
+  const {mainHarness}=require('./helpers/main-harness.cjs');
+  const app=await mainHarness({state:{chatMode:'local',translationMode:'none',conversations:[]},localReply:'今天也辛苦了。'});
+  const result=await app.invoke('chat',{id:'plain-zh',mode:'local',messages:[{role:'user',content:'你好'}]});
+  assert.equal(result.bilingual.zh,'今天也辛苦了。');assert.equal(result.bilingual.translationStatus,'skipped');
+  assert.equal(app.sent.filter(item=>item.channel==='chunk').map(item=>item.payload.text).join(''),'今天也辛苦了。');
+  assert.equal(app.translated.length,0);
+});
+
 test('proactive model request reuses the saved provider without reading visual input or writing a fake user turn',async()=>{
   const {mainHarness}=require('./helpers/main-harness.cjs');const profile={id:'remote',base:'https://example.test/v1',model:'synthetic'};
   const app=await mainHarness({state:{profiles:[profile],activeProfile:'remote',activeCharacter:'yukino',conversations:[],translationMode:'api'},reply:'今天有空听听歌吗？'});

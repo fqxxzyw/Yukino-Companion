@@ -83,6 +83,7 @@ class WorkerTests(unittest.TestCase):
                         raise AssertionError('Unexpected dependency import: ' + name)
                     return fakes[name]
                 with mock.patch.object(worker, 'validate_config', return_value=cfg), \
+                     mock.patch.object(worker, 'configure_offline_language_detection'), \
                      mock.patch.object(os, 'chdir'), mock.patch.object(os, 'cpu_count', return_value=host), \
                      mock.patch.object(sys, 'path', list(sys.path)), \
                      mock.patch.object(sys, 'executable', str(base / 'python')), \
@@ -92,6 +93,27 @@ class WorkerTests(unittest.TestCase):
                 torch.set_num_threads.assert_called_once_with(configured)
                 self.assertEqual(state['at_pipeline'], configured)
                 self.assertEqual(metadata['cpuThreads'], expected)
+
+    def test_language_detector_forces_bundled_model_and_never_downloads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'resources').mkdir()
+            model = root / 'resources' / 'lid.176.ftz'
+            model.write_bytes(b'local fixture')
+            class Downloader:
+                @staticmethod
+                def download(*args, **kwargs): raise AssertionError('network should not be called')
+            infer = SimpleNamespace(__file__=str(root / 'infer.py'), ModelDownloader=Downloader,
+                                    LangDetectConfig=lambda **kwargs: kwargs,
+                                    LangDetector=lambda config: SimpleNamespace(config=config))
+            worker.configure_offline_language_detection(SimpleNamespace(infer=infer), str(root))
+            self.assertEqual(infer._default_detector.config['model'], 'lite')
+            self.assertEqual(infer._default_detector.config['custom_model_path'], str(model.resolve()))
+            with self.assertRaisesRegex(RuntimeError, '不允许下载'):
+                Downloader.download('https://example.test', root / 'model')
+            model.unlink()
+            with self.assertRaisesRegex(RuntimeError, '缺少离线语言识别模型'):
+                worker.configure_offline_language_detection(SimpleNamespace(infer=infer), str(root))
 
     def test_telemetry_is_disabled_before_first_inference_dependency_import(self):
         class FirstDependencyReached(RuntimeError): pass
@@ -222,6 +244,23 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(captured['text_lang'], 'all_ja')
         self.assertEqual(captured['prompt_lang'], 'zh')
         self.assertEqual(captured['prompt_text'], '你好')
+
+    def test_explicit_character_chinese_language_reaches_the_inference_pipeline(self):
+        captured = {}
+        class Pipeline:
+            def run(self, params):
+                captured.update(params)
+                raise RuntimeError('captured-before-inference')
+        class Torch:
+            def inference_mode(self): return contextlib.nullcontext()
+        engine = worker.Engine()
+        engine.pipeline, engine.torch = Pipeline(), Torch()
+        engine.cfg = {'speechLanguage':'zh','textLang':'all_zh','reference':'reference.wav','promptText':'参考', 'promptLang':'zh'}
+        engine.metadata = {'device':'cpu'}
+        with self.assertRaisesRegex(RuntimeError, 'captured-before-inference'):
+            engine.synthesize('你好，今天想聊什么？', 1)
+        self.assertEqual(captured['text_lang'], 'all_zh')
+        self.assertEqual(captured['text'], '你好，今天想聊什么？')
 
 
 if __name__ == '__main__': unittest.main()

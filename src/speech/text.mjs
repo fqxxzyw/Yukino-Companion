@@ -17,7 +17,7 @@ export function spokenText(raw, final = false) {
       const end = raw.indexOf('>', i);
       if (end < 0) break;
       const tag = raw.slice(i, end + 1);
-      const hidden = /^<(think|analysis|reasoning|action)(?:\s[^>]*)?>$/i.exec(tag);
+      const hidden = /^<(think|thinking|analysis|reasoning|action)(?:\s[^>]*)?>$/i.exec(tag);
       if (hidden) {
         const closing = new RegExp(`</${hidden[1]}\\s*>`, 'ig'); closing.lastIndex = end + 1;
         const match = closing.exec(raw);

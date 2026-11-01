@@ -10,13 +10,14 @@ const paintOpportunity=()=>new Promise(resolve=>{let done=false;const finish=()=
 const rendererState=gl=>({exposure:gl.toneMappingExposure,toneMapping:gl.toneMapping,shadowType:gl.shadowMap.type,shadows:gl.shadowMap.enabled});
 function restoreRenderer(gl,state){gl.toneMappingExposure=state.exposure;gl.toneMapping=state.toneMapping;gl.shadowMap.type=state.shadowType;gl.shadowMap.enabled=state.shadows;gl.shadowMap.needsUpdate=true;}
 export class EnvironmentBackdrop {
- constructor(host,{interactive=false,reducedMotion=false,onError,onReady,onBeforeSwap,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas)}={}){
-  Object.assign(this,{host,interactive,reducedMotion,onError,onReady,onBeforeSwap});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;
+ constructor(host,{interactive=false,reducedMotion=false,onError,onReady,onBeforeSwap,loadFactory=loadSceneFactory,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas)}={}){
+  Object.assign(this,{host,interactive,reducedMotion,onError,onReady,onBeforeSwap,loadFactory});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;
   this.camera=new THREE.PerspectiveCamera(34,1,.05,1500);this.target=new THREE.Vector3();
   this.overview=new SceneOverview(this.camera,this.target,{reducedMotion});
   this.gl=rendererFactory({alpha:true,antialias:true,powerPreference:'low-power'});this.gl.setPixelRatio(Math.min(globalThis.devicePixelRatio||1,interactive?1.35:1.15));
   this.gl.outputColorSpace=THREE.SRGBColorSpace;this.gl.toneMapping=THREE.NeutralToneMapping;this.gl.toneMappingExposure=1;
   this.gl.shadowMap.enabled=true;this.gl.shadowMap.type=THREE.PCFSoftShadowMap;this.gl.shadowMap.autoUpdate=false;
+  try {
   host.append(this.gl.domElement);this.gl.domElement.setAttribute('aria-label','提供的三维场景');
   if(interactive){this.controls=controlsFactory(this.camera,this.gl.domElement);this.controls.enableDamping=!reducedMotion;this.controls.dampingFactor=.085;this.controls.enablePan=false;this.controls.minPolarAngle=.08;this.controls.maxPolarAngle=Math.PI*.48;this.controls.enableZoom=true;}
   this.resizeObserver=new ResizeObserver(()=>{if(!this.disposed){this.resize();this.requestRender()}});this.resizeObserver.observe(host);
@@ -33,12 +34,25 @@ export class EnvironmentBackdrop {
   this.release=e=>{if(e?.type==='keyup'&&e.key!=='Control')return;this.pointerUp();this.overview.release();this.requestRender()};
   this.visibility=()=>{this.last=0;if(document.hidden){cancelAnimationFrame(this.frame);this.frame=0;this.overview.release()}else this.requestRender()};
   this.lost=e=>{e.preventDefault();this.contextUnavailable=true;cancelAnimationFrame(this.frame);this.frame=0;host.dataset.fallback='true';onError?.(Error('三维场景的图形设备暂不可用。'))};
-  this.restored=()=>{this.contextUnavailable=false;this.gl.resetState();this.gl.shadowMap.needsUpdate=true;delete host.dataset.fallback;this.requestRender()};
+  this.restored=()=>{this.contextUnavailable=false;this.gl.resetState();this.gl.shadowMap.needsUpdate=true;if(this.current)delete host.dataset.fallback;this.requestRender()};
   this.gl.domElement.addEventListener('webglcontextlost',this.lost);this.gl.domElement.addEventListener('webglcontextrestored',this.restored);
   (interactive?host:document).addEventListener('wheel',this.wheel,{passive:false,capture:true});window.addEventListener('keyup',this.release);window.addEventListener('blur',this.release);document.addEventListener('visibilitychange',this.visibility);
   this.pointerSurface=interactive?host:document;
   this.pointerSurface.addEventListener('pointerdown',this.pointerDown,true);window.addEventListener('pointermove',this.pointerMove,{capture:true,passive:false});window.addEventListener('pointerup',this.pointerUp,true);window.addEventListener('pointercancel',this.pointerUp,true);
   this.tick=this.tick.bind(this);
+  } catch(error) {
+   this.resizeObserver?.disconnect();this.controls?.dispose();
+   const doc=globalThis.document,win=globalThis.window;
+   if(this.wheel)(interactive?host:doc)?.removeEventListener('wheel',this.wheel,true);
+   if(this.visibility)doc?.removeEventListener('visibilitychange',this.visibility);
+   if(this.pointerDown)this.pointerSurface?.removeEventListener('pointerdown',this.pointerDown,true);
+   if(this.release){win?.removeEventListener('keyup',this.release);win?.removeEventListener('blur',this.release);}
+   if(this.pointerMove)win?.removeEventListener('pointermove',this.pointerMove,true);
+   if(this.pointerUp){win?.removeEventListener('pointerup',this.pointerUp,true);win?.removeEventListener('pointercancel',this.pointerUp,true);}
+   if(this.lost)this.gl.domElement.removeEventListener('webglcontextlost',this.lost);
+   if(this.restored)this.gl.domElement.removeEventListener('webglcontextrestored',this.restored);
+   this.gl.dispose();this.gl.domElement.remove();throw error;
+  }
  }
  update(value,timeOfDay=clockHour(),weather=null){
   if(this.disposed)return Promise.resolve(false);
@@ -54,7 +68,7 @@ export class EnvironmentBackdrop {
    const previous={current:this.current,scene:this.scene,bounds:this.bounds,environmentScene:this.environmentScene,lightingKey:this.lightingKey,camera:this.camera.clone(),target:this.target.clone()};
    try{
     await paintOpportunity();
-    const create=await loadSceneFactory(id);if(this.disposed||epoch!==this.epoch)return false;
+    const create=await this.loadFactory(id);if(this.disposed||epoch!==this.epoch)return false;
     this.preparing=true;
     // A factory without its own tone mapper must not inherit the previous scene's mapper.
     this.gl.toneMapping=THREE.NeutralToneMapping;
@@ -120,9 +134,34 @@ export class EnvironmentBackdrop {
  lightScene(factory,scene,id){
   const daylight=sceneDaylight(this.timeOfDay),preset=sceneLightingPreset(this.timeOfDay,factory.lightingPresets);
   factory.setLighting?.(preset);applyWindowNight(factory.root,daylight.night);
+  this.boostAtmosphere(factory,daylight);
   const nativeNight=factory.lightingPresets?.includes('night');scene.backgroundIntensity=daylight.night&&!nativeNight ? .22 : 1;
   if(daylight.night&&!nativeNight)factory.root.traverse(node=>{if(node.isDirectionalLight)node.intensity*=.18;else if(node.isHemisphereLight||node.isAmbientLight)node.intensity*=scenePreset(id).kind==='indoor'?.45:.28;});
   return {daylight,preset};
+ }
+ // Daylight mood and volumetric proxies are strengthened here rather than in the
+ // authored bundles. Each factory's setLighting rewrites exposure and intensities
+ // first, so these multipliers never accumulate across preset changes.
+ boostAtmosphere(factory,daylight){
+  if(daylight.night)return;
+  this.gl.toneMappingExposure=Math.min(1.24,this.gl.toneMappingExposure*(daylight.twilight?1.08:1.05));
+  factory.root.traverse(node=>{
+   if(node.isDirectionalLight)node.intensity*=1.10;
+   else if(node.isHemisphereLight||node.isAmbientLight)node.intensity*=1.12;
+  });
+  const boost=daylight.twilight?1.7:1.5;
+  factory.root.traverse(node=>{
+   const materials=Array.isArray(node.material)?node.material:[node.material];
+   for(const material of materials){
+    if(!material||!material.transparent||material.blending!==THREE.AdditiveBlending)continue;
+    const name=`${node.name||''} ${material.name||''}`;
+    if(!/shaft|mist|halo|glow|spill|canopy|dapple/i.test(name))continue;
+    if(typeof material.userData.__atmoBase!=='number'||material.opacity!==material.userData.__atmoApplied)material.userData.__atmoBase=material.opacity;
+    const cap=/shaft/i.test(name)?.34:/mist/i.test(name)?.4:.5;
+    material.opacity=Math.min(cap,material.userData.__atmoBase*boost);
+    material.userData.__atmoApplied=material.opacity;
+   }
+  });
  }
  aspect(){return Math.max(.1,(this.host.clientWidth||1)/Math.max(1,this.host.clientHeight||1))}
  configureShadows(root){root.traverse(node=>{if(node.isLight&&node.shadow){node.shadow.mapSize.set(1024,1024);node.shadow.autoUpdate=false;node.shadow.needsUpdate=true}})}
@@ -136,6 +175,10 @@ export class EnvironmentBackdrop {
  }
  resize(reset=false){
   const width=this.host.clientWidth,height=this.host.clientHeight;if(!width||!height||!this.current)return false;if(!reset&&this.width===width&&this.height===height)return true;
+  const oldTarget=this.controls?.target||this.target,oldHome=this.homeFrame;
+  const oldDistance=oldHome?.position.distanceTo(oldHome.target),oldOffset=this.camera.position.clone().sub(oldTarget);
+  const preserve=this.interactive&&!reset&&oldDistance>0&&oldOffset.length()>0;
+  const zoom=preserve?oldOffset.length()/oldDistance:1;
   this.width=width;this.height=height;this.gl.setSize(width,height,false);this.camera.aspect=width/height;const preset=this.current.cameraPresets?.overview||{};
   const frame=dioramaFrame(this.bounds,width/height,{...preset,tight:true});
   const home=this.interactive?null:this.current.cameraPresets?.companion;
@@ -147,6 +190,7 @@ export class EnvironmentBackdrop {
   const miniature=dioramaFrame(this.bounds,width/height,{fov:this.camera.fov,direction:[.8,.78,1.3],padding:1.06});
   this.overviewFrame={target:miniature.target.clone(),position:miniature.position.clone()};
   this.overview.reset(this.homeFrame,this.overviewFrame);
+  if(preserve){this.camera.position.copy(this.target).add(oldOffset.normalize().multiplyScalar(this.homeFrame.position.distanceTo(this.homeFrame.target)*zoom));this.camera.lookAt(this.target);}
   if(this.controls){this.controls.target.copy(this.target);this.controls.minDistance=frame.distance*.22;this.controls.maxDistance=frame.distance*2.2;this.controls.update();}
   return true;
  }

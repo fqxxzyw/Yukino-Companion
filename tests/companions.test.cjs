@@ -130,6 +130,88 @@ test('companion IPC rejects foreign or nested frames', async t => {
   await assert.rejects(f.manager.viewCall({ sender:win.webContents,senderFrame:{} },'open-main'),/不允许/);
   assert.equal(await f.manager.viewCall({ sender:win.webContents,senderFrame:win.webContents.mainFrame },'ready'),true);
 });
+test('desktop handoff waits for the current model to render and rejects untrusted frame reports', async t => {
+  const f=await fixture(t);
+  class OpacityWindow extends FakeWindow {setOpacity(value){this.opacity=value;}getOpacity(){return this.opacity??1;}}
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  const closing=f.manager.closeChoice('model');
+  await new Promise(resolve=>setTimeout(resolve,60));
+  const desktop=f.manager.windows.get('model'),event={sender:desktop.webContents,senderFrame:desktop.webContents.mainFrame};
+  assert.equal(f.main.isVisible(),true);assert.equal(desktop.opacity,0);
+  await assert.rejects(f.manager.viewCall({...event,senderFrame:{}},'model-frame','model-a'),/不允许/);
+  await assert.rejects(f.manager.viewCall(event,'model-frame','old-model'),/无效/);
+  await f.manager.viewCall(event,'model-frame','model-a');await closing;
+  assert.equal(f.main.isVisible(),false);assert.equal(desktop.opacity,1);
+});
+test('reopening during a fade cancels the old close and keeps the main window visible', async t => {
+  const f=await fixture(t);
+  class OpacityWindow extends FakeWindow {setOpacity(value){this.opacity=value;}getOpacity(){return this.opacity??1;}}
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  const closing=f.manager.closeChoice('pet');
+  await new Promise(resolve=>setTimeout(resolve,70));
+  await f.manager.revealMain();await closing;
+  await new Promise(resolve=>setTimeout(resolve,300));
+  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(f.manager.windows.get('pet').isVisible(),false);
+});
+test('close aligns an existing model before fading and keeps the aligned bounds through setup', async t => {
+ const f=await fixture(t);await f.manager.setMode('model');const desktop=f.manager.windows.get('model');
+ f.manager.setAppAvatarRect({x:300,y:200,width:350,height:400});
+ await f.manager.closeChoice('model');
+ assert.deepEqual(desktop.getBounds(),{x:300,y:144,width:350,height:516});
+});
+test('system reduced motion turns native fades into an immediate transition', async t => {
+ const f=await fixture(t),values=[];f.manager.e.systemPreferences={getAnimationSettings:()=>({prefersReducedMotion:true})};
+ f.main.setOpacity=value=>values.push(value);
+ await f.manager.fadeWin(f.main,0,1,10000);
+ assert.deepEqual(values,[1]);
+});
+test('reply bubbles expand the model window while keeping the avatar canvas size and bottom edge', async t => {
+ const f=await fixture(t);await f.manager.setMode('model');const win=f.manager.windows.get('model'),before={...win.getBounds()};
+ const canvasHeight=(bounds,reply)=>bounds.height-(reply?Math.max(112,Math.min(164,bounds.height*.26))+12:56)-60;
+ f.manager.showReply({id:'one',zh:'短回复'});const shown={...win.getBounds()};
+ assert.ok(shown.height>before.height);assert.equal(shown.y+shown.height,before.y+before.height);
+ assert.ok(Math.abs(canvasHeight(shown,true)-canvasHeight(before,false))<=1);
+ f.manager.showReply({id:'one',zh:'长回复'.repeat(500)});assert.deepEqual(win.getBounds(),shown);
+ f.manager.clearReply();assert.deepEqual(win.getBounds(),before);
+});
+test('model drag while a bubble is visible saves the unexpanded window position', async t => {
+ const f=await fixture(t);await f.manager.setMode('model');const win=f.manager.windows.get('model'),event={sender:win.webContents,senderFrame:win.webContents.mainFrame};
+ f.manager.showReply({id:'one',zh:'回复'});await f.manager.viewCall(event,'drag-start',{point:{x:0,y:0}});
+ await f.manager.viewCall(event,'drag-end',{moved:true,point:{x:-100,y:-100}});const afterDrag={...win.getBounds()};
+ f.manager.clearReply();assert.equal(win.getBounds().y+win.getBounds().height,afterDrag.y+afterDrag.height);
+ const afterClear={...win.getBounds()};await f.manager.setPreferences({opacity:.9});assert.deepEqual(win.getBounds(),afterClear);
+});
+test('a model loading failure restores the main window instead of hiding it', async t => {
+  const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
+  class OpacityWindow extends FakeWindow {setOpacity(value){this.opacity=value;}getOpacity(){return this.opacity??1;}}
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  const closing=f.manager.closeChoice('model');await new Promise(resolve=>setTimeout(resolve,60));
+  const desktop=f.manager.windows.get('model');await f.manager.viewCall({sender:desktop.webContents,senderFrame:desktop.webContents.mainFrame},'model-frame-error','model-a');await closing;
+  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(desktop.isVisible(),false);assert.match(errors[0],/尚未准备好/);
+});
+test('opacity failure during a handoff cancels both fades and restores the main window', async t => {
+  const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
+  class OpacityWindow extends FakeWindow {
+    setOpacity(value){if(value>0&&value<1&&!this.failed){this.failed=true;throw Error('native opacity failed');}this.opacity=value;}
+    getOpacity(){return this.opacity??1;}
+  }
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  await f.manager.closeChoice('pet');await new Promise(resolve=>setTimeout(resolve,40));
+  const desktop=f.manager.windows.get('pet');assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);
+  assert.equal(desktop.isVisible(),false);assert.equal(desktop.opacity,1);assert.match(errors[0],/native opacity failed/);
+});
+test('failure while preparing the desktop window restores main and discards the unfinished host', async t => {
+  const f=await fixture(t),errors=[];let created;f.manager.onError=error=>errors.push(error.message);
+  class OpacityWindow extends FakeWindow {
+    constructor(options){super(options);created=this;}
+    setOpacity(value){if(value===0&&!this.failed){this.failed=true;throw Error('native opacity failed on setup');}this.opacity=value;}
+  }
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  await assert.rejects(f.manager.closeChoice('pet'),/native opacity failed on setup/);
+  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);
+  assert.equal(created.isDestroyed(),true);assert.equal(f.manager.windows.has('pet'),false);assert.match(errors[0],/native opacity failed on setup/);
+});
 test('overlapping sleep and screen lock require both to clear before resuming', async t => {
   const f = await fixture(t); f.powerMonitor.emit('lock-screen'); f.powerMonitor.emit('suspend');
   f.powerMonitor.emit('resume'); assert.equal(f.manager.usage.active.paused,true);

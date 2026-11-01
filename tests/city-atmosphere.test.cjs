@@ -35,24 +35,13 @@ test('atmosphere disposes targets, shader, glow map and sprite materials exactly
  const noMirror=createCityAtmosphere({reflections:false});assert.equal(noMirror.reflection,null);noMirror.dispose();
 });
 
-test('character and store share a scene, ground and lights without changing model geometry or materials',async()=>{
- const THREE=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs'),{cityLighting}=await import('../src/ui/city-atmosphere.mjs');
+test('seven scene lighting presets preserve the transparent avatar and its geometry and materials',async()=>{
+ const THREE=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs'),{SCENES}=await import('../src/ui/scene-catalog.mjs');
  const r=Object.create(GlbAvatarRenderer.prototype),material=new THREE.MeshStandardMaterial({color:'#958a8a'}),geometry=new THREE.BoxGeometry(.6,2,.3),avatar=new THREE.Mesh(geometry,material);avatar.position.y=1;
  const gl={toneMapping:THREE.NoToneMapping,toneMappingExposure:1,shadowMap:{enabled:false,type:THREE.PCFShadowMap,autoUpdate:true}};
- Object.assign(r,{renderEnvironment:false,scene:new THREE.Scene(),camera:new THREE.PerspectiveCamera(),environmentId:'studio',timeOfDay:12,ambient:new THREE.HemisphereLight(),key:new THREE.DirectionalLight(),meshes:[avatar],root:avatar,gl});r.scene.add(avatar);
+ Object.assign(r,{renderEnvironment:false,scene:new THREE.Scene(),camera:new THREE.PerspectiveCamera(),container:{clientWidth:300,clientHeight:600},environmentId:'classroom',timeOfDay:12,ambient:new THREE.HemisphereLight(),key:new THREE.DirectionalLight(),meshes:[avatar],root:avatar,gl});r.scene.add(avatar);
  const original=JSON.stringify(material.toJSON()),position=avatar.position.clone();
- try{
-  r.setEnvironment({id:'city',timeOfDay:12});assert.equal(r.environment,undefined,'wallpaper/ordinary transparent view is not forced into a street stage');
-  r.setSceneStage(true);assert.equal(avatar.parent,r.stageAnchor);assert.equal(r.stageAnchor.parent,r.scene);assert.ok(r.scene.children.includes(r.environment));assert.equal(r.cityAtmosphere.group.parent,r.scene);
-  assert.equal(r.environment.userData.timeOfDay,12);assert.equal(r.timeOfDay,12,'stage follows supplied real time rather than forcing a rainy night');assert.deepEqual(r.environment.position.toArray(),[0,-.14,-1.6]);
-  assert.equal(r.ambient.intensity,cityLighting(12).ambient);assert.equal(r.key.intensity,cityLighting(12).intensity);assert.equal(gl.toneMapping,THREE.ACESFilmicToneMapping);assert.equal(gl.shadowMap.enabled,true);
-  assert.equal(avatar.castShadow,true);assert.equal(avatar.receiveShadow,true);assert.equal(avatar.material,material);assert.equal(avatar.geometry,geometry);assert.deepEqual(avatar.position,position);assert.equal(JSON.stringify(material.toJSON()),original);
-  r.scene.updateMatrixWorld(true);const floor=new THREE.Raycaster(new THREE.Vector3(0,.5,0),new THREE.Vector3(0,-1,0)).intersectObject(r.environment).find(hit=>hit.object.userData.role==='sidewalk');assert.ok(floor);assert.ok(Math.abs(floor.point.y)<1e-6,'actual street pavement meets the avatar floor, not a floating portrait');
-  const atmosphere=r.cityAtmosphere,environment=r.environment;let released=0;environment.children[0].geometry.addEventListener('dispose',()=>released++);
-  r.setEnvironment({id:'forest',timeOfDay:8});assert.equal(r.environment,null);assert.equal(r.cityAtmosphere,null);assert.equal(environment.parent,null);assert.equal(atmosphere.group.children.length,0);assert.equal(released,1);
-  assert.equal(avatar.parent,r.scene);assert.equal(avatar.castShadow,false);assert.equal(avatar.receiveShadow,false);assert.equal(avatar.material,material);
-  assert.equal(gl.toneMapping,THREE.NoToneMapping);assert.equal(gl.toneMappingExposure,1);assert.equal(gl.shadowMap.enabled,false);assert.equal(gl.shadowMap.type,THREE.PCFShadowMap);assert.equal(gl.shadowMap.autoUpdate,true);assert.equal(r.scene.fog,null);
- }finally{r.cityAtmosphere?.dispose();if(r.environment)(await import('../src/ui/procedural-scenes.mjs')).disposeEnvironment(r.environment);r.key.shadow.dispose();geometry.dispose();material.dispose();}
+ try{for(const id of Object.keys(SCENES)){r.setEnvironment({id,timeOfDay:12});assert.equal(r.environmentId,id);assert.equal(avatar.parent,r.scene);assert.equal(r.scene.children.length,1);assert.equal(r.environment,undefined);assert.ok(r.ambient.intensity>0);assert.ok(r.key.intensity>0);assert.equal(avatar.material,material);assert.equal(avatar.geometry,geometry);assert.deepEqual(avatar.position,position);assert.equal(JSON.stringify(material.toJSON()),original);assert.equal(gl.toneMapping,THREE.NoToneMapping);assert.equal(gl.shadowMap.enabled,false);}}finally{r.key.shadow.dispose();geometry.dispose();material.dispose();}
 });
 
 test('hidden character suppresses GPU draws without stalling an outfit walking completion',async t=>{
@@ -66,13 +55,13 @@ test('hidden character suppresses GPU draws without stalling an outfit walking c
  globalThis.document.hidden=false;r.container.clientWidth=0;r.renderFrame(1000);assert.equal(draws,1);
 });
 
-test('city UI styling removes the grey wash only for the derived night scene and preserves accessibility fallbacks',async()=>{
+test('spread scene styling follows day and night and preserves accessibility fallbacks',async()=>{
  const css=await fs.readFile(path.join(__dirname,'../src/style.css'),'utf8'),app=await fs.readFile(path.join(__dirname,'../src/main.jsx'),'utf8');
  assert.match(css,/\.app\.scene-city \.environment-backdrop-canvas\{opacity:1\}/);
  assert.match(css,/\.app\.scene-city \.character-panel[^}]+background:color-mix[^}]+border-radius:22px/);
  assert.doesNotMatch(css,/scene-city-night \.character-model-host\{[^}]*border-radius:0/);
  assert.match(css,/prefers-reduced-transparency:reduce[^}]+scene-city/);assert.match(css,/forced-colors:active[^}]+scene-city/);
- assert.match(app,/citySceneActive=s\.presentation\?\.scene==='city'&&s\.presentation\?\.spread&&!\(wallpaperSettings\.enabled&&wallpaperSettings\.items\.length\)/);
- assert.match(app,/themeVariables\(s\.accent,cityNight\?'#0d1729':s\.background\)/);assert.match(app,/sceneStage=\{Boolean\(citySceneActive\)\}/);
+ assert.match(app,/citySceneActive=Boolean\(s\.presentation\?\.spread\)&&!\(wallpaperSettings\.enabled&&wallpaperSettings\.items\.length\)/);
+ assert.match(app,/themeVariables\(s\.accent,cityNight\?'#0d1729':s\.background\)/);assert.match(app,/sceneStage=\{false\}/);
  assert.doesNotMatch(app,/patch\(\{background:'#0d1729'/);
 });

@@ -19,8 +19,9 @@ export class AudioPlayer {
     return {token:record.token,clockSeconds:this.context.currentTime,playing,paused,elapsedSeconds,durationSeconds:record.durationSeconds,level:playing&&!paused?this.getLevel():0,hint:record.hint,text:record.text,sequence:record.sequence,requestId:record.requestId};
   }
   setVolume(value) { this.volume = value; if (this.gain) this.gain.gain.value = value; }
-  async prepare(bytes) {
+  async prepare(bytes, isCurrent = () => true) {
     await this.unlock();
+    if (!isCurrent()) return null;
     const data=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
     if(data.byteLength>32*1024*1024)throw Error('播放音频超过大小限制');
     const buffer=await this.context.decodeAudioData(data.slice().buffer);
@@ -29,7 +30,8 @@ export class AudioPlayer {
   }
   async play(bytes,{hint='neutral',onStarted=()=>{},text='',sequence=null,requestId=null}={}) {
     this.stop();const epoch=this.epoch;
-    const prepared=this.prepared?.has(bytes)?bytes:await this.prepare(bytes);
+    const prepared=this.prepared?.has(bytes)?bytes:await this.prepare(bytes,()=>epoch===this.epoch);
+    if(!prepared||epoch!==this.epoch)return;
     await this.unlock();
     if(epoch!==this.epoch)return;
     const audio=prepared.buffer;

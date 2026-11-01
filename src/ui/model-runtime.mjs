@@ -5,6 +5,7 @@ import {BLINK_REVIEW_V5,BLINK_REVIEW_MODEL} from './blink-review-contract.mjs';
 import {SpeechMotionDirector} from '../speech/motion.mjs';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {SCENES,AvatarPresentationController} from './avatar-presentation.mjs';
+import {sceneId} from './scene-catalog.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
 import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
@@ -33,8 +34,8 @@ export function assertSupportedSkinWeights(json,bytes){return inspectGlbSkinning
 function disposeObject(root){disposeEightWeightSkinning(root);const geometries=new Set(),materials=new Set(),textures=new Set();root?.traverse(object=>{if(object.geometry)geometries.add(object.geometry);for(const material of modelMaterials(object))materials.add(material)});for(const material of materials)for(const value of Object.values(material))if(value?.isTexture)textures.add(value);for(const value of [...geometries,...textures,...materials])value.dispose();}
 
 export class GlbAvatarRenderer{
- constructor(container,{catalog,api,reducedMotion=false,audioPlayer,onStatus=()=>{},blinkReviewOptIn=false,renderEnvironment=true}){
-  this.blinkReviewOptIn=blinkReviewOptIn===true;this.renderEnvironment=renderEnvironment!==false;this.container=container;this.catalog=catalog;this.api=api;this.reducedMotion=reducedMotion;this.audioPlayer=audioPlayer;this.onStatus=onStatus;this.epoch=0;this.disposed=false;this.activity='idle';this.renderStyle='lit';this.timeOfDay='noon';this.environmentId='studio';this.zoom=1;this.yaw=0;this.gaze={headYaw:0,headPitch:0};this.meshes=[];
+ constructor(container,{catalog,api,reducedMotion=false,audioPlayer,onStatus=()=>{},onFirstFrame=()=>{},blinkReviewOptIn=false,renderEnvironment=true}){
+  this.blinkReviewOptIn=blinkReviewOptIn===true;this.renderEnvironment=renderEnvironment!==false;this.container=container;this.catalog=catalog;this.api=api;this.reducedMotion=reducedMotion;this.audioPlayer=audioPlayer;this.onStatus=onStatus;this.onFirstFrame=onFirstFrame;this.epoch=0;this.disposed=false;this.activity='idle';this.renderStyle='lit';this.timeOfDay='noon';this.environmentId='studio';this.zoom=1;this.yaw=0;this.gaze={headYaw:0,headPitch:0};this.meshes=[];
   this.scene=new THREE.Scene();this.camera=new THREE.PerspectiveCamera(30,1,.01,100);
   this.gl=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});this.gl.setPixelRatio(Math.min(devicePixelRatio||1,1.75));this.gl.setClearColor(0,0);this.gl.outputColorSpace=THREE.SRGBColorSpace;
   this.gl.domElement.setAttribute('aria-label','3D角色预览');this.container.append(this.gl.domElement);
@@ -113,7 +114,7 @@ export class GlbAvatarRenderer{
  setSceneWeather(value){this.sceneWeather=value;this.setEnvironment();}
  setEnvironment({id=this.environmentId,timeOfDay=this.timeOfDay}={}){
   // Models remain draft/replacement assets. No scene owns or edits their rig.
-  this.environmentId=Object.hasOwn(SCENES,id)?id:'classroom';this.timeOfDay=timeOfDay;
+  this.environmentId=sceneId(id);this.timeOfDay=timeOfDay;
   const light=sunlightConfig(timeOfDay),preset=SCENES[this.environmentId].lighting;
   this.ambient.intensity=light.ambient*preset.ambient*2;this.ambient.color.set(light.ambientColor);this.ambient.groundColor.set(light.groundColor);
   this.key.intensity=light.intensity*preset.key;this.key.color.set(light.color);this.key.position.set(...light.position);
@@ -181,7 +182,7 @@ export class GlbAvatarRenderer{
   this.mixer?.update(this.reducedMotion?0:dt);if(this.head){this.headBase.copy(this.head.quaternion);if(!this.reducedMotion&&!walking&&!this.speechMotion){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-3,Math.min(3,this.gaze?.headPitch||0))),this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-4,Math.min(4,this.gaze?.headYaw||0))),0));this.head.quaternion.multiply(q);}}
   if(!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.speechMotion&&!snapshot?.playing&&this.activity==='idle'&&now>=this.nextMicro){this.nextMicro=now+16000+Math.random()*12000;const clips=microClipNames(this.entry,this.clips);if(clips.length)this.play(clips[Math.floor(Math.random()*clips.length)]);}
   this.updateGarment(dt,{visible:!document.hidden});
-  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(this.visible!==false&&!document.hidden&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.gl.domElement.dataset.rendered!=='true')this.gl.domElement.dataset.rendered='true';}if(walking?.sample.done)this.finishWalking(walking);
+  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(this.visible!==false&&!document.hidden&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
  }
  async exit({signal}={}){if(this.entry?.walking)return this.beginWalking('exit',signal);await this.transition([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-15%)'}],signal,true);}
  async enter({signal}={}){if(this.entry?.walking)return this.beginWalking('enter',signal);await this.transition([{opacity:0,transform:'translateX(15%)'},{opacity:1,transform:'translateX(0)'}],signal);}

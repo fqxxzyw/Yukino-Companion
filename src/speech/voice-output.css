@@ -1,0 +1,15 @@
+.voice-output-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 12px}
+.voice-output-option{display:flex;gap:9px;align-items:flex-start;min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);cursor:pointer;transition:border-color .2s ease,background .2s ease}
+.voice-output-option:hover{border-color:color-mix(in srgb,var(--accent) 26%,var(--line))}
+.voice-output-option.selected{border-color:color-mix(in srgb,var(--accent) 44%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.voice-output-option.disabled{opacity:.6;cursor:not-allowed}
+.voice-output-option input{margin:3px 0 0;accent-color:var(--accent);flex:none}
+.voice-output-option span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.voice-output-option strong{font-size:12px;font-weight:600}
+.voice-output-option small{font-size:11px;line-height:1.55;color:var(--secondary)}
+.voice-engine-card{border:1px solid var(--line);border-radius:14px;background:var(--surface-soft);padding:12px 14px;margin:14px 0 18px;min-width:0}
+.voice-engine-details{margin:8px 0 0;font-size:11px;color:var(--secondary)}
+.voice-engine-details summary{cursor:pointer;color:var(--accent-text);font-size:11px;line-height:1.7}
+.voice-engine-details p{font-size:11px;line-height:1.7;color:var(--secondary);margin:6px 0;overflow-wrap:anywhere}
+@media(max-width:720px){.voice-output-options{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.voice-output-option{transition:none}}

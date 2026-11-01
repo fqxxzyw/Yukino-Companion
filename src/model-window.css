@@ -4,7 +4,10 @@ html,body,#root{margin:0;width:100%;height:100%;overflow:hidden;background:trans
 button,input{font:inherit}button{cursor:pointer;color:inherit}button:disabled{opacity:.45;cursor:default}
 button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-.model-companion{--reply-space:clamp(136px,32vh,184px);--canvas-top:calc(var(--reply-space) + 24px);--canvas-bottom:88px;position:relative;width:100%;height:100%;isolation:isolate;pointer-events:none}
+/* Reserve only what is actually on screen: the toolbar row when there is no
+   reply, and a bounded bubble row when there is one. The canvas keeps the rest. */
+.model-companion{--reply-space:44px;--canvas-top:calc(var(--reply-space) + 12px);--canvas-bottom:60px;position:relative;width:100%;height:100%;isolation:isolate;pointer-events:none}
+.model-companion[data-has-reply=true]{--reply-space:clamp(112px,26vh,164px);--canvas-top:calc(var(--reply-space) + 12px)}
 
 /* PET-002/006: tools occupy their own bounded row. Text never shares a flex
    line with the buttons, and the reply panel is smaller than the native view. */
@@ -54,8 +57,8 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px so
 .model-companion[data-input-position=above]{--canvas-top:calc(var(--reply-space) + 108px);--canvas-bottom:12px}
 .model-companion[data-input-position=above] .compact-dock{top:calc(var(--reply-space) + 24px);bottom:auto}
 .model-companion[data-input-position=above] .model-feedback{top:calc(var(--reply-space) + 76px);bottom:auto}
-@media(max-height:340px){.model-companion{--reply-space:136px}.model-companion header{gap:6px}.model-bubble{padding:8px 10px 6px;gap:4px;max-height:calc(var(--reply-space) - 42px)}.model-reply-actions{padding-top:3px}}
-@media(max-width:240px){.model-toolbar{flex-wrap:wrap}.model-name{flex-basis:100%}.model-companion{--reply-space:164px}.model-bubble{max-height:calc(var(--reply-space) - 76px)}}
+@media(max-height:340px){.model-companion header{gap:6px}.model-bubble{padding:8px 10px 6px;gap:4px;max-height:calc(var(--reply-space) - 42px)}.model-reply-actions{padding-top:3px}}
+@media(max-width:240px){.model-toolbar{flex-wrap:wrap}.model-name{flex-basis:100%}.model-bubble{max-height:calc(var(--reply-space) - 76px)}}
 @keyframes reply-arrive{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 .model-companion[data-reduced-motion=true] *,.model-companion[data-reduced-motion=true] *::before,.model-companion[data-reduced-motion=true] *::after{transition:none!important;animation:none!important}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

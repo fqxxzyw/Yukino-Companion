@@ -28,9 +28,9 @@ function instanceBounds(THREE, mesh) {
 test('deterministic cel miniatures and wet city surfaces stay inside their scene-specific budgets', async () => {
  const {createEnvironment, disposeEnvironment, ENVIRONMENT_IDS, ENVIRONMENT_BUDGET, CITY_ENVIRONMENT_BUDGET, environmentBudget} = await modulePromise;
  const THREE = await threePromise;
- assert.deepEqual(ENVIRONMENT_IDS, ['studio', 'classroom', 'beach', 'forest', 'city']);
+ assert.deepEqual(ENVIRONMENT_IDS, ['studio', 'classroom', 'beach', 'forest', 'city', 'seaside']);
  assert.ok(ENVIRONMENT_BUDGET.drawCalls <= 100 && ENVIRONMENT_BUDGET.triangles <= 70000 && ENVIRONMENT_BUDGET.instances <= 1600);
- for (const id of ENVIRONMENT_IDS) {
+ for (const id of ENVIRONMENT_IDS.filter(value=>value!=='seaside')) {
   const group = createEnvironment(id), again = createEnvironment(id), budget = environmentBudget(id);
   assert.equal(budget, id === 'city' ? CITY_ENVIRONMENT_BUDGET : ENVIRONMENT_BUDGET);
   if(id==='city')assert.deepEqual(budget,{drawCalls:150,triangles:32000,instances:1100});
@@ -86,10 +86,21 @@ test('deterministic cel miniatures and wet city surfaces stay inside their scene
  }
 });
 
+test('seaside uses its separate twenty-unit footprint and bounded deterministic resources',async()=>{
+ const {createEnvironment,disposeEnvironment,SEASIDE_ENVIRONMENT_BUDGET}=await modulePromise;
+ const a=createEnvironment('seaside'),b=createEnvironment('seaside');
+ try{
+  assert.deepEqual(a.userData.footprint,{size:20,min:-10,max:10});assert.deepEqual(a.userData.characterAnchor.position,[.5,0,5]);assert.deepEqual(a.userData.stats,b.userData.stats);
+  const stats=a.userData.stats;for(const key of ['drawCalls','triangles','instances'])assert.ok(stats[key]>0&&stats[key]<=SEASIDE_ENVIRONMENT_BUDGET[key]);
+  const left=meshes(a),right=meshes(b);assert.equal(left.length,right.length);
+  for(let index=0;index<left.length;index++){const mesh=left[index],repeat=right[index];assert.notEqual(mesh.geometry,repeat.geometry);for(const [name,attr] of Object.entries(mesh.geometry.attributes)){assert.ok([...attr.array].every(Number.isFinite));assert.deepEqual(attr.array,repeat.geometry.attributes[name].array);}if(mesh.isInstancedMesh)assert.deepEqual(mesh.instanceMatrix.array,repeat.instanceMatrix.array);}
+ }finally{disposeEnvironment(a);disposeEnvironment(b)}
+});
+
 test('every rotated instance stays on the square plinth, with a zero-height floor and visible stepped edges', async () => {
  const {createEnvironment, disposeEnvironment, ENVIRONMENT_IDS} = await modulePromise;
  const THREE = await threePromise;
- for (const id of ENVIRONMENT_IDS) {
+ for (const id of ENVIRONMENT_IDS.filter(value=>value!=='seaside')) {
   const group = createEnvironment(id);
   try {
    requireRoles(group, ['ground', 'plinth-lower', 'plinth-bevel', 'plinth-rim']);
@@ -294,11 +305,11 @@ test('dispose releases every owned instance buffer, geometry and material exactl
   const events = new Map();
   for(const item of [...resources.objects,...resources.geometries,...resources.materials,...siblingResources.objects,...siblingResources.geometries,...siblingResources.materials,foreign.geometry,foreign.material]){events.set(item,0);item.addEventListener('dispose',()=>events.set(item,events.get(item)+1));}
   assert.equal(disposeEnvironment(group),true);assert.equal(group.parent,null);
-  for(const item of [...resources.objects,...resources.geometries,...resources.materials]) assert.equal(events.get(item),1);
+  for(const item of [...resources.objects.filter(item=>typeof item.dispose==='function'),...resources.geometries,...resources.materials]) assert.equal(events.get(item),1);
   for(const item of [...siblingResources.objects,...siblingResources.geometries,...siblingResources.materials,foreign.geometry,foreign.material]) assert.equal(events.get(item),0);
-  assert.deepEqual(group.children,[foreign]);assert.equal(sibling.parent,scene);
+  assert.deepEqual(meshes(group),[foreign]);assert.equal(sibling.parent,scene);
   assert.equal(disposeEnvironment(group),false);assert.equal(disposeEnvironment(new THREE.Group()),false);assert.equal(disposeEnvironment(null),false);
-  for(const item of [...resources.objects,...resources.geometries,...resources.materials]) assert.equal(events.get(item),1);
+  for(const item of [...resources.objects.filter(item=>typeof item.dispose==='function'),...resources.geometries,...resources.materials]) assert.equal(events.get(item),1);
   disposeEnvironment(sibling);foreign.geometry.dispose();foreign.material.dispose();
  }
 });
@@ -308,9 +319,10 @@ test('repeated scene changes detach old geometry without cumulative live GPU res
  const THREE = await threePromise, scene = new THREE.Scene();let live=0,previous;
  for(let i=0;i<40;i++){
   const next=createEnvironment(ENVIRONMENT_IDS[i%ENVIRONMENT_IDS.length]),resources=resourceSets(next);
-  for(const item of [...resources.objects,...resources.geometries,...resources.materials]){live++;item.addEventListener('dispose',()=>live--);}
+  const disposableObjects=resources.objects.filter(item=>typeof item.dispose==='function');
+  for(const item of [...disposableObjects,...resources.geometries,...resources.materials]){live++;item.addEventListener('dispose',()=>live--);}
   if(previous)disposeEnvironment(previous);scene.add(next);previous=next;
-  assert.equal(scene.children.length,1);assert.equal(live,resources.objects.length+resources.geometries.size+resources.materials.size);
+  assert.equal(scene.children.length,1);assert.equal(live,disposableObjects.length+resources.geometries.size+resources.materials.size);
  }
  disposeEnvironment(previous);assert.equal(live,0);assert.equal(scene.children.length,0);
 });

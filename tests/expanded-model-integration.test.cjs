@@ -44,7 +44,7 @@ async function hookHarness(t,component,api={}){
  for(const name of ['react/jsx-runtime','react-dom/client','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
  code=code.replace(/(["'])(\.{1,2}\/[^"']+)\1/g,(all,_quote,specifier)=>{
   let file;if(specifier.endsWith('model-runtime.mjs'))file=runtimeFile;
-  else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
+  else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|CloudVoiceClone\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
   else file=path.resolve(root,path.dirname(component),specifier);
   return JSON.stringify(pathToFileURL(file).href);
  });
@@ -150,8 +150,8 @@ test('scene changes retain the user\'s saved daylight location',async t=>{
  const location={latitude:35,longitude:139},props={side:'right',width:300,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',daylightLocation:location},reducedMotion:true};
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render();
- walk(h.tree).find(node=>node.type==='button'&&node.props?.['data-scene']==='beach').props.onClick();
- assert.equal(update.scene,'beach');assert.deepEqual(update.daylightLocation,location);
+ walk(h.tree).find(node=>node.type==='button'&&node.props?.['data-scene']==='kasai').props.onClick();
+ assert.equal(update.scene,'kasai');assert.deepEqual(update.daylightLocation,location);
 });
 
 test('character scene choices pair Chinese names with decorative scene previews and preserve saved preferences',async t=>{
@@ -160,7 +160,7 @@ test('character scene choices pair Chinese names with decorative scene previews 
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render(props);
  for(const [id,scene] of Object.entries(SCENES)){
-  const choices=walk(h.tree).filter(node=>node.type==='button'&&node.props?.['data-scene']);assert.equal(choices.length,5);
+  const choices=walk(h.tree).filter(node=>node.type==='button'&&node.props?.['data-scene']);assert.equal(choices.length,Object.keys(SCENES).length);
   const choice=choices.find(node=>node.props['data-scene']===id);
   assert.equal(choice.props['aria-label'],scene.label);assert.match(scene.label,/^[\p{Script=Han}]+$/u);
   const preview=walk(choice).find(node=>node.props?.className==='scene-choice-swatch'),label=walk(choice).find(node=>node.props?.className==='scene-choice-name');
@@ -320,7 +320,7 @@ test('real character creation coalesces pending work and merges without revertin
  const api={save:async()=>{saves++;await new Promise(resolve=>finish=resolve)}};
  const setS=update=>{state=typeof update==='function'?update(state):update;sref.current=state};
  const addCharacter=new Function('creatingCharacter','sref','getSkinStatus','models','modelSelectionEpoch','stopSpeech','createCharacter','api','activeRequest','setS','selectCharacter','setDraft','setError',`${source.slice(start,end)};return addCharacter;`)(creatingCharacter,sref,getSkinStatus,[],modelSelectionEpoch,()=>{},createCharacter,api,activeRequest,setS,selectCharacter,value=>drafts.push(value),()=>{});
- const first=addCharacter({name:'Created once'}),duplicate=addCharacter({name:'Duplicate'});assert.equal(saves,1);
+ const first=addCharacter({name:'Created once',persona:'A complete character profile.'}),duplicate=addCharacter({name:'Duplicate',persona:'Another profile.'});assert.equal(saves,1);
  state=selectCharacter({...state,conversations:[{id:'new-chat',messages:[{content:'Latest token'}]}],usedDates:{dates:['2026-10-27']}},'alt');sref.current=state;modelSelectionEpoch.current++;activeRequest.current={id:'new-chat'};
  finish();await Promise.all([first,duplicate]);assert.equal(creatingCharacter.current,false);assert.equal(state.activeCharacter,'alt');assert.equal(state.characters.filter(item=>item.name==='Created once').length,1);assert.equal(state.characters.some(item=>item.name==='Duplicate'),false);assert.equal(state.conversations[0].messages[0].content,'Latest token');assert.deepEqual(state.usedDates,{dates:['2026-10-27']});assert.deepEqual(drafts,[]);
 });

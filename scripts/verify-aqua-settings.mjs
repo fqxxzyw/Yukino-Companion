@@ -16,13 +16,18 @@ async function open(){const env={...process.env,YUKINO_SETTINGS_QA_DATA:appData,
  await page.waitForFunction(()=>!document.querySelector('.voice-chat-wizard'));}
 async function close(){if(!desktop)return;report.blockedRequests.push(...await desktop.evaluate(()=>globalThis.settingsQaBlockedRequests));await desktop.close();desktop=null;}
 async function nav(name){await page.locator('.settings-nav').getByRole('button',{name,exact:true}).click();}
+async function waitEngine(engine){
+ const deadline=Date.now()+10000;
+ while(Date.now()<deadline){if(await page.evaluate(async name=>(await window.desktop.voiceSettings()).engine===name,engine))return;await page.waitForTimeout(50);}
+ throw Error(`语音引擎设置未能保存为 ${engine}`);
+}
 try{
  server=await createServer({root,server:{host:'127.0.0.1',port:0}});await server.listen();report.url=`http://127.0.0.1:${server.httpServer.address().port}/`;await open();
  assert.equal(await desktop.evaluate(({app})=>app.getPath('userData')),path.join(appData,'yukino-companion-development'));check('Isolated real Electron profile');
  await page.getByRole('button',{name:'设置',exact:true}).click();await nav('语音输出');
  await page.getByRole('heading',{name:'推理引擎',exact:true}).waitFor();const engine=page.getByRole('combobox',{name:'语音引擎',exact:true});assert.match(await engine.innerText(),/智能模式/);await page.getByText(/实际引擎：尚未加载/).waitFor();check('Default smart engine never claims Aqua is running before loading');await screenshot('engine-smart');
- await engine.click();await page.getByRole('option',{name:'Aqua-TTS 高性能推理',exact:true}).click();await page.waitForFunction(async()=> (await window.desktop.voiceSettings()).engine==='aqua');await screenshot('engine-aqua-selected-not-running');assert.ok(await page.getByText(/实际引擎：尚未加载/).count());check('Actual engine selection persists via existing voice IPC without starting inference');
- await nav('高级与诊断');
+ await engine.click();await page.getByRole('option',{name:'Aqua-TTS 高性能推理',exact:true}).click();await waitEngine('aqua');await screenshot('engine-aqua-selected-not-running');assert.ok(await page.getByText(/实际引擎：尚未加载/).count());check('Actual engine selection persists via existing voice IPC without starting inference');
+ await nav('高级与资源');
  // Advanced landing links to the actual dedicated voice environment page.
  await page.getByRole('button',{name:/语音环境与诊断/}).click();
  await page.getByRole('heading',{name:'Aqua 环境与依赖',exact:true}).waitFor();
@@ -30,7 +35,7 @@ try{
  const envStatus=await page.evaluate(()=>window.desktop.aquaEnvironmentStatus());assert.equal(envStatus.ready,false);assert.equal(envStatus.modelInferenceVerified,false);check('Environment IPC reports missing optional environment without a fake ready flag');
  const scheduling=page.getByRole('heading',{name:'并发调度与播放优化',exact:true});await scheduling.scrollIntoViewIfNeeded();assert.equal(await page.getByRole('spinbutton',{name:'提交并发上限（非 GPU 实际并发）',exact:true}).inputValue(),'2');await screenshot('bounded-scheduling');
  const layout=await page.locator('.settings-page-content,.settings-page-content-inner,.settings-page').evaluateAll(elements=>elements.map(el=>({width:el.clientWidth,scroll:el.scrollWidth})));assert.ok(layout.every(v=>v.scroll<=v.width+2));check('Advanced segmentation, bounded scheduling and diagnostic limits are readable without horizontal overflow');
- const advancedEngine=page.getByRole('combobox',{name:'语音引擎',exact:true});await advancedEngine.scrollIntoViewIfNeeded();await advancedEngine.click();await page.getByRole('option',{name:'GPT-SoVITS 标准推理',exact:true}).click();await page.waitForFunction(async()=> (await window.desktop.voiceSettings()).engine==='standard');
+ const advancedEngine=page.getByRole('combobox',{name:'语音引擎',exact:true});await advancedEngine.scrollIntoViewIfNeeded();await advancedEngine.click();await page.getByRole('option',{name:'GPT-SoVITS 标准推理',exact:true}).click();await waitEngine('standard');
  const status=await page.evaluate(()=>window.desktop.voiceStatus());assert.equal(status.enginePlan.requestedEngine,'standard');assert.equal(status.enginePlan.verified,false);await screenshot('standard-preserved');
  report.applicationErrors=await page.locator('.main .error').allTextContents();assert.deepEqual(report.applicationErrors,[]);
  await close();await open();assert.equal(await page.evaluate(async()=> (await window.desktop.voiceSettings()).engine),'standard');check('Real app restart preserves selected standard backend');

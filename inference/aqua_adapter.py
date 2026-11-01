@@ -235,7 +235,7 @@ class AquaEngine:
             raise RuntimeError("语音模型尚未加载")
         if not isinstance(text, str) or not text.strip() or len(text) > 500:
             raise ValueError("单段语音文本必须为 1–500 字符")
-        if not re.search(r"[ぁ-ゖァ-ヺｦ-ﾝ]", text):
+        if self.cfg.get("speechLanguage", "ja") != "zh" and not re.search(r"[ぁ-ゖァ-ヺｦ-ﾝ]", text):
             raise ValueError("语音仅接受包含假名的完整日语译文，未翻译的中文不会合成。")
         if isinstance(speed, bool):
             raise ValueError("语速必须为 0.5–2.0")
@@ -248,7 +248,7 @@ class AquaEngine:
             with _quiet_runtime(), self.torch.inference_mode():
                 result = self.pipeline.infer(
                     text=text, ref_audio_path=cfg["reference"], prompt_text=cfg["promptText"],
-                    text_language="日文", prompt_language=PROMPT_LANGUAGES[cfg["promptLang"]],
+                    text_language="中文" if cfg.get("speechLanguage") == "zh" else "日文", prompt_language=PROMPT_LANGUAGES[cfg["promptLang"]],
                     how_to_cut="按标点符号切", speed=speed, ref_free=False, if_sr=False,
                     enable_cuda_graph=self.metadata["aquaGraph"] != "off", enable_static_kv=True)
                 self.torch.cuda.synchronize("cuda:0")

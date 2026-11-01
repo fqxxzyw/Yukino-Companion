@@ -49,7 +49,9 @@ def validate_config(config):
         raise ValueError("无效的引擎版本或设备选项")
     if cfg.get("textLang") not in LANGUAGES or cfg.get("promptLang") not in LANGUAGES:
         raise ValueError("请选择支持的文本与参考音频语言")
-    cfg["textLang"] = "all_ja"
+    if cfg.get("speechLanguage", "ja") not in {"ja", "zh"}:
+        raise ValueError("无效角色语音语言")
+    cfg["textLang"] = "all_zh" if cfg.get("speechLanguage") == "zh" else "all_ja"
     if not isinstance(cfg.get("promptText"), str) or len(cfg["promptText"]) > 3000:
         raise ValueError("参考文本必须为字符串，最多 3000 字符")
     if cfg["version"] in {"v3", "v4", "v5dev", "v5turbo"} and not cfg["promptText"].strip():
@@ -105,6 +107,25 @@ def release_cuda_cache(torch):
         pass
 
 
+def configure_offline_language_detection(module, state_dir):
+    """Pin the bundled lite model even when an upstream caller asks for 'full'.
+
+    GPT-SoVITS' split_lang dependency explicitly requests the full model,
+    overriding LangDetectConfig.model and otherwise attempting a network download.
+    A custom model path takes precedence for every model selection in the pinned
+    fast-langdetect API. The subprocess owns this configuration and downloader.
+    """
+    infer = module.infer
+    model = Path(infer.__file__).resolve().parent / 'resources' / 'lid.176.ftz'
+    if not model.is_file():
+        raise RuntimeError('缺少离线语言识别模型 lid.176.ftz，请修复或重新安装语音运行环境。')
+    def no_download(*_args, **_kwargs):
+        raise RuntimeError('离线语音不允许下载语言识别模型，请修复语音运行环境。')
+    infer.ModelDownloader.download = staticmethod(no_download)
+    infer._default_detector = infer.LangDetector(infer.LangDetectConfig(
+        model='lite', cache_dir=state_dir, custom_model_path=str(model)))
+
+
 class Engine:
     def __init__(self):
         self.pipeline = None
@@ -138,11 +159,10 @@ class Engine:
             import nltk
             nltk.data.path.insert(0, str(bundled_nltk))
         from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
-        # The lite detector ships with fast-langdetect; do not trigger its
-        # default 126 MB network download during an offline conversation.
+        # The upstream text splitter explicitly requests "full", so a lite
+        # default alone is insufficient to prevent its network download.
         import fast_langdetect
-        fast_langdetect.infer._default_detector = fast_langdetect.infer.LangDetector(
-            fast_langdetect.infer.LangDetectConfig(model="lite", cache_dir=cfg["stateDir"]))
+        configure_offline_language_detection(fast_langdetect, cfg["stateDir"])
         import soundfile as sf
         self.sf = sf
         audio_info = sf.info(cfg["reference"])
@@ -178,7 +198,7 @@ class Engine:
         if not isinstance(texts, list) or not 1 <= len(texts) <= 3:
             raise ValueError("每组合成必须为 1–3 句")
         for text in texts:
-            if not isinstance(text, str) or not text.strip() or not re.search(r"[ぁ-ゖァ-ヺｦ-ﾝ]", text):
+            if not isinstance(text, str) or not text.strip() or (self.cfg.get("speechLanguage", "ja") != "zh" and not re.search(r"[ぁ-ゖァ-ヺｦ-ﾝ]", text)):
                 raise ValueError("每句必须为包含假名的完整日语译文")
         text = "\n".join(texts)
         if len(text) > 500:
@@ -190,13 +210,13 @@ class Engine:
             raise RuntimeError("语音模型尚未加载")
         if not isinstance(text, str) or not text.strip() or len(text) > 500:
             raise ValueError("单段语音文本必须为 1–500 字符")
-        if not re.search(r"[\u3041-\u3096\u30a1-\u30fa\uff66-\uff9d]", text):
+        if self.cfg.get("speechLanguage", "ja") != "zh" and not re.search(r"[\u3041-\u3096\u30a1-\u30fa\uff66-\uff9d]", text):
             raise ValueError("语音仅接受包含假名的完整日语译文，未翻译的中文不会合成。")
         speed = float(speed)
         if not 0.5 <= speed <= 2:
             raise ValueError("语速必须为 0.5–2.0")
         cfg = self.cfg
-        params = {"text": text, "text_lang": "all_ja", "ref_audio_path": cfg["reference"],
+        params = {"text": text, "text_lang": "all_zh" if cfg.get("speechLanguage") == "zh" else "all_ja", "ref_audio_path": cfg["reference"],
                   "prompt_text": cfg["promptText"], "prompt_lang": cfg["promptLang"],
                   # Use the engine's own bounded tensor batch, not competing
                   # threads/model copies. Disable buckets to preserve input order.
