@@ -23,11 +23,13 @@ async function verify(profile){
       if(last.model&&last.rendered&&last.width>0&&last.height>0){
         const visual=await send('Runtime.evaluate',{returnByValue:true,expression:`(()=>{const panel=document.querySelector('.character-panel'),host=document.querySelector('.character-model-host'),canvas=host.querySelector('canvas'),gl=canvas.getContext('webgl2')||canvas.getContext('webgl');document.querySelector('.wardrobe-toggle').click();return {panelBackground:getComputedStyle(panel).backgroundColor,hostBackground:getComputedStyle(host).backgroundColor,webglAlpha:gl?.getContextAttributes()?.alpha,hostOpacity:getComputedStyle(host).opacity}})()`});
         if(visual.exceptionDetails)throw Error('Installed character transparency check failed');const v=visual.result.value;
-        if(v.panelBackground!=='rgba(0, 0, 0, 0)'||v.hostBackground!=='rgba(0, 0, 0, 0)'||v.webglAlpha!==true||v.hostOpacity!=='1')throw Error('Installed viewport is not transparent with an opaque character: '+JSON.stringify(v));
+        // The surrounding panel is intentionally translucent glass. Only the
+        // model host itself must be transparent and the rendered character opaque.
+        if(v.hostBackground!=='rgba(0, 0, 0, 0)'||v.webglAlpha!==true||v.hostOpacity!=='1')throw Error('Installed viewport is not transparent with an opaque character: '+JSON.stringify(v));
         await pause(400);
-        const wardrobe=await send('Runtime.evaluate',{returnByValue:true,expression:`(()=>{const panel=document.querySelector('.wardrobe-panel'),host=document.querySelector('.character-model-host'),a=panel?.getBoundingClientRect(),b=host.getBoundingClientRect(),cards=[...document.querySelectorAll('.wardrobe-panel .skin-card')];const value={count:cards.length,labels:cards.map(x=>x.getAttribute('aria-label')),overlap:!!a&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top,baseLabel:panel?.textContent.includes('基础版')};document.querySelector('.wardrobe-panel [aria-label="关闭服装面板"]')?.click();return value})()`});
+        const wardrobe=await send('Runtime.evaluate',{returnByValue:true,expression:`(()=>{const panel=document.querySelector('.wardrobe-panel'),owner=document.querySelector('.character-panel'),a=panel?.getBoundingClientRect(),b=owner.getBoundingClientRect(),cards=[...document.querySelectorAll('.wardrobe-panel .skin-card')],close=panel?.querySelector('[aria-label="关闭服装面板"]');const value={count:cards.length,labels:cards.map(x=>x.getAttribute('aria-label')),inside:!!a&&owner.contains(panel)&&a.width>0&&a.height>0&&a.left>=b.left-1&&a.right<=b.right+1&&a.top>=b.top-1&&a.bottom<=b.bottom+1,close:!!close,baseLabel:panel?.textContent.includes('基础版')};close?.click();return value})()`});
         if(wardrobe.exceptionDetails)throw Error('Installed wardrobe check failed');const w=wardrobe.result.value;
-        if(w.count!==7||w.overlap||w.baseLabel)throw Error('Installed wardrobe groups or placement incorrect: '+JSON.stringify(w));
+        if(w.count!==7||!w.inside||!w.close||w.baseLabel)throw Error('Installed wardrobe groups or placement incorrect: '+JSON.stringify(w));
         console.log(JSON.stringify({...last,transparency:v,wardrobe:w}));return {...last,transparency:v,wardrobe:w};
       }
       await pause(500);
