@@ -92,5 +92,6 @@ jobs:
             build/base-installer-review/*.png
             build/base-installer-review/report.json
             build/base-installer-review/watchdog.json
+            build/base-installer-review/native-smoke.log
           if-no-files-found: warn
           retention-days: 14

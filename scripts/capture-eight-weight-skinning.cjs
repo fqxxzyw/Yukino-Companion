@@ -153,14 +153,17 @@ async function runCapture(argv = process.argv, electron = require('electron')) {
     report.execution = 'fixture_completed';
     report.fixture = result;
     // Capture failure evidence too; a fixture pass is not inferred from PNG size.
-    await evaluate('(async () => { window.scrollTo(0, 0); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); })()');
+    // A visible Electron window may be occluded by another app on a Windows
+    // runner, in which case requestAnimationFrame can pause indefinitely.
+    // capturePage still performs a real compositor capture; do not use an
+    // animation-frame callback as a prerequisite for taking that evidence.
+    await evaluate('window.scrollTo(0, 0)');
     await screenshot('overview.png');
     const rows = await evaluate('document.querySelectorAll("#gallery section").length');
     for (let i = 0; i < Math.min(rows, REQUIRED_CASES.length); i++) {
-      const rect = await evaluate(`(async () => {
+      const rect = await evaluate(`(() => {
         const row = document.querySelectorAll('#gallery section')[${i}];
         row.scrollIntoView({block: 'center'});
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const box = row.getBoundingClientRect();
         return {x: Math.max(0, Math.floor(box.left)), y: Math.max(0, Math.floor(box.top)),
           width: Math.min(Math.ceil(box.width), innerWidth - Math.max(0, Math.floor(box.left))),
@@ -178,5 +181,11 @@ async function runCapture(argv = process.argv, electron = require('electron')) {
   await finish();
 }
 
-module.exports = {REQUIRED_CASES, isAllowedLocalRequest, validateFixtureResult, captureExitCode, runCapture};
-if (require.main === module) runCapture().catch(error => { console.error(error); require('electron').app.exit(1); });
+// Electron CLI loads a script through its own default app, so require.main is
+// "electron" instead of this module. Match the explicitly requested script;
+// importing this helper from another Electron app must remain side-effect free.
+function isCaptureEntrypoint({main, current, electron, argv}) {
+  return main === current || Boolean(electron && argv[1] && path.resolve(argv[1]) === current.filename);
+}
+module.exports = {REQUIRED_CASES, isAllowedLocalRequest, validateFixtureResult, captureExitCode, runCapture, isCaptureEntrypoint};
+if (isCaptureEntrypoint({main:require.main,current:module,electron:process.versions.electron,argv:process.argv})) runCapture().catch(error => { console.error(error); require('electron').app.exit(1); });
