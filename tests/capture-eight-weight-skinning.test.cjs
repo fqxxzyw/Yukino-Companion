@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const {pathToFileURL} = require('node:url');
-const {REQUIRED_CASES, validateFixtureResult, isAllowedLocalRequest, captureExitCode, runCapture} = require('../scripts/capture-eight-weight-skinning.cjs');
+const {REQUIRED_CASES, validateFixtureResult, isAllowedLocalRequest, captureExitCode, runCapture, isCaptureEntrypoint} = require('../scripts/capture-eight-weight-skinning.cjs');
 const root = path.resolve(__dirname, '..');
 function exampleResult() {
   return {done: true, passed: true, renderer: 'TEST CONTRACT ONLY — NOT A GPU RESULT', errors: [],
@@ -14,6 +14,13 @@ function exampleResult() {
     negativeControl: {passed: true, pixelsOver3: 1000},
     shadowNegativeControls: ['directional-shadow', 'point-shadow'].map(name => ({name, passed: true, pixelsOver3: 100}))};
 }
+test('Electron CLI starts the capture while importing it remains side-effect free', () => {
+  const current={filename:path.join(root,'scripts/capture-eight-weight-skinning.cjs')},other={filename:'electron'};
+  assert.equal(isCaptureEntrypoint({main:other,current,electron:'45',argv:['electron','scripts/capture-eight-weight-skinning.cjs']}),true);
+  assert.equal(isCaptureEntrypoint({main:other,current,electron:'45',argv:['electron','other.cjs']}),false);
+  assert.equal(isCaptureEntrypoint({main:other,current,electron:undefined,argv:['node','scripts/capture-eight-weight-skinning.cjs']}),false);
+  assert.equal(isCaptureEntrypoint({main:current,current,electron:undefined,argv:['node']}),true);
+});
 test('skin8 harness accepts a complete comparison contract, not a pass flag alone', () => {
   assert.equal(validateFixtureResult(exampleResult()), true);
   assert.throws(() => validateFixtureResult({done: true, passed: true}), /renderer/);

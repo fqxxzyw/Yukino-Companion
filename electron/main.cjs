@@ -1,6 +1,7 @@
 const {canUseSkin}=require('./skin-policy.cjs');
 const electron = require('electron');
-const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard, nativeImage} = electron;
+const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard, nativeImage, screen} = electron;
+const {mainWindowSize}=require('./main-window-size.cjs');
 const development = require('./development.cjs').configureDevelopment(app);
 if (development.enabled) {
   console.log(`[development] userData=${development.directory}`);
@@ -146,7 +147,7 @@ else {
     }});
     session.defaultSession.setPermissionRequestHandler((contents,permission,callback,details)=>{if(permission==='geolocation')sceneLocation.request(contents,permission,callback,details);else callback(canUseMicrophone(contents,permission,details));});
     session.defaultSession.setPermissionCheckHandler?.((contents,permission,_origin,details)=>permission==='geolocation'?sceneLocation.check(contents,permission,details):canUseMicrophone(contents,permission,details));
-    win = new BrowserWindow({width:1280,height:840,minWidth:760,minHeight:580,frame:false,icon:path.join(__dirname,'../dist/yukino-icon.png'),backgroundColor:'#f1f6fc',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+    win = new BrowserWindow({...mainWindowSize(screen.getPrimaryDisplay().workAreaSize),frame:false,icon:path.join(__dirname,'../dist/yukino-icon.png'),backgroundColor:'#f1f6fc',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
     let speechClockReady=true;
     win.webContents.setWindowOpenHandler(() => ({action:'deny'}));
     win.webContents.on('will-navigate', event => event.preventDefault());
