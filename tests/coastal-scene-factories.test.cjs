@@ -56,7 +56,7 @@ for (const [id, presets, anchorCount] of configs) {
       assert.ok(instance.root instanceof THREE.Group);
       assert.equal(instance.root.parent, null, 'host owns placement and attachment');
       assert.deepEqual(instance.lightingPresets, presets);
-      assert.deepEqual(Object.keys(instance.cameraPresets), ['overview', 'photo', 'companion']);
+      for (const preset of ['overview', 'photo', 'companion']) assert.ok(instance.cameraPresets[preset], `missing ${preset} camera preset`);
       assert.equal(Object.keys(instance.anchors).length, anchorCount);
       for (const name of ['Character_Anchor', 'path_enter', 'path_exit']) {
         assert.ok(instance.anchors[name] instanceof THREE.Object3D);

@@ -133,7 +133,7 @@ export class Diorama {
   const previous={background:this.scene.background,fog:this.scene.fog};const bg=new T.Color(background),fog=new T.FogExp2(background,.003);this.scene.background=bg;this.scene.fog=fog;
   this.scene.add(this.root);
   const presets=['morning','day','evening','night'];
-  const setLighting=id=>{if(!presets.includes(id))return false;const night=id==='night',evening=id==='evening';bg.set(night?'#172433':evening?'#b9a59b':background);this.scene.background=bg;this.scene.fog=fog;fog.color.copy(bg);sun.intensity=night?.5:2.8;hemi.intensity=night?.85:1.7;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;for(const l of this.lamps){const v=night?l.night:evening?l.night*.7:l.day;if(l.light)l.light.intensity=l.intensity*v;if(l.material)l.material.emissiveIntensity=v;}return true;};
+  const setLighting=id=>{if(!presets.includes(id))return false;const night=id==='night',evening=id==='evening';bg.set(night?'#172433':evening?'#b9a59b':background);this.scene.background=bg;this.scene.fog=fog;fog.color.copy(bg);sun.intensity=night?.5:2.8;hemi.intensity=night?.85:1.7;if(this.renderer){this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;}for(const l of this.lamps){const v=night?l.night:evening?l.night*.7:l.day;if(l.light)l.light.intensity=l.intensity*v;if(l.material)l.material.emissiveIntensity=v;}return true;};
   setLighting('day');
   const anchor=this.group('Character_Anchor',[0,0,3]);
   return {root:this.root,framingRoot,bounds,anchors:{character:anchor,Character_Anchor:anchor},cameraPresets:{overview:{direction:overview,fov:36,padding:1.04},photo,companion},lightingPresets:presets,setLighting,
