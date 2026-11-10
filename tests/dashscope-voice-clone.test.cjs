@@ -20,6 +20,19 @@ test('untrusted, missing and invalid recordings cannot reach the network',async(
  await service.selectRecording(await wav());await assert.rejects(service.create({config:{...config,providerId:'custom'},credentials,authorized:true}),/百炼/);
  await assert.rejects(service.create({config,credentials,authorized:true,language:'invalid'}),/语言/);assert.equal(sent,0);
 });
+test('a selected MP4 uses the local extractor and uploads only the resulting WAV',async t=>{
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-clone-media-test-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));
+ const file=path.join(directory,'sample.mp4'),video=Buffer.alloc(80,0x56),audio=Buffer.from(await wav());
+ await fs.writeFile(file,video);
+ const calls=[],service=new VoiceCloneService({
+  extractAudio:async selected=>{assert.equal(selected,file);return audio;},
+  fetcher:async(url,options)=>{calls.push(JSON.parse(options.body));return new Response(JSON.stringify({output:{voice_id:'voice-1'}}));},
+ });
+ assert.deepEqual(await service.selectFile(file),{name:'sample.mp4',bytes:audio.length,extracted:true});
+ assert.equal(calls.length,0);
+ await service.create({config,credentials,authorized:true});
+ assert.equal(calls[0].input.audio,`data:audio/wav;base64,${audio.toString('base64')}`);
+});
 test('cancellation aborts in-flight upload and late responses cannot claim a created voice',async()=>{
  let complete;const service=new VoiceCloneService({fetcher:()=>new Promise(resolve=>{complete=resolve})});await service.selectRecording(await wav());
  const running=service.create({config,credentials,authorized:true});service.cancel();complete(new Response(JSON.stringify({output:{voice_id:'late'}}),{status:200}));

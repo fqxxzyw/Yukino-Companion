@@ -60,12 +60,13 @@ export function getSkinStatus(model,{relationship,usedDates}={}){
  const affection=Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):35;
  const totalDays=normalizeUsedDates(usedDates).lifetimeCount;
  const current=rule.kind==='affinity'?affection:rule.kind==='used-days'?totalDays:0;
- const eligible=rule.kind==='base'||(rule.kind!=='unconfigured'&&current>=rule.target);
+ const preview=relationship?.skinPreviewEnabled===true;
+ const eligible=preview||rule.kind==='base'||(rule.kind!=='unconfigured'&&current>=rule.target);
  const hold=model?.hold===true||/hold/i.test(String(model?.status||''));
  const available=model?.ready===true&&!hold;
  const requirement=rule.kind==='affinity'?`好感 ${Math.floor(affection)} / ${rule.target}`:rule.kind==='used-days'?`已使用 ${Math.min(totalDays,rule.target)} / ${rule.target} 个不同日期`:rule.kind==='unconfigured'?'解锁条件尚未配置':'默认可用';
- const reason=hold?'模型仍待确认，暂不可选':!available?'模型资源尚未准备好':eligible?(rule.kind==='base'?'默认可用':'已解锁'):requirement;
- return {id:model?.id||'',rule,affection,totalDays,current,target:rule.target,eligible,available,hold,unlocked:eligible&&available,progress:rule.kind==='base'?1:rule.kind==='unconfigured'?0:Math.min(1,Math.max(0,current/rule.target)),requirement,reason};
+ const reason=hold?'模型仍待确认，暂不可选':!available?'模型资源尚未准备好':preview&&rule.kind!=='base'?'本地预览':eligible?(rule.kind==='base'?'默认可用':'已解锁'):requirement;
+ return {id:model?.id||'',rule,affection,totalDays,current,target:rule.target,eligible,available,hold,preview,unlocked:eligible&&available,progress:rule.kind==='base'?1:rule.kind==='unconfigured'?0:Math.min(1,Math.max(0,current/rule.target)),requirement,reason};
 }
 // Deterministic user-command routing only. Model/assistant text cannot grant an
 // unlock or issue an automatic skin command, and all seven base outfits must pass.

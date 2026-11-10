@@ -9,7 +9,8 @@ const petQuotes = require('./companion-view/quotes.json');
 const {CompanionReminderPolicy,validateReminderConfig,validateProactiveConfig,withinHours,PROACTIVE_DEFAULTS}=require('./companion-reminders.cjs');
 const {speechSnapshot}=require('./speech-snapshot.cjs');
 const {verifyVideoPreviewPack,VIDEO_GAIT}=require('./companion-video-pack.cjs');
-const {validBody,clampSubject}=require('./companion-geometry.cjs');
+const {validBody,clampSubject,planDesktopAlignment,planDesktopAlignmentCandidates}=require('./companion-geometry.cjs');
+const {animateWindowBounds}=require('./window-bounds-transition.cjs');
 const MODES = new Set(['none', 'model', 'pet', 'both']);
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'model', 'pet', 'both']);
 const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'ask', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,proactive:PROACTIVE_DEFAULTS,...PET_DEFAULTS });
@@ -34,7 +35,9 @@ function sanitizePreferences(value = {}, base = DEFAULTS) {
     const p = next.positions?.[kind];
     if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) positions[kind] = { x: Math.round(p.x), y: Math.round(p.y), ...(validBody(p.body)?{body:validBody(p.body)}:{}) };
   }
-  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes,proactive, mode: next.mode, petRenderer:next.petRenderer, closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, mouseThrough:next.mouseThrough, animation: !!next.animation, positions };
+  // Older settings may contain the retired 3D video preview. Preserve every
+  // other setting while returning the desktop pet to its original sprite.
+  return { ...petPreferences(next),breakReminders:reminder.enabled,breakIntervalMinutes:reminder.intervalMinutes,proactive, mode: next.mode, petRenderer:'sprite', closeAction: next.closeAction, bubbleLanguage: next.bubbleLanguage, position: next.position, inputPosition:next.inputPosition, scale: next.scale, alwaysOnTop: !!next.alwaysOnTop, mouseThrough:next.mouseThrough, animation: !!next.animation, positions };
 }
 function kindsForMode(mode) { return mode === 'both' ? ['model', 'pet'] : mode === 'none' ? [] : [mode]; }
 function clampBounds(bounds, area) {
@@ -167,30 +170,55 @@ class CompanionManager {
   }
   attachMainWindow(win) {
     this.mainWindow = win;
-    const refresh = () => this.refreshActivity();
+    const refresh = () => {
+      if(!this.handoffActive&&!this.preparingHandoff){
+        if(this.mainOwnsModel())this.suppressDesktopModel();
+        else {
+          const model=this.windows.get('model');
+          if(model&&!model.isDestroyed()&&model.handoffSuppressed&&kindsForMode(this.effectiveMode()).includes('model')){
+            model.handoffSuppressed=false;this.opacity(model,1);model.showInactive?.();
+          }
+        }
+      }
+      this.refreshActivity();
+    };
     for (const event of ['show','hide','minimize','restore','closed']) win.on(event, refresh);
     win.on('close', event => {
       if (this.quitting) return;
       event.preventDefault();
-      if (this.preferences.closeAction === 'quit') { this.quit(); return; }
+      if (this.preferences.closeAction === 'quit') { this.closeFeedback('start');this.quit(); return; }
       if (this.preferences.closeAction === 'ask') { this.onCloseRequested(); return; }
-      try {
-        this.preferences = sanitizePreferences({ mode: this.preferences.closeAction }, this.preferences);
-        const sequence=++this.handoffSequence;
-        this.alignNext=this.appAvatarRect?true:false; this.preparingHandoff=true;
-        this.applyMode(); this.prepareDesktopAlignment(); this.alignNext=false; this.preparingHandoff=false; this.handoffToDesktop(sequence).catch(this.onError); this.persist().catch(this.onError); this.emit();
-      } catch (error) { this.alignNext=false;this.preparingHandoff=false;this.recoverHandoff(error); }
+      this.closeChoice(this.preferences.closeAction).catch(this.onError);
     });
+    if(this.mainOwnsModel())this.suppressDesktopModel();
     this.refreshActivity();
   }
+  mainOwnsModel() { const main=this.mainWindow;return !!main&&!main.isDestroyed()&&main.isVisible()&&!main.isMinimized(); }
+  suppressDesktopModel() { const model=this.windows.get('model');if(!model||model.isDestroyed())return;model.handoffSuppressed=true;if(model.isVisible())model.hide(); }
   refreshActivity() {
     const main = this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible() && !this.mainWindow.isMinimized();
     const companion = [...this.windows.values()].some(w => !w.isDestroyed() && w.isVisible());
     this.usage.update({ main: !this.quitting && !!main, companion: !this.quitting && companion });
   }
-  getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), proactiveStatus:{...this.proactiveStatus}, usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
+  getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), effectiveMode:this.effectiveMode(), proactiveStatus:{...this.proactiveStatus}, usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
   updatePrefs(patch) { return this.setPreferences(patch); }
-  async closeChoice(mode, {remember=false}={}) { const sequence=++this.handoffSequence; if(remember && CLOSE_ACTIONS.has(mode))await this.setPreferences({closeAction:mode}); if(sequence!==this.handoffSequence)return this.getState(); if (mode === 'quit') { this.quit(); return; } if (!MODES.has(mode)) throw Error('无效的关闭选项'); this.alignNext=this.appAvatarRect?true:false; this.preparingHandoff=true; try { await this.setMode(mode); } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); throw error; } finally { this.alignNext=false; this.preparingHandoff=false; } if(sequence===this.handoffSequence)await this.handoffToDesktop(sequence); return this.getState(); }
+  closeFeedback(phase) { const win=this.mainWindow;if(win&&!win.isDestroyed())win.webContents.send('close-feedback',{phase}); }
+  async closeChoice(mode, {remember=false}={}) {
+    if(mode!=='quit'&&!MODES.has(mode))throw Error('无效的关闭选项');
+    const sequence=++this.handoffSequence;
+    this.closeFeedback('start');
+    try {if(remember&&CLOSE_ACTIONS.has(mode))await this.setPreferences({closeAction:mode});}
+    catch(error){if(sequence===this.handoffSequence)this.closeFeedback('end');throw error;}
+    if(sequence!==this.handoffSequence)return this.getState();
+    if(mode==='quit'){this.quit();return;}
+    this.closeMode=mode;this.alignNext=!!this.appAvatarRect;this.preparingHandoff=true;this.prepareHandoffView(sequence);
+    try {this.applyMode();this.prepareDesktopAlignment();const model=this.windows.get('model');if(model)this.sendState(model,'model');await this.persist();}
+    catch(error){if(sequence===this.handoffSequence)this.recoverHandoff(error);throw error;}
+    finally{this.alignNext=false;this.preparingHandoff=false;}
+    if(sequence===this.handoffSequence)await this.handoffToDesktop(sequence);
+    if(sequence===this.handoffSequence)this.closeFeedback('end');
+    return this.getState();
+  }
   async setPreferences(patch) {
     if (this.preferencesReadError) {
       await fs.copyFile(path.join(this.dataDir, 'companions.json'), path.join(this.dataDir, `companions.corrupt-${Date.now()}.json`));
@@ -198,6 +226,7 @@ class CompanionManager {
     }
     const previousPosition = this.preferences.position, previousRenderer = this.preferences.petRenderer;
     const next = sanitizePreferences(patch, this.preferences);
+    if(Object.hasOwn(patch,'mode')){this.closeMode=null;if(this.handoffActive||this.preparingHandoff){this.handoffSequence++;this.closeFeedback('end');const main=this.mainWindow;if(main&&!main.isDestroyed()&&main.isVisible()){this.suppressDesktopModel();this.opacity(main,1);}for(const [kind,win] of this.windows)if(!win.isDestroyed()&&(kind!=='model'||!this.mainOwnsModel()))this.opacity(win,1);}}
     if(JSON.stringify(next.proactive)!==JSON.stringify(this.preferences.proactive)||next.quietMode||next.focusEnds>Date.now()||next.mode==='none'||!next.showBubbles)this.cancelProactive();
     if(next.startup!==this.preferences.startup){
       if(!this.startupAvailable)throw Error('开机启动仅在已安装的 Windows 或 macOS 版本可设置。');
@@ -210,6 +239,11 @@ class CompanionManager {
     this.reminders.configureProactive(next.proactive);
     if (this.preferences.position !== previousPosition) this.preferences.positions = {};
     this.applyMode();
+    if(Object.hasOwn(patch,'mode')&&kindsForMode(next.mode).includes('model')){
+      const model=this.windows.get('model');
+      if(this.mainOwnsModel())this.suppressDesktopModel();
+      else if(model&&!model.isDestroyed()&&model.handoffSuppressed){model.handoffSuppressed=false;this.opacity(model,1);model.showInactive?.();}
+    }
     for (const [kind, win] of this.windows) {
       const bounds = this.boundsFor(kind);
       const current=win.getBounds();
@@ -220,7 +254,7 @@ class CompanionManager {
     await this.persist(); this.emit(); return this.getState();
   }
   setCharacter(value={}) {
-    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,renderStyle:value.presentation.renderStyle,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
+    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,followTime:value.presentation.followTime!==false,fixedHour:typeof value.presentation.fixedHour==='number'&&Number.isFinite(value.presentation.fixedHour)?Math.min(23+59/60,Math.max(0,value.presentation.fixedHour)):14,renderStyle:value.presentation.renderStyle,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
     // A conversation belongs to the character identity, not the currently worn model.
     // Clear before broadcasting the new identity so no window receives its predecessor's reply.
     if(next.id!==this.character.id){this.cancelProactive();this.walkFraction={x:0,y:0};this.reply=null;this.updateModelReplyLayout();this.setMouthLevel(0);this.clearSpeechSnapshot();}
@@ -240,6 +274,13 @@ class CompanionManager {
   setSpeechBusy(value){this.speechBusy=value===true;if(this.speechBusy)this.cancelProactive();for(const [kind,win] of this.windows){if(this.speechBusy)win.webContents.send('companion-action',{name:'audio-stop'});this.sendState(win,kind);}}
   setChatBusy(value) { this.chatBusy=value===true;if(this.chatBusy){this.reminders.noteInteraction();this.cancelProactive();} for(const [kind,win] of this.windows)this.sendState(win,kind); for(const [kind,win] of this.menus)this.sendState(win,kind,true); this.emit(); }
   setMode(mode) { return this.setPreferences({ mode }); }
+  // A tray choice is an explicit change to the desktop presentation. Keep an
+  // automatic close action in step so reopening and closing chat cannot bring
+  // back a previously selected character. Asking and quitting remain explicit.
+  setTrayMode(mode) {
+    const automatic = ['model','pet','both'].includes(this.preferences.closeAction);
+    return this.setPreferences({mode,...(automatic ? {closeAction:mode==='none'?'ask':mode} : {})});
+  }
   showReply(reply) {
     // Chat already has its own 160k generation limit; never truncate a reply
     // when forwarding it to the desktop windows. Their body scrolls separately.
@@ -276,7 +317,9 @@ class CompanionManager {
   }
   // The renderer reports the in-app character area in DIP. On the next close
   // the desktop model window starts aligned to it instead of the saved corner.
-  setAppAvatarRect(bounds) { if (bounds) this.appAvatarRect = bounds; }
+  setAppAvatarRect(bounds,{relative=false}={}) { if(bounds&&['x','y','width','height'].every(key=>Number.isFinite(bounds[key]))&&bounds.width>0&&bounds.height>0)this.appAvatarRect={...bounds,relative}; }
+  prepareHandoffView(sequence){const view=this.appAvatarRect?.view;this.handoffModelView=view&&Number.isFinite(view.zoom)&&Number.isFinite(view.yaw)?{sequence,zoom:Math.max(1,Math.min(2.2,view.zoom)),yaw:((view.yaw+180)%360+360)%360-180}:null;}
+  resolvedAppAvatarRect(){const rect=this.appAvatarRect;if(!rect)return null;if(!rect.relative)return rect;const main=this.mainWindow;if(!main||main.isDestroyed()||typeof main.getContentBounds!=='function')return null;const content=main.getContentBounds();return {...rect,x:content.x+rect.x,y:content.y+rect.y};}
   boundsFor(kind) {
     const scale = this.preferences.scale;
     const saved = this.preferences.positions[kind];
@@ -287,20 +330,24 @@ class CompanionManager {
     if (kind === 'model' && this.alignNext && this.appAvatarRect) {
       // Mirror the model-window CSS insets (canvas top 56px, bottom 60px), so the
       // 3D canvas lands on the in-app character area during the first close.
-      const rect = this.appAvatarRect, top = 56, bottom = 60;
+      const rect = this.resolvedAppAvatarRect();
+      if(!rect)return clampBounds({x:area.x,y:area.y,width,height},area);
+      const targetArea=this.e.screen.getDisplayNearestPoint({x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}).workArea;
+      const top=this.preferences.inputPosition==='above'?152:56,bottom=this.preferences.inputPosition==='above'?12:60;
       const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
-      const alignedBase=Math.min(area.height,Math.round(rect.height)+top+bottom),alignedExtra=modelReplyExtra(alignedBase,area.height,this.hasModelReply());
+      const alignedBase=Math.min(targetArea.height,Math.round(rect.height)+top+bottom),alignedExtra=modelReplyExtra(alignedBase,targetArea.height,this.hasModelReply());
       this.computedModelExtra=alignedExtra;
-      const aligned={x:Math.round(rect.x),y:Math.round(rect.y-top-alignedExtra),width:Math.min(area.width,Math.max(240,Math.round(rect.width))),height:alignedBase+alignedExtra};
-      return clampSubject(aligned,this.visibleBody(kind,null),areas)||clampBounds(aligned,area);
+      const aligned={x:Math.round(rect.x),y:Math.round(rect.y-top-alignedExtra),width:Math.min(targetArea.width,Math.max(1,Math.round(rect.width))),height:alignedBase+alignedExtra};
+      return clampSubject(aligned,this.visibleBody(kind,null),areas)||clampBounds(aligned,targetArea);
     }
-    const offset = this.preferences.mode === 'both' && kind === 'model' ? viewportSize('pet',scale,area).width+12 : 0;
+    const offset = this.effectiveMode() === 'both' && kind === 'model' ? viewportSize('pet',scale,area).width+12 : 0;
     const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: (saved?.y ?? area.y + area.height - height)-extra, width, height:height+extra };
     const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
     return clampSubject(bounds,this.visibleBody(kind,saved?.body),areas)||clampBounds(bounds,area);
   }
+  effectiveMode(){return this.closeMode??this.preferences.mode;}
   applyMode() {
-    const desired = kindsForMode(this.preferences.mode);
+    const desired = kindsForMode(this.effectiveMode());
     for (const [kind, win] of this.windows) if (!desired.includes(kind)) { if(this.drag?.kind===kind)this.drag=null; this.windows.delete(kind); this.closeMenu(kind); win.destroy(); }
     for (const kind of desired) if (!this.windows.has(kind)) this.createWindow(kind);
     this.refreshActivity(); this.updateTray();
@@ -316,19 +363,36 @@ class CompanionManager {
     const win = new this.e.BrowserWindow({ ...this.boundsFor(kind), transparent: true, frame: false, resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, show: false, alwaysOnTop: this.preferences.alwaysOnTop, hasShadow: false, backgroundColor: '#00000000', webPreferences: { preload: path.join(__dirname, 'companion-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy:'no-user-gesture-required' } });
     if(kind==='model')this.modelExtra=this.computedModelExtra||0;
     this.windows.set(kind, win);
-    if(this.preparingHandoff&&(kind==='model'||!kindsForMode(this.preferences.mode).includes('model'))){
+    if(kind==='model'&&(this.restoringAfterHandoff||this.mainOwnsModel()&&!this.preparingHandoff))win.handoffSuppressed=true;
+    if(this.preparingHandoff&&(kind==='model'||!kindsForMode(this.effectiveMode()).includes('model'))){
       try{this.opacity(win,0);}catch(error){this.windows.delete(kind);if(!win.isDestroyed())win.destroy();throw error;}
     }
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.on('did-finish-load', () => this.sendState(win, kind));
-    win.on('ready-to-show', () => { if (!win.isDestroyed()&&!win.handoffSuppressed) { win.showInactive(); this.refreshActivity(); } });
+    win.on('ready-to-show', () => { if(kind==='model'&&!this.preparingHandoff&&(!this.handoffActive||this.openingMainSequence===this.handoffActive)&&this.mainOwnsModel())win.handoffSuppressed=true;if (!win.isDestroyed()&&!win.handoffSuppressed) { win.showInactive(); this.refreshActivity(); } });
     win.on('closed', () => { this.closeMenu(kind); if (this.windows.get(kind) === win) this.windows.delete(kind); if(this.modelFrame?.win===win)this.modelFrame=null; this.refreshActivity(); });
     const devURL = kind === 'model' && developmentRendererURL(this.e.app, 'model-window.html');
-    (devURL ? win.loadURL(devURL + '?kind=model') : win.loadFile(path.join(__dirname, kind==='model'?'../dist/model-window.html':'companion-view/index.html'), { query: { kind } })).catch(error => this.onError(error));
+    (devURL ? win.loadURL(devURL + '?kind=model') : win.loadFile(path.join(__dirname, kind==='model'?'../dist/model-window.html':'companion-view/index.html'), { query: { kind } })).catch(error => this.handleWindowLoadFailure(kind,win,error));
     return win;
   }
-  sendState(win, kind, menu=false) { if (!win.isDestroyed()) win.webContents.send('companion-state', { kind, menu, playbackPaused:this.pauses.size>0, speechBusy:this.speechBusy===true, chatBusy:this.chatBusy, visionActive:this.visionActive, viewportScale:Math.min(this.preferences.scale,Math.max(.25,(win.getBounds().height-190)/(kind==='pet'?208:280)),Math.max(.25,(win.getBounds().width-28)/192)), startupAvailable:this.startupAvailable, preferences: this.preferences, voiceRevision:this.voiceRevision||0, reply: this.reply, focus:{active:this.preferences.focusEnds>Date.now(),remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, character:{...this.character}, modelReady:Boolean(this.character.modelId) }); }
+  handleWindowLoadFailure(kind,win,error) {
+    // A navigation rejected after a later mode switch belongs to a retired
+    // window, and must not undo that newer selection.
+    if(this.quitting||this.windows.get(kind)!==win||win.isDestroyed())return;
+    if(kind==='model'&&!this.mainOwnsModel()&&!this.preparingHandoff&&!this.handoffActive){
+      // A failed renderer has no controls to explain or repair the problem.
+      // Keep the selected mode and an independently requested pet, but retire
+      // the failed window so selecting the same mode can create it afresh.
+      this.windows.delete(kind);win.destroy();
+      const main=this.mainWindow;
+      if(main&&!main.isDestroyed()){try{this.opacity(main,1);main.show();main.restore();main.focus();}catch{}}
+      else this.onOpenMain();
+      this.updateTray();this.refreshActivity();this.emit();
+    }
+    this.onError(error);
+  }
+  sendState(win, kind, menu=false) { if (!win.isDestroyed()) win.webContents.send('companion-state', { kind, menu, playbackPaused:this.pauses.size>0, speechBusy:this.speechBusy===true, chatBusy:this.chatBusy, visionActive:this.visionActive, viewportScale:Math.min(this.preferences.scale,Math.max(.25,(win.getBounds().height-190)/(kind==='pet'?208:280)),Math.max(.25,(win.getBounds().width-28)/192)), startupAvailable:this.startupAvailable, preferences: this.preferences, voiceRevision:this.voiceRevision||0, reply: this.reply, focus:{active:this.preferences.focusEnds>Date.now(),remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, character:{...this.character}, modelReady:Boolean(this.character.modelId),handoffModelView:kind==='model'?this.handoffModelView:undefined }); }
   async viewCall(event, action, payload) {
     const entry = [...this.windows,...this.menus].find(([, win]) => !win.isDestroyed() && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame);
     if (!entry) throw Error('不允许的桌宠调用');
@@ -343,6 +407,11 @@ class CompanionManager {
     }
     if(action==='model-character'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型配置');return {...this.character};}
     if(action==='model-catalog'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型目录');return this.onModelCatalog();}
+    if(action==='model-view'){
+      const rect=payload?.rect,view=payload?.view;
+      if(isMenu||kind!=='model'||!rect||!view||!['x','y','width','height'].every(key=>Number.isFinite(rect[key]))||rect.width<=0||rect.height<=0||rect.width>10000||rect.height>10000||Math.abs(rect.x)>10000||Math.abs(rect.y)>10000||!Number.isFinite(view.zoom)||view.zoom<1||view.zoom>2.2||!Number.isFinite(view.yaw)||Math.abs(view.yaw)>180)throw Error('无效的人物视图');
+      this.desktopModelView={win,id:this.character.modelId,rect:{...rect},view:{zoom:view.zoom,yaw:view.yaw}};return true;
+    }
     if(action==='model-data'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型资源');const id=payload===undefined?this.character.modelId:payload;if(typeof id!=='string'||!id||id!==this.character.modelId)throw Error('请选择当前人物的模型资源');this.modelFrame=null;return this.onModelData(id);}
     if(action==='model-frame'||action==='model-frame-error'){
       if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('无效的人物渲染状态');
@@ -354,11 +423,11 @@ class CompanionManager {
       if(this.chatBusy)throw Error('正在回复，请先停止当前回复。');
       if(typeof payload!=='string'||!payload.trim()||payload.length>24000||/[\r\n]/.test(payload))throw Error('请输入单行消息，最多 24000 字符。');
       this.setChatBusy(true);
-      try {const accepted=await this.onChat(payload.trim());if(accepted===false){this.setChatBusy(false);throw Error('聊天尚未准备好，请打开主窗口检查对话设置。');}return true;}catch(error){this.setChatBusy(false);throw error;}
+      try {const accepted=await this.onChat(payload.trim(),{owner:win,kind});if(accepted===false){this.setChatBusy(false);throw Error('聊天尚未准备好，请打开主窗口检查对话设置。');}return true;}catch(error){this.setChatBusy(false);throw error;}
     }
     if(action==='chat-stop'){await this.onChatStop();return true;}
     if(action==='vision-stop'){await this.onVisionStop();return true;}
-    if(action==='vision-open'){const opened=await this.onVision(win,kind);if(opened===false)throw Error('视觉窗口已关闭，请重新打开。');return true;}
+    if(action==='vision-open'){const options=payload?.mode==='camera'?{mode:'camera'}:undefined;const opened=await this.onVision(win,kind,options);if(opened===false)throw Error('视觉窗口已关闭，请重新打开。');return true;}
     if (action === 'catalog') return {voices:(this.voiceCatalog?.files||[]).map(item=>item.file).filter(name=>/^[A-Za-z0-9_-]+\.ogg$/.test(name))};
     if (action === 'voice-url') {if(this.speechBusy)throw Error('角色正在朗读，请等待或停止。');return this.voiceUrl(payload);}
     if (action === 'settings') { this.closeMenu(kind); this.openMain(); this.onOpenSettings('avatar'); return true; }
@@ -366,7 +435,7 @@ class CompanionManager {
     if (action === 'action'){this.reminders.noteInteraction();this.onUse();return this.performAction(payload);}
     if (action === 'quote') return this.pickQuote(payload);
     if (action === 'cursor') { const cursor=this.e.screen.getCursorScreenPoint();const bounds=win.getBounds();return {x:cursor.x-bounds.x,y:cursor.y-bounds.y}; }
-    if (action === 'hide') return this.setMode(this.preferences.mode === 'both' ? (kind === 'pet' ? 'model' : 'pet') : 'none');
+    if (action === 'hide') return this.setMode(this.effectiveMode() === 'both' ? (kind === 'pet' ? 'model' : 'pet') : 'none');
     if (action === 'quit') {this.quit();return true;}
     if (action === 'ready') { this.sendState(win, kind,isMenu); return true; }
     if (action === 'open-main') { this.openMain(); return true; }
@@ -453,7 +522,7 @@ class CompanionManager {
     if(this.preferences.petRenderer==='video-preview'&&this.character.id==='yukino'&&['greet','head-tilt','jump','sit'].includes(action))throw Error('连续动画预览仅支持待机、左右散步和拖动位置；其他动作请切回原 Q 版桌宠。');
     if(action==='focus-cancel'){await this.setPreferences({focusEnds:0});return this.getState();}
     if(action.startsWith('focus-')) { await this.setPreferences({focusEnds:Date.now()+Number(action.slice(6))*60000});return this.getState(); }
-    if(!this.windows.has('pet'))await this.setMode(this.preferences.mode==='model'?'both':'pet');
+    if(!this.windows.has('pet'))await this.setMode(this.effectiveMode()==='model'?'both':'pet');
     const win=this.windows.get('pet');this.closeMenu('pet');
     if(action==='voice'&&!this.preferences.soundEnabled)await this.setPreferences({soundEnabled:true});
     const send=()=>{if(!win.isDestroyed())win.webContents.send('companion-action',{name:action});};
@@ -504,9 +573,11 @@ class CompanionManager {
   currentOpacity(win) { return this.windowOpacity.get(win) ?? win?.getOpacity?.() ?? 1; }
   recoverHandoff(error) {
     this.handoffSequence++;
+    this.closeFeedback('end');
     const main=this.mainWindow,target=this.windows.get('model')||this.windows.get('pet');
     if(target&&!target.isDestroyed()){target.handoffSuppressed=true;try{target.hide();}catch{}try{this.opacity(target,1);}catch{}}
     if(main&&!main.isDestroyed()){try{this.opacity(main,1);}catch{}try{main.show();main.restore();main.focus();}catch{}}
+    this.closeMode=null;this.restoringAfterHandoff=true;try{this.applyMode();}finally{this.restoringAfterHandoff=false;}
     this.refreshActivity();this.emit();this.onError(error);
   }
   async waitForModelFrame(win, id, sequence, timeout=15000) {
@@ -542,48 +613,130 @@ class CompanionManager {
     if (!win || win.isDestroyed() || sequence!==this.handoffSequence) return;
     this.handoffActive=sequence;
     try {
+    const target = this.windows.get('model') || this.windows.get('pet');
+    if(target&&target===this.windows.get('model')&&!this.character.modelId){
+      this.recoverHandoff(new Error('当前角色没有可用的 3D 模型，请先选择模型；已保留主窗口。'));
+      return;
+    }
     // Native opacity is unavailable in some environments (and fake windows):
     // keep the original synchronous hide there.
     if (typeof win.setOpacity !== 'function') {
-      const target = this.windows.get('model') || this.windows.get('pet');
-      if (target && !target.isDestroyed() && !target.isVisible()) target.showInactive?.();
-      if(sequence===this.handoffSequence)win.hide(); this.refreshActivity(); this.emit(); return;
+      if(sequence===this.handoffSequence)win.hide();
+      if (target && !target.isDestroyed() && !target.isVisible()) {target.handoffSuppressed=false;target.showInactive?.();}
+      this.refreshActivity(); this.emit(); return;
     }
-    const target = this.windows.get('model') || this.windows.get('pet');
     if(target)target.handoffSuppressed=false;
     if (target && !target.isDestroyed() && !target.isVisible() && typeof target.setOpacity === 'function') {
       this.opacity(target,0); target.showInactive();
     }
     if(target){
       const visible=await this.waitForVisible(target,1200,sequence);
-      const ready=visible&&(target!==this.windows.get('model')||!this.character.modelId||await this.waitForModelFrame(target,this.character.modelId,sequence));
+      const ready=visible&&(target!==this.windows.get('model')||await this.waitForModelFrame(target,this.character.modelId,sequence));
       if(sequence!==this.handoffSequence)return;
       if(!ready){this.recoverHandoff(new Error('桌面人物尚未准备好，已保留主窗口。'));return;}
     }
-    const [mainDone]=await Promise.all([this.fadeWin(win,this.currentOpacity(win),0,260,sequence),target?this.fadeWin(target,this.currentOpacity(target),1,200,sequence):Promise.resolve(true)]);
+    // The two renderers must never be visible together. Prepare the desktop
+    // model at zero opacity, then transfer ownership after the main is hidden.
+    const isModel=target===this.windows.get('model');
+    const [mainDone]=await Promise.all([this.fadeWin(win,this.currentOpacity(win),0,260,sequence),target&&!isModel?this.fadeWin(target,this.currentOpacity(target),1,200,sequence):Promise.resolve(true)]);
     if(!mainDone)return;
-    if (sequence===this.handoffSequence&&!win.isDestroyed()) { win.hide(); this.opacity(win,1); }
+    if (sequence===this.handoffSequence&&!win.isDestroyed()) { win.hide(); this.opacity(win,1);if(isModel&&target&&!target.isDestroyed())this.opacity(target,1); }
     this.refreshActivity(); this.emit();
     } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); }
     finally {if(this.handoffActive===sequence){this.handoffActive=null;this.updateModelReplyLayout();}}
   }
+  avatarHandoffReady(sequence) {
+    const pending=this.mainAvatarHandoff;
+    if(!pending||pending.sequence!==sequence)return false;
+    pending.resolve(true);return true;
+  }
+  avatarLayoutReady(payload) {
+    const pending=this.avatarLayoutPending;
+    if(!pending||payload?.sequence!==pending.sequence||payload.requestId!==pending.requestId||payload.side!==pending.side||payload.sequence!==this.handoffSequence)return false;
+    const rect=payload.rect;
+    const valid=rect&&['x','y','width','height'].every(key=>Number.isFinite(rect[key]))&&rect.width>0&&rect.height>0&&rect.width<=10000&&rect.height<=10000&&Math.abs(rect.x)<=10000&&Math.abs(rect.y)<=10000;
+    pending.resolve(valid?{rect:{...rect},side:payload.side,preferredSide:['left','right'].includes(payload.preferredSide)?payload.preferredSide:null}:null);
+    return true;
+  }
+  async requestAvatarLayout(win,sequence,side) {
+    if(sequence!==this.handoffSequence||win.isDestroyed())return null;
+    const requestId=(this.avatarLayoutRequestId=(this.avatarLayoutRequestId||0)+1);
+    let timer;
+    const result=new Promise(resolve=>{this.avatarLayoutPending={sequence,requestId,side,resolve};timer=setTimeout(()=>resolve(null),1500);});
+    try{win.webContents.send('avatar-handoff',{phase:'layout',sequence,requestId,side});return await result;}finally{clearTimeout(timer);if(this.avatarLayoutPending?.requestId===requestId)this.avatarLayoutPending=null;}
+  }
   async revealMain() {
     const sequence=++this.handoffSequence;
+    this.closeFeedback('end');
     const win = this.mainWindow;
     if (!win || win.isDestroyed()) { this.onOpenMain(); return false; }
     this.handoffActive=sequence;
+    this.openingMainSequence=sequence;
+    let aligned=false,committed=false,plannedCanvas=null,layoutRequested=false;
     try {
+    const model=this.windows.get('model'),snapshot=this.desktopModelView;
+    const canPlan=!win.isVisible()&&model&&!model.isDestroyed()&&model.isVisible()&&snapshot?.win===model&&snapshot.id===this.character.modelId&&this.appAvatarRect?.relative&&typeof model.getContentBounds==='function'&&typeof model.setBounds==='function'&&typeof win.getContentBounds==='function'&&typeof win.setBounds==='function';
+    if(canPlan){
+      const modelBounds=model.getBounds(),modelContent=model.getContentBounds(),mainBounds=win.getBounds(),contentBounds=win.getContentBounds(),initialFrame=this.appAvatarRect;let frame=initialFrame,plan=null;
+      const area=this.e.screen.getDisplayNearestPoint({x:Math.round(modelBounds.x+modelBounds.width/2),y:Math.round(modelBounds.y+modelBounds.height/2)}).workArea;
+      const modelCanvas={...snapshot.rect,x:snapshot.rect.x+modelContent.x-modelBounds.x,y:snapshot.rect.y+modelContent.y-modelBounds.y};
+      // A visible reply changes the canvas inset as the window resizes. Avoid
+      // guessing that layout while the renderer is reporting changing sizes.
+      if(!this.hasModelReply()&&frame.layoutProtocol){
+        layoutRequested=true;
+        const left=await this.requestAvatarLayout(win,sequence,'left');
+        const right=left&&sequence===this.handoffSequence?await this.requestAvatarLayout(win,sequence,'right'):null;
+        if(sequence!==this.handoffSequence)return false;
+        if(left&&right){
+          plan=planDesktopAlignmentCandidates({workArea:area,mainBounds,contentBounds,frames:{left:left.rect,right:right.rect},modelBounds,modelCanvas,preferredSide:left.preferredSide||right.preferredSide,lockMain:!!win.isMaximized?.()});
+          if(plan){const selected=await this.requestAvatarLayout(win,sequence,plan.side);if(sequence!==this.handoffSequence)return false;if(selected){frame={...selected.rect,view:snapshot.view,relative:true,layoutProtocol:true};plan=planDesktopAlignmentCandidates({workArea:area,mainBounds,contentBounds,frames:{[selected.side]:frame},modelBounds,modelCanvas,preferredSide:selected.preferredSide,lockMain:!!win.isMaximized?.()});if(plan)this.appAvatarRect=frame;}else plan=null;}
+        }
+        if(!plan){win.webContents.send('avatar-handoff',{phase:'cancel',sequence});layoutRequested=false;frame=initialFrame;this.appAvatarRect=initialFrame;}
+      }
+      if(sequence!==this.handoffSequence||win.isVisible()||model.isDestroyed()||!model.isVisible()||this.windows.get('model')!==model||this.character.modelId!==snapshot.id||this.drag?.kind==='model'||['x','y','width','height'].some(key=>model.getBounds()[key]!==modelBounds[key]))return false;
+      if(!plan&&!this.hasModelReply()&&!win.isMaximized?.())plan=planDesktopAlignment({workArea:area,mainBounds,contentBounds,frame,modelBounds,modelCanvas});
+      if(plan){
+        let reduced=!this.preferences.animation;
+        try{reduced||=this.e.systemPreferences?.getAnimationSettings?.()?.prefersReducedMotion===true;}catch{}
+        const canvasInsets={left:modelCanvas.x,right:modelBounds.width-modelCanvas.x-modelCanvas.width,bottom:modelBounds.height-modelCanvas.y-modelCanvas.height};
+        const adjusted=await animateWindowBounds(model,plan.modelBounds,{canvasInsets,isCurrent:()=>sequence===this.handoffSequence&&!win.isVisible()&&!model.isDestroyed()&&model.isVisible()&&this.windows.get('model')===model&&this.character.modelId===snapshot.id&&this.drag?.kind!=='model',reducedMotion:reduced});
+        if(!adjusted||sequence!==this.handoffSequence)return false;
+        if(!win.isMaximized?.())win.setBounds(plan.mainBounds);
+        plannedCanvas=plan.canvas;
+      }
+    }
     if (!win.isVisible() && typeof win.setOpacity === 'function') this.opacity(win,0);
+    // Without native opacity a main window cannot be prepared invisibly.
+    if(typeof win.setOpacity!=='function')this.suppressDesktopModel();
     this.onOpenMain();
     win.show(); win.restore(); win.focus();
-    const mainFade=this.fadeWin(win, this.currentOpacity(win), 1, 260, sequence);
-    const desktop = this.windows.get('model') || this.windows.get('pet');
-    if(desktop)desktop.handoffSuppressed=true;
-    const desktopFade=desktop && !desktop.isDestroyed()?this.fadeWin(desktop, this.currentOpacity(desktop), 0, 200, sequence).then(done => { if (done && sequence===this.handoffSequence && !desktop.isDestroyed()) { desktop.hide(); this.opacity(desktop,1); } }):Promise.resolve();
-    await Promise.all([mainFade,desktopFade]);
+    const currentSnapshot=this.desktopModelView;
+    if(model&&!model.isDestroyed()&&model.isVisible()&&this.character.modelId&&typeof model.getContentBounds==='function'&&(currentSnapshot?.win!==model||currentSnapshot?.id!==this.character.modelId)){this.suppressDesktopModel();this.opacity(win,1);this.onError(new Error('桌面人物视图尚未准备好，已返回主窗口。'));return false;}
+    if(model&&!model.isDestroyed()&&model.isVisible()&&currentSnapshot?.win===model&&this.character.modelId&&typeof model.getContentBounds==='function'&&typeof win.getContentBounds==='function'){
+      const source=model.getContentBounds(),rect=plannedCanvas||{...currentSnapshot.rect,x:source.x+currentSnapshot.rect.x,y:source.y+currentSnapshot.rect.y};
+      const content=win.getContentBounds(),mainBounds=win.getBounds(),appRect=this.appAvatarRect;
+      if(!plannedCanvas&&!win.isMaximized?.()&&typeof win.setPosition==='function'){
+        const offsetX=appRect?.relative?appRect.x+appRect.width/2:content.width/2,offsetY=appRect?.relative?appRect.y+appRect.height/2:content.height/2;
+        const area=this.e.screen.getDisplayNearestPoint({x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}).workArea;
+        const next=clampBounds({...mainBounds,x:Math.round(rect.x+rect.width/2-offsetX-(content.x-mainBounds.x)),y:Math.round(rect.y+rect.height/2-offsetY-(content.y-mainBounds.y))},area);
+        win.setPosition(next.x,next.y,false);
+      }
+      const finalContent=win.getContentBounds();
+      const ready=new Promise(resolve=>{this.mainAvatarHandoff={sequence,resolve};});
+      win.webContents.send('avatar-handoff',{phase:'prepare',sequence,view:currentSnapshot.view,rect:{...rect,x:rect.x-finalContent.x,y:rect.y-finalContent.y}});aligned=true;
+      const prepared=await Promise.race([ready,new Promise(resolve=>setTimeout(()=>resolve(false),1500))]);
+      if(sequence!==this.handoffSequence)return false;
+      if(!prepared){this.suppressDesktopModel();this.opacity(win,1);this.onError(new Error('主窗口人物尚未准备好，请重试。'));return false;}
+    }
+    const desktop = this.windows.get('model');
+    if(desktop&&!desktop.isDestroyed()){desktop.handoffSuppressed=true;desktop.hide();this.opacity(desktop,1);}
+    const mainDone=await this.fadeWin(win, this.currentOpacity(win), 1, 260, sequence);
+    if(!mainDone||sequence!==this.handoffSequence)return false;
+    this.closeMode=null;this.restoringAfterHandoff=true;try{this.applyMode();}finally{this.restoringAfterHandoff=false;}
+    committed=true;
     return true;
-    } catch(error) { if(sequence===this.handoffSequence)this.recoverHandoff(error); return false; }
-    finally {if(this.handoffActive===sequence){this.handoffActive=null;this.updateModelReplyLayout();}}
+    } catch(error) { if(sequence===this.handoffSequence){this.handoffSequence++;this.suppressDesktopModel();if(!win.isDestroyed()){try{this.opacity(win,1);win.show();win.focus();}catch{}}this.onError(error);} return false; }
+    finally {if((aligned||layoutRequested)&&!win.isDestroyed())win.webContents.send('avatar-handoff',{phase:committed?'finish':'cancel',sequence});if(this.mainAvatarHandoff?.sequence===sequence)this.mainAvatarHandoff=null;if(this.openingMainSequence===sequence)this.openingMainSequence=null;if(this.handoffActive===sequence){this.handoffActive=null;if(this.mainOwnsModel())this.suppressDesktopModel();this.updateModelReplyLayout();}}
   }
   openMain() { return this.revealMain(); }
   ensureTray() {
@@ -596,7 +749,7 @@ class CompanionManager {
   updateTray() {
     this.tray?.setContextMenu(this.e.Menu.buildFromTemplate([
       { label: '打开对话', click: () => this.openMain() },
-      ...[['none','隐藏桌面形象'],['model','只显示人物模型'],['pet','只显示桌宠'],['both','同时显示两种形象']].map(([mode,label]) => ({ label,type: 'radio',checked: this.preferences.mode === mode,click: () => this.setMode(mode).catch(this.onError) })),
+      ...[['none','隐藏桌面形象'],['model','只显示人物模型'],['pet','只显示桌宠'],['both','同时显示两种形象']].map(([mode,label]) => ({ label,type: 'radio',checked: this.effectiveMode() === mode,click: () => this.setTrayMode(mode).catch(this.onError) })),
       {label:'人物鼠标穿透',type:'checkbox',checked:this.preferences.mouseThrough,click:item=>this.setPreferences({mouseThrough:!!item.checked}).catch(this.onError)},
       { type: 'separator' }, { label: '完全退出',click: () => this.quit() },
     ]));

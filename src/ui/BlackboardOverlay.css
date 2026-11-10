@@ -1,0 +1,2 @@
+.blackboard-overlay,.blackboard-hit-surface{position:fixed;inset:0;z-index:18;pointer-events:none;background:transparent;border:0;outline:0;box-shadow:none}
+.blackboard-message-image{display:block;width:min(100%,560px);height:auto;max-height:240px;object-fit:contain;margin:0 0 10px;border-radius:6px;background:#183c30}

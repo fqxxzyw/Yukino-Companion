@@ -3,6 +3,13 @@ const hex = c => '#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('
 const blend = (a,b,t) => a.map((v,i)=>v*(1-t)+b[i]*t);
 export function luminance(color) { return rgb(color).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0); }
 export function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
+export function themeBackground(background='#f1f6fc',mode,systemDark=false,sceneNight=false){
+ // Older settings without a theme mode retain their custom background and the
+ // previous scene-night behaviour. Explicit choices are independent of scenes.
+ if(!['light','dark','system'].includes(mode))return sceneNight?'#0d1729':background;
+ const dark=mode==='system'?systemDark:mode==='dark';
+ return (luminance(background)<.3)===dark?background:dark?'#111b2c':'#f1f6fc';
+}
 export function readableAccent(accent,surface,otherSurface=surface) {
   const start=rgb(accent), toward=luminance(surface)<.3?[255,255,255]:[0,0,0];
   for(let t=0;t<=1;t+=.025){const color=hex(blend(start,toward,t));if(Math.min(contrast(color,surface),contrast(color,otherSurface))>=4.6)return color;}

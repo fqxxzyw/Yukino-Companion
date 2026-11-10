@@ -11,6 +11,7 @@ import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
 import {sunlightConfig} from './sunlight.mjs';
 import {walkingContract,travelDistance,makeWalkingPlan,sampleWalkingPlan} from './walking-transition.mjs';
+import {prepareCustomStanding} from './custom-standing.mjs';
 export function reviewBlinkModelAllowed(entry,optIn){return optIn===true&&entry?.reviewOnly===true&&entry.id===BLINK_REVIEW_MODEL.id&&entry.sha256===BLINK_REVIEW_V5.assetSha256;}
 export function selectModel(catalog,id,{reviewOptIn=false}={}){return catalog.find(item=>item.id===id&&item.url&&(item.reviewOnly||item.sha256===BLINK_REVIEW_V5.assetSha256?reviewBlinkModelAllowed(item,reviewOptIn):item.ready))||null}
 export function microClipNames(entry,clips){if(entry?.custom)return [];return Object.keys(entry?.clips||{}).filter(name=>entry.clips[name].loop===false&&entry.clips[name].autonomous!==false&&clips?.has(name))}
@@ -45,7 +46,7 @@ export class GlbAvatarRenderer{
   this.blinkVisibility=()=>{if(document.hidden){this.resetBlink();this.resetGarment();}};document.addEventListener('visibilitychange',this.blinkVisibility);
   this.contextLost=event=>{event.preventDefault();this.resetBlink();this.resetGarment();this.onStatus({phase:'error',message:'图形设备暂不可用，请重新选择模型或重启应用。'})};this.gl.domElement.addEventListener('webglcontextlost',this.contextLost);
  }
- resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;if(this.walkingMotion)this.resetTransition({finish:true});this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.fitCamera();}
+ resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;const ratio=Math.min(globalThis.devicePixelRatio||1,1.75);if(this.resizeWidth===width&&this.resizeHeight===height&&this.resizeRatio===ratio)return;if(this.walkingMotion)this.resetTransition({finish:true});if(this.resizeRatio!==undefined&&this.resizeRatio!==ratio)this.gl.setPixelRatio(ratio);this.resizeWidth=width;this.resizeHeight=height;this.resizeRatio=ratio;this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.fitCamera();if(this.root&&this.visible!==false&&!document.hidden)this.gl.render(this.scene,this.camera);}
  hitTest(x,y){return modelHitTest({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,raycaster:this.hitRaycaster||=new THREE.Raycaster()});}
  fitCamera(){
   const width=this.container?.clientWidth,height=this.container?.clientHeight;
@@ -71,7 +72,12 @@ export class GlbAvatarRenderer{
   if(bytes.byteLength!==entry.bytes)throw Error('人物模型大小校验失败。');
   const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(value=>value.toString(16).padStart(2,'0')).join('');if(digest!==entry.sha256)throw Error('人物模型 SHA-256 校验失败。');
   const json=assertEmbeddedAsset(bytes),skinning=assertSupportedSkinWeights(json,bytes);
-  const gltf=await new GLTFLoader().parseAsync(bytes,'');
+  const loader=new GLTFLoader();
+  if(entry.custom&&json.extensions?.VRMC_vrm?.specVersion==='1.0'){
+   const {VRMLoaderPlugin}=await import('@pixiv/three-vrm');
+   loader.register(parser=>new VRMLoaderPlugin(parser,{autoUpdateHumanBones:false}));
+  }
+  const gltf=await loader.parseAsync(bytes,'');
   if(signal?.aborted||this.disposed){disposeObject(gltf.scene);signal?.throwIfAborted();throw Error('人物加载已取消');}
   try{walkingContract(entry,new Map(gltf.animations.map(clip=>[clip.name,clip])));applyRenderStyle(gltf.scene,this.renderStyle);applyEightWeightSkinning(gltf,skinning);}catch(error){disposeObject(gltf.scene);throw error;}
   gltf.scene.updateMatrixWorld(true);const sourceBounds=new THREE.Box3().setFromObject(gltf.scene),size=sourceBounds.getSize(new THREE.Vector3());if(![size.x,size.y,size.z].every(Number.isFinite)||size.y<=0){disposeObject(gltf.scene);throw Error('人物尺寸无效。');}
@@ -87,16 +93,17 @@ export class GlbAvatarRenderer{
   // Loading/exit can span a settings change. Apply the latest style before
   // disposing the visible model; installEightWeightMesh handles adapted meshes.
   applyRenderStyle(prepared.gltf.scene,this.renderStyle);
-  const blinkBinding=this.prepareBlinkBinding(prepared);
+  const blinkBinding=this.prepareBlinkBinding(prepared),standing=prepareCustomStanding(prepared.entry,prepared.gltf)?.clip;
   this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();
   const old=this.root;this.mixer?.stopAllAction();if(old){old.removeFromParent();this.mixer?.uncacheRoot(old);disposeObject(old);}
-  this.entry=prepared.entry;if(this.loadController)this.loadController.outfit=this.entry.id;this.root=prepared.gltf.scene;this.root.updateMatrixWorld(true);this.walkExitHeld=false;
+  this.entry=standing?{...prepared.entry,defaultClip:standing.name,clips:{...prepared.entry.clips,[standing.name]:{duration:standing.duration,loop:true}}}:prepared.entry;
+  if(this.loadController)this.loadController.outfit=this.entry.id;this.root=prepared.gltf.scene;this.root.updateMatrixWorld(true);this.walkExitHeld=false;
   this.authoredPose=[];this.root.traverse(node=>this.authoredPose.push({node,position:node.position.clone(),quaternion:node.quaternion.clone(),scale:node.scale.clone()}));
   // Parent transform leaves the supplied bind pose, authored bones and clips intact.
   const wrapper=new THREE.Group(),pivot=new THREE.Group(),centered=new THREE.Group();centered.add(this.root);const sourceCenter=sourceBounds.getCenter(new THREE.Vector3());centered.position.set(-sourceCenter.x,-sourceBounds.min.y,-sourceCenter.z);pivot.add(centered);wrapper.add(pivot);this.pivot=pivot;wrapper.scale.setScalar(2/size.y);wrapper.position.y=(this.entry.walking?.floorOffsetModelUnits||0)*wrapper.scale.y;this.basePosition=wrapper.position.clone();this.root=wrapper;this.scene.add(wrapper);wrapper.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(wrapper);this.bounds={size:box.getSize(new THREE.Vector3()),center:box.getCenter(new THREE.Vector3())};this.fitCamera();
   this.meshes=[];this.head=null;wrapper.traverse(object=>{if(object.isMesh)this.meshes.push(object);if(this.entry.importMode!=='static'&&object.isBone&&object.name==='J_Bip_C_Neck')this.head=object;});this.headBase=this.head?.quaternion.clone();
-  this.mixer=new THREE.AnimationMixer(wrapper);this.clips=new Map(prepared.gltf.animations.map(clip=>[clip.name,clip]));this.bodyActions=new Set();this.currentAction=null;this.garmentBinding=prepared.garmentBinding;
+  this.mixer=new THREE.AnimationMixer(wrapper);this.clips=new Map(prepared.gltf.animations.map(clip=>[clip.name,clip]));if(standing)this.clips.set(standing.name,standing);this.bodyActions=new Set();this.currentAction=null;this.garmentBinding=prepared.garmentBinding;
   this.finished=()=>{if(!this.speechMotion&&!this.walkingMotion&&!this.walkExitHeld)this.play(this.entry.defaultClip||'Idle_Breathe')};this.mixer.addEventListener('finished',this.finished);this.play(this.entry.defaultClip||'Idle_Breathe');this.mixer.update(0);this.updateGarment(0);mouthWeights(this.meshes,this.entry.mouth,0);
   // Frame the real initial idle pose once, not the much wider skin bind pose.
   // This keeps the full body large and stable without refitting on every frame.
@@ -182,6 +189,7 @@ export class GlbAvatarRenderer{
   this.mixer?.update(this.reducedMotion?0:dt);if(this.head){this.headBase.copy(this.head.quaternion);if(!this.reducedMotion&&!walking&&!this.speechMotion){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-3,Math.min(3,this.gaze?.headPitch||0))),this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-4,Math.min(4,this.gaze?.headYaw||0))),0));this.head.quaternion.multiply(q);}}
   if(!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.speechMotion&&!snapshot?.playing&&this.activity==='idle'&&now>=this.nextMicro){this.nextMicro=now+16000+Math.random()*12000;const clips=microClipNames(this.entry,this.clips);if(clips.length)this.play(clips[Math.floor(Math.random()*clips.length)]);}
   this.updateGarment(dt,{visible:!document.hidden});
+  if(!document.hidden&&this.visible!==false&&!this.reducedMotion)this.currentPrepared?.gltf.userData?.vrm?.update(dt);
   const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(this.visible!==false&&!document.hidden&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
  }
  async exit({signal}={}){if(this.entry?.walking)return this.beginWalking('exit',signal);await this.transition([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-15%)'}],signal,true);}

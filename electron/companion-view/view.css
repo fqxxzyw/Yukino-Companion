@@ -33,7 +33,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,#pet:focus-visible
 
 /* Input expansion never changes figure geometry. Above mode reserves the same
    expanded input height between the reply and the character, even when closed. */
-.pet-composer{position:absolute;z-index:5;left:50%;bottom:var(--composer-bottom);translate:-50% 0;display:flex;align-items:center;gap:4px;width:70px;height:18px;padding:0;border:1px solid #b8cce3;border-radius:22px;background:linear-gradient(155deg,#fffffffa,#eef5fff5);box-shadow:0 5px 18px #183e6418,inset 0 1px 0 var(--glass-edge);backdrop-filter:blur(16px) saturate(1.2);user-select:text;overflow:visible;transition:width .22s var(--motion-ease),height .18s ease,padding .18s ease,border-color .18s ease,box-shadow .2s ease}
+.pet-composer{position:absolute;z-index:5;left:50%;bottom:var(--composer-bottom);translate:-50% 0;display:flex;align-items:center;gap:4px;width:70px;height:18px;padding:0;border:1px solid #9fbad3b8;border-radius:22px;background:linear-gradient(145deg,#e1effbdb,#cadcf0e0);box-shadow:0 5px 18px #183e6420,inset 0 1px 1px #ffffff80,inset 0 -1px 0 #8eafd126;backdrop-filter:blur(20px) saturate(1.18);-webkit-backdrop-filter:blur(20px) saturate(1.18);user-select:text;overflow:visible;transition:width .22s var(--motion-ease),height .18s ease,padding .18s ease,border-color .18s ease,box-shadow .2s ease}
 .pet-composer.expanded{width:min(304px,calc(100% - 24px));height:42px;padding:4px 5px}
 .pet-composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px #477fd126,0 4px 14px #183e6414}
 .pet-composer:not(.expanded)>:not(.pet-expand){visibility:hidden;pointer-events:none}
@@ -111,9 +111,9 @@ button:enabled:not([aria-disabled=true]):not(.pet-expand):active{translate:0 0;s
 body[data-reduced-motion=true] *,body[data-reduced-motion=true] *::before,body[data-reduced-motion=true] *::after{transition:none!important;animation:none!important}
 body[data-reduced-motion=true] button{translate:none!important;scale:1!important}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}button{translate:none!important;scale:1!important}#pet{transform:none!important}}
-@media(prefers-reduced-transparency:reduce){.bubble,.pet-composer,.chat-status,.pet-menu{background:#fafdff;box-shadow:none;backdrop-filter:none}}
+@media(prefers-reduced-transparency:reduce){.bubble,.pet-composer,.chat-status,.pet-menu{background:#fafdff;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}}
 @media(forced-colors:active){
- .bubble,.pet-composer,.chat-status,.pet-menu,.model,.focus-badge{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none}
+ .bubble,.pet-composer,.chat-status,.pet-menu,.model,.focus-badge{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
  .bubble::after{background:Canvas;border-color:CanvasText}.bubble-actions,.bubble-body>div+div:not(:empty),.pet-menu header{border-color:CanvasText}
  .pet-menu header,.menu-group{background:Canvas;box-shadow:none}
  .pet-menu h2,.menu-group h3,.menu-note,.eyebrow,.menu-range b,.model span{color:CanvasText}

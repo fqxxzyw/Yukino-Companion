@@ -1,0 +1,7 @@
+// This smaller copy stays between local windows. It is independent of API sends.
+export class FloatingCameraPreview {
+ constructor({video,send,createCanvas=()=>document.createElement('canvas'),setTimer=(fn,ms)=>globalThis.setTimeout(fn,ms),clearTimer=id=>globalThis.clearTimeout(id)}){Object.assign(this,{video,send,createCanvas,setTimer,clearTimer});this.running=false;this.epoch=0;}
+ start(token){this.stop();this.running=true;this.token=token;this.canvas=this.createCanvas();const epoch=this.epoch;void this.frame(epoch);}
+ async frame(epoch){if(!this.running||epoch!==this.epoch)return;try{const video=this.video;if(video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0){const ratio=Math.min(1,480/video.videoWidth,270/video.videoHeight);this.canvas.width=Math.max(1,Math.round(video.videoWidth*ratio));this.canvas.height=Math.max(1,Math.round(video.videoHeight*ratio));const context=this.canvas.getContext('2d',{alpha:false});if(context){context.drawImage(video,0,0,this.canvas.width,this.canvas.height);const image=this.canvas.toDataURL('image/jpeg',.65);if(image.length<=350000&&this.running&&epoch===this.epoch)await this.send({token:this.token,image});}}}catch{/* Local preview errors do not interrupt the camera or API observation. */}finally{if(this.running&&epoch===this.epoch)this.timer=this.setTimer(()=>{void this.frame(epoch)},125);}}
+ stop(){this.running=false;this.epoch++;this.clearTimer(this.timer);this.timer=null;this.token='';if(this.canvas){this.canvas.width=0;this.canvas.height=0;this.canvas=null;}}
+}

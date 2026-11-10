@@ -2,6 +2,23 @@ import * as THREE from 'three';
 
 export const DIORAMA_VIEW=Object.freeze({fov:36,padding:1.12,minPolar:Math.PI*.12,maxPolar:Math.PI*.48,minZoom:.45,maxZoom:3.2});
 const defaultDirection=new THREE.Vector3(1.25,1,1.5).normalize();
+// Shift the frame vertically without pitching the camera: a frontal board keeps
+// parallel edges while the composition includes the foreground classroom floor.
+export function setCameraFrameShift(camera,value=0,horizontal=0){
+ const shift=Number.isFinite(value)?THREE.MathUtils.clamp(value,-.45,.45):0;
+ const shiftX=Number.isFinite(horizontal)?THREE.MathUtils.clamp(horizontal,-.6,.6):0;
+ if(!shift&&!shiftX){if(camera.view?.enabled)camera.clearViewOffset();return;}
+ const aspect=camera.aspect||1,view=camera.view;
+ if(!view?.enabled||view.fullWidth!==aspect||view.fullHeight!==1||view.offsetX!==shiftX||view.offsetY!==shift)camera.setViewOffset(aspect,1,shiftX,shift,aspect,1);
+}
+// Align the camera's subject with the conversation area, excluding sidebar and
+// character card; dimensions are normalized to the full render height.
+export function sceneWorkspaceShift(host,workspace){
+ if(!host||!workspace||host.width<=0||host.height<=0||workspace.width<=0)return 0;
+ const left=Math.max(host.left,workspace.left),right=Math.min(host.right,workspace.right);
+ if(right<=left)return 0;
+ return THREE.MathUtils.clamp(((host.left+host.right)-(left+right))/(2*host.height),-.6,.6);
+}
 // A bounding sphere fits at every azimuth, including the base's far corners.
 // Fit against the narrower FOV, so portrait windows never crop a square plinth.
 export function dioramaFrame(bounds,aspect=1,options={}){

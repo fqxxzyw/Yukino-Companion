@@ -12,6 +12,38 @@ function subscribe(channel, fn) {
   ipcRenderer.on(channel, handler);
   return () => ipcRenderer.removeListener(channel, handler);
 }
+// Observe only the public, already-computed appearance of the main UI. The
+// editor receives no saved settings, conversation content, or credentials.
+window.addEventListener('DOMContentLoaded', () => {
+  const keys = ['--accent', '--accent-text', '--on-accent', '--bg', '--surface', '--surface-soft',
+    '--text', '--secondary', '--tertiary', '--line', '--hover', '--shadow', '--danger', '--danger-bg'];
+  let root, last = '', queued = false;
+  const publish = () => {
+    queued = false;
+    if (!root?.isConnected) return;
+    const computed = getComputedStyle(root);
+    // Registered color properties interpolate in computed style; the bridge must
+    // publish the authored target, not an in-between rgb() animation frame.
+    const colors = Object.fromEntries(keys.map((key) => [key, root.style.getPropertyValue(key).trim() || computed.getPropertyValue(key).trim()]));
+    const value = { colors, scheme: computed.getPropertyValue('--scheme').trim(), reduce: root.classList.contains('reduce') };
+    const current = JSON.stringify(value);
+    if (current === last) return;
+    last = current;
+    ipcRenderer.invoke('motion-editor-theme', value).catch(() => {});
+  };
+  const queue = () => { if (!queued) { queued = true; setTimeout(publish, 0); } };
+  const attach = () => {
+    const node = document.querySelector('.app');
+    if (!node || node === root) return;
+    root = node;
+    observer.disconnect();
+    observer.observe(root, { attributes: true, attributeFilter: ['style', 'class'] });
+    queue();
+  };
+  const observer = new MutationObserver(() => { if (root?.isConnected) queue(); else attach(); });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  attach();
+});
 contextBridge.exposeInMainWorld('desktop', {
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
   wallpaperPick:()=>invoke('wallpaper-pick'), wallpaperRead:id=>invoke('wallpaper-read',id),
@@ -28,10 +60,11 @@ contextBridge.exposeInMainWorld('desktop', {
   localChatSave:config=>invoke('local-chat-save',config), localChatLoad:config=>invoke('local-chat-load',config),
   localChatUnload:()=>invoke('local-chat-unload'), localChatProbe:()=>invoke('local-chat-probe'),
   onLocalChatStatus:fn=>subscribe('local-chat-status',fn), onOpenSettings:fn=>subscribe('open-settings',fn),
-  send:request=>invoke('chat',request), stop:()=>invoke('stop'), test:id=>invoke('test',id),
-  window:action=>invoke('window',action), openCommunity:()=>invoke('community'), openHelp:topic=>invoke('help',topic),
+  send:request=>invoke('chat',request), conversationCommand:request=>invoke('conversation-command',request), stop:()=>invoke('stop'), test:id=>invoke('test',id),
+  window:action=>invoke('window',action), openMotionEditor:modelId=>invoke('motion-editor-open',modelId), openCommunity:()=>invoke('community'), openHelp:topic=>invoke('help',topic),
   characterModelImport:id=>invoke('character-model-import',id), characterModelData:id=>invoke('character-model-data',id), characterDocument:()=>invoke('character-document'), characterPreview:()=>invoke('character-preview'), characterDraft:request=>invoke('character-draft',request), characterDraftCancel:()=>invoke('character-draft-cancel'),
   reportAvatarRect:rect=>invoke('avatar-rect',rect), characterModelCatalog:()=>invoke('character-model-catalog'), characterModelInspect:()=>invoke('character-model-inspect'), characterModelConfirm:options=>invoke('character-model-confirm',options), characterModelCancel:()=>invoke('character-model-cancel'),
+  openTripo:()=>invoke('open-tripo'),
   onChunk:fn=>subscribe('chunk',fn),onSpeechText:fn=>subscribe('speech-text',fn), onError:fn=>subscribe('app-error',fn),
   voiceResources:()=>invoke('voice-resources'), voiceInstall:(id,options)=>invoke('voice-install',id,options), onVoiceConfig:fn=>subscribe('voice-config-updated',fn),
   voiceClonePick:()=>invoke('voice-clone-pick'),voiceCloneRecording:bytes=>invoke('voice-clone-recording',bytes),voiceCloneCreate:request=>invoke('voice-clone-create',request),voiceCloneCancel:()=>invoke('voice-clone-cancel'),
@@ -56,6 +89,7 @@ contextBridge.exposeInMainWorld('desktop', {
   onPetChat:fn=>subscribe('pet-chat-submit',fn), onPetChatStop:fn=>subscribe('pet-chat-stop',fn), onVisionOpen:fn=>subscribe('vision-open',fn), companionSpeech:value=>invoke('companion-speech',value), companionMouth:level=>invoke('companion-mouth',level), companionChatBusy:busy=>invoke('companion-chat-busy',busy),
   companionState:()=>invoke('companion-state'), companionSet:patch=>invoke('companion-set',patch),
   companionAction:action=>invoke('companion-action',action), closeChoice:(mode,options)=>invoke('close-choice',mode,options), onCompanionState:fn=>subscribe('companion-state',fn), onCompanionUse:fn=>subscribe('companion-use',fn),
-  onCloseRequested:fn=>subscribe('close-requested',fn),
+  onAvatarHandoff:fn=>subscribe('avatar-handoff',fn), avatarHandoffReady:sequence=>invoke('avatar-handoff-ready',sequence), avatarLayoutReady:value=>invoke('avatar-layout-ready',value),
+  onCloseRequested:fn=>subscribe('close-requested',fn), onCloseFeedback:fn=>subscribe('close-feedback',fn),
   onFlushState:fn=>subscribe('flush-state',fn), flushComplete:(id,ok)=>invoke('flush-complete',id,ok),
 });

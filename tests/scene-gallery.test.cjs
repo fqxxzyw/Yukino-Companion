@@ -4,7 +4,7 @@ const THREE=import('three');
 test('scene catalogue is pure metadata, immutable and preserves all saved IDs',async()=>{
  const {SCENES,sceneId,scenePreset}=await import('../src/ui/scene-catalog.mjs');
  const {presentationConfig}=await import('../src/ui/avatar-presentation.mjs');
- assert.deepEqual(Object.keys(SCENES).sort(),['bookshop','city','classroom','forest','kasai','school','wedding']);
+ assert.deepEqual(Object.keys(SCENES).sort(),['bookshop','city','classroom','forest','inage','kasai','kyoto','sakura','school','wedding']);
  for(const [id,preset]of Object.entries(SCENES)){assert.equal(presentationConfig({scene:id}).scene,id);assert.ok(preset.label&&preset.description&&preset.clear);assert.ok(Object.isFrozen(preset.lighting.direction));assert.equal(scenePreset(id),preset)}
  for(const id of ['__proto__','constructor','missing',null])assert.equal(sceneId(id),'classroom');
  assert.equal(sceneId('studio'),'bookshop');assert.equal(sceneId('beach'),'kasai');assert.equal(sceneId('seaside'),'kasai');
@@ -104,12 +104,23 @@ test('partial renderer initialization releases canvas and GL resources on contro
  try{assert.throws(()=>new EnvironmentBackdrop(h.host,{...h.options,interactive:true,controlsFactory(){throw Error('test controls failure')}}),/test controls failure/);assert.equal(h.gl.disposes,1);assert.equal(h.host.children.length,0);assert.equal(h.gl.domElement.listeners.size,0);assert.equal(h.doc.listeners.size,0)}finally{h.restore()}
 });
 
+test('detail camera keeps live climate updates and Home restores the full miniature',async()=>{
+ const T=await THREE,{EnvironmentBackdrop}=await import('../src/ui/environment-backdrop.mjs');const h=harness(T);let renderer;
+ try{
+  renderer=new EnvironmentBackdrop(h.host,{...h.options,interactive:true,reducedMotion:true});await renderer.update('forest',12);
+  const initial=renderer.camera.position.clone();renderer.current.cameraPresets={photo:{position:[0,2,10],target:[0,2,-4],fov:52}};
+  assert.equal(renderer.showPhoto(),true);assert.equal(renderer.camera.fov,52);assert.ok(renderer.camera.position.distanceTo(initial)>1);
+  const detail=renderer.camera.position.clone();await renderer.update('forest',17,{rain:.8,cloud:1});assert.deepEqual(renderer.camera.position.toArray(),detail.toArray());
+  renderer.key('Home');assert.equal(renderer.detailView,false);assert.ok(renderer.camera.position.distanceTo(initial)<1e-6);
+ }finally{renderer?.dispose();await renderer?.queue;h.restore()}
+});
+
 test('gallery exposes its scene menu while settings owns instructions and app is hidden/inert during viewing',async()=>{
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{createServer}=await import('vite');const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});
  try{
   const {default:Gallery}=await server.ssrLoadModule('/src/ui/SceneGallery.jsx');const html=renderToStaticMarkup(React.createElement(Gallery,{scene:'city'}));
   assert.match(html,/class="scene-gallery"/);assert.match(html,/Escape/);assert.match(html,/class="scene-gallery-stage"/);assert.match(html,/aria-label="场景小菜单"/);assert.match(html,/aria-expanded="false"/);
-  const {default:Settings}=await server.ssrLoadModule('/src/ui/AvatarPresentationSettings.jsx');const settings=renderToStaticMarkup(React.createElement(Settings,{value:{scene:'city'},onOpenGallery(){},onChange(){}}));assert.match(settings,/观赏当前三维景观/);assert.match(settings,/Esc 返回/);assert.match(settings,/街角便利店/);
+  const {default:Settings}=await server.ssrLoadModule('/src/ui/AvatarPresentationSettings.jsx');const settings=renderToStaticMarkup(React.createElement(Settings,{value:{scene:'city'},onOpenGallery(){},onChange(){}}));assert.match(settings,/观赏当前三维景观/);assert.match(settings,/Esc 返回/);assert.match(settings,/晚归灯火/);assert.match(settings,/未说出口/);assert.match(settings,/朱影寻春/);assert.match(html,/近景细看/);assert.match(html,/完整微缩景观/);
   const source=await fs.readFile(require('node:path').join(__dirname,'../src/main.jsx'),'utf8');assert.match(source,/inert=\{sceneGallery\?true:undefined\}/);assert.match(source,/display:sceneGallery\?'none':undefined/);assert.match(source,/!sceneGallery&&<SceneBackdrop/);assert.match(source,/active=\{!modal&&!sceneGallery\}/);
   const panel=await fs.readFile(require('node:path').join(__dirname,'../src/ui/CharacterPanel.jsx'),'utf8');assert.match(panel,/aria-label="拖动人物面板"><GripHorizontal size=\{16\}\/><\/span>/);assert.doesNotMatch(panel,/>拖动<\/span>/);
  }finally{await server.close()}

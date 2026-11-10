@@ -10,6 +10,17 @@ export function normalizeCharacters(state={}){
  return {...state,characters,activeCharacter,...Object.fromEntries(fields.map(key=>[key,current[key]])),conversations:(state.conversations||[]).map(conversation=>({...conversation,characterId:conversation.characterId||DEFAULT_CHARACTER_ID}))};
 }
 export function characterFor(state){return state.characters?.find(item=>item.id===state.activeCharacter)||DEFAULT_CHARACTER;}
+// Model files remain in the shared local library. A character's wardrobe stores
+// only associations, so switching characters or deleting a choice never moves a file.
+export function rememberCharacterModel(character,modelId){
+ const skinIds=Array.isArray(character.skinIds)?character.skinIds.filter(id=>typeof id==='string'&&id):[];
+ const nextId=typeof modelId==='string'?modelId:'';
+ return {...character,modelId:nextId,skinIds:[...new Set([...skinIds,...(character.modelId?[character.modelId]:[]),...(nextId?[nextId]:[])])]};
+}
+export function characterWardrobe(character,models=[]){
+ const ids=new Set([...(Array.isArray(character?.skinIds)?character.skinIds:[]),character?.modelId].filter(Boolean));
+ return models.filter(model=>ids.has(model.id)||(character?.id===DEFAULT_CHARACTER_ID&&/^yukino-0[1-7](?:-|$)/.test(model.id)));
+}
 export function patchCharacterState(state,patch){
  const changed=Object.fromEntries(fields.filter(key=>Object.hasOwn(patch,key)).map(key=>[key,patch[key]]));
  return {...state,...patch,...(Object.keys(changed).length?{characters:state.characters.map(item=>item.id===state.activeCharacter?{...item,...changed}:item)}:{})};
@@ -29,6 +40,6 @@ export function createCharacter(state,{name,persona='',modelId='',voiceId='',voi
  if(persona.length>6000)throw Error('角色设定最多 6000 字符。');
  if(state.characters.length>=100)throw Error('最多保存 100 个本地角色。');
  if(!['ja','zh'].includes(voiceLanguage))throw Error('请选择中文或日语语音。');
- const item={...DEFAULT_CHARACTER,id:crypto.randomUUID(),name,persona,modelId,voiceId:typeof voiceId==='string'?voiceId:'',voiceLanguage,personaEnabled:false,builtin:false};
+ const item=rememberCharacterModel({...DEFAULT_CHARACTER,id:crypto.randomUUID(),name,persona,modelId:'',voiceId:typeof voiceId==='string'?voiceId:'',voiceLanguage,personaEnabled:false,builtin:false},modelId);
  return selectCharacter({...state,characters:[...state.characters,item]},item.id);
 }

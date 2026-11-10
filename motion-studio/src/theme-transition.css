@@ -1,0 +1,39 @@
+/* Register the shared palette as colors so the whole surface, including gradients,
+   interpolates together. The source palette remains the final value in inline style. */
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #477fd1; }
+@property --accent-text { syntax: '<color>'; inherits: true; initial-value: #3266ad; }
+@property --on-accent { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --bg { syntax: '<color>'; inherits: true; initial-value: #f1f6fc; }
+@property --surface { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --surface-soft { syntax: '<color>'; inherits: true; initial-value: #f6f9fc; }
+@property --text { syntax: '<color>'; inherits: true; initial-value: #202c3c; }
+@property --secondary { syntax: '<color>'; inherits: true; initial-value: #4e6076; }
+@property --tertiary { syntax: '<color>'; inherits: true; initial-value: #52647a; }
+@property --line { syntax: '<color>'; inherits: true; initial-value: #19334d1c; }
+@property --hover { syntax: '<color>'; inherits: true; initial-value: #1c416509; }
+@property --shadow { syntax: '<color>'; inherits: true; initial-value: #3454750c; }
+@property --danger { syntax: '<color>'; inherits: true; initial-value: #a33227; }
+@property --danger-bg { syntax: '<color>'; inherits: true; initial-value: #fff0ed; }
+@property --panel { syntax: '<color>'; inherits: true; initial-value: #fdfeff; }
+@property --raised { syntax: '<color>'; inherits: true; initial-value: #edf3fb; }
+@property --field { syntax: '<color>'; inherits: true; initial-value: #f9fbfe; }
+@property --border { syntax: '<color>'; inherits: true; initial-value: #19334d1c; }
+@property --muted { syntax: '<color>'; inherits: true; initial-value: #4e6076; }
+@property --faint { syntax: '<color>'; inherits: true; initial-value: #52647a; }
+@property --accent-ink { syntax: '<color>'; inherits: true; initial-value: #3266ad; }
+@property --accent-fill { syntax: '<color>'; inherits: true; initial-value: #4072bc; }
+@property --selection { syntax: '<color>'; inherits: true; initial-value: #e8f0fb; }
+@property --red { syntax: '<color>'; inherits: true; initial-value: #a33227; }
+@property --amber { syntax: '<color>'; inherits: true; initial-value: #8c521e; }
+@property --stage-bg { syntax: '<color>'; inherits: true; initial-value: #e4edf8; }
+
+:root, .app {
+  transition-property: --accent, --accent-text, --on-accent, --bg, --surface, --surface-soft,
+    --text, --secondary, --tertiary, --line, --hover, --shadow, --danger, --danger-bg,
+    --panel, --raised, --field, --border, --muted, --faint, --accent-ink, --accent-fill,
+    --selection, --red, --amber, --stage-bg, grid-template-columns !important;
+  transition-duration: 360ms !important;
+  transition-timing-function: ease !important;
+}
+.app.reduce, :root[data-reduced-motion="true"] { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { :root, .app { transition: none !important; } }

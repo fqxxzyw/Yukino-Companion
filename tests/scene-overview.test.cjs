@@ -22,3 +22,14 @@ test('wheel is bounded and release returns smoothly without mutating saved home'
  const home={position:new THREE.Vector3(0,2,15),target:new THREE.Vector3(0,2,0)},overview={position:new THREE.Vector3(20,20,35),target:new THREE.Vector3()};
  const view=new SceneOverview(camera,target);view.reset(home,overview);for(let i=0;i<20;i++)view.wheel(100);assert.equal(view.desired,1);view.step(.05);assert.ok(view.amount>0&&view.amount<1);view.rotate(.4);view.release();const before=view.amount;view.step(.05);assert.ok(view.amount<before&&view.amount>0);for(let i=0;i<300;i++)view.step(.05);assert.equal(view.active,false);assert.deepEqual(home.position.toArray(),[0,2,15]);assert.ok(camera.position.distanceTo(home.position)<1e-8);
 });
+test('scene composition tracks the visible conversation area at different panel sizes',async()=>{
+ const {THREE}=await setup(),{sceneWorkspaceShift,setCameraFrameShift}=await import('../src/ui/scene-camera.mjs');
+ for(const [width,height,left,right]of [[1952,1276,330,1520],[1440,900,244,1120],[1440,900,560,1410],[1024,768,76,760],[720,900,76,720]]){
+  const host={left:0,right:width,width,height},chat={left,right,width:right-left};
+  const shift=sceneWorkspaceShift(host,chat),camera=new THREE.PerspectiveCamera(40,width/height,.1,100);
+  camera.position.set(0,0,10);camera.lookAt(0,0,0);setCameraFrameShift(camera,0,shift);camera.updateMatrixWorld(true);
+  const screenX=(new THREE.Vector3(0,0,0).project(camera).x+1)*width/2;
+  assert.ok(Math.abs(screenX-(left+right)/2)<1e-7,`subject centered at ${width}×${height}`);
+ }
+ assert.equal(sceneWorkspaceShift({left:0,right:100,width:100,height:100},{left:110,right:120,width:10}),0);
+});

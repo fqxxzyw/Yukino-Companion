@@ -1,0 +1,10 @@
+export const STREAM_LEVEL=.16;
+export const STREAM_BANK_RISE=1.58;
+export const STREAM_BANK_RUN=2.25;
+export const STREAM_START=-42;
+export const STREAM_END=30;
+export const streamCenter=z=>.45+1.15*Math.sin(z*.075)+.42*Math.sin(z*.19+.6);
+export const streamHalfWidth=z=>2.35+.28*Math.sin(z*.12+1.2);
+export const streamBedY=(x,z)=>STREAM_LEVEL-.9-.24*(1-Math.min(1,Math.abs(x-streamCenter(z))/streamHalfWidth(z)));
+export const pathCenter=z=>streamCenter(z)-streamHalfWidth(z)-3.35;
+export const STREAM_HERO_TREES=Object.freeze([{x:-5.6,z:3.0,height:8.5,spread:5.1},{x:-6.2,z:-8,height:7.2,spread:4.1},{x:-7.5,z:-20,height:6.8,spread:3.8}]);

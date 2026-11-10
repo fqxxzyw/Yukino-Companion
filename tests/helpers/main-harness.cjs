@@ -12,7 +12,7 @@ const speechModule = require('../../electron/speech.cjs');
 const {mergeVoiceDefaults} = require('../../electron/bundled-voice.cjs');
 const localModule = require('../../electron/local-chat.cjs');
 
-async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=true, files = {}, legacyFiles = {}, executable = path.resolve('/virtual-install/Yukino Companion.exe'), directoryChoice = null, asrClass, translationClass, cacheClass, cloudFetch} = {}) {
+async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=true, files = {}, legacyFiles = {}, executable = path.resolve('/virtual-install/Yukino Companion.exe'), directoryChoice = null, asrClass, translationClass, cacheClass, cloudFetch, visualClass} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
   const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[],copied=[];
@@ -140,6 +140,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
       // Isolation is covered by development.test.cjs and the real-window QA script.
       if(name==='./development.cjs')return {configureDevelopment:()=>({enabled:false,url:null})};
       if(name==='./aliyun-asr.cjs'&&asrClass)return {AliyunRealtimeAsr:asrClass};
+      if(name==='./companion-visual.cjs'&&visualClass)return {...originalRequire(name),CompanionVisual:visualClass};
       if(name==='node:fs/promises')return virtualFS;
       if(name==='./resource-directory.cjs')return {...originalRequire(name),assertWritableDirectory:async()=>{}};
       if(name==='./bundled-voice.cjs')return {mergeVoiceDefaults,bundledVoiceDefaults:async()=>{if(bundleGate)await bundleGate;return ({defaults:{...speechModule.DEFAULTS,python:runtime?.ready===false?'':path.resolve('/embedded/python'),root:runtime?.ready===false?'':path.resolve('/embedded/voice'),bert:path.resolve('/embedded/bert'),hubert:path.resolve('/embedded/hubert'),gpt:path.resolve('/embedded/voice-models/default.ckpt'),sovits:path.resolve('/embedded/voice-models/default.pth'),reference:path.resolve('/embedded/voice-models/ref.wav'),promptText:'',promptLang:'all_ja'},modelRoot:path.resolve('/embedded/models'),bundled:runtime?.ready!==false,preset:{packId:'yukino-e2',durationSeconds:3.083}})}};

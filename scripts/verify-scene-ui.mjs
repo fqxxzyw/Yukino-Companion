@@ -5,12 +5,13 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {createServer} from 'vite';
 import {_electron} from 'playwright-core';
+import {SCENES} from '../src/ui/scene-catalog.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),output=path.join(root,'build/scene-ui-review');
 await fs.mkdir(output,{recursive:true});
 const profile=await fs.mkdtemp(path.join(output,'profile-'));
 const entry=path.join(output,'entry.cjs');
 await fs.writeFile(entry,`const {app}=require('electron');app.setPath('appData',${JSON.stringify(profile)});require(${JSON.stringify(path.join(root,'electron/main.cjs'))});`);
-const server=await createServer({root,server:{host:'127.0.0.1',port:0,strictPort:false}});
+const server=await createServer({root,server:{host:'127.0.0.1',port:0,strictPort:false,watch:{ignored:['**/build/**']}}});
 let application;const report={passed:false,errors:[],screenshots:[],checks:[]};
 try{
  await server.listen();const url='http://127.0.0.1:'+server.httpServer.address().port+'/';
@@ -37,7 +38,17 @@ try{
  assert.equal(await page.locator('.chat-scroll button,.chat-scroll .welcome,.chat-scroll .suggestions').count(),0);
  assert.equal(await page.getByRole('textbox',{name:'消息',exact:true}).isEditable(),true);
  report.checks.push('Empty chat has no welcome text or topic options; composer remains editable');
- const ids={city:'街角便利店',school:'雪乃学校',kasai:'葛西临海公园',wedding:'海边婚礼礼堂',forest:'林间小径',bookshop:'街边书店',classroom:'放课后教室'};
+ // The character panel has a separate scene picker from the titlebar. It must
+ // leave wallpaper mode too, otherwise the selected scene remains hidden.
+ await page.locator('.wallpaper-image-layer').first().waitFor({state:'visible',timeout:60000});
+ await page.getByRole('button',{name:'人物场景选项',exact:true}).click();
+ await page.locator('.character-scene-menu').getByRole('button',{name:SCENES.city.label,exact:true}).click();
+ await page.waitForFunction(()=>{const host=document.querySelector('.environment-backdrop-canvas');return host?.dataset.scene==='city'&&!host.dataset.loading;},null,{timeout:120000});
+ assert.equal(await page.locator('.character-scene-menu').getByRole('button',{name:SCENES.city.label,exact:true}).getAttribute('aria-pressed'),'true');
+ await page.locator('.wallpaper-image-layer').first().waitFor({state:'hidden',timeout:10000});
+ await page.keyboard.press('Escape');
+ report.checks.push('Character scene picker switches from wallpaper to rendered scene');
+ const ids=Object.fromEntries(Object.entries(SCENES).map(([id,scene])=>[id,scene.label]));
  for(const [id,label]of Object.entries(ids)){
   await page.getByRole('button',{name:'场景小菜单',exact:true}).click();
   await page.locator('.scene-menu-popover').getByRole('button',{name:label,exact:true}).click();
@@ -51,9 +62,9 @@ try{
  await page.screenshot({path:path.join(output,'miniature-orbit.png')});report.screenshots.push('miniature-orbit.png');
  assert.deepEqual(await page.locator('.character-panel').boundingBox(),actor,'background inspection must not move or resize Yukino');
  await page.keyboard.up('Control');await page.waitForTimeout(3000);
- report.checks.push('Seven actual app scene selections','Ctrl miniature horizontal orbit preserves original character panel');
+ report.checks.push('All actual app scene selections','Ctrl miniature horizontal orbit preserves original character panel');
  // Rapid input, including a request overtaken during compilation. Record visible frames, not mock renders.
- for(const label of ['街角便利店','雪乃学校','葛西临海公园']){
+ for(const label of ['city','school','kasai'].map(id=>SCENES[id].label)){
   await page.getByRole('button',{name:'场景小菜单',exact:true}).click();await page.locator('.scene-menu-popover').getByRole('button',{name:label,exact:true}).click();
   await page.screenshot({path:path.join(output,'switch-'+report.screenshots.length+'.png')});report.screenshots.push('switch-'+report.screenshots.length+'.png');
  }

@@ -8,7 +8,7 @@ export default function CompactDock({value,onChange,busy,visualActive,onSubmit,o
   <button type="button" className="dock-handle" aria-label="展开人物输入框" aria-expanded={opened} tabIndex={opened?-1:0} onClick={expand} onFocus={expand}/>
   <form onSubmit={event=>{event.preventDefault();if(!composing.current)onSubmit(event)}} aria-label={label} aria-hidden={!opened}>
    <input ref={input} tabIndex={opened?0:-1} aria-label={label} placeholder={label} value={value} maxLength={24000} disabled={busy} onCompositionStart={()=>{composing.current=true}} onCompositionEnd={()=>{composing.current=false}} onKeyDown={event=>{if(event.key==='Enter'&&(event.nativeEvent.isComposing||composing.current||event.keyCode===229))event.preventDefault()}} onChange={event=>onChange(event.target.value.replace(/[\r\n]/g,' '))}/>
-   <button type="button" tabIndex={opened?0:-1} className={visualActive?'vision-active':''} aria-label={visualActive?'停止视觉陪伴':'选择屏幕识别或摄像头预览'} title={visualActive?'停止视觉陪伴':'屏幕 / 摄像头（默认关闭）'} onClick={onVisual}>▣</button>
+   <button type="button" tabIndex={opened?0:-1} className={visualActive?'vision-active':''} aria-label={visualActive?'停止摄像头或屏幕观察':'打开摄像头，可切换屏幕观察'} title={visualActive?'停止摄像头或屏幕观察':'打开摄像头 · 可切换屏幕观察'} aria-pressed={Boolean(visualActive)} onClick={onVisual}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="3"/><path d="m16 10 6-4v12l-6-4z"/></svg></button>
    <button type="submit" tabIndex={opened?0:-1} aria-label={busy?'停止回复':'发送消息'} disabled={!busy&&!value.trim()}>{busy?'■':'↑'}</button>
   </form>
  </div>

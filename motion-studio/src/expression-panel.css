@@ -1,0 +1,22 @@
+.expression-panel { padding: 8px 10px 12px; }
+.expression-heading { display: flex; align-items: center; gap: 6px; min-height: 29px; color: var(--accent-ink); }
+.expression-heading strong { color: var(--text); }
+.expression-heading > span, .expression-empty, .eye-unavailable { color: var(--muted); font-size: 11px; }
+.expression-heading > span { margin-inline-start: auto; }
+.expression-empty { margin: 9px 0; }
+.eye-controls { margin-block: 6px; padding: 8px; background: var(--field); border: 1px solid var(--border); border-radius: 10px; }
+.eye-controls h3, .expression-group h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 5px; font-size: 11px; }
+.eye-control-row { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 30px; }
+.eye-control-row > span:first-child { white-space: nowrap; font-size: 11px; }
+.eye-actions { display: flex; gap: 2px; }
+.eye-actions button { min-height: 25px; padding: 3px 6px; gap: 4px; font-size: 11px; }
+.expression-actions { display: flex; flex-wrap: wrap; gap: 3px; }
+.expression-actions button { padding-inline: 5px; font-size: 11px; }
+.expression-search { margin-inline: 0; }
+.expression-group { margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border); }
+.expression-group h3 span { margin-inline-start: auto; color: var(--muted); }
+.expression-slider { display: grid; grid-template-columns: minmax(0, 1fr) 42% 34px; gap: 5px; align-items: center; min-height: 29px; padding-inline: 4px; border-radius: 5px; font-size: 11px; }
+.expression-slider.selected { background: var(--selection); }
+.expression-slider > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.expression-slider input { width: 100%; margin: 0; }
+.expression-slider output { color: var(--muted); text-align: right; }

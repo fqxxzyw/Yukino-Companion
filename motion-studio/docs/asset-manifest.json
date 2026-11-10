@@ -1,0 +1,3810 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "characters/NOTICE_CMU_WALK.txt",
+      "format": "txt",
+      "bytes": 668,
+      "sha256": "63e8e70f48924d1c784d8b05fdf7390c5aa1ce368646c19a0a103217a430dc15"
+    },
+    {
+      "path": "electron/companion-view/video-preview/UPSTREAM_V6_RUNTIME_METADATA.json",
+      "format": "json",
+      "bytes": 4248,
+      "sha256": "1b98b8fc1a185f4f66b5749e831177ac186b151d11eeb9b6998c6b20d5ecc2ce"
+    },
+    {
+      "path": "public/characters/Yukino01_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 16086864,
+      "sha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6",
+      "registry": {
+        "id": "yukino-01-garment-normal-v1",
+        "label": "白色两件泳装·衣物姿态修正",
+        "status": "HOLD_hair_and_gpu_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_9d498d2d",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 21,
+        "eightWeightPrimitiveCount": 21,
+        "meshLocalBounds": {
+          "min": [
+            -0.42114248871803284,
+            3.2420100382068995e-8,
+            -0.129150390625
+          ],
+          "max": [
+            0.4211425185203552,
+            0.9995117783546448,
+            0.12915033102035522
+          ],
+          "size": [
+            0.8422850072383881,
+            0.9995117459345444,
+            0.2583007216453552
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "21e48e8fe9abdd5d47921bcd1cd2fc11f31fa34b5e75cf7b981a9b686d0dfff1",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.001952165039256215,
+            6.693880294506016e-8,
+            0.04880429059267044
+          ],
+          "rotation": [
+            -1.206721211843842e-8,
+            -0.7071068286895752,
+            -1.206720945390316e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "a94d6fdd21b636043d5e5f95c10b7bf6a86c1f23ff641cc1a0e896220a8c0826",
+        "materials": 10,
+        "textures": 9,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "8773ba6b091ac7b045fed4d0952d02d546a6dd43c1063c912ce7c8bc50d0561d"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "a79e5a0d0d71fa2e5cc984593097a53bc1ed7230176d7da5fe04b1b65c85cdc4"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "845a7155c2d89b1fa4ebec81faf9c065b181c78a58722d09efd6d1dcfb69375c"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "7a881d03c187e85d03806394469c46107d60e588ef2805f03a2352e8bb2ff99a",
+        "meshAppearanceSha256": "7fc81d27e6ec7c38252042b9cb55abe26777567524517e428e1090d8923897df",
+        "morphs": [
+          "mouth_open_small",
+          "garment_coverup_hand_pressure_L",
+          "garment_coverup_hand_pressure_R",
+          "garment_swim_bottom_side_pressure_L",
+          "garment_swim_bottom_side_pressure_R",
+          "garment_swim_top_outer_compression_L",
+          "garment_swim_top_outer_compression_R"
+        ],
+        "morphContentSha256": "186d12704ccaa31c8e6624d31a1fba040cc5b816366c77b88d7667846920883d",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino01_UVDomainRepair.glb",
+      "format": "glb",
+      "bytes": 10671332,
+      "sha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6",
+      "registry": {
+        "id": "yukino-01-v1",
+        "label": "白色两件泳装",
+        "status": "HOLD_eight_weight_GPU_validation",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_9d498d2d",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 21,
+        "eightWeightPrimitiveCount": 21,
+        "meshLocalBounds": {
+          "min": [
+            -0.42114248871803284,
+            3.2420100382068995e-8,
+            -0.129150390625
+          ],
+          "max": [
+            0.4211425185203552,
+            0.9995117783546448,
+            0.12915033102035522
+          ],
+          "size": [
+            0.8422850072383881,
+            0.9995117459345444,
+            0.2583007216453552
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "21e48e8fe9abdd5d47921bcd1cd2fc11f31fa34b5e75cf7b981a9b686d0dfff1",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.001952165039256215,
+            6.693880294506016e-8,
+            0.04880429059267044
+          ],
+          "rotation": [
+            -1.206721211843842e-8,
+            -0.7071068286895752,
+            -1.206720945390316e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "a94d6fdd21b636043d5e5f95c10b7bf6a86c1f23ff641cc1a0e896220a8c0826",
+        "materials": 10,
+        "textures": 9,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "8773ba6b091ac7b045fed4d0952d02d546a6dd43c1063c912ce7c8bc50d0561d"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "a79e5a0d0d71fa2e5cc984593097a53bc1ed7230176d7da5fe04b1b65c85cdc4"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "845a7155c2d89b1fa4ebec81faf9c065b181c78a58722d09efd6d1dcfb69375c"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "7a881d03c187e85d03806394469c46107d60e588ef2805f03a2352e8bb2ff99a",
+        "meshAppearanceSha256": "7fc81d27e6ec7c38252042b9cb55abe26777567524517e428e1090d8923897df",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "32ff0a801d98ba8bd678b97481d500d75793cdf4c902a009feca08c3f63dd4bd",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino02_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 12334716,
+      "sha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581",
+      "registry": {
+        "id": "yukino-02-garment-normal-v1",
+        "label": "蓝色开衫贝雷帽·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_52082c28",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 37,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.41040050983428955,
+            -3.4100233392564405e-7,
+            -0.13354533910751343
+          ],
+          "max": [
+            0.410400390625,
+            0.9995118379592896,
+            0.1335451453924179
+          ],
+          "size": [
+            0.8208009004592896,
+            0.9995121789616235,
+            0.26709048449993134
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "2be0762b8a756f541be220a70fab861e54798f68a7bfc1276e2c46487a9d4b4e",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521707436069846,
+            2.6496996952118934e-7,
+            0.005856514908373356
+          ],
+          "rotation": [
+            -1.2069128807468132e-8,
+            -0.7071068286895752,
+            -1.2069126142932873e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "4e7cbf302cc0fa35a37f76eb0c0623faf6885f0d5a0f55e16405620af2ce2434",
+        "materials": 25,
+        "textures": 23,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4be8e2071090701f536a498587230196da1b1788c0ac0d4dbf91dbf24dd787d1"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "992947e7aa6458e2750e07f9e8853be5bbc3c8237ae4551d9dddf971d52c1aa1"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "0ec44d95116ae2297a7efe0f8394bf7efc48137c1ad4c3377347be84a4b59c7c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "93e083b2dd295af752d454f8cd6aff1b80830ec566ecd7175d341d69e7db7bc7"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "a80e86a8ffb86757ad2643ff1782b143223f47c203c51361711b6809d9e48c8d",
+        "meshAppearanceSha256": "f99859645472928d467187b33014ff7c0a3c99ce0e0cc84949ff26f7c2f6e78d",
+        "morphs": [
+          "mouth_open_small",
+          "garment_cardigan_underarm_L",
+          "garment_cardigan_underarm_R",
+          "garment_cardigan_elbow_L",
+          "garment_cardigan_elbow_R",
+          "garment_skirt_hand_pressure_L",
+          "garment_skirt_hand_pressure_R"
+        ],
+        "morphContentSha256": "d36b7ec54017ebadf5251aa0b4c520c22af108bc7367613f7a3c902441eef601",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino02_UVDomainRepair.glb",
+      "format": "glb",
+      "bytes": 11413596,
+      "sha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b",
+      "registry": {
+        "id": "yukino-02-v1",
+        "label": "蓝色开衫贝雷帽",
+        "status": "delivered_review_stage",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_52082c28",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 37,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.41040050983428955,
+            -3.4100233392564405e-7,
+            -0.13354533910751343
+          ],
+          "max": [
+            0.410400390625,
+            0.9995118379592896,
+            0.1335451453924179
+          ],
+          "size": [
+            0.8208009004592896,
+            0.9995121789616235,
+            0.26709048449993134
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "2be0762b8a756f541be220a70fab861e54798f68a7bfc1276e2c46487a9d4b4e",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521707436069846,
+            2.6496996952118934e-7,
+            0.005856514908373356
+          ],
+          "rotation": [
+            -1.2069128807468132e-8,
+            -0.7071068286895752,
+            -1.2069126142932873e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "4e7cbf302cc0fa35a37f76eb0c0623faf6885f0d5a0f55e16405620af2ce2434",
+        "materials": 25,
+        "textures": 23,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4be8e2071090701f536a498587230196da1b1788c0ac0d4dbf91dbf24dd787d1"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "992947e7aa6458e2750e07f9e8853be5bbc3c8237ae4551d9dddf971d52c1aa1"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "0ec44d95116ae2297a7efe0f8394bf7efc48137c1ad4c3377347be84a4b59c7c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "93e083b2dd295af752d454f8cd6aff1b80830ec566ecd7175d341d69e7db7bc7"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "a80e86a8ffb86757ad2643ff1782b143223f47c203c51361711b6809d9e48c8d",
+        "meshAppearanceSha256": "f99859645472928d467187b33014ff7c0a3c99ce0e0cc84949ff26f7c2f6e78d",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "e8f89e005677e6603da77a4949b86109c075d9d79371a4dc81c45ee3366893d6",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino03_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 13284400,
+      "sha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec",
+      "registry": {
+        "id": "yukino-03-garment-normal-v1",
+        "label": "白色连体泳装蓝蝴蝶结·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_92e84e17",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 13,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.46752914786338806,
+            -1.5483790605230752e-7,
+            -0.1369628608226776
+          ],
+          "max": [
+            0.46752914786338806,
+            0.9995120167732239,
+            0.13696303963661194
+          ],
+          "size": [
+            0.9350582957267761,
+            0.9995121716111299,
+            0.27392590045928955
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "2bdaf1c6cb335896fbcaa9daa85e04279f13cad6ee9252fa782e8df0d6e60f4c",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.001952165039256215,
+            -9.923036259351647e-8,
+            0.04880429059267044
+          ],
+          "rotation": [
+            -1.2097219226347988e-8,
+            -0.7071068286895752,
+            -1.209721656181273e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "77f4ad5e1baf422f5ef08f95eec96bdefb19d7ad3ccfeeaae9652dc8f2b4a8b6",
+        "materials": 12,
+        "textures": 11,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "29cc676f0c80b6d2cad47e5a94a5836fda8ee4be8f35ed699775144e39b3b91e"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "c851fd6bbdbc2e1ab7c6375a8c585594ac8bdcf34e40874fd2967c2a4b357c95"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "fc54cab656aaa6a12e0870e288aae7736f37832fd3b96605266711cc50ef186b"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "a95942fe0718d289c1241623c6a8ad8c37fb7a703fa815e02b155f049ed011d8",
+        "meshAppearanceSha256": "b4387d3324a6bf0ebc94952112d5d84327198c34108958cff210ecd67fce6775",
+        "morphs": [
+          "mouth_open_small",
+          "garment_swim_side_pressure_L",
+          "garment_swim_side_pressure_R",
+          "garment_shoulder_frill_compression_L",
+          "garment_shoulder_frill_compression_R"
+        ],
+        "morphContentSha256": "fed9b1db80370ca43780c08fcac9a9e39b215cd7b65416ae81722f4e2624eae6",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino03_UVDomainRepair.glb",
+      "format": "glb",
+      "bytes": 9885224,
+      "sha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d",
+      "registry": {
+        "id": "yukino-03-v1",
+        "label": "白色连体泳装蓝蝴蝶结",
+        "status": "delivered_review_stage",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_92e84e17",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 13,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.46752914786338806,
+            -1.5483790605230752e-7,
+            -0.1369628608226776
+          ],
+          "max": [
+            0.46752914786338806,
+            0.9995120167732239,
+            0.13696303963661194
+          ],
+          "size": [
+            0.9350582957267761,
+            0.9995121716111299,
+            0.27392590045928955
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "2bdaf1c6cb335896fbcaa9daa85e04279f13cad6ee9252fa782e8df0d6e60f4c",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.001952165039256215,
+            -9.923036259351647e-8,
+            0.04880429059267044
+          ],
+          "rotation": [
+            -1.2097219226347988e-8,
+            -0.7071068286895752,
+            -1.209721656181273e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "77f4ad5e1baf422f5ef08f95eec96bdefb19d7ad3ccfeeaae9652dc8f2b4a8b6",
+        "materials": 12,
+        "textures": 11,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "29cc676f0c80b6d2cad47e5a94a5836fda8ee4be8f35ed699775144e39b3b91e"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "c851fd6bbdbc2e1ab7c6375a8c585594ac8bdcf34e40874fd2967c2a4b357c95"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "fc54cab656aaa6a12e0870e288aae7736f37832fd3b96605266711cc50ef186b"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "a95942fe0718d289c1241623c6a8ad8c37fb7a703fa815e02b155f049ed011d8",
+        "meshAppearanceSha256": "b4387d3324a6bf0ebc94952112d5d84327198c34108958cff210ecd67fce6775",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "e80bba551770fd1ef31a30132f905989eb228221407c57bbe9d3b031057bd239",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino04_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 15118368,
+      "sha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6",
+      "registry": {
+        "id": "yukino-04-garment-normal-v1",
+        "label": "蓝色花纹和服·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_ed70e69c",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 74,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.409423828125,
+            -7.339430112551781e-7,
+            -0.0886230319738388
+          ],
+          "max": [
+            0.4094240069389343,
+            0.9995114207267761,
+            0.0886230394244194
+          ],
+          "size": [
+            0.8188478350639343,
+            0.9995121546697874,
+            0.1772460713982582
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "ce52f55c81d5f711df7e7d6a641312b83c949bed12a06a916e4b435e07767160",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521696958690882,
+            6.612101515202085e-7,
+            0.013665201142430305
+          ],
+          "rotation": [
+            -1.211788713817441e-8,
+            -0.7071068286895752,
+            -5.4264727822328496e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            0.9999999403953552,
+            0.9999997615814209,
+            0.9999998807907104
+          ]
+        },
+        "inverseBindSha256": "7c55ee269a611e008c9b038ce8f32323b7d5e91f7fffc24e3f413627ca591242",
+        "materials": 70,
+        "textures": 67,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "412f05c51a873cb23ce61bcc88df553796a1586df270f1f3fd8f81de832b7cca"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "8347254f54f389d9aba0c48ffa04ce2bd6d92a92facd6e062169c709130ecb4a"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "ac52a9559366a131cae06df4b4a8e84752a0304c15e708d95665250a11f785f3"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "d9be01388d62cf065b5da06f1918e92252b94ab5c1198ca0738f9950a168e993",
+        "meshAppearanceSha256": "29583d6cb182dbad1f227f909aeb79357b0142b39e597877ed5d3b9df102db92",
+        "morphs": [
+          "mouth_open_small",
+          "garment_kimono_underarm_L",
+          "garment_kimono_underarm_R",
+          "garment_kimono_inner_sleeve_fold_L",
+          "garment_kimono_inner_sleeve_fold_R",
+          "garment_kimono_skirt_hand_pressure_L",
+          "garment_kimono_skirt_hand_pressure_R"
+        ],
+        "morphContentSha256": "4cc9054da1d215aee5212830b50c977061bb6b673eb743326abc793103af75bd",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino04_UVPartsClean_PORTABLE.glb",
+      "format": "glb",
+      "bytes": 10005444,
+      "sha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689",
+      "registry": {
+        "id": "yukino-04-v1",
+        "label": "蓝色花纹和服",
+        "status": "delivered_review_stage",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_ed70e69c",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 74,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.409423828125,
+            -7.339430112551781e-7,
+            -0.0886230319738388
+          ],
+          "max": [
+            0.4094240069389343,
+            0.9995114207267761,
+            0.0886230394244194
+          ],
+          "size": [
+            0.8188478350639343,
+            0.9995121546697874,
+            0.1772460713982582
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "ce52f55c81d5f711df7e7d6a641312b83c949bed12a06a916e4b435e07767160",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521696958690882,
+            6.612101515202085e-7,
+            0.013665201142430305
+          ],
+          "rotation": [
+            -1.211788713817441e-8,
+            -0.7071068286895752,
+            -5.4264727822328496e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            0.9999999403953552,
+            0.9999997615814209,
+            0.9999998807907104
+          ]
+        },
+        "inverseBindSha256": "7c55ee269a611e008c9b038ce8f32323b7d5e91f7fffc24e3f413627ca591242",
+        "materials": 70,
+        "textures": 67,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "412f05c51a873cb23ce61bcc88df553796a1586df270f1f3fd8f81de832b7cca"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "8347254f54f389d9aba0c48ffa04ce2bd6d92a92facd6e062169c709130ecb4a"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "ac52a9559366a131cae06df4b4a8e84752a0304c15e708d95665250a11f785f3"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "d9be01388d62cf065b5da06f1918e92252b94ab5c1198ca0738f9950a168e993",
+        "meshAppearanceSha256": "29583d6cb182dbad1f227f909aeb79357b0142b39e597877ed5d3b9df102db92",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "901886752b336412f90c8d06d7d2a39ae6c0a5eddcc3d2a38960d720614034d2",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino05_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 17068220,
+      "sha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62",
+      "registry": {
+        "id": "yukino-05-garment-normal-v1",
+        "label": "黑色蕾丝裙·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_168ec404",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 362,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.42456042766571045,
+            -4.801204340765253e-7,
+            -0.0910644605755806
+          ],
+          "max": [
+            0.4245605766773224,
+            0.9995114803314209,
+            0.0910644456744194
+          ],
+          "size": [
+            0.8491210043430328,
+            0.999511960451855,
+            0.18212890625
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "a3c9c0b04e464dd9474bfa21e8fbbca84298334d61204b266f8bc7c9446c7502",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521696958690882,
+            1.8877307184084202e-7,
+            0.013665201142430305
+          ],
+          "rotation": [
+            -1.2097219226347988e-8,
+            -0.7071068286895752,
+            -1.209721656181273e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "1dd517d65e279d85accb137b86017153ccbfe38ce7559436a22e654e99c95f08",
+        "materials": 19,
+        "textures": 17,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "412c6a71a0a832a27ee51e397109a9cebd5f31787a46ea3503592c8cc19cbf36"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "f8e5b2bf25b209a405d464259823b81488f02911618c63fe4488c7c76aaa7235"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "2aeb015860f6a71392ea21f2da086c1f380799c9f9e40502c3ff27629b11e2c9"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "7c4cd25df7438a6be95f900ec72b0deaef54b4cc07b10c7076b4a14c2d5b16d5"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "6c4d823df5c0785cdc574788d9cd9b5db478db1b91947d12e9327d36ff1e4d18",
+        "meshAppearanceSha256": "37cf21077454790b8c9e0e83003fafc21cdcd559d2b1275438372d0cd2dcbcbb",
+        "morphs": [
+          "mouth_open_small",
+          "garment_dress_side_hand_pressure_L",
+          "garment_dress_side_hand_pressure_R",
+          "garment_dress_upper_side_compression_L",
+          "garment_dress_upper_side_compression_R"
+        ],
+        "morphContentSha256": "7061d8c56698e96113e1350d2139e37b539bcc95525ef7af6faa0b039998301c",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino05_UVDomainRepair.glb",
+      "format": "glb",
+      "bytes": 13369772,
+      "sha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59",
+      "registry": {
+        "id": "yukino-05-v1",
+        "label": "黑色蕾丝裙",
+        "status": "delivered_review_stage",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_168ec404",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 362,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.42456042766571045,
+            -4.801204340765253e-7,
+            -0.0910644605755806
+          ],
+          "max": [
+            0.4245605766773224,
+            0.9995114803314209,
+            0.0910644456744194
+          ],
+          "size": [
+            0.8491210043430328,
+            0.999511960451855,
+            0.18212890625
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "a3c9c0b04e464dd9474bfa21e8fbbca84298334d61204b266f8bc7c9446c7502",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521696958690882,
+            1.8877307184084202e-7,
+            0.013665201142430305
+          ],
+          "rotation": [
+            -1.2097219226347988e-8,
+            -0.7071068286895752,
+            -1.209721656181273e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            1,
+            0.9999999403953552,
+            1
+          ]
+        },
+        "inverseBindSha256": "1dd517d65e279d85accb137b86017153ccbfe38ce7559436a22e654e99c95f08",
+        "materials": 19,
+        "textures": 17,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "412c6a71a0a832a27ee51e397109a9cebd5f31787a46ea3503592c8cc19cbf36"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "f8e5b2bf25b209a405d464259823b81488f02911618c63fe4488c7c76aaa7235"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "2aeb015860f6a71392ea21f2da086c1f380799c9f9e40502c3ff27629b11e2c9"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "7c4cd25df7438a6be95f900ec72b0deaef54b4cc07b10c7076b4a14c2d5b16d5"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "6c4d823df5c0785cdc574788d9cd9b5db478db1b91947d12e9327d36ff1e4d18",
+        "meshAppearanceSha256": "37cf21077454790b8c9e0e83003fafc21cdcd559d2b1275438372d0cd2dcbcbb",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "f19bf057f6f5014305e162aa380d68847fd9ee9aefe4311b38f374a60bded7fc",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino06_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 17045924,
+      "sha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f",
+      "registry": {
+        "id": "yukino-06-garment-normal-v1",
+        "label": "黑白女仆红蝴蝶结·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_bc675a1d",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 16,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.40307626128196716,
+            -3.1279122936211934e-7,
+            -0.15795890986919403
+          ],
+          "max": [
+            0.40307608246803284,
+            0.9995115995407104,
+            0.15795868635177612
+          ],
+          "size": [
+            0.80615234375,
+            0.9995119123319398,
+            0.31591759622097015
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "809db964b2baf2ee25e31fc5f05b9a40177f81b6f3a6c98383dc11876fc93ba4",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521686481311917,
+            2.52384211307799e-7,
+            0.02147388644516468
+          ],
+          "rotation": [
+            -1.211788713817441e-8,
+            -0.7071068286895752,
+            -5.4264727822328496e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            0.9999999403953552,
+            0.9999997615814209,
+            0.9999998807907104
+          ]
+        },
+        "inverseBindSha256": "5bdb66e630b6f8bf4c0f095419765fede4541926b76e4eb3c929ede6dec8ff5e",
+        "materials": 14,
+        "textures": 12,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "eb939f3d41ee7be83c0157ccabfbed8186ecd6c3d930429181aee13f05bf6364"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "0d26d7727f3608eeeaaf27469c1b187133c5954e314d749cb777c5e3e7d3a564"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "30e86b5a686aafe4f02e68ec86896a5df3a472ae0983464b0701498857638328"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "aba63fbbfdf0615e7d7d9ad7eb5f2629de1cb7a9b630a264b09807766514b638",
+        "meshAppearanceSha256": "90dfc18de19f6b95c3d6c5a105bc6aef40c2aa9a7389e956ec345a1544e224ed",
+        "morphs": [
+          "mouth_open_small",
+          "garment_maid_underarm_L",
+          "garment_maid_underarm_R",
+          "garment_maid_elbow_L",
+          "garment_maid_elbow_R",
+          "garment_maid_skirt_hand_pressure_L",
+          "garment_maid_skirt_hand_pressure_R"
+        ],
+        "morphContentSha256": "7e123b886264400dc78ab110dbcd0e38a52594dfb607538495758e51c3ad4591",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino06_UVPartsClean_PORTABLE.glb",
+      "format": "glb",
+      "bytes": 11691392,
+      "sha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6",
+      "registry": {
+        "id": "yukino-06-v1",
+        "label": "黑白女仆红蝴蝶结",
+        "status": "delivered_review_stage",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Armature"
+        ],
+        "meshNodes": [
+          {
+            "name": "tripo_node_bc675a1d",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 16,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.40307626128196716,
+            -3.1279122936211934e-7,
+            -0.15795890986919403
+          ],
+          "max": [
+            0.40307608246803284,
+            0.9995115995407104,
+            0.15795868635177612
+          ],
+          "size": [
+            0.80615234375,
+            0.9995119123319398,
+            0.31591759622097015
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "809db964b2baf2ee25e31fc5f05b9a40177f81b6f3a6c98383dc11876fc93ba4",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019521686481311917,
+            2.52384211307799e-7,
+            0.02147388644516468
+          ],
+          "rotation": [
+            -1.211788713817441e-8,
+            -0.7071068286895752,
+            -5.4264727822328496e-8,
+            0.7071067094802856
+          ],
+          "scale": [
+            0.9999999403953552,
+            0.9999997615814209,
+            0.9999998807907104
+          ]
+        },
+        "inverseBindSha256": "5bdb66e630b6f8bf4c0f095419765fede4541926b76e4eb3c929ede6dec8ff5e",
+        "materials": 14,
+        "textures": 12,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "eb939f3d41ee7be83c0157ccabfbed8186ecd6c3d930429181aee13f05bf6364"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "0d26d7727f3608eeeaaf27469c1b187133c5954e314d749cb777c5e3e7d3a564"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "30e86b5a686aafe4f02e68ec86896a5df3a472ae0983464b0701498857638328"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "aba63fbbfdf0615e7d7d9ad7eb5f2629de1cb7a9b630a264b09807766514b638",
+        "meshAppearanceSha256": "90dfc18de19f6b95c3d6c5a105bc6aef40c2aa9a7389e956ec345a1544e224ed",
+        "morphs": [
+          "mouth_open_small"
+        ],
+        "morphContentSha256": "2bc01d2ad0d827bc30bea5280ddae13f50e1444debf2c45f55ac23ffe6fe7dbe",
+        "animations": [
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino07_CMUWalk14_V6_REVIEW.glb",
+      "format": "glb",
+      "bytes": 10175144,
+      "sha256": "44cdaf1b970662e0a1c3aac1545e515047bf1cfb6bed0ac83b4d2c8b16a88866",
+      "registry": {
+        "id": "yukino-07-walk14-preview",
+        "label": "校服·行走换装（评审）",
+        "status": "runtime_walking_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [
+          "KHR_materials_unlit"
+        ],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Yukino_Rig"
+        ],
+        "meshNodes": [
+          {
+            "name": "Yukino_Body",
+            "skinned": true
+          },
+          {
+            "name": "Yukino_Body_ToonOutline",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 11,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.45980387926101685,
+            -0.00042811292223632336,
+            -0.12774863839149475
+          ],
+          "max": [
+            0.45980411767959595,
+            1.0000430345535278,
+            0.12772367894649506
+          ],
+          "size": [
+            0.9196079969406128,
+            1.0004711474757642,
+            0.2554723173379898
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "10619c67f07f0a83ac0d8162f3c2b6b615e510e7d975fa1f0383a38e29178b15",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019522124202921987,
+            1.1712065983715547e-8,
+            0.044899918138980865
+          ],
+          "rotation": [
+            -3.103018286765291e-8,
+            -0.7071066498756409,
+            -3.103018997308027e-8,
+            0.70710688829422
+          ]
+        },
+        "inverseBindSha256": "aa8bb53ecc12729e08d354afb0b8b3d91e3bacb8785f232b74e725d8f3cebc63",
+        "materials": 11,
+        "textures": 4,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4b5ed02d35354ec6371a1e2a97e402515ef76df59d16ca6d246c80ea819d5a1c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "b3650ff4bf823e2e1ef78365e903ac9aea8b8c5ecdbbc3e9d1a5a20361eccb29"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "4626385a3a79ca57ffe872e982306a15e1fa86e28604c6dc319f30fa56c4ea81",
+        "meshAppearanceSha256": "151a63e3eed84646bab0a05df7c388b789143ab5b2d3d73372151abf8424a0aa",
+        "morphs": [
+          "MouthOpen",
+          "viseme_A",
+          "viseme_I",
+          "viseme_U",
+          "viseme_E",
+          "viseme_O",
+          "viseme_MBP",
+          "MouthSmile",
+          "MouthFrown"
+        ],
+        "morphContentSha256": "b774b1d8e4eedf1d7788a35fb7e8e380f40ad5c8b6660b1c464e22a32e258ee0",
+        "animations": [
+          {
+            "name": "Attentive_LeanReturn",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Explain_Small",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Greet_Reserved",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Question_Tilt",
+            "duration": 3.7,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Reject_Gentle",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Shoulders_Relax",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Walk_Slow_Loop",
+            "duration": 1.4666666666666666,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "WeightShift_Small",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino07_DialogueMicro19_REVIEW.glb",
+      "format": "glb",
+      "bytes": 10420820,
+      "sha256": "0ce5fb17fb3150e3a812e71200ed47341050669b562cf0c457c4c22c80bbe1f9",
+      "registry": {
+        "id": "yukino-07-dialogue19-preview",
+        "label": "校服·语音微动作（评审）",
+        "status": "runtime_walking_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [
+          "KHR_materials_unlit"
+        ],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Yukino_Rig"
+        ],
+        "meshNodes": [
+          {
+            "name": "Yukino_Body",
+            "skinned": true
+          },
+          {
+            "name": "Yukino_Body_ToonOutline",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 11,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.45980387926101685,
+            -0.00042811292223632336,
+            -0.12774863839149475
+          ],
+          "max": [
+            0.45980411767959595,
+            1.0000430345535278,
+            0.12772367894649506
+          ],
+          "size": [
+            0.9196079969406128,
+            1.0004711474757642,
+            0.2554723173379898
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "10619c67f07f0a83ac0d8162f3c2b6b615e510e7d975fa1f0383a38e29178b15",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019522124202921987,
+            1.1712065983715547e-8,
+            0.044899918138980865
+          ],
+          "rotation": [
+            -3.103018286765291e-8,
+            -0.7071066498756409,
+            -3.103018997308027e-8,
+            0.70710688829422
+          ]
+        },
+        "inverseBindSha256": "aa8bb53ecc12729e08d354afb0b8b3d91e3bacb8785f232b74e725d8f3cebc63",
+        "materials": 11,
+        "textures": 4,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4b5ed02d35354ec6371a1e2a97e402515ef76df59d16ca6d246c80ea819d5a1c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "b3650ff4bf823e2e1ef78365e903ac9aea8b8c5ecdbbc3e9d1a5a20361eccb29"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "4626385a3a79ca57ffe872e982306a15e1fa86e28604c6dc319f30fa56c4ea81",
+        "meshAppearanceSha256": "151a63e3eed84646bab0a05df7c388b789143ab5b2d3d73372151abf8424a0aa",
+        "morphs": [
+          "MouthOpen",
+          "viseme_A",
+          "viseme_I",
+          "viseme_U",
+          "viseme_E",
+          "viseme_O",
+          "viseme_MBP",
+          "MouthSmile",
+          "MouthFrown"
+        ],
+        "morphContentSha256": "b774b1d8e4eedf1d7788a35fb7e8e380f40ad5c8b6660b1c464e22a32e258ee0",
+        "animations": [
+          {
+            "name": "Attentive_LeanReturn",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Explain_Small",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Greet_Reserved",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Question_Tilt",
+            "duration": 3.7,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Reject_Gentle",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Shoulders_Relax",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Walk_Slow_Loop",
+            "duration": 1.4666666666666666,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "WeightShift_Small",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Speak_PhraseCadence",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Recall_SideThenReturn",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Courtesy_Bow",
+            "duration": 3.9,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Clarify_LowHand",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Hear_SurpriseRecover",
+            "duration": 3.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino07_GarmentNormal_20261027.glb",
+      "format": "glb",
+      "bytes": 12502896,
+      "sha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66",
+      "registry": {
+        "id": "yukino-07-garment-normal-v1",
+        "label": "校服·衣物姿态修正",
+        "status": "bounded_garment_normal_review",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [
+          "KHR_materials_unlit"
+        ],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Yukino_Rig"
+        ],
+        "meshNodes": [
+          {
+            "name": "Yukino_Body",
+            "skinned": true
+          },
+          {
+            "name": "Yukino_Body_ToonOutline",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 11,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.45980387926101685,
+            -0.00042811292223632336,
+            -0.12774863839149475
+          ],
+          "max": [
+            0.45980411767959595,
+            1.0000430345535278,
+            0.12772367894649506
+          ],
+          "size": [
+            0.9196079969406128,
+            1.0004711474757642,
+            0.2554723173379898
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "10619c67f07f0a83ac0d8162f3c2b6b615e510e7d975fa1f0383a38e29178b15",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019522124202921987,
+            1.1712065983715547e-8,
+            0.044899918138980865
+          ],
+          "rotation": [
+            -3.103018286765291e-8,
+            -0.7071066498756409,
+            -3.103018997308027e-8,
+            0.70710688829422
+          ]
+        },
+        "inverseBindSha256": "aa8bb53ecc12729e08d354afb0b8b3d91e3bacb8785f232b74e725d8f3cebc63",
+        "materials": 11,
+        "textures": 4,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4b5ed02d35354ec6371a1e2a97e402515ef76df59d16ca6d246c80ea819d5a1c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "b3650ff4bf823e2e1ef78365e903ac9aea8b8c5ecdbbc3e9d1a5a20361eccb29"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "4626385a3a79ca57ffe872e982306a15e1fa86e28604c6dc319f30fa56c4ea81",
+        "meshAppearanceSha256": "151a63e3eed84646bab0a05df7c388b789143ab5b2d3d73372151abf8424a0aa",
+        "morphs": [
+          "MouthOpen",
+          "viseme_A",
+          "viseme_I",
+          "viseme_U",
+          "viseme_E",
+          "viseme_O",
+          "viseme_MBP",
+          "MouthSmile",
+          "MouthFrown",
+          "garment_underarm_compress_L",
+          "garment_elbow_fold_L",
+          "garment_hand_contact_L",
+          "garment_underarm_compress_R",
+          "garment_elbow_fold_R",
+          "garment_hand_contact_R"
+        ],
+        "morphContentSha256": "c59cf88e0dab2e312fe4dbb07cf76d9723a0b8f9082898228b8df772c811cc48",
+        "animations": [
+          {
+            "name": "Attentive_LeanReturn",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Explain_Small",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Greet_Reserved",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Question_Tilt",
+            "duration": 3.7,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Reject_Gentle",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Shoulders_Relax",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Walk_Slow_Loop",
+            "duration": 1.4666666666666666,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "WeightShift_Small",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Speak_PhraseCadence",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Recall_SideThenReturn",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Courtesy_Bow",
+            "duration": 3.9,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Clarify_LowHand",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Hear_SurpriseRecover",
+            "duration": 3.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Relaxed",
+            "duration": 6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino07_MicroActions13_REVIEW.glb",
+      "format": "glb",
+      "bytes": 10118656,
+      "sha256": "e070bc7baf5326447df0023769cabda61d20f69781bd15bc39a557807b5142b4",
+      "registry": {
+        "id": "yukino-07-micro13-preview",
+        "label": "校服·微动作增强（预览）",
+        "status": "optional_preview_technical_integration_approved_not_user_accepted",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [
+          "KHR_materials_unlit"
+        ],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Yukino_Rig"
+        ],
+        "meshNodes": [
+          {
+            "name": "Yukino_Body",
+            "skinned": true
+          },
+          {
+            "name": "Yukino_Body_ToonOutline",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 11,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.45980387926101685,
+            -0.00042811292223632336,
+            -0.12774863839149475
+          ],
+          "max": [
+            0.45980411767959595,
+            1.0000430345535278,
+            0.12772367894649506
+          ],
+          "size": [
+            0.9196079969406128,
+            1.0004711474757642,
+            0.2554723173379898
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "10619c67f07f0a83ac0d8162f3c2b6b615e510e7d975fa1f0383a38e29178b15",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019522124202921987,
+            1.1712065983715547e-8,
+            0.044899918138980865
+          ],
+          "rotation": [
+            -3.103018286765291e-8,
+            -0.7071066498756409,
+            -3.103018997308027e-8,
+            0.70710688829422
+          ]
+        },
+        "inverseBindSha256": "aa8bb53ecc12729e08d354afb0b8b3d91e3bacb8785f232b74e725d8f3cebc63",
+        "materials": 11,
+        "textures": 4,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4b5ed02d35354ec6371a1e2a97e402515ef76df59d16ca6d246c80ea819d5a1c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "b3650ff4bf823e2e1ef78365e903ac9aea8b8c5ecdbbc3e9d1a5a20361eccb29"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "4626385a3a79ca57ffe872e982306a15e1fa86e28604c6dc319f30fa56c4ea81",
+        "meshAppearanceSha256": "151a63e3eed84646bab0a05df7c388b789143ab5b2d3d73372151abf8424a0aa",
+        "morphs": [
+          "MouthOpen",
+          "viseme_A",
+          "viseme_I",
+          "viseme_U",
+          "viseme_E",
+          "viseme_O",
+          "viseme_MBP",
+          "MouthSmile",
+          "MouthFrown"
+        ],
+        "morphContentSha256": "b774b1d8e4eedf1d7788a35fb7e8e380f40ad5c8b6660b1c464e22a32e258ee0",
+        "animations": [
+          {
+            "name": "Attentive_LeanReturn",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Explain_Small",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Greet_Reserved",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Question_Tilt",
+            "duration": 3.7,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Reject_Gentle",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Shoulders_Relax",
+            "duration": 4.3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "WeightShift_Small",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/Yukino07_UVDomainRepair.glb",
+      "format": "glb",
+      "bytes": 9882096,
+      "sha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "registry": {
+        "id": "yukino-07-v1",
+        "label": "原校服黄背心",
+        "status": "validated_stage_uploaded",
+        "matches": true
+      },
+      "glb": {
+        "containerVersion": 2,
+        "generator": "Khronos glTF Blender I/O v4.3.47",
+        "version": "2.0",
+        "extensionsUsed": [
+          "KHR_materials_unlit"
+        ],
+        "extensionsRequired": [],
+        "sceneRoots": [
+          "Yukino_Rig"
+        ],
+        "meshNodes": [
+          {
+            "name": "Yukino_Body",
+            "skinned": true
+          },
+          {
+            "name": "Yukino_Body_ToonOutline",
+            "skinned": true
+          }
+        ],
+        "primitiveCount": 11,
+        "eightWeightPrimitiveCount": 0,
+        "meshLocalBounds": {
+          "min": [
+            -0.45980387926101685,
+            -0.00042811292223632336,
+            -0.12774863839149475
+          ],
+          "max": [
+            0.45980411767959595,
+            1.0000430345535278,
+            0.12772367894649506
+          ],
+          "size": [
+            0.9196079969406128,
+            1.0004711474757642,
+            0.2554723173379898
+          ]
+        },
+        "jointCount": 55,
+        "hierarchyId": "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe",
+        "eyeJoints": [
+          "J_Adj_L_FaceEye",
+          "J_Adj_R_FaceEye"
+        ],
+        "physicsNamedJoints": [],
+        "localRestPoseSha256": "10619c67f07f0a83ac0d8162f3c2b6b615e510e7d975fa1f0383a38e29178b15",
+        "rootRestPose": {
+          "name": "Root",
+          "translation": [
+            0.0019522124202921987,
+            1.1712065983715547e-8,
+            0.044899918138980865
+          ],
+          "rotation": [
+            -3.103018286765291e-8,
+            -0.7071066498756409,
+            -3.103018997308027e-8,
+            0.70710688829422
+          ]
+        },
+        "inverseBindSha256": "aa8bb53ecc12729e08d354afb0b8b3d91e3bacb8785f232b74e725d8f3cebc63",
+        "materials": 11,
+        "textures": 4,
+        "images": [
+          {
+            "mimeType": "image/jpeg",
+            "sha256": "4b5ed02d35354ec6371a1e2a97e402515ef76df59d16ca6d246c80ea819d5a1c"
+          },
+          {
+            "mimeType": "image/png",
+            "sha256": "b3650ff4bf823e2e1ef78365e903ac9aea8b8c5ecdbbc3e9d1a5a20361eccb29"
+          }
+        ],
+        "externalBuffers": [],
+        "materialSha256": "4626385a3a79ca57ffe872e982306a15e1fa86e28604c6dc319f30fa56c4ea81",
+        "meshAppearanceSha256": "151a63e3eed84646bab0a05df7c388b789143ab5b2d3d73372151abf8424a0aa",
+        "morphs": [
+          "MouthOpen",
+          "viseme_A",
+          "viseme_I",
+          "viseme_U",
+          "viseme_E",
+          "viseme_O",
+          "viseme_MBP",
+          "MouthSmile",
+          "MouthFrown"
+        ],
+        "morphContentSha256": "b774b1d8e4eedf1d7788a35fb7e8e380f40ad5c8b6660b1c464e22a32e258ee0",
+        "animations": [
+          {
+            "name": "Explain_Small",
+            "duration": 4.2,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Greet_Reserved",
+            "duration": 3.6,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Idle_Breathe",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Listen_Attentive",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Left",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Look_Right",
+            "duration": 3,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Nod_Subtle",
+            "duration": 2.4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          },
+          {
+            "name": "Think_Downcast",
+            "duration": 4,
+            "channelCount": 165,
+            "channels": {
+              "rotation": 55,
+              "scale": 55,
+              "translation": 55
+            }
+          }
+        ]
+      }
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-01.png",
+      "format": "png",
+      "bytes": 784963,
+      "sha256": "b18676a25e3a2b46548ed63d5720028f06757b993fc1451590485c63459ae128"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-02.png",
+      "format": "png",
+      "bytes": 750260,
+      "sha256": "c35b7401f2ba0defe17f04f493645115ac9389cb94d9b59f7b09aa25e381010d"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-03.png",
+      "format": "png",
+      "bytes": 749393,
+      "sha256": "c0c91e8d8765515c8c21f070569269ab2d4fd759fac96419b25aab0e1951c8e4"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-04.png",
+      "format": "png",
+      "bytes": 804533,
+      "sha256": "b62ea8608aabd9c16fa85e2458cf3d679a9b304a3037565f4f0e0c3824198473"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-05.png",
+      "format": "png",
+      "bytes": 716889,
+      "sha256": "9e975ea04ada2e3257d3727bd7c2a2655c8f9f09fa55be7ec3d25267a531b066"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-06.png",
+      "format": "png",
+      "bytes": 743500,
+      "sha256": "93f1c03884d38a602be4994442af82ea9586df080d98987caa22b71007bdfd98"
+    },
+    {
+      "path": "public/characters/thumbnails/yukino-07.png",
+      "format": "png",
+      "bytes": 701858,
+      "sha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227"
+    },
+    {
+      "path": "resources/character-dialogue07-v1.json",
+      "format": "json",
+      "bytes": 13792,
+      "sha256": "998279d9795ddca7332e272d9dfdac8524fd8088a5aa352a46b24821cbcd780a"
+    },
+    {
+      "path": "resources/character-models.json",
+      "format": "json",
+      "bytes": 50833,
+      "sha256": "e9e0b103d5137c9a5af188171103bf10bdb9f649494aa0aecd43fde2e8bf43f8"
+    },
+    {
+      "path": "resources/character-source/sources.json",
+      "format": "json",
+      "bytes": 3269,
+      "sha256": "51bd9f3443a0b7df086d72ab1851cb6d0096728ac471dace87663fb5f8988da1"
+    },
+    {
+      "path": "resources/character-walk07-v6.json",
+      "format": "json",
+      "bytes": 4248,
+      "sha256": "1b98b8fc1a185f4f66b5749e831177ac186b151d11eeb9b6998c6b20d5ecc2ce"
+    },
+    {
+      "path": "src/ui/garments/profiles/01-normal.json",
+      "format": "json",
+      "bytes": 226247,
+      "sha256": "76f90ecea5730809efa94fddb82947000e8ac3bf4a492deb792b2135a3dc505f"
+    },
+    {
+      "path": "src/ui/garments/profiles/02-normal.json",
+      "format": "json",
+      "bytes": 847069,
+      "sha256": "e505b645f7e7c82a364980dd3c903ca750fa38b70e68c34a8ef19cba02e94ee7"
+    },
+    {
+      "path": "src/ui/garments/profiles/03-normal.json",
+      "format": "json",
+      "bytes": 225374,
+      "sha256": "bb7fa27dcc67ae47d62cd0bae61636ac1c375dc06ee8fe7807c1876226d729ae"
+    },
+    {
+      "path": "src/ui/garments/profiles/04-normal.json",
+      "format": "json",
+      "bytes": 848786,
+      "sha256": "1ce63a6aa53ef3ef75cb712c2b4445fb462ad8793f60ad2d522bdd096f5f4a16"
+    },
+    {
+      "path": "src/ui/garments/profiles/05-normal.json",
+      "format": "json",
+      "bytes": 261669,
+      "sha256": "991ad0db2968b4098a51251473846054c952fba178f1737e34817c4a0bf0869d"
+    },
+    {
+      "path": "src/ui/garments/profiles/06-normal.json",
+      "format": "json",
+      "bytes": 38927,
+      "sha256": "5bbc7fb33be6770fb4444abb648ab64607dffb040d483a93d8f0a4cc55ef0fdc"
+    },
+    {
+      "path": "src/ui/garments/profiles/07-normal.json",
+      "format": "json",
+      "bytes": 11742,
+      "sha256": "b7d539d30fe210e94cb9c4e9954756d98b660c37ed7a9b9df21f06c7cc9a020b"
+    }
+  ],
+  "rigHierarchies": {
+    "9bbf5a14814e08b6202a4e4dc5f21f3f363f6a0b4fe6f1885180aae8b6187c89": [
+      [
+        "Root",
+        "Armature"
+      ],
+      [
+        "J_Bip_C_Hips",
+        "Root"
+      ],
+      [
+        "J_Bip_C_Spine",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_C_Chest",
+        "J_Bip_C_Spine"
+      ],
+      [
+        "J_Bip_C_UpperChest",
+        "J_Bip_C_Chest"
+      ],
+      [
+        "J_Bip_C_Neck",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_C_Head",
+        "J_Bip_C_Neck"
+      ],
+      [
+        "J_Adj_L_FaceEye",
+        "J_Bip_C_Head"
+      ],
+      [
+        "J_Adj_R_FaceEye",
+        "J_Bip_C_Head"
+      ],
+      [
+        "J_Bip_L_Shoulder",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_L_UpperArm",
+        "J_Bip_L_Shoulder"
+      ],
+      [
+        "J_Bip_L_LowerArm",
+        "J_Bip_L_UpperArm"
+      ],
+      [
+        "J_Bip_L_Hand",
+        "J_Bip_L_LowerArm"
+      ],
+      [
+        "J_Bip_L_Thumb1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Thumb2",
+        "J_Bip_L_Thumb1"
+      ],
+      [
+        "J_Bip_L_Thumb3",
+        "J_Bip_L_Thumb2"
+      ],
+      [
+        "J_Bip_L_Index1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Index2",
+        "J_Bip_L_Index1"
+      ],
+      [
+        "J_Bip_L_Index3",
+        "J_Bip_L_Index2"
+      ],
+      [
+        "J_Bip_L_Middle1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Middle2",
+        "J_Bip_L_Middle1"
+      ],
+      [
+        "J_Bip_L_Middle3",
+        "J_Bip_L_Middle2"
+      ],
+      [
+        "J_Bip_L_Ring1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Ring2",
+        "J_Bip_L_Ring1"
+      ],
+      [
+        "J_Bip_L_Ring3",
+        "J_Bip_L_Ring2"
+      ],
+      [
+        "J_Bip_L_Little1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Little2",
+        "J_Bip_L_Little1"
+      ],
+      [
+        "J_Bip_L_Little3",
+        "J_Bip_L_Little2"
+      ],
+      [
+        "J_Bip_R_Shoulder",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_R_UpperArm",
+        "J_Bip_R_Shoulder"
+      ],
+      [
+        "J_Bip_R_LowerArm",
+        "J_Bip_R_UpperArm"
+      ],
+      [
+        "J_Bip_R_Hand",
+        "J_Bip_R_LowerArm"
+      ],
+      [
+        "J_Bip_R_Thumb1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Thumb2",
+        "J_Bip_R_Thumb1"
+      ],
+      [
+        "J_Bip_R_Thumb3",
+        "J_Bip_R_Thumb2"
+      ],
+      [
+        "J_Bip_R_Index1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Index2",
+        "J_Bip_R_Index1"
+      ],
+      [
+        "J_Bip_R_Index3",
+        "J_Bip_R_Index2"
+      ],
+      [
+        "J_Bip_R_Middle1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Middle2",
+        "J_Bip_R_Middle1"
+      ],
+      [
+        "J_Bip_R_Middle3",
+        "J_Bip_R_Middle2"
+      ],
+      [
+        "J_Bip_R_Ring1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Ring2",
+        "J_Bip_R_Ring1"
+      ],
+      [
+        "J_Bip_R_Ring3",
+        "J_Bip_R_Ring2"
+      ],
+      [
+        "J_Bip_R_Little1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Little2",
+        "J_Bip_R_Little1"
+      ],
+      [
+        "J_Bip_R_Little3",
+        "J_Bip_R_Little2"
+      ],
+      [
+        "J_Bip_L_UpperLeg",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_L_LowerLeg",
+        "J_Bip_L_UpperLeg"
+      ],
+      [
+        "J_Bip_L_Foot",
+        "J_Bip_L_LowerLeg"
+      ],
+      [
+        "J_Bip_L_ToeBase",
+        "J_Bip_L_Foot"
+      ],
+      [
+        "J_Bip_R_UpperLeg",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_R_LowerLeg",
+        "J_Bip_R_UpperLeg"
+      ],
+      [
+        "J_Bip_R_Foot",
+        "J_Bip_R_LowerLeg"
+      ],
+      [
+        "J_Bip_R_ToeBase",
+        "J_Bip_R_Foot"
+      ]
+    ],
+    "35e1e1b008af93d75f7237c573f2579c1a5857988f5e0e9d8926388341df12fe": [
+      [
+        "Root",
+        "Yukino_Rig"
+      ],
+      [
+        "J_Bip_C_Hips",
+        "Root"
+      ],
+      [
+        "J_Bip_C_Spine",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_C_Chest",
+        "J_Bip_C_Spine"
+      ],
+      [
+        "J_Bip_C_UpperChest",
+        "J_Bip_C_Chest"
+      ],
+      [
+        "J_Bip_C_Neck",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_C_Head",
+        "J_Bip_C_Neck"
+      ],
+      [
+        "J_Adj_L_FaceEye",
+        "J_Bip_C_Head"
+      ],
+      [
+        "J_Adj_R_FaceEye",
+        "J_Bip_C_Head"
+      ],
+      [
+        "J_Bip_L_Shoulder",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_L_UpperArm",
+        "J_Bip_L_Shoulder"
+      ],
+      [
+        "J_Bip_L_LowerArm",
+        "J_Bip_L_UpperArm"
+      ],
+      [
+        "J_Bip_L_Hand",
+        "J_Bip_L_LowerArm"
+      ],
+      [
+        "J_Bip_L_Thumb1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Thumb2",
+        "J_Bip_L_Thumb1"
+      ],
+      [
+        "J_Bip_L_Thumb3",
+        "J_Bip_L_Thumb2"
+      ],
+      [
+        "J_Bip_L_Index1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Index2",
+        "J_Bip_L_Index1"
+      ],
+      [
+        "J_Bip_L_Index3",
+        "J_Bip_L_Index2"
+      ],
+      [
+        "J_Bip_L_Middle1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Middle2",
+        "J_Bip_L_Middle1"
+      ],
+      [
+        "J_Bip_L_Middle3",
+        "J_Bip_L_Middle2"
+      ],
+      [
+        "J_Bip_L_Ring1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Ring2",
+        "J_Bip_L_Ring1"
+      ],
+      [
+        "J_Bip_L_Ring3",
+        "J_Bip_L_Ring2"
+      ],
+      [
+        "J_Bip_L_Little1",
+        "J_Bip_L_Hand"
+      ],
+      [
+        "J_Bip_L_Little2",
+        "J_Bip_L_Little1"
+      ],
+      [
+        "J_Bip_L_Little3",
+        "J_Bip_L_Little2"
+      ],
+      [
+        "J_Bip_R_Shoulder",
+        "J_Bip_C_UpperChest"
+      ],
+      [
+        "J_Bip_R_UpperArm",
+        "J_Bip_R_Shoulder"
+      ],
+      [
+        "J_Bip_R_LowerArm",
+        "J_Bip_R_UpperArm"
+      ],
+      [
+        "J_Bip_R_Hand",
+        "J_Bip_R_LowerArm"
+      ],
+      [
+        "J_Bip_R_Thumb1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Thumb2",
+        "J_Bip_R_Thumb1"
+      ],
+      [
+        "J_Bip_R_Thumb3",
+        "J_Bip_R_Thumb2"
+      ],
+      [
+        "J_Bip_R_Index1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Index2",
+        "J_Bip_R_Index1"
+      ],
+      [
+        "J_Bip_R_Index3",
+        "J_Bip_R_Index2"
+      ],
+      [
+        "J_Bip_R_Middle1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Middle2",
+        "J_Bip_R_Middle1"
+      ],
+      [
+        "J_Bip_R_Middle3",
+        "J_Bip_R_Middle2"
+      ],
+      [
+        "J_Bip_R_Ring1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Ring2",
+        "J_Bip_R_Ring1"
+      ],
+      [
+        "J_Bip_R_Ring3",
+        "J_Bip_R_Ring2"
+      ],
+      [
+        "J_Bip_R_Little1",
+        "J_Bip_R_Hand"
+      ],
+      [
+        "J_Bip_R_Little2",
+        "J_Bip_R_Little1"
+      ],
+      [
+        "J_Bip_R_Little3",
+        "J_Bip_R_Little2"
+      ],
+      [
+        "J_Bip_L_UpperLeg",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_L_LowerLeg",
+        "J_Bip_L_UpperLeg"
+      ],
+      [
+        "J_Bip_L_Foot",
+        "J_Bip_L_LowerLeg"
+      ],
+      [
+        "J_Bip_L_ToeBase",
+        "J_Bip_L_Foot"
+      ],
+      [
+        "J_Bip_R_UpperLeg",
+        "J_Bip_C_Hips"
+      ],
+      [
+        "J_Bip_R_LowerLeg",
+        "J_Bip_R_UpperLeg"
+      ],
+      [
+        "J_Bip_R_Foot",
+        "J_Bip_R_LowerLeg"
+      ],
+      [
+        "J_Bip_R_ToeBase",
+        "J_Bip_R_Foot"
+      ]
+    ]
+  }
+}

@@ -60,7 +60,7 @@ SetupWindowTitle=安装 Yukino Companion
 WelcomeLabel1=一方安静的空间。
 WelcomeLabel2=文字聊天、人物陪伴。其他能力，按需要慢慢开启。
 SelectDirLabel3=选择安装位置
-SelectDirDesc=为 Yukino Companion 选择一个专用文件夹。
+SelectDirDesc=选择新文件夹安装，或选择已有软件目录进行更新。
 SelectDirBrowseLabel=应用只为当前 Windows 用户安装。
 WizardInstalling=正在安装 Yukino Companion
 InstallingLabel=正在将应用文件写入所选文件夹。
@@ -90,7 +90,7 @@ const
   ColorSuccess=$557C42;
 var
   DesktopShortcutCheck,StartMenuShortcutCheck:TNewCheckBox;
-  ProgressPercent,InstallStageNote:TNewStaticText;
+  ProgressPercent,InstallStageNote,InstallationModeNote:TNewStaticText;
   FilesWritten:Boolean;
 function NormalPath(Value:String):String;
 begin Result:=RemoveBackslash(ExpandFileName(Value)); end;
@@ -143,6 +143,25 @@ begin
   if CompareText(NormalPath(ExtractFileDir(Uninstaller)),Directory)<>0 then Exit;
   Result:=FileExists(Uninstaller) and FileExists(ChangeFileExt(Uninstaller,'.dat')) and FileExists(AddBackslash(Directory)+'Yukino Companion.exe') and FileExists(AddBackslash(Directory)+'resources\app.asar');
 end;
+{ In-place updates also accept releases made by the older NSIS/bootstrap
+  installers. No directory is deleted or replaced: only shipped app files
+  are written, so Yukino-Data and detached resources keep their original paths. }
+function RecognizedInstallation(Directory:String):Boolean;
+var Marker:AnsiString; Text:String;
+begin
+  Result:=False;
+  if not FileExists(AddBackslash(Directory)+'Yukino Companion.exe') then Exit;
+  if not FileExists(AddBackslash(Directory)+'resources\app.asar') then Exit;
+  if GetIniString('Installation','AppId','',AddBackslash(Directory)+'yukino-base-installation.ini')='{#ProductAppId}' then begin Result:=True; Exit; end;
+  if LoadStringFromFile(AddBackslash(Directory)+'yukino-installation.json',Marker) then begin
+    Text:=String(Marker);
+    StringChangeEx(Text,' ','',True); StringChangeEx(Text,#9,'',True);
+    StringChangeEx(Text,#13,'',True); StringChangeEx(Text,#10,'',True);
+    if (Pos('"appId":"io.github.fqxxzyw.yukino"',Text)>0) and (Pos('"files":[',Text)>0) and
+       ((Pos('"schemaVersion":1,',Text)>0) or (Pos('"schemaVersion":1}',Text)>0)) then begin Result:=True; Exit; end;
+  end;
+  Result:=FileExists(AddBackslash(Directory)+'Uninstall Yukino Companion.exe');
+end;
 function DirectoryProblem:String;
 var Directory,UserProfile:String;
 begin
@@ -154,7 +173,7 @@ begin
   begin Result:='请选择一个专用的应用文件夹，不要选择磁盘或用户数据根目录。'; Exit; end;
   if FileExists(Directory) then begin Result:='所选路径是文件，请另选文件夹。'; Exit; end;
   if LinkedParent(Directory) or LinkedChildren(Directory) then begin Result:='所选文件夹包含目录链接，请选择普通文件夹。'; Exit; end;
-  if HasEntries(Directory) and (not Owned(Directory)) then Result:='这个文件夹已有内容，无法确认属于本安装器。请选择新空文件夹，或先在 Windows 设置卸载旧版。聊天、设置及已下载资源会保留。';
+  if HasEntries(Directory) and (not Owned(Directory)) and (not RecognizedInstallation(Directory)) then Result:='这个文件夹已有内容，无法识别为 Yukino Companion。请选择包含 Yukino Companion.exe 的已有软件目录，或选择新空文件夹。';
 end;
 function NextButtonClick(CurPageID:Integer):Boolean;
 var Problem:String;
@@ -171,9 +190,30 @@ function AddText(Parent:TWinControl; Text:String; Left,Top,Width,Height,Size:Int
 begin
   Result:=TNewStaticText.Create(WizardForm); Result.Parent:=Parent; Result.AutoSize:=False; Result.WordWrap:=True;
   Result.Caption:=Text; Result.SetBounds(Left,Top,Width,Height); StyleLabel(Result,Size,Bold);
+  Result.AdjustHeight;
+end;
+procedure DirectoryChanged(Sender:TObject);
+begin
+  if RecognizedInstallation(NormalPath(WizardDirValue)) then begin
+    InstallationModeNote.Caption:='已检测到现有软件，将在此目录更新应用。Yukino-Data、已有模型、语音与运行环境会保留，无需重新下载完整资源。';
+    InstallationModeNote.Font.Color:=ColorSuccess;
+  end else begin
+    InstallationModeNote.Caption:='可选择已有软件的安装目录进行更新。聊天与设置保存在用户数据目录；之后下载的资源默认保存在安装目录下的 Yukino-Data，卸载时保留。';
+    InstallationModeNote.Font.Color:=ColorMuted;
+  end;
+  InstallationModeNote.AdjustHeight;
+end;
+procedure LayoutPageHeading;
+begin
+  WizardForm.PageNameLabel.AutoSize:=False; WizardForm.PageNameLabel.WordWrap:=True;
+  WizardForm.PageNameLabel.SetBounds(ScaleX(28),ScaleY(7),WizardForm.MainPanel.ClientWidth-ScaleX(56),ScaleY(25));
+  WizardForm.PageNameLabel.AdjustHeight;
+  WizardForm.PageDescriptionLabel.AutoSize:=False; WizardForm.PageDescriptionLabel.WordWrap:=True;
+  WizardForm.PageDescriptionLabel.SetBounds(ScaleX(28),WizardForm.PageNameLabel.Top+WizardForm.PageNameLabel.Height+ScaleY(4),WizardForm.PageNameLabel.Width,ScaleY(20));
+  WizardForm.PageDescriptionLabel.AdjustHeight;
 end;
 procedure InitializeWizard;
-var Card:TPanel; Note:TNewStaticText; W:Integer;
+var Card:TPanel; Note,CardText:TNewStaticText; W,Y:Integer;
 begin
   WizardForm.Font.Name:='Microsoft YaHei UI'; WizardForm.Font.Color:=ColorInk; WizardForm.Color:=ColorSky;
   WizardForm.WelcomePage.Color:=ColorSky; WizardForm.FinishedPage.Color:=ColorSky; WizardForm.MainPanel.Color:=ColorSky;
@@ -181,23 +221,31 @@ begin
   WizardForm.WizardBitmapImage.Visible:=False; WizardForm.WizardBitmapImage2.Visible:=False; WizardForm.WizardSmallBitmapImage.Visible:=False; WizardForm.SelectDirBitmapImage.Visible:=False;
   W:=WizardForm.WelcomePage.ClientWidth-ScaleX(80);
   Note:=AddText(WizardForm.WelcomePage,'YUKINO COMPANION  /  {#SetupSetting("AppVersion")}',ScaleX(42),ScaleY(14),W,ScaleY(24),9,True); Note.Font.Color:=ColorMuted;
-  WizardForm.WelcomeLabel1.AutoSize:=False; WizardForm.WelcomeLabel1.SetBounds(ScaleX(40),ScaleY(46),W,ScaleY(48)); StyleLabel(WizardForm.WelcomeLabel1,23,True);
-  WizardForm.WelcomeLabel2.AutoSize:=False; WizardForm.WelcomeLabel2.SetBounds(ScaleX(42),ScaleY(104),W,ScaleY(36)); StyleLabel(WizardForm.WelcomeLabel2,11,False);
-  Card:=TPanel.Create(WizardForm); Card.Parent:=WizardForm.WelcomePage; Card.SetBounds(ScaleX(40),ScaleY(143),W,ScaleY(143)); Card.BevelOuter:=bvNone; Card.ParentBackground:=False; Card.Color:=clWhite;
-  AddText(Card,'01  安装应用',ScaleX(20),ScaleY(16),W-ScaleX(40),ScaleY(26),11,True);
-  AddText(Card,'轻量安装，直接开始配置 API 对话。',ScaleX(20),ScaleY(47),W-ScaleX(40),ScaleY(26),10,False);
-  AddText(Card,'02  按需添加资源',ScaleX(20),ScaleY(82),W-ScaleX(40),ScaleY(26),11,True);
-  AddText(Card,'打开应用后，再安装模型、音色与推理环境。',ScaleX(20),ScaleY(111),W-ScaleX(40),ScaleY(28),10,False);
-  Note:=AddText(WizardForm.WelcomePage,'安装过程不下载资源。所有下载均在应用内由你选择。',ScaleX(42),ScaleY(307),W,ScaleY(44),9,False); Note.Font.Color:=ColorMuted;
-  StyleLabel(WizardForm.PageNameLabel,14,True); StyleLabel(WizardForm.PageDescriptionLabel,9,False);
-  WizardForm.PageNameLabel.Left:=ScaleX(28); WizardForm.PageNameLabel.Width:=WizardForm.MainPanel.ClientWidth-ScaleX(56);
-  WizardForm.PageDescriptionLabel.Left:=ScaleX(28); WizardForm.PageDescriptionLabel.Width:=WizardForm.PageNameLabel.Width;
+  WizardForm.WelcomeLabel1.AutoSize:=False; WizardForm.WelcomeLabel1.WordWrap:=True;
+  WizardForm.WelcomeLabel1.SetBounds(ScaleX(40),ScaleY(46),W,ScaleY(48)); StyleLabel(WizardForm.WelcomeLabel1,23,True); WizardForm.WelcomeLabel1.AdjustHeight;
+  Y:=WizardForm.WelcomeLabel1.Top+WizardForm.WelcomeLabel1.Height+ScaleY(16);
+  WizardForm.WelcomeLabel2.AutoSize:=False; WizardForm.WelcomeLabel2.WordWrap:=True;
+  WizardForm.WelcomeLabel2.SetBounds(ScaleX(42),Y,W,ScaleY(36)); StyleLabel(WizardForm.WelcomeLabel2,11,False); WizardForm.WelcomeLabel2.AdjustHeight;
+  Y:=WizardForm.WelcomeLabel2.Top+WizardForm.WelcomeLabel2.Height+ScaleY(20);
+  Card:=TPanel.Create(WizardForm); Card.Parent:=WizardForm.WelcomePage; Card.SetBounds(ScaleX(40),Y,W,ScaleY(143)); Card.BevelOuter:=bvNone; Card.ParentBackground:=False; Card.Color:=clWhite;
+  CardText:=AddText(Card,'01  安装或更新应用',ScaleX(20),ScaleY(14),W-ScaleX(40),ScaleY(26),11,True);
+  Y:=CardText.Top+CardText.Height+ScaleY(10);
+  CardText:=AddText(Card,'轻量安装，直接开始配置 API 对话。',ScaleX(20),Y,W-ScaleX(40),ScaleY(26),10,False);
+  Y:=CardText.Top+CardText.Height+ScaleY(18);
+  CardText:=AddText(Card,'02  按需添加资源',ScaleX(20),Y,W-ScaleX(40),ScaleY(26),11,True);
+  Y:=CardText.Top+CardText.Height+ScaleY(10);
+  CardText:=AddText(Card,'已有资源会保留，缺少的功能再按需安装。',ScaleX(20),Y,W-ScaleX(40),ScaleY(28),10,False);
+  Card.Height:=CardText.Top+CardText.Height+ScaleY(14);
+  Note:=AddText(WizardForm.WelcomePage,'安装过程不下载资源。所有下载均在应用内由你选择。',ScaleX(42),Card.Top+Card.Height+ScaleY(18),W,ScaleY(44),9,False); Note.Font.Color:=ColorMuted;
+  StyleLabel(WizardForm.PageNameLabel,12,True); StyleLabel(WizardForm.PageDescriptionLabel,9,False);
+  LayoutPageHeading;
   W:=WizardForm.SelectDirPage.ClientWidth; WizardForm.SelectDirLabel.SetBounds(0,ScaleY(12),W,ScaleY(45));
-  WizardForm.SelectDirLabel.Caption:='只为当前 Windows 用户安装。请选择一个专用文件夹。'; WizardForm.SelectDirBrowseLabel.Visible:=False;
+  WizardForm.SelectDirLabel.Caption:='选择新文件夹安装，或选择已有软件的专用文件夹进行更新。'; WizardForm.SelectDirLabel.AdjustHeight; WizardForm.SelectDirBrowseLabel.Visible:=False;
   WizardForm.DirEdit.SetBounds(0,ScaleY(70),W-ScaleX(98),ScaleY(28)); WizardForm.DirBrowseButton.SetBounds(W-ScaleX(88),ScaleY(69),ScaleX(88),ScaleY(30));
   DesktopShortcutCheck:=TNewCheckBox.Create(WizardForm); DesktopShortcutCheck.Parent:=WizardForm.SelectDirPage; DesktopShortcutCheck.Caption:='在桌面创建快捷方式'; DesktopShortcutCheck.Checked:=True; DesktopShortcutCheck.SetBounds(0,ScaleY(121),(W-ScaleX(20)) div 2,ScaleY(28));
   StartMenuShortcutCheck:=TNewCheckBox.Create(WizardForm); StartMenuShortcutCheck.Parent:=WizardForm.SelectDirPage; StartMenuShortcutCheck.Caption:='添加到开始菜单'; StartMenuShortcutCheck.Checked:=True; StartMenuShortcutCheck.SetBounds((W+ScaleX(20)) div 2,ScaleY(121),(W-ScaleX(20)) div 2,ScaleY(28));
-  Note:=AddText(WizardForm.SelectDirPage,'聊天与设置保存在用户数据目录。之后下载的资源默认保存在本安装文件夹的 Yukino-Data 子目录，卸载时保留。',0,ScaleY(170),W,ScaleY(60),9,False); Note.Font.Color:=ColorMuted;
+  InstallationModeNote:=AddText(WizardForm.SelectDirPage,'',0,ScaleY(164),W,ScaleY(80),10,False);
+  WizardForm.DirEdit.OnChange:=@DirectoryChanged; DirectoryChanged(WizardForm.DirEdit);
   W:=WizardForm.InstallingPage.ClientWidth; WizardForm.StatusLabel.SetBounds(0,ScaleY(16),W,ScaleY(34));
   ProgressPercent:=AddText(WizardForm.InstallingPage,'0% · 文件写入',0,ScaleY(66),W,ScaleY(48),23,True);
   WizardForm.ProgressGauge.SetBounds(0,ScaleY(130),W,ScaleY(12)); WizardForm.FilenameLabel.Visible:=False;
@@ -208,11 +256,15 @@ end;
 procedure CurPageChanged(CurPageID:Integer);
 var W:Integer;
 begin
+  LayoutPageHeading;
+  if CurPageID=wpSelectDir then DirectoryChanged(WizardForm.DirEdit);
   if CurPageID=wpFinished then begin
     W:=WizardForm.FinishedPage.ClientWidth-ScaleX(80); WizardForm.FinishedHeadingLabel.AutoSize:=False;
-    WizardForm.FinishedHeadingLabel.SetBounds(ScaleX(40),ScaleY(72),W,ScaleY(66)); StyleLabel(WizardForm.FinishedHeadingLabel,21,True);
-    WizardForm.FinishedLabel.SetBounds(ScaleX(42),ScaleY(150),W,ScaleY(92)); StyleLabel(WizardForm.FinishedLabel,11,False);
-    WizardForm.RunList.SetBounds(ScaleX(42),ScaleY(258),W,ScaleY(52));
+    WizardForm.FinishedHeadingLabel.WordWrap:=True;
+    WizardForm.FinishedHeadingLabel.SetBounds(ScaleX(40),ScaleY(72),W,ScaleY(66)); StyleLabel(WizardForm.FinishedHeadingLabel,21,True); WizardForm.FinishedHeadingLabel.AdjustHeight;
+    WizardForm.FinishedLabel.AutoSize:=False; WizardForm.FinishedLabel.WordWrap:=True;
+    WizardForm.FinishedLabel.SetBounds(ScaleX(42),WizardForm.FinishedHeadingLabel.Top+WizardForm.FinishedHeadingLabel.Height+ScaleY(18),W,ScaleY(92)); StyleLabel(WizardForm.FinishedLabel,11,False); WizardForm.FinishedLabel.AdjustHeight;
+    WizardForm.RunList.SetBounds(ScaleX(42),WizardForm.FinishedLabel.Top+WizardForm.FinishedLabel.Height+ScaleY(18),W,ScaleY(52));
   end;
 end;
 procedure CurStepChanged(CurStep:TSetupStep);

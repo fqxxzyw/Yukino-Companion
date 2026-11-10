@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "teacher": "codex-authored-hard-label",
+  "teacher_api_called": false,
+  "human_reviewed": false,
+  "families": 64,
+  "examples": 192,
+  "split_families": {
+    "train": 48,
+    "val": 8,
+    "test": 8
+  },
+  "split_examples": {
+    "train": 144,
+    "val": 24,
+    "test": 24
+  },
+  "categories": {
+    "false_premise": 2,
+    "relation": 4,
+    "uncertainty": 3,
+    "canon_fact": 8,
+    "causal_boundary": 2,
+    "interpretation": 1,
+    "temporal_boundary": 4,
+    "scope_boundary": 3,
+    "evidence_discipline": 4,
+    "multi_turn_correction": 1,
+    "voice": 6,
+    "helpful_voice": 3,
+    "supportive_voice": 1,
+    "capability": 3,
+    "multi_turn": 2,
+    "relationship_boundary": 1,
+    "transfer_fact_check": 2,
+    "transfer_evidence": 1,
+    "transfer_relation": 2,
+    "transfer_timeline": 1,
+    "transfer_uncertainty": 2,
+    "voice_transfer": 3,
+    "capability_transfer": 1,
+    "transfer_multi_turn": 2,
+    "transfer_scope": 1,
+    "transfer_empathy": 1
+  },
+  "evidence_records": 26,
+  "sha256": {
+    "seeds.jsonl": "0fab4ae89e914a6444c24cbd2b3c4afe05024c68e91fa6ac8d0812145d675427",
+    "evidence.jsonl": "0402024e521889b748d545580a365ab1f2cb60692a995b00404fca3d10b505a6"
+  },
+  "split_method": "Explicit held-out scenario families. Known canon facts recur across splits; validation and test measure new tasks/prompts about familiar facts, not unseen-fact memorization. Test must not select checkpoints.",
+  "limits": "Synthetic authored responses are not canonical dialogue. Source verification is assistant editorial review, not human acceptance or an independent teacher evaluation. Rule-based scores cannot establish character fidelity."
+}

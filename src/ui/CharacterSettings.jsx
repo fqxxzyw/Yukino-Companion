@@ -4,6 +4,7 @@ import Select from './Select.jsx';
 import CloudVoiceClone from '../speech/CloudVoiceClone.jsx';
 import {getSkinStatus} from '../companion/skin-unlocks.mjs';
 import SkinPicker from './SkinPicker.jsx';
+import {skinGroups} from './skin-groups.mjs';
 import './CharacterSettings.css';
 import {modelCardPreviews} from './model-card-preview.mjs';
 import {buildCharacterPrompt} from './character-prompt.mjs';
@@ -26,14 +27,17 @@ function CharacterCard({character,model,current,busy,onSelect}){
  </button>;
 }
 const VOICE_NONE='none',VOICE_CLONE='__clone__';
-export default function CharacterSettings({characters,current,models,voices=[],draftConfigs=[],cloneConfigs=[],relationship,usedDates,api,onPrepareDraft,onCloneCreated,onCreate,onSelect,onModelChange,onVoiceLanguageChange,busy}){
+export default function CharacterSettings({characters,current,models,wardrobeModels=models,voices=[],draftConfigs=[],cloneConfigs=[],relationship,usedDates,api,onPrepareDraft,onCloneCreated,onCreate,onSelect,onModelChange,onSkinPreviewChange,onVoiceLanguageChange,busy}){
  const creatingRef=useRef(false),copyAttempt=useRef(null),draftAttempt=useRef(null);
  const [createOpen,setCreateOpen]=useState(false),[name,setName]=useState(''),[persona,setPersona]=useState(''),[modelId,setModelId]=useState(''),[voiceId,setVoiceId]=useState(''),[promptKind,setPromptKind]=useState('unknown'),[work,setWork]=useState(''),[notes,setNotes]=useState(''),[error,setError]=useState(''),[creating,setCreating]=useState(false),[copyState,setCopyState]=useState('idle');
  const [draftConfig,setDraftConfig]=useState(''),[draftText,setDraftText]=useState(''),[draftState,setDraftState]=useState('idle'),[draftError,setDraftError]=useState('');
  const [voiceLanguage,setVoiceLanguage]=useState('ja');
  const selectedDraftId=draftConfigs.some(item=>item.id===draftConfig)?draftConfig:draftConfigs[0]?.id||'';
  let prompt='',promptError='';try{prompt=buildCharacterPrompt(name,{kind:promptKind,work,notes})}catch(error){promptError=error.message}
- const unlockedModels=models.filter(item=>getSkinStatus(item,{relationship,usedDates}).unlocked);
+ const currentModels=skinGroups(wardrobeModels,current.modelId).map(group=>group.model);
+ const existingGroups=new Set(skinGroups(wardrobeModels,current.modelId).map(group=>group.id));
+ const libraryModels=skinGroups(models).filter(group=>!existingGroups.has(group.id)).map(group=>group.model);
+ const unlockedModels=skinGroups(models,modelId).map(group=>group.model).filter(item=>getSkinStatus(item,{relationship,usedDates}).unlocked);
  useEffect(()=>()=>{copyAttempt.current=null;if(draftAttempt.current){draftAttempt.current=null;api?.characterDraftCancel?.().catch(()=>{})}},[]);
  function resetPromptCopy(){copyAttempt.current=null;setCopyState('idle');if(draftAttempt.current){draftAttempt.current=null;api?.characterDraftCancel?.().catch(()=>{})}setDraftText('');setDraftError('');setDraftState('idle')}
  async function generateDraft(){
@@ -98,7 +102,7 @@ export default function CharacterSettings({characters,current,models,voices=[],d
      <div className="character-create-fields">
       <label className="field">音色（可选）<Select aria-label="角色音色" value={voiceId} onChange={event=>setVoiceId(event.target.value)}><option value="">跟随全局语音设置</option><option value={VOICE_NONE}>不使用语音</option>{voices.filter(item=>item.kind!=='cloud').map(item=><option key={item.id} value={item.id}>{item.label} · 本地音色</option>)}{voices.filter(item=>item.kind==='cloud').length>0&&<optgroup label="云端音色">{voices.filter(item=>item.kind==='cloud').map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</optgroup>}<option value={VOICE_CLONE}>从录音创建云端音色…</option></Select><small>跟随全局会使用「语音输出」中的设置；选「不使用语音」只进行文字聊天。</small></label>
       <label className="field">生成语音语言<Select aria-label="新角色生成语音语言" value={voiceLanguage} disabled={voiceId===VOICE_NONE} onChange={event=>setVoiceLanguage(event.target.value)}><option value="ja">日语</option><option value="zh">中文</option></Select><small>日语朗读使用日文译文；中文朗读使用中文回复。实际效果取决于音色支持的语言。</small></label>
-      <label className="field">3D 模型（可选）<Select aria-label="新建角色的 3D 模型" value={modelId} onChange={event=>setModelId(event.target.value)}><option value="">暂不选择</option>{unlockedModels.map(model=><option key={model.id} value={model.id}>{model.label} · {model.version}</option>)}</Select><small>没有模型也可以创建，之后可在角色形象中补充。</small></label>
+      <label className="field">3D 模型（可选）<Select aria-label="新建角色的 3D 模型" value={modelId} onChange={event=>setModelId(event.target.value)}><option value="">暂不选择</option>{unlockedModels.map(model=><option key={model.id} value={model.id}>{(model.label||model.id).split('·')[0]}</option>)}</Select><small>没有模型也可以创建，之后可在角色形象中补充。</small></label>
      </div>
      {createOpen&&voiceId===VOICE_CLONE&&<CloudVoiceClone api={api} configs={cloneConfigs} onPrepare={onPrepareDraft} onCreated={result=>{onCloneCreated?.(result);setVoiceId(result.configId)}}/>}
      <div className="character-create-actions"><button className="primary" disabled={busy||creating||!name.trim()||!persona.trim()} type="submit">{creating?'正在创建…':'创建角色'}</button><button className="secondary" type="button" disabled={busy||creating} onClick={()=>{resetDraft();setError('');setCreateOpen(false)}}>取消</button></div>
@@ -109,8 +113,9 @@ export default function CharacterSettings({characters,current,models,voices=[],d
   <section className="settings-section character-current">
    <h3>当前角色的形象</h3>
    <label className="field">当前角色的语音语言<Select aria-label="当前角色生成语音语言" disabled={busy||!onVoiceLanguageChange} value={current.voiceLanguage||'ja'} onChange={event=>onVoiceLanguageChange?.(event.target.value)}><option value="ja">日语</option><option value="zh">中文</option></Select><small>选择不改变双语文字显示；音色需要支持所选语言。</small></label>
-   <label className="field">当前角色的 3D 模型<Select aria-label="当前角色的 3D 模型" disabled={busy} value={current.modelId||''} onChange={event=>onModelChange(event.target.value)}><option value="">不使用 3D 模型</option>{models.map(model=><option key={model.id} value={model.id} disabled={!getSkinStatus(model,{relationship,usedDates}).unlocked}>{model.label}{' · '+getSkinStatus(model,{relationship,usedDates}).reason}</option>)}</Select></label>
-   <SkinPicker models={models} relationship={relationship} usedDates={usedDates} selectedId={current.modelId} onSelect={onModelChange} busy={busy}/>
+   <label className="field">当前角色的 3D 模型<Select aria-label="当前角色的 3D 模型" disabled={busy} value={current.modelId||''} onChange={event=>onModelChange(event.target.value)}><option value="">不使用 3D 模型</option>{currentModels.map(model=><option key={model.id} value={model.id} disabled={!getSkinStatus(model,{relationship,usedDates}).unlocked}>{(model.label||model.id).split('·')[0]}{' · '+getSkinStatus(model,{relationship,usedDates}).reason}</option>)}</Select></label>
+   <label className="field">添加本机已有模型到当前角色<Select aria-label="添加本机已有模型到当前角色" disabled={busy||!libraryModels.length} value="" onChange={event=>{if(event.target.value)onModelChange(event.target.value)}}><option value="">{libraryModels.length?'选择模型并添加':'没有其他模型'}</option>{libraryModels.map(model=><option key={model.id} value={model.id} disabled={!getSkinStatus(model,{relationship,usedDates}).unlocked}>{(model.label||model.id).split('·')[0]}{' · '+getSkinStatus(model,{relationship,usedDates}).reason}</option>)}</Select><small>模型文件仍保留在本机模型库；添加到角色后可随时切换。</small></label>
+   <SkinPicker models={wardrobeModels} relationship={relationship} usedDates={usedDates} selectedId={current.modelId} onSelect={onModelChange} onSkinPreviewChange={onSkinPreviewChange} busy={busy}/>
   </section>
  </>;
 }

@@ -66,6 +66,28 @@ test('HOLD and missing assets stay disabled regardless of earned usage or affect
  assert.equal(getSkinStatus(model('01',{status:'candidate_hold_geometry_feedback'}),{usedDates}).hold,true);
 });
 
+test('reversible local preview unlocks ready skins on both sides without changing progress',async()=>{
+ const {getSkinStatus}=await load(),{canUseSkin}=require('../electron/skin-policy.cjs'),{advanceRelationship}=await import('../src/companion/relationship.mjs');
+ const state={relationship:{affection:35,skinPreviewEnabled:true},usedDates:{dates:['2026-10-01']}};
+ const before=JSON.stringify(state);for(const number of ['02','03','04','05','06']){const entry=model(number);assert.equal(getSkinStatus(entry,state).unlocked,true);assert.equal(canUseSkin(entry,state),true);}
+ const hold=model('01',{ready:false,status:'HOLD'});assert.equal(getSkinStatus(hold,state).unlocked,false);assert.equal(canUseSkin(hold,state),false);
+ assert.equal(JSON.stringify(state),before);assert.equal(advanceRelationship(state.relationship,{type:'message',id:'test',now:at(2026,10,1)}).skinPreviewEnabled,true);
+ const normal={...state,relationship:{affection:35}};assert.equal(getSkinStatus(model('03'),normal).unlocked,false);assert.equal(canUseSkin(model('03'),normal),false);
+});
+
+test('desktop companion does not replace another character with Yukino when its skin is locked',async()=>{
+ const fs=require('node:fs'),{canUseSkin}=require('../electron/skin-policy.cjs');
+ const source=fs.readFileSync(path.resolve(__dirname,'../electron/main.cjs'),'utf8');
+ const start=source.indexOf('async function updateCompanionCharacter('),end=source.indexOf('\n// Low-level reveal',start);
+ assert.ok(start>=0&&end>start);let rendered;
+ const entry=model('02'),manager={setCharacter:next=>{rendered=next}};
+ const update=new Function('modelStore','characterEntry','canUseSkin','companions','send',`${source.slice(start,end)};return updateCompanionCharacter;`)(()=>({initialize:async()=>{}}),id=>{if(id!==entry.id)throw Error('missing');return entry},canUseSkin,manager,()=>{});
+ const state={activeCharacter:'other',characters:[{id:'other',name:'Other',modelId:entry.id,skinIds:[entry.id]}],relationship:{affection:35}};
+ const before=structuredClone(state);await update(state);assert.equal(rendered.id,'other');assert.equal(rendered.modelId,'');assert.deepEqual(state,before);
+ await update({...state,relationship:{...state.relationship,skinPreviewEnabled:true}});assert.equal(rendered.modelId,entry.id);
+ await update({...state,activeCharacter:'yukino',characters:[{id:'yukino',name:'Yukino',modelId:entry.id}]});assert.equal(rendered.modelId,'yukino-07-v1');
+});
+
 test('progress ignores nonfinite affection and impossible archived counters',async()=>{
  const {getSkinStatus,normalizeUsedDates}=await load();for(const affection of [Infinity,NaN,-100]){const status=getSkinStatus(model('06'),{relationship:{affection}});assert.equal(status.unlocked,false);assert.ok(status.progress>=0&&status.progress<=1);}
  for(const value of [{version:1,archivedThrough:'0000-01-01',archivedCount:999},{version:1,archivedThrough:'2026-02-30',archivedCount:7},{version:1,archivedThrough:'2026-10-27',archivedCount:-7}])assert.equal(normalizeUsedDates(value).lifetimeCount,0);
@@ -84,6 +106,8 @@ test('actual React skin picker renders locks, real local previews, neutral fallb
  const html=renderToStaticMarkup(React.createElement(SkinPicker,{models:[model('07'),model('02',{thumbnail:'./characters/actual-preview.png'}),model('03',{thumbnail:'https://remote.invalid/not-auto-loaded.png'}),model('01',{status:'HOLD'})],selectedId:'yukino-07-v1'}));
  assert.equal((html.match(/<button/g)||[]).length,4);assert.equal((html.match(/disabled=""/g)||[]).length,3);assert.equal((html.match(/type="button"/g)||[]).length,4);
  assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感 35 \/ 40/);assert.match(html,/同一天计一次；挂机不计入/);assert.match(html,/aria-pressed="true"/);
+ const groupHtml=renderToStaticMarkup(React.createElement(SkinPicker,{models:[{...model('02'),outfitGroup:'yukino-02'}, {...model('02',{id:'yukino-02-alt'}),outfitGroup:'yukino-02'}],relationship:{skinPreviewEnabled:true},onSkinPreviewChange:()=>{}}));
+ assert.equal((groupHtml.match(/class="skin-card/g)||[]).length,1);assert.doesNotMatch(groupHtml,/版本（共享解锁条件）/);assert.match(groupHtml,/本地预览已验收服装/);assert.match(groupHtml,/不会改变好感或使用日期/);
 });
 
 // JSX is compiled and its actual event handlers run with a tiny hook scheduler.
@@ -106,13 +130,30 @@ async function importPanelHarness(t,api){
  code=code.replace(/import "\.\/SkinPicker\.css";?/,'').replaceAll('"react"',JSON.stringify(pathToFileURL(hookFile).href));
  for(const name of ['react/jsx-runtime','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
  const file=path.join(directory,'Panel.mjs');await fs.writeFile(file,code);const module=await import(pathToFileURL(file).href),hooks=await import(pathToFileURL(hookFile).href);
- const imported=[];let tree;
+ const imported=[],importedTargets=[];let tree,activeCharacter='character-one';
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  const text=node=>node===null||node===undefined||typeof node==='boolean'?'':Array.isArray(node)?node.map(text).join(''):typeof node==='object'?text(node.props?.children):String(node);
- const render=()=>{hooks.begin();tree=module.default({api,onImported:entry=>imported.push(entry)});hooks.flush();return tree;};
+ const render=()=>{hooks.begin();tree=module.default({api,characterId:activeCharacter,onImported:(entry,target)=>{imported.push(entry);importedTargets.push(target)}});hooks.flush();return tree;};
  render();t.after(()=>hooks.unmount());
- return {render,imported,Diagnostics:module.ModelImportDiagnostics,find:predicate=>walk(tree).find(predicate),button:label=>walk(tree).find(node=>node.type==='button'&&text(node).includes(label)),text:()=>text(tree),unmount:()=>hooks.unmount()};
+ return {render,imported,importedTargets,setCharacter:value=>{activeCharacter=value},Diagnostics:module.ModelImportDiagnostics,find:predicate=>walk(tree).find(predicate),button:label=>walk(tree).find(node=>node.type==='button'&&text(node).includes(label)),text:()=>text(tree),unmount:()=>hooks.unmount()};
 }
+
+test('model import remembers the character selected when confirmation began',async t=>{
+ let resolve;const inspection={token:'example',expires:Date.now()+60000,filename:'model.glb',allowedModes:['rigged'],diagnostics:{usableSkin:true}};
+ const h=await importPanelHarness(t,{characterModelCancel:async()=>{},characterModelInspect:async()=>inspection,characterModelConfirm:()=>new Promise(done=>{resolve=done})});
+ await h.button('选择并检查').props.onClick();h.render();h.find(node=>node.type==='input'&&node.props.value==='rigged').props.onChange();h.render();h.find(node=>node.type==='input'&&node.props.type==='checkbox').props.onChange({target:{checked:true}});h.render();
+ const pending=h.button('确认导入').props.onClick();h.setCharacter('character-two');h.render();resolve({id:'custom-new'});await pending;
+ assert.deepEqual(h.importedTargets,['character-one']);assert.deepEqual(h.imported,[{id:'custom-new'}]);
+});
+
+test('model import settings opens the motion editor and reports failures',async t=>{
+ let calls=0;const h=await importPanelHarness(t,{openMotionEditor:async()=>{calls++;}});
+ assert.equal(h.button('打开动作编辑器').props.disabled,false);
+ await h.button('打开动作编辑器').props.onClick();assert.equal(calls,1);
+ const unavailable=await importPanelHarness(t,{});assert.equal(unavailable.button('打开动作编辑器').props.disabled,true);
+ const failing=await importPanelHarness(t,{openMotionEditor:async()=>{throw Error('编辑器资源尚未构建');}});
+ await failing.button('打开动作编辑器').props.onClick();failing.render();assert.match(failing.text(),/编辑器资源尚未构建/);
+});
 
 test('import panel requires explicit supported mode and acknowledgement before confirming; double clicks are coalesced',async t=>{
  let inspectCalls=0,cancelCalls=0;const confirmed=[];

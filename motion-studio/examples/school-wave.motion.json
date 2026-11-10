@@ -1,0 +1,307 @@
+{
+  "format": "yukino-motion-runtime",
+  "version": 1,
+  "projectId": "c0be5c17-c8a3-4836-9acb-6c1ad6cbf8a0",
+  "name": "校服 · 挥手与表情",
+  "modelId": "yukino-07-v1",
+  "fps": 30,
+  "tracks": [
+    {
+      "id": "401c6d78-d329-47d4-b18f-3455e50d6013",
+      "name": "身体",
+      "region": "body",
+      "muted": false,
+      "solo": false,
+      "clips": [
+        {
+          "id": "5e6cd913-bbfc-4aef-88f8-25d5db7457dc",
+          "moduleId": "idle",
+          "start": 0,
+          "sourceIn": 0,
+          "sourceOut": 4,
+          "speed": 1,
+          "loops": 1,
+          "stretch": null,
+          "blendIn": 0,
+          "blendOut": 0,
+          "weight": 1,
+          "mode": "override",
+          "priority": 0,
+          "parameters": {
+            "amount": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "2b1e7561-8612-47dd-bf5d-aff89e9418bf",
+      "name": "右臂",
+      "region": "rightArm",
+      "muted": false,
+      "solo": false,
+      "clips": [
+        {
+          "id": "d11d9f46-7f86-4dfa-ae1f-712934401f84",
+          "moduleId": "waveRight",
+          "start": 33,
+          "sourceIn": 0,
+          "sourceOut": 2.6,
+          "speed": 1,
+          "loops": 1,
+          "stretch": null,
+          "blendIn": 0,
+          "blendOut": 0,
+          "weight": 1,
+          "mode": "override",
+          "priority": 0,
+          "parameters": {
+            "lift": 32,
+            "bend": 95,
+            "amplitude": 22,
+            "frequency": 1,
+            "cycles": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "8435fcd5-945e-4e5b-bc08-70e61275eff2",
+      "name": "头颈",
+      "region": "head",
+      "muted": false,
+      "solo": false,
+      "clips": [
+        {
+          "id": "e2edb803-6f12-4069-ace9-5649c94640c1",
+          "moduleId": "headTilt",
+          "start": 24,
+          "sourceIn": 0,
+          "sourceOut": 2,
+          "speed": 1,
+          "loops": 1,
+          "stretch": null,
+          "blendIn": 0,
+          "blendOut": 0,
+          "weight": 1,
+          "mode": "override",
+          "priority": 0,
+          "parameters": {
+            "angle": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "41bc4c9d-d076-4936-a3ba-bffa13883038",
+      "name": "眼部",
+      "region": "eyes",
+      "muted": false,
+      "solo": false,
+      "clips": []
+    },
+    {
+      "id": "4e29a28d-c163-4eea-8576-2495e6b1c4d4",
+      "name": "表情",
+      "region": "face",
+      "muted": false,
+      "solo": false,
+      "clips": [
+        {
+          "id": "252afbae-a82a-4a51-aca7-f93efc867cbb",
+          "moduleId": "smile",
+          "start": 27,
+          "sourceIn": 0,
+          "sourceOut": 2.6,
+          "speed": 1,
+          "loops": 1,
+          "stretch": null,
+          "blendIn": 0.2,
+          "blendOut": 0.2,
+          "weight": 1,
+          "mode": "override",
+          "priority": 0,
+          "parameters": {
+            "intensity": 0.78
+          }
+        }
+      ]
+    },
+    {
+      "id": "c9c9433d-5b18-4f2e-9f2a-a70721e2900a",
+      "name": "口型",
+      "region": "mouth",
+      "muted": false,
+      "solo": false,
+      "clips": [
+        {
+          "id": "73882038-256e-44f0-ad6c-6c724acb68c4",
+          "moduleId": "mouthOpen",
+          "start": 40,
+          "sourceIn": 0,
+          "sourceOut": 1,
+          "speed": 1,
+          "loops": 1,
+          "stretch": null,
+          "blendIn": 0.2,
+          "blendOut": 0.2,
+          "weight": 1,
+          "mode": "override",
+          "priority": 0,
+          "parameters": {
+            "intensity": 0.35
+          }
+        }
+      ]
+    },
+    {
+      "id": "73c120fd-e13b-41c3-b795-02d037da432d",
+      "name": "动作录制",
+      "region": "all",
+      "muted": false,
+      "solo": false,
+      "clips": []
+    }
+  ],
+  "modules": [
+    {
+      "id": "idle",
+      "procedure": "idle",
+      "kind": "procedural",
+      "version": 1,
+      "name": "待机呼吸",
+      "region": "body",
+      "duration": 4,
+      "parameters": [
+        {
+          "key": "amount",
+          "label": "呼吸幅度",
+          "defaultValue": 1,
+          "min": 0,
+          "max": 3,
+          "step": 0.05,
+          "unit": "°"
+        }
+      ]
+    },
+    {
+      "id": "waveRight",
+      "procedure": "waveRight",
+      "kind": "procedural",
+      "version": 1,
+      "name": "右手挥动",
+      "region": "rightArm",
+      "duration": 2.6,
+      "parameters": [
+        {
+          "key": "lift",
+          "label": "抬臂角度",
+          "defaultValue": 32,
+          "min": 0,
+          "max": 80,
+          "step": 1,
+          "unit": "°"
+        },
+        {
+          "key": "bend",
+          "label": "屈肘角度",
+          "defaultValue": 95,
+          "min": 15,
+          "max": 140,
+          "step": 1,
+          "unit": "°"
+        },
+        {
+          "key": "amplitude",
+          "label": "挥动幅度",
+          "defaultValue": 22,
+          "min": 0,
+          "max": 50,
+          "step": 1,
+          "unit": "°"
+        },
+        {
+          "key": "frequency",
+          "label": "节奏倍率",
+          "defaultValue": 1,
+          "min": 0.25,
+          "max": 3,
+          "step": 0.05,
+          "unit": "×"
+        },
+        {
+          "key": "cycles",
+          "label": "挥动次数",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 12,
+          "step": 1
+        }
+      ],
+      "description": "程序化挥手，可编辑抬臂、屈肘和摆动。"
+    },
+    {
+      "id": "headTilt",
+      "procedure": "headTilt",
+      "kind": "procedural",
+      "version": 1,
+      "name": "歪头",
+      "region": "head",
+      "duration": 2,
+      "parameters": [
+        {
+          "key": "angle",
+          "label": "方向与角度",
+          "defaultValue": 16,
+          "min": -35,
+          "max": 35,
+          "step": 1,
+          "unit": "°"
+        }
+      ]
+    },
+    {
+      "id": "smile",
+      "procedure": "smile",
+      "kind": "procedural",
+      "version": 1,
+      "name": "微笑",
+      "region": "face",
+      "duration": 2.6,
+      "parameters": [
+        {
+          "key": "intensity",
+          "label": "强度",
+          "defaultValue": 0.78,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      ]
+    },
+    {
+      "id": "mouthOpen",
+      "procedure": "mouthOpen",
+      "kind": "procedural",
+      "version": 1,
+      "name": "张嘴",
+      "region": "mouth",
+      "duration": 1,
+      "parameters": [
+        {
+          "key": "intensity",
+          "label": "强度",
+          "defaultValue": 0.7,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      ],
+      "description": "使用模型的张嘴形态键。"
+    }
+  ],
+  "asset": {
+    "name": "Yukino07_UVDomainRepair.glb",
+    "path": "public/characters/Yukino07_UVDomainRepair.glb",
+    "sha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5"
+  }
+}

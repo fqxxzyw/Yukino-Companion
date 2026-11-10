@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Yukino: 准备 UI 资源",
+      "type": "shell",
+      "command": "npm run prepare:ui",
+      "problemMatcher": []
+    },
+    {
+      "label": "Yukino: Electron 实时预览",
+      "type": "shell",
+      "command": "npm run dev:desktop",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "yukino-dev",
+        "pattern": {"regexp": "^$"},
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\[dev\\] Starting",
+          "endsPattern": "\\[dev\\] Electron ready"
+        }
+      },
+      "presentation": {"reveal": "always", "panel": "dedicated", "clear": false},
+      "runOptions": {"instanceLimit": 1},
+      "group": {"kind": "build", "isDefault": true}
+    },
+    {
+      "label": "Yukino: 浏览器 UI 预览",
+      "type": "shell",
+      "command": "npm run dev:web",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "yukino-web",
+        "pattern": {"regexp": "^$"},
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\[dev\\] Starting",
+          "endsPattern": "\\[dev\\] Vite ready"
+        }
+      },
+      "presentation": {"reveal": "always", "panel": "dedicated"},
+      "runOptions": {"instanceLimit": 1}
+    }
+  ]
+}

@@ -5,7 +5,7 @@ export function LanguageSwitch({value,onChange,label='气泡显示语言',compac
 export function messageCopy(message,language) {const zh=message.zh||message.content||'',ja=message.ja||'';return language==='both'&&zh&&ja?`${zh}\n\n${ja}`:language==='ja'&&ja?ja:zh||ja;}
 export default function BilingualBubble({message,language}) {
  const zh=message.zh||message.content||'',ja=message.ja||'',waiting=message.status==='streaming';
- if(message.role!=='assistant')return <div className="bubble">{message.content}</div>;
+ if(message.role!=='assistant')return <div className="bubble">{typeof message.image==='string'&&message.image.length<2800000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.image)&&<img className="blackboard-message-image" src={message.image} alt="教室黑板上的白色手绘"/>}{message.content}</div>;
  if(!zh&&!ja)return <div className="bubble thinking">{waiting?'正在思考…':message.status==='stopped'?'已停止':'没有收到回复'}</div>;
  return <div className={'bubble bilingual '+(language==='both'?'two-languages':'')}>
   {(language!=='ja'||!ja)&&<div className="language-block" lang="zh-CN">{language==='both'&&<span className="language-label">中文</span>}{zh}</div>}

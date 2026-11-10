@@ -15,6 +15,7 @@ const object=(value,label)=>{if(!value||typeof value!=='object'||Array.isArray(v
 const ref=(items,index,label)=>items[integer(index,0,items.length-1,label)];
 const boundedName=(value,fallback,max=80)=>typeof value==='string'&&value.trim()?value.replace(/[\x00-\x1f\x7f]/g,'').trim().slice(0,max):fallback;
 const EXTENSIONS=new Set(['KHR_materials_unlit','KHR_texture_transform','KHR_materials_emissive_strength']);
+const VRM_EXTENSIONS=new Set(['VRMC_vrm','VRMC_materials_mtoon','VRMC_springBone','VRMC_node_constraint']);
 function imageSize(data,mime){
  if(mime==='image/png'){
   if(data.length<33||data.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||data.toString('ascii',12,16)!=='IHDR')fail('PNG 纹理格式无效');
@@ -39,6 +40,8 @@ function inspectGlbUnchecked(input){
  if(data.readUInt32LE(binHeader+4)!==0x004e4942||binBytes%4||binHeader+8+binBytes!==data.length)fail('GLB 必须仅包含 JSON 和内嵌 BIN 区块');
  let json;try{json=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(data.subarray(20,binHeader)).trim());}catch{fail('GLB JSON 无法解析');}
  object(json,'模型清单');if(json.asset?.version!=='2.0'||(json.asset.minVersion&&json.asset.minVersion!=='2.0'))fail('仅支持 glTF 2.0 模型');
+ const vrm=json.extensions?.VRMC_vrm?.specVersion==='1.0';
+ const allowedExtension=extension=>EXTENSIONS.has(extension)||(vrm&&VRM_EXTENSIONS.has(extension));
  let objects=0;
  function scan(value,depth=0){
   if(depth>64||++objects>150000)fail('模型清单嵌套或属性数量过多');
@@ -46,12 +49,12 @@ function inspectGlbUnchecked(input){
   if(!value||typeof value!=='object')return;
   for(const [key,item] of Object.entries(value)){
    if(key==='uri'&&(typeof item!=='string'||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(item)))fail('模型包含外部 URI，请将缓冲和纹理内嵌后重新导出 GLB');
-   if(key==='extensions')for(const extension of Object.keys(object(item,'扩展')))if(!EXTENSIONS.has(extension))fail('当前不支持扩展 '+boundedName(extension,'未知扩展',80)+'，请导出普通未压缩 GLB');
+   if(key==='extensions')for(const extension of Object.keys(object(item,'扩展')))if(!allowedExtension(extension))fail('当前不支持扩展 '+boundedName(extension,'未知扩展',80)+'，请导出未压缩的 GLB 或 VRM 1.0');
    scan(item,depth+1);
   }
  }
  scan(json);
- for(const extension of [...list(json.extensionsUsed,16,'扩展'),...list(json.extensionsRequired,16,'必需扩展')])if(!EXTENSIONS.has(extension))fail('当前不支持扩展 '+boundedName(extension,'未知扩展',80)+'，请导出普通未压缩 GLB');
+ for(const extension of [...list(json.extensionsUsed,16,'扩展'),...list(json.extensionsRequired,16,'必需扩展')])if(!allowedExtension(extension))fail('当前不支持扩展 '+boundedName(extension,'未知扩展',80)+'，请导出未压缩的 GLB 或 VRM 1.0');
  const buffers=list(json.buffers,1,'缓冲');if(buffers.length!==1||buffers[0].uri!==undefined)fail('模型必须使用单一内嵌 BIN 缓冲');
  const bufferBytes=integer(buffers[0].byteLength,1,binBytes,'缓冲长度');if(binBytes-bufferBytes>3)fail('BIN 缓冲长度与清单不一致');
  const bin=data.subarray(binHeader+8,binHeader+8+bufferBytes),views=list(json.bufferViews,8192,'缓冲视图');
@@ -154,7 +157,9 @@ function inspectGlbUnchecked(input){
   let bytes,mime=image.mimeType;
   if(image.uri!==undefined){const match=/^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(image.uri);if(!match||image.bufferView!==undefined||match[2].length>24*1024**2)fail('内嵌纹理数据无效');mime=match[1];bytes=Buffer.from(match[2],'base64');}
   else{const view=ref(views,image.bufferView,'纹理缓冲');if(view.byteStride)fail('纹理缓冲不可包含步长');bytes=bin.subarray(view.byteOffset||0,(view.byteOffset||0)+view.byteLength);}
-  const [width,height]=imageSize(bytes,mime);integer(width,1,8192,'纹理宽度');integer(height,1,8192,'纹理高度');pixels+=width*height;if(pixels>64*1024**2)fail('纹理解码总像素过多，请降低分辨率');
+  const [width,height]=imageSize(bytes,mime);integer(width,1,8192,'纹理宽度');integer(height,1,8192,'纹理高度');pixels+=width*height;
+  // Charakuru can export five independent 4K texture maps in one VRM.
+  if(pixels>(vrm?96:64)*1024**2)fail('纹理解码总像素过多，请降低分辨率');
  }
  for(const texture of textures){ref(images,texture.source,'纹理图片引用');if(texture.sampler!==undefined)ref(samplers,texture.sampler,'采样器引用');}
  const materials=list(json.materials,256,'材质');for(const material of materials)for(const texture of [material.pbrMetallicRoughness?.baseColorTexture,material.pbrMetallicRoughness?.metallicRoughnessTexture,material.normalTexture,material.occlusionTexture,material.emissiveTexture])if(texture)ref(textures,texture.index,'材质纹理');
@@ -171,7 +176,7 @@ function inspectGlbUnchecked(input){
  if(additionalInfluences)warnings.push('检测到四个以上非零骨骼影响，当前渲染器不支持；请重新限制为每顶点四权重或接入专用渲染器。');
  if(morphs)warnings.push('已检测到形态目标，但口型、眨眼映射尚未校准，不会自动启用。');
  if(Object.keys(clips).length)warnings.push('自带动画仅做格式检查，动作表现与骨架兼容性仍需人工预览；不会套用内置骨架动作。');
- return {format:'glTF 2.0 / GLB',validationScope:'structural-embedded-assets',renderValidated:false,bytes:data.length,sha256:digest(data),meshes:meshes.length,displayedMeshes,primitives,vertices,triangles,displayedVertices,displayedTriangles,nodes:nodes.length,bones:bones.size,skins:skins.length,skinnedMeshes,weightedVertices,usableSkin,additionalInfluences,morphs,morphNames:[...morphNames],animations:Object.keys(clips).length,clips,textures:images.length,texturePixels:pixels,allowedModes:additionalInfluences?[]:usableSkin?['rigged']:['static'],warnings};
+ return {format:vrm?'VRM 1.0':'glTF 2.0 / GLB',validationScope:'structural-embedded-assets',renderValidated:false,bytes:data.length,sha256:digest(data),meshes:meshes.length,displayedMeshes,primitives,vertices,triangles,displayedVertices,displayedTriangles,nodes:nodes.length,bones:bones.size,skins:skins.length,skinnedMeshes,weightedVertices,usableSkin,additionalInfluences,morphs,morphNames:[...morphNames],animations:Object.keys(clips).length,clips,textures:images.length,texturePixels:pixels,allowedModes:additionalInfluences?[]:usableSkin?['rigged']:['static'],warnings};
 }
 
 function inspectGlb(input){try{return inspectGlbUnchecked(input);}catch(error){if(error instanceof TypeError||error instanceof RangeError)throw Error('GLB 结构或引用格式无效，请重新导出完整模型');throw error;}}
@@ -201,14 +206,14 @@ class CharacterModelStore{
  verify(entry,data){if(data.length!==entry.bytes||digest(data)!==entry.sha256)fail('人物模型完整性检查失败，请重新选择对应的 GLB 文件');}
  async read(id){await this.initialize();await this.checkRoot();const entry=this.entry(id);let data;try{data=await readBounded(path.join(this.root,entry.sha256+'.glb'));}catch(error){if(error.code!=='ENOENT'||entry.custom)throw error;try{const packedBuiltin=Boolean(process.versions.electron&&process.resourcesPath&&path.resolve(this.builtinRoot)===path.resolve(process.resourcesPath,'app.asar','dist'));data=await readBounded(path.join(this.builtinRoot,entry.url.slice(2)),MAX_BYTES,{virtualAsar:packedBuiltin});}catch(inner){if(inner.code==='ENOENT')fail('该人物模型尚未安装，请导入对应版本的 GLB 文件');throw inner;}}this.verify(entry,data);if(entry.custom)inspectGlb(data);return new Uint8Array(data);}
  cancel(){this.epoch++;this.clearTimer(this.pendingTimer);this.pendingTimer=null;if(this.pending)this.pending.data.fill(0);this.pending=null;}
- async inspectFile(file){this.cancel();const epoch=this.epoch;if(typeof file!=='string'||!path.isAbsolute(file)||path.extname(file).toLowerCase()!=='.glb')fail('请选择 GLB 文件');const data=await readBounded(file);if(epoch!==this.epoch){data.fill(0);fail('模型检查已取消');}let diagnostics;try{diagnostics=inspectGlb(data);}catch(error){data.fill(0);throw error;}const token=randomUUID(),expires=this.now()+300000,filename=path.basename(file);this.pending={token,expires,data,diagnostics,filename};this.pendingTimer=this.setTimer(()=>this.cancel(),300000);this.pendingTimer?.unref?.();return {token,expires,filename,bytes:diagnostics.bytes,sha256:diagnostics.sha256,diagnostics,allowedModes:diagnostics.allowedModes,warnings:diagnostics.warnings};}
+ async inspectFile(file){this.cancel();const epoch=this.epoch;if(typeof file!=='string'||!path.isAbsolute(file)||!['.glb','.vrm'].includes(path.extname(file).toLowerCase()))fail('请选择 GLB 或 VRM 文件');const data=await readBounded(file);if(epoch!==this.epoch){data.fill(0);fail('模型检查已取消');}let diagnostics;try{diagnostics=inspectGlb(data);}catch(error){data.fill(0);throw error;}const token=randomUUID(),expires=this.now()+300000,filename=path.basename(file);this.pending={token,expires,data,diagnostics,filename};this.pendingTimer=this.setTimer(()=>this.cancel(),300000);this.pendingTimer?.unref?.();return {token,expires,filename,bytes:diagnostics.bytes,sha256:diagnostics.sha256,diagnostics,allowedModes:diagnostics.allowedModes,warnings:diagnostics.warnings};}
  async checkRoot(){try{const stat=await fs.lstat(this.root);if(!stat.isDirectory()||stat.isSymbolicLink())fail('模型存储目录不是普通目录');}catch(error){if(error.code!=='ENOENT')throw error;}}
  async ensureRoot(){await fs.mkdir(this.root,{recursive:true});const stat=await fs.lstat(this.root);if(!stat.isDirectory()||stat.isSymbolicLink())fail('模型存储目录不是普通目录');}
  async saveFile(entry,data){await this.ensureRoot();const destination=path.join(this.root,entry.sha256+'.glb'),temporary=path.join(this.root,entry.sha256+'.'+randomUUID()+'.tmp');try{try{const stat=await fs.lstat(destination);if(!stat.isFile()||stat.isSymbolicLink())fail('模型目标不是普通文件');}catch(error){if(error.code!=='ENOENT')throw error;}await fs.writeFile(temporary,data,{flag:'wx'});await fs.rename(temporary,destination);}finally{await fs.rm(temporary,{force:true}).catch(()=>{});}}
  async importBuiltin(id,file){await this.initialize();const entry=this.entry(id);if(entry.custom)fail('请通过自定义模型检查流程导入');const data=await readBounded(file);this.verify(entry,data);await this.saveFile(entry,data);return true;}
  async confirm({token,confirm,mode,label}={}){
   if(confirm!==true)fail('请先确认导入检查结果');if(this.installing)fail('模型正在导入，请稍候');const pending=this.pending;if(!pending||pending.token!==token||pending.expires<=this.now())fail('模型检查已过期或取消，请重新选择');if(!pending.diagnostics.allowedModes.includes(mode))fail('此模型不支持所选导入方式；无权重模型需要真实蒙皮，不能复制骨架代替');if(label!==undefined&&(typeof label!=='string'||label.length>80||!label.trim()))fail('模型名称需要 1–80 字符');
-  const data=Buffer.from(pending.data),entry=customEntry(pending.diagnostics,{label:boundedName(label,boundedName(pending.filename.replace(/\.glb$/i,''),'自定义模型')),mode});this.cancel();const epoch=this.epoch;this.installing=true;let temporary;
+  const data=Buffer.from(pending.data),entry=customEntry(pending.diagnostics,{label:boundedName(label,boundedName(pending.filename.replace(/\.(?:glb|vrm)$/i,''),'自定义模型')),mode});this.cancel();const epoch=this.epoch;this.installing=true;let temporary;
   try{await this.initialize();if(epoch!==this.epoch)fail('模型导入已取消');if(!this.custom.some(item=>item.id===entry.id)&&this.custom.length>=100)fail('自定义模型数量已达 100 个');await this.saveFile(entry,data);if(epoch!==this.epoch)fail('模型导入已取消');const models=[...this.custom.filter(item=>item.id!==entry.id),entry];temporary=path.join(this.root,'custom-models.'+randomUUID()+'.tmp');const encoded=JSON.stringify({schemaVersion:1,models},null,2);if(Buffer.byteLength(encoded)>8*1024**2)fail('自定义模型清单过大，原清单已保留');await fs.writeFile(temporary,encoded,{flag:'wx'});if(epoch!==this.epoch)fail('模型导入已取消');await fs.rename(temporary,path.join(this.root,'custom-models.json'));temporary=null;this.custom=models;return structuredClone(entry);
   }finally{data.fill(0);this.installing=false;if(temporary)await fs.rm(temporary,{force:true}).catch(()=>{});}
  }

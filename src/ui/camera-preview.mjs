@@ -9,7 +9,7 @@ function stopTracks(stream){for(const track of stream?.getTracks?.()||[]){try{tr
 function destinationOrigin(value){try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)&&!url.username&&!url.password?url.origin:''}catch{return ''}}
 
 export class CameraPreview {
- constructor({mediaDevices=globalThis.navigator?.mediaDevices,video,createCanvas=()=>document.createElement('canvas'),api,onState=()=>{},now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout,visibilityTarget=globalThis.document,lifecycleTarget=globalThis.window}={}) {
+ constructor({mediaDevices=globalThis.navigator?.mediaDevices,video,createCanvas=()=>document.createElement('canvas'),api,onState=()=>{},now=Date.now,setTimer=(fn,ms)=>globalThis.setTimeout(fn,ms),clearTimer=id=>globalThis.clearTimeout(id),visibilityTarget=globalThis.document,lifecycleTarget=globalThis.window}={}) {
   this.mediaDevices=mediaDevices;this.video=video;this.createCanvas=createCanvas;this.api=api;this.onState=onState;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.visibilityTarget=visibilityTarget;this.lifecycleTarget=lifecycleTarget;this.hidden=visibilityTarget?.hidden===true;this.disposed=false;this.epoch=0;this.session=null;this.state=blank();this.cleanups=[];
   const listen=(target,event,fn)=>{target?.addEventListener?.(event,fn);this.cleanups.push(()=>target?.removeEventListener?.(event,fn))};
   listen(mediaDevices,'devicechange',()=>{if(this.session)this.stop('device-change')});

@@ -65,6 +65,7 @@ async function main(){
   run([path.join(__dirname,'prepare-wallpapers.cjs')]);
   await fs.access(path.join(root,'public/provider-logos/manifest.json')).catch(()=>run([path.join(__dirname,'cache-provider-logos.cjs'),'--allow-missing']));
   run([path.join(root,'node_modules/vite/bin/vite.js'),'build']);
+  run([path.join(__dirname,'build-motion-editor.mjs')]);
   run([require.resolve('electron-builder/out/cli/cli.js'),'--win','--x64','--dir','--publish','never','--config',filename]);
   await fs.rm(output,{recursive:true,force:true});await fs.rename(path.join(root,'build/base-electron/win-unpacked'),output);
   return verifyBaseApp(output);
@@ -116,7 +117,9 @@ async function verifyBaseApp(output){
   if(entries.some(entry=>entry.endsWith('.glb')&&!approved.has(entry)))throw Error('Unrequested extension model entered the base package');
   const wallpapersEmbedded=verifyBundledWallpapers(path.join(resources,'app.asar'));
   const providerLogos=verifyBundledProviderLogos(path.join(resources,'app.asar'));
-  for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html'])if(!entries.includes('/'+file))throw Error('Missing application file '+file);
+  for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html',
+    'electron/motion-editor.cjs','motion-studio/scripts/desktop-preload.cjs','dist/motion-editor/index.html','dist/motion-editor/player.html',
+  ])if(!entries.includes('/'+file))throw Error('Missing application file '+file);
   for(const file of ['runtime-catalog.json','aria2/aria2c.exe','aria2/COPYING','aria2/LICENSE.OpenSSL','aria2/aria2-1.37.0.tar.xz','inference/worker.py','translation/worker.py','local-chat/desktop_worker.py'])await fs.access(path.join(resources,file));
   const bytes=await inspectDetachedResources(output);validateUnpackedBudget(bytes);
   const outfits=new Set(characterCatalog.models.filter(item=>item.bundled).map(item=>item.outfitGroup));

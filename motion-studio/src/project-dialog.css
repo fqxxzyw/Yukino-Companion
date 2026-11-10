@@ -1,0 +1,23 @@
+.project-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: 0 20px 55px #0006;
+  -webkit-app-region: no-drag;
+}
+.project-dialog::backdrop { background: #0a0c13a8; }
+.project-dialog form { display: grid; }
+.project-dialog header, .project-dialog footer { display: flex; align-items: center; gap: 10px; padding: 14px 20px; }
+.project-dialog header { justify-content: space-between; border-bottom: 1px solid var(--border); }
+.project-dialog footer { justify-content: flex-end; border-top: 1px solid var(--border); }
+.project-dialog h2 { margin: 0; font-size: 17px; }
+.project-dialog fieldset { display: grid; gap: 12px; min-inline-size: 0; margin: 0; padding: 18px 20px; border: 0; }
+.project-dialog label { display: grid; gap: 6px; font-size: 13px; }
+.project-dialog input, .project-dialog select { width: 100%; padding: 7px 10px; background: var(--field); border: 1px solid var(--border); border-radius: 6px; }
+.project-dialog p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.project-dialog p.project-dialog-error { margin: 0 20px 14px; color: var(--text); }
+.project-dialog .primary { background: var(--accent-fill, var(--accent)); color: var(--accent-text, var(--accent-ink)); }

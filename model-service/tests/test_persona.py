@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from yuki_model.io import file_sha, read_jsonl, save_json, save_jsonl
 from yuki_model.persona import audit_response, build_persona, load_character
 from yuki_model.server import Chat, create_app, prompt
-from yuki_model.training import REVISION, validate_training_spec
+from yuki_model.training import REVISION, validate_resume, validate_training_spec
 
 
 @pytest.fixture
@@ -198,8 +198,67 @@ def test_explicit_adapter_continuation_and_revision(tmp_path):
     assert validate_training_spec(c)["initial_adapter_sha256"] == file_sha(
         adapter / "adapter_model.safetensors"
     )
-    with pytest.raises(ValueError, match="not both"):
-        validate_training_spec(c | {"resume": "checkpoint-1"})
+    save_json(
+        tmp_path / "training_report.json",
+        {"base_revision": REVISION, "adapter_sha256": "different"},
+    )
+    with pytest.raises(ValueError, match="weights differ"):
+        validate_training_spec(c)
+
+
+def test_continued_persona_resume_requires_same_unfinished_run(pack, seeds, tmp_path):
+    data = tmp_path / "data"
+    build_persona(seeds, pack, data, tokenizer=Tokenizer())
+    initial = tmp_path / "knowledge" / "adapter"
+    initial.mkdir(parents=True)
+    (initial / "adapter_model.safetensors").write_bytes(b"origin adapter")
+    save_json(initial / "adapter_config.json", {"r": 8})
+    save_json(initial.parent / "training_report.json", {"base_revision": REVISION})
+
+    out = tmp_path / "persona"
+    checkpoint = out / "checkpoint-12"
+    checkpoint.mkdir(parents=True)
+    config = training_config(data) | {
+        "adapter_mode": "continue",
+        "initial_adapter": str(initial),
+        "output_dir": str(out),
+        "epochs": 3,
+        "save_total_limit": 4,
+    }
+    provenance = validate_training_spec(config) | {
+        "train_sha256": file_sha(data / "train.jsonl"),
+        "eval_sha256": file_sha(data / "val.jsonl"),
+    }
+    save_json(out / "run_config.json", config)
+    save_json(out / "data_provenance.json", provenance)
+    save_json(checkpoint / "trainer_state.json", {"global_step": 12})
+    for name in (
+        "adapter_config.json", "adapter_model.safetensors", "optimizer.pt", "scheduler.pt", "rng_state.pth"
+    ):
+        (checkpoint / name).write_bytes(b"fixture")
+
+    resume = config | {"resume": str(checkpoint)}
+    assert validate_training_spec(resume) == validate_training_spec(config)
+    assert validate_resume(out, resume, provenance) == str(checkpoint)
+    assert validate_resume(out, config | {"resume": True}, provenance) == str(checkpoint)
+    with pytest.raises(ValueError, match="configuration differs"):
+        validate_resume(out, resume | {"epochs": 4}, provenance)
+    for name in (
+        "train_sha256", "eval_sha256", "initial_adapter_sha256", "initial_adapter_config_sha256", "data_manifest_sha256"
+    ):
+        with pytest.raises(ValueError, match="data or initial adapter differs"):
+            validate_resume(out, resume, provenance | {name: "changed"})
+    with pytest.raises(ValueError, match="directly inside"):
+        validate_resume(out, resume | {"resume": str(tmp_path / checkpoint.name)}, provenance)
+    save_json(checkpoint / "trainer_state.json", {"global_step": 11})
+    with pytest.raises(ValueError, match="step does not match"):
+        validate_resume(out, resume, provenance)
+    (checkpoint / "optimizer.pt").unlink()
+    with pytest.raises(ValueError, match="incomplete"):
+        validate_resume(out, resume, provenance)
+    save_json(out / "training_report.json", {"completed": True})
+    with pytest.raises(ValueError, match="already has a training report"):
+        validate_resume(out, resume, provenance)
 
 
 class EmptyRetriever:

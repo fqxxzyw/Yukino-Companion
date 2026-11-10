@@ -68,6 +68,20 @@ test('actual ModelWindow reloads the same model after identity change instead of
  assert.equal(runtime.entry?.id,'school');assert.equal(runtime.events.filter(event=>event==='load:school').length,2);assert.equal(input().props.value,'');assert.equal(runtime.options.audioPlayer.getLevel(),0);
 });
 
+test('desktop 3D window reports a missing or failed model and can retry without showing a pet',async t=>{
+ let receive;const calls=[];const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async(action,payload)=>{calls.push([action,payload]);return action==='model-catalog'?{models:[{id:'school'}]}:true}};
+ const h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ assert.ok(walk(h.tree).some(node=>node.props?.className==='model-window-fallback'));
+ assert.ok(!walk(h.tree).some(node=>node.type==='img'));
+ receive({character:{id:'a',modelId:'school'},preferences:{}});h.render();await h.settle();
+ const runtime=h.runtime.instances[0];runtime.options.onStatus({phase:'error',message:'模型损坏'});h.render();
+ const retry=walk(h.tree).find(node=>node.type==='button'&&node.props?.children==='重新加载模型');assert.ok(retry);
+ retry.props.onClick();h.render();await h.settle();
+ assert.equal(runtime.events.filter(event=>event==='load:school').length,2);
+ assert.ok(calls.some(([action,id])=>action==='model-frame-error'&&id==='school'));
+});
+
 test('actual ModelWindow ignores stale catalog completion after no-model selection and newer identity',async t=>{
  let receive,pending=[];const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:action=>action==='model-catalog'?new Promise(resolve=>pending.push(resolve)):Promise.resolve(true)};
  const h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
@@ -127,7 +141,7 @@ test('model bubble actions preserve reading position and use prefs and current-c
  await nodes().find(node=>node.type==='button'&&node.props.children==='打开聊天').props.onClick();
  assert.ok(calls.some(item=>item.action==='open-main'));assert.ok(!calls.some(item=>item.action==='chat-submit'));
  failOpen=true;await nodes().find(node=>node.type==='button'&&node.props.children==='打开聊天').props.onClick();await h.settle();
- assert.match(nodes().find(node=>node.props?.role==='alert').props.children,/无法打开聊天窗口/);
+ assert.match(nodes().find(node=>node.props?.role==='alert'&&node.props?.className==='model-window-status').props.children,/无法打开聊天窗口/);
 });
 
 test('a pointer captured before gait and a render-delayed reset button cannot change the locked view',async t=>{
@@ -145,6 +159,15 @@ test('actual CharacterPanel sees newly imported catalog before selecting custom 
  h.render({...initial,character:{id:'a',modelId:''}});await h.settle();assert.equal(runtime.disposed,true);assert.equal(runtime.entry,null);
 });
 
+test('a new layout measurement releases the previous committed handoff geometry even when side is unchanged',async t=>{
+ let receive;const api={onAvatarHandoff:fn=>(receive=fn,()=>{}),avatarHandoffReady:async()=>true},renderer={setVisible(){},setView(){},resize(){},setActivity(){},setReducedMotion(){},setEnvironment(){},setRenderStyle(){},setGaze(){},async prepareOutfit(){return{}},async commitOutfit(){},disposePrepared(){}};
+ const h=await hookHarness(t,'src/ui/CharacterPanel.jsx',api);h.render({side:'left',width:300,onChange(){},onSettings(){},containerRef:{current:null},character:{id:'a',modelId:'school'},models:[{id:'school',ready:true}],renderer,reducedMotion:true});await h.settle();
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[],host=walk(h.tree).find(node=>node.props?.className==='character-model-host').props.ref.current;
+ const values=new Map();host.style={getPropertyValue:key=>values.get(key)||'',getPropertyPriority:()=>'',setProperty:(key,value)=>values.set(key,value),removeProperty:key=>values.delete(key)};host.offsetParent={getBoundingClientRect:()=>({left:10,top:20}),clientLeft:0,clientTop:0};
+ receive({phase:'prepare',sequence:1,rect:{x:30,y:60,width:240,height:400},view:{zoom:1,yaw:0}});assert.equal(values.get('width'),'240px');receive({phase:'finish',sequence:1});
+ receive({phase:'layout',sequence:2,requestId:1,side:'left'});assert.equal(values.has('width'),false);assert.equal(host.dataset.avatarHandoff,undefined);
+});
+
 test('scene changes retain the user\'s saved daylight location',async t=>{
  const h=await hookHarness(t,'src/ui/CharacterPanel.jsx');let update;
  const location={latitude:35,longitude:139},props={side:'right',width:300,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',daylightLocation:location},reducedMotion:true};
@@ -155,7 +178,7 @@ test('scene changes retain the user\'s saved daylight location',async t=>{
 });
 
 test('character scene choices pair Chinese names with decorative scene previews and preserve saved preferences',async t=>{
- const {SCENES}=await import('../src/ui/scene-catalog.mjs'),h=await hookHarness(t,'src/ui/CharacterPanel.jsx');let update;
+ const {renderToStaticMarkup}=require('react-dom/server'),{SCENES}=await import('../src/ui/scene-catalog.mjs'),h=await hookHarness(t,'src/ui/CharacterPanel.jsx');let update;
  const props={side:'left',width:220,onChange(){},onSettings(){},onPresentationChange:value=>update=value,containerRef:{current:null},character:{id:'a',modelId:''},presentation:{scene:'studio',liveWeather:true,customPreference:'keep'},reducedMotion:true};
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  h.render(props);walk(h.tree).find(node=>node.props?.['aria-label']==='人物场景选项').props.onClick();h.render(props);
@@ -164,7 +187,7 @@ test('character scene choices pair Chinese names with decorative scene previews 
   const choice=choices.find(node=>node.props['data-scene']===id);
   assert.equal(choice.props['aria-label'],scene.label);assert.match(scene.label,/^[\p{Script=Han}]+$/u);
   const preview=walk(choice).find(node=>node.props?.className==='scene-choice-swatch'),label=walk(choice).find(node=>node.props?.className==='scene-choice-name');
-  assert.equal(preview.props['aria-hidden'],'true');assert.equal(preview.props.style.background,scene.background);assert.equal(typeof preview.props.children.type,'object');assert.equal(label.props.children,scene.label);
+  assert.equal(preview.props['aria-hidden'],'true');assert.equal(preview.props.style.background,scene.background);assert.equal(typeof preview.props.children.type,'object');assert.equal(label.props.children,scene.label);assert.match(renderToStaticMarkup(choice),/<svg\b/);
   choice.props.onClick();assert.equal(update.scene,id);assert.equal(update.liveWeather,true);assert.equal(update.customPreference,'keep');
   h.render({...props,presentation:update});const selected=walk(h.tree).filter(node=>node.type==='button'&&node.props?.['data-scene']&&node.props['aria-pressed']);assert.equal(selected.length,1);assert.equal(selected[0].props['data-scene'],id);
  }
@@ -298,14 +321,14 @@ test('main-process skin gate matches UI for migrated dates, archive overlap and 
 });
 
 test('real model selection function persists current progress before publishing a new model and preserves concurrent chat updates',async()=>{
- const {getSkinStatus}=await import('../src/companion/skin-unlocks.mjs'),{canUseSkin}=require('../electron/skin-policy.cjs');
+ const {getSkinStatus}=await import('../src/companion/skin-unlocks.mjs'),{rememberCharacterModel}=await import('../src/companion/characters.mjs'),{canUseSkin}=require('../electron/skin-policy.cjs');
  const source=await fs.readFile(path.join(root,'src/main.jsx'),'utf8'),start=source.indexOf('async function updateModel('),end=source.indexOf('\nasync function addCharacter(',start);
  assert.ok(start>=0&&end>start);const functionSource=source.slice(start,end);
  let state={activeCharacter:'a',characters:[{id:'a',modelId:'yukino-07-v1'}],relationship:{affection:40},conversations:[]},persisted={...state,relationship:{affection:35}},resolveSave,errors=[];
  const entry={id:'yukino-02-v1',ready:true},sref={current:state},epoch={current:0},events=[];
  const api={save:next=>{events.push('save-start');return new Promise(resolve=>{resolveSave=()=>{persisted=structuredClone(next);events.push('save-complete');resolve()}})}};
  const setS=update=>{state=typeof update==='function'?update(state):update;sref.current=state;events.push('publish');assert.equal(canUseSkin(entry,persisted),true,'model data gate sees persisted unlocked progress before selection')};
- const updateModel=new Function('models','sref','getSkinStatus','setError','modelSelectionEpoch','api','setS','friendlyError',`${functionSource};return updateModel;`)([entry],sref,getSkinStatus,e=>errors.push(e),epoch,api,setS,e=>e.message);
+ const updateModel=new Function('models','sref','getSkinStatus','setError','modelSelectionEpoch','api','setS','friendlyError','rememberCharacterModel',`${functionSource};return updateModel;`)([entry],sref,getSkinStatus,e=>errors.push(e),epoch,api,setS,e=>e.message,rememberCharacterModel);
  const pending=updateModel(entry.id);assert.deepEqual(events,['save-start']);assert.equal(state.characters[0].modelId,'yukino-07-v1');
  state={...state,conversations:[{id:'arrived-during-save',messages:[{content:'new stream token'}]}]};sref.current=state;
  resolveSave();await pending;assert.deepEqual(events,['save-start','save-complete','publish']);assert.equal(state.characters[0].modelId,entry.id);assert.equal(state.conversations[0].id,'arrived-during-save');assert.deepEqual(errors,[]);

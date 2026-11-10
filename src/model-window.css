@@ -34,7 +34,7 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px so
 .model-window-canvas:active{cursor:grabbing}.model-window-canvas canvas{display:block;width:100%;height:100%}
 .model-window-canvas:focus-visible{outline-offset:-3px;border-radius:16px}
 .model-window-fallback{position:absolute;inset:var(--canvas-top) 12px var(--canvas-bottom);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:0;pointer-events:auto}
-.model-window-fallback img{height:70%;max-height:230px;max-width:100%;object-fit:contain}
+.model-window-fallback p{max-width:100%;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
 .model-window-fallback button{flex:none;max-width:100%;padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px}
 .model-feedback{position:absolute;z-index:5;left:50%;bottom:60px;translate:-50% 0;width:min(340px,calc(100% - 24px));max-height:24px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;pointer-events:auto}
 .model-feedback:empty{display:none}
@@ -42,7 +42,7 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px so
 .model-window-status[role=alert]{border-color:#e4cbd0;background:#fff6f6;color:#8a3c49}
 
 /* Visible controls are never clipped by the collapsed handle's old footprint. */
-.compact-dock{position:absolute;z-index:6;left:50%;bottom:12px;translate:-50% 0;width:70px;height:18px;border:1px solid #b8cce3;border-radius:24px;background:#f8fcfffa;box-shadow:0 4px 14px #183e6414;pointer-events:auto;overflow:visible;transition:width .22s cubic-bezier(.2,.8,.2,1),height .18s ease}
+.compact-dock{position:absolute;z-index:6;left:50%;top:calc(100% - var(--canvas-bottom));translate:-50% 0;width:70px;height:18px;border:1px solid #b8cce3;border-radius:24px;background:#f8fcfffa;box-shadow:0 4px 14px #183e6414;pointer-events:auto;overflow:hidden;transition:width .22s cubic-bezier(.2,.8,.2,1),height .18s ease}
 .compact-dock.expanded{width:min(340px,calc(100% - 24px));height:46px}
 .compact-dock:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px #477fd126,0 4px 14px #183e6414}
 .dock-handle{position:absolute;inset:0;border:0;border-radius:inherit;background:transparent;padding:0}
@@ -50,7 +50,7 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px so
 .compact-dock.expanded .dock-handle{visibility:hidden;pointer-events:none}
 .compact-dock form{display:flex;align-items:center;gap:4px;margin:0;position:absolute;inset:0;min-width:0;padding:5px;background:transparent;border-radius:inherit;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s}
 .compact-dock.expanded form{visibility:visible;opacity:1;pointer-events:auto}
-.compact-dock input{flex:1 1 0;min-width:0;width:100%;padding:5px;border:0;background:transparent;color:#233b59;font-size:13px;outline:0}.compact-dock input::placeholder{color:#6c8099}
+.compact-dock input{flex:1 1 0;min-width:0;width:0;padding:5px;border:0;border-radius:8px;background:transparent;color:#233b59;font-size:13px;outline:0}.compact-dock input:focus-visible{outline:0}.compact-dock input::placeholder{color:#6c8099}
 .compact-dock form button{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#456a95;font-size:18px;line-height:1;transition:background .12s}
 .compact-dock form button:hover{background:#e8f0fb}.compact-dock button[type=submit]{background:var(--accent);color:#fff}.compact-dock button[type=submit]:hover{background:#3668b5}.compact-dock form:has(input:disabled) button[type=submit]{background:#a34b53;font-size:13px}
 .compact-dock button:focus-visible{outline-offset:1px}.compact-dock form .vision-active{background:#a9253e;color:#fff;box-shadow:inset 0 0 0 2px #fff}
@@ -71,6 +71,6 @@ button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px so
 .model-reply-actions{border-top-color:#477fd119}
 .model-reply-actions button:first-child{background:#477fd112;color:#3569af;box-shadow:inset 0 0 0 1px #477fd11a;font-weight:600}
 .model-reply-actions button:not(:disabled):hover{background:#477fd11f;color:#284f83;box-shadow:inset 0 0 0 1px #477fd124}
-.compact-dock{background:linear-gradient(145deg,#fffffffa,#f1f7fff5);box-shadow:0 5px 18px #183e6417,inset 0 1px 0 #fff}
+.compact-dock{border-color:#9fbad3b8;background:linear-gradient(145deg,#e1effbdb,#cadcf0e0);box-shadow:0 5px 18px #183e6420,inset 0 1px 1px #ffffff80,inset 0 -1px 0 #8eafd126}
 @media(prefers-reduced-transparency:reduce){.model-toolbar,.model-bubble,.compact-dock,.model-window-status{background:#fafdff;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}}
-@media(forced-colors:active){.model-toolbar,.model-bubble,.compact-dock,.model-window-status{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}.model-bubble::after{background:Canvas;border-color:CanvasText}.model-reply,.model-name,.model-reply-actions button{color:CanvasText}.model-reply-actions button:first-child{background:Canvas;box-shadow:none;border:1px solid ButtonText}.compact-dock button[type=submit]{background:Highlight;color:HighlightText}}
+@media(forced-colors:active){.model-toolbar,.model-bubble,.compact-dock,.model-window-status{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}.model-bubble::after{background:Canvas;border-color:CanvasText}.model-reply,.model-name,.model-reply-actions button{color:CanvasText}.model-reply-actions button:first-child{background:Canvas;box-shadow:none;border:1px solid ButtonText}.compact-dock button[type=submit]{forced-color-adjust:none;background:Highlight;color:HighlightText;border:1px solid HighlightText}}

@@ -1,0 +1,17 @@
+.studio-select-control { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
+.studio-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; min-height: 27px; padding: 3px 8px; text-align: left; color: var(--text); background: var(--field); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.studio-select-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.studio-select-trigger > svg { color: var(--muted); transition: transform .18s ease; }
+.studio-select-trigger[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent-ink) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 7%, transparent); }
+.studio-select-trigger[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.studio-select-menu { position: fixed; z-index: 1000; overflow: auto; overscroll-behavior: contain; padding: 6px; border: 1px solid var(--border); border-radius: 15px; background: color-mix(in srgb, var(--panel) 97%, transparent); color: var(--text); box-shadow: 0 14px 45px #11234025, 0 2px 7px var(--shadow); backdrop-filter: blur(25px); font-size: 12px; font-weight: 400; animation: studio-select-appear .12s ease-out; }
+.studio-select-group { color: var(--muted); font-size: 11px; padding: 8px 10px 3px; }
+.studio-select-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; min-height: 36px; border-radius: 9px; line-height: 1.5; cursor: pointer; overflow-wrap: anywhere; }
+.studio-select-option.highlighted { background: var(--raised); }
+.studio-select-option[aria-selected="true"] { color: var(--accent-ink); font-weight: 550; }
+.studio-select-option[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.number-field .studio-select-control, .project-dialog .studio-select-control, .rig-report .studio-select-control { width: 100%; }
+.view-select .studio-select-trigger { border: 0; background: transparent; min-height: 26px; padding: 0 3px; }
+.model-bar .studio-select-control { min-width: 0; max-width: 240px; }
+@keyframes studio-select-appear { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion:reduce) { .studio-select-menu, .studio-select-trigger > svg { animation: none; transition: none; } }

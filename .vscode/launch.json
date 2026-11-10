@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Yukino: 启动并调试 Electron 开发器",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/dev.mjs",
+      "preLaunchTask": "Yukino: 准备 UI 资源",
+      "args": ["--desktop"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**"],
+      "env": {"ELECTRON_RUN_AS_NODE": null}
+    },
+    {
+      "name": "Yukino: 浏览器 UI 预览（Edge）",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:5173/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Yukino: 浏览器 UI 预览"
+    },
+    {
+      "name": "Yukino: VS Code 内嵌浏览器 UI 预览",
+      "type": "editor-browser",
+      "request": "launch",
+      "url": "http://127.0.0.1:5173/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Yukino: 浏览器 UI 预览"
+    }
+  ]
+}

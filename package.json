@@ -12,11 +12,12 @@
     "dev:desktop": "node scripts/dev.mjs --desktop",
     "prepare:ui": "node scripts/prepare-companion-assets.cjs --artwork-only && node scripts/prepare-wallpapers.cjs",
     "predev:web": "npm run prepare:ui",
-    "predev:desktop": "npm run prepare:ui",
+    "predev:desktop": "npm run prepare:ui && npm run build:motion-editor",
     "test:dev": "node --test tests/development.test.cjs",
     "qa:dev": "node scripts/verify-dev.mjs",
-    "build": "npm run prepare:characters && npm run prepare:ui && vite build",
-    "build:full": "npm run prepare:characters:all && npm run prepare:companions && npm run prepare:wallpapers && vite build",
+    "build": "npm run prepare:characters && npm run prepare:ui && vite build && npm run build:motion-editor",
+    "build:full": "npm run prepare:characters:all && npm run prepare:companions && npm run prepare:wallpapers && vite build && npm run build:motion-editor",
+    "build:motion-editor": "node scripts/build-motion-editor.mjs",
     "restore:characters": "node scripts/restore-character-inputs.cjs --base-only",
     "verify:models:base": "node scripts/verify-base-models.cjs",
     "qa:models:base": "electron scripts/capture-model-ui.cjs --base-only --output build/base-model-ui-review",
@@ -59,6 +60,7 @@
     "yauzl": "3.2.0"
   },
   "devDependencies": {
+    "@pixiv/three-vrm": "3.5.5",
     "@vitejs/plugin-react": "6.1.2",
     "7zip-bin": "5.2.0",
     "electron": "45.0.0",
@@ -73,6 +75,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "motion-studio/scripts/desktop-preload.cjs",
       "src/speech/segmenter.mjs",
       "package.json",
       "resources/voice-models.json",

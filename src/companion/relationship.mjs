@@ -13,6 +13,8 @@ export function createRelationship(now=Date.now()) {
 function normalize(value, now) {
   const input=value&&typeof value==='object'?value:{},base=createRelationship(now);
   const out={...base,affection:clamp(input.affection,35),stamina:clamp(input.stamina,100)};
+  // A local wardrobe preview is independent from real relationship progress.
+  if(input.skinPreviewEnabled===true)out.skinPreviewEnabled=true;
   for(const key of ['lastUpdated','lastMessage','lastCheckinAt','boundaryUntil']) if(Number.isFinite(input[key])&&input[key]>=0)out[key]=input[key];
   for(const key of ['turns','checkinDays','rewardToday']) if(Number.isFinite(input[key]))out[key]=Math.max(0,Math.min(100000,Math.floor(input[key])));
   for(const key of ['lastCheckin','rewardDay']) if(/^\d{4}-\d{2}-\d{2}$/.test(input[key]||''))out[key]=input[key];

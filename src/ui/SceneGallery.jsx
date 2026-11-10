@@ -26,6 +26,6 @@ export default function SceneGallery({scene,timeOfDay,weather=null,reducedMotion
  }
  return <div ref={host} className="scene-gallery" tabIndex={0} role="region" aria-label={`${scenePreset(scene).label}，三维微缩景观。拖拽旋转，滚轮或双指缩放，方向键调整视角，加减号缩放，Home 复位，Tab 前往场景菜单，Escape 返回。`} style={{background:scenePreset(scene).background}} onKeyDown={key}>
   <div ref={canvasHost} className="scene-gallery-stage"/>
-  <SceneQuickMenu scene={scene} onScene={onScene} motionEnabled={motionEnabled} onMotion={onMotion} onOverview={()=>renderer.current?.showOverview()} onReturn={()=>renderer.current?.releaseOverview()} onClose={onClose}/>
+  <SceneQuickMenu scene={scene} onScene={onScene} motionEnabled={motionEnabled} onMotion={onMotion} onOverview={()=>renderer.current?.showOverview()} onReturn={()=>renderer.current?.releaseOverview()} onPhoto={()=>renderer.current?.showPhoto()} onReset={()=>renderer.current?.key('Home')} onClose={onClose}/>
  </div>;
 }

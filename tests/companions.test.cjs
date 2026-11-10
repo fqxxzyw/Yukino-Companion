@@ -115,11 +115,84 @@ test('unpackaged companion fixture never imports settings from another installat
   assert.equal(await fs.readFile(path.join(legacy,'YukinoPet/settings.ini'),'utf8'),'Scale=1.75\nPaused=true\nQuietMode=true');
 });
 test('closing asks first, then pet/both selection hides main and persists', async t => {
-  const f = await fixture(t); let prevented = false;
+  const f = await fixture(t); f.manager.setCharacter({id:'yukino',modelId:'model-a'}); let prevented = false;
   f.main.emit('close',{ preventDefault:()=>prevented=true }); assert.equal(prevented,true); assert.equal(f.requested(),1); assert.equal(f.main.visible,true);
   await f.manager.closeChoice('both'); assert.equal(f.main.visible,false); assert.deepEqual(f.manager.getState().active,['model','pet']);
-  await f.manager.updatePrefs({ closeAction:'pet' }); f.main.show(); f.main.emit('close',{ preventDefault(){} });
+  await f.manager.updatePrefs({ closeAction:'pet' }); f.main.show(); const hidden=new Promise(resolve=>f.main.once('hide',resolve));f.main.emit('close',{ preventDefault(){} });await hidden;
   assert.equal(f.main.visible,false); assert.deepEqual(f.manager.getState().active,['pet']); assert.equal(f.manager.getState().closeAction,'pet');
+});
+test('tray selection reflects the visible close choice and switches between the two actual windows',async t=>{
+  const f=await fixture(t),menus=[];
+  f.manager.e.Menu={buildFromTemplate:template=>template};
+  f.manager.tray={setContextMenu:menu=>menus.push(menu),destroy(){}};
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  await f.manager.setMode('model');
+  await f.manager.closeChoice('pet');
+  const menu=()=>menus.at(-1),selected=()=>menu().filter(item=>item.type==='radio'&&item.checked).map(item=>item.label);
+  assert.deepEqual(selected(),['只显示桌宠']);
+  assert.deepEqual(f.manager.getState().active,['pet']);
+  let changing;const change=f.manager.setMode.bind(f.manager);f.manager.setMode=mode=>(changing=change(mode));
+  menu().find(item=>item.label==='只显示人物模型').click();await changing;
+  assert.deepEqual(selected(),['只显示人物模型']);
+  assert.deepEqual(f.manager.getState().active,['model']);
+  assert.match(f.manager.windows.get('model').loadedFile,/model-window\.html$/);
+  menu().find(item=>item.label==='只显示桌宠').click();await changing;
+  assert.deepEqual(selected(),['只显示桌宠']);
+  assert.deepEqual(f.manager.getState().active,['pet']);
+});
+test('minimizing main releases the model and restoring it suppresses the desktop duplicate',async t=>{
+  const f=await fixture(t);let minimized=false;f.main.isMinimized=()=>minimized;
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+  const model=f.manager.windows.get('model');assert.equal(model.handoffSuppressed,true);assert.equal(model.isVisible(),false);
+  minimized=true;f.main.emit('minimize');assert.equal(model.handoffSuppressed,false);assert.equal(model.isVisible(),true);
+  minimized=false;f.main.emit('restore');assert.equal(model.handoffSuppressed,true);assert.equal(model.isVisible(),false);
+});
+test('late desktop ready event cannot show duplicate while main is opening',async t=>{
+ const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+ const model=f.manager.windows.get('model');model.handoffSuppressed=false;model.hide();
+ f.manager.handoffActive=12;f.manager.openingMainSequence=12;
+ model.emit('ready-to-show');assert.equal(model.isVisible(),false);assert.equal(model.handoffSuppressed,true);
+ f.manager.handoffActive=null;f.manager.openingMainSequence=null;
+});
+test('startup model created before main attachment stays hidden after main first shows',async t=>{
+ const f=await fixture(t);f.manager.mainWindow=null;
+ await f.manager.setMode('model');const model=f.manager.windows.get('model');model.show();
+ const main=new FakeWindow();main.hide();f.manager.attachMainWindow(main);
+ main.show();assert.equal(model.isVisible(),false);assert.equal(model.handoffSuppressed,true);
+ model.emit('ready-to-show');assert.equal(model.isVisible(),false);
+});
+test('an externally revealed main window wins when pending layout is aborted',async t=>{
+ const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+ f.main.hide();const model=f.manager.windows.get('model');model.show();
+ model.getContentBounds=()=>model.getBounds();f.main.getContentBounds=()=>f.main.getBounds();f.main.isMaximized=()=>false;
+ f.manager.desktopModelView={win:model,id:'model-a',rect:{x:0,y:0,width:200,height:300},view:{zoom:1,yaw:0}};
+ f.manager.appAvatarRect={x:10,y:10,width:200,height:300,relative:true,layoutProtocol:true};
+ f.manager.requestAvatarLayout=async()=>{f.main.show();return null;};
+ assert.equal(await f.manager.revealMain(),false);assert.equal(f.main.isVisible(),true);
+ assert.equal(model.isVisible(),false);assert.equal(model.handoffSuppressed,true);
+});
+test('tray model selection works while main remains visible to Windows but minimized',async t=>{
+  const f=await fixture(t),menus=[];let minimized=false;
+  f.main.isMinimized=()=>minimized;f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  f.manager.e.Menu={buildFromTemplate:template=>template};f.manager.tray={setContextMenu:menu=>menus.push(menu),destroy(){}};
+  await f.manager.setMode('pet');minimized=true;f.main.emit('minimize');
+  let change;const setMode=f.manager.setMode.bind(f.manager);f.manager.setMode=mode=>(change=setMode(mode));
+  menus.at(-1).find(item=>item.label==='只显示人物模型').click();await change;
+  const model=f.manager.windows.get('model');assert.ok(model);assert.equal(model.handoffSuppressed,undefined);
+  model.emit('ready-to-show');assert.equal(model.isVisible(),true);
+  assert.equal(f.manager.windows.has('pet'),false);
+});
+test('a desktop model page load failure restores the main window, retains the choice and can be retried',async t=>{
+  const f=await fixture(t),errors=[];f.main.hide();f.manager.onError=error=>errors.push(error.message);
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  class FailedModelWindow extends FakeWindow {loadFile(file){this.loadedFile=file;return Promise.reject(new Error('页面加载失败'));}}
+  f.manager.e.BrowserWindow=FailedModelWindow;
+  await f.manager.setMode('model');await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.main.isVisible(),true);assert.equal(f.manager.effectiveMode(),'model');
+  assert.equal(f.manager.windows.has('model'),false);assert.equal(f.manager.windows.has('pet'),false);
+  assert.deepEqual(errors,['页面加载失败']);
+  f.manager.e.BrowserWindow=FakeWindow;await f.manager.setMode('model');
+  assert.ok(f.manager.windows.has('model'));assert.equal(f.manager.windows.has('pet'),false);
 });
 test('quit choice exits instead of silently keeping a companion alive', async t => {
   const f = await fixture(t); await f.manager.setMode('both'); await f.manager.closeChoice('quit'); assert.equal(f.quit(),1); assert.equal(f.manager.quitting,true);
@@ -152,13 +225,70 @@ test('reopening during a fade cancels the old close and keeps the main window vi
   await new Promise(resolve=>setTimeout(resolve,70));
   await f.manager.revealMain();await closing;
   await new Promise(resolve=>setTimeout(resolve,300));
-  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(f.manager.windows.get('pet').isVisible(),false);
+  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(f.manager.windows.has('pet'),false);
+});
+test('reopening adjusts the desktop canvas before making the main window visible', async t => {
+  const f=await fixture(t);f.manager.e.systemPreferences={getAnimationSettings:()=>({prefersReducedMotion:true})};
+  f.main.bounds={x:100,y:100,width:1000,height:700};f.main.getContentBounds=()=>({...f.main.bounds});
+  f.main.setOpacity=value=>{f.main.opacity=value;};f.main.hide();
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+  const desktop=f.manager.windows.get('model');desktop.bounds={x:1700,y:100,width:180,height:300};desktop.getContentBounds=()=>({...desktop.bounds});
+  desktop.setOpacity=value=>{desktop.opacity=value;};
+  const initial={...desktop.bounds};let adjustedWhileHidden=false;
+  const setBounds=desktop.setBounds.bind(desktop);desktop.setBounds=bounds=>{adjustedWhileHidden=!f.main.isVisible();setBounds(bounds);};
+  f.manager.setAppAvatarRect({x:650,y:100,width:300,height:480},{relative:true});
+  f.manager.desktopModelView={win:desktop,id:'model-a',rect:{x:0,y:56,width:180,height:184},view:{zoom:1,yaw:0}};
+  let prepared;f.main.webContents.send=(channel,message)=>{if(channel==='avatar-handoff'&&message.phase==='prepare'){prepared=message;f.manager.avatarHandoffReady(message.sequence);}};
+  assert.equal(await f.manager.revealMain(),true);
+  assert.equal(adjustedWhileHidden,true);assert.notDeepEqual(desktop.bounds,initial);
+  assert.deepEqual(prepared.rect,{x:650,y:100,width:300,height:480});
+  assert.equal(f.main.isVisible(),true);assert.equal(desktop.isVisible(),false);
+});
+test('reopening measures both sides and keeps a left desktop model in place',async t=>{
+ const f=await fixture(t);f.manager.preferences.animation=false;
+ f.main.bounds={x:0,y:100,width:1000,height:700};f.main.getContentBounds=()=>({...f.main.bounds});f.main.setOpacity=()=>{};f.main.hide();
+ f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+ const desktop=f.manager.windows.get('model');desktop.bounds={x:100,y:144,width:300,height:616};desktop.getContentBounds=()=>({...desktop.bounds});desktop.setOpacity=()=>{};
+ f.manager.setAppAvatarRect({x:650,y:100,width:300,height:500,layoutProtocol:true},{relative:true});
+ f.manager.desktopModelView={win:desktop,id:'model-a',rect:{x:0,y:56,width:300,height:500},view:{zoom:1,yaw:0}};
+ const initial={...desktop.bounds},messages=[];
+ f.main.webContents.send=(channel,message)=>{if(channel!=='avatar-handoff')return;messages.push(message);if(message.phase==='layout')f.manager.avatarLayoutReady({...message,rect:{x:message.side==='left'?50:650,y:100,width:300,height:500},preferredSide:'right'});if(message.phase==='prepare')f.manager.avatarHandoffReady(message.sequence);};
+ assert.equal(await f.manager.revealMain(),true);
+ assert.deepEqual(messages.filter(m=>m.phase==='layout').map(m=>m.side),['left','right','left']);
+ assert.deepEqual(desktop.bounds,initial);assert.equal(f.main.bounds.x,50);assert.equal(messages.at(-1).phase,'finish');
+});
+test('maximized reopening chooses a measured side without moving the main window',async t=>{
+ const f=await fixture(t);f.manager.preferences.animation=false;
+ f.main.bounds={x:0,y:0,width:1920,height:1040};f.main.getContentBounds=()=>({...f.main.bounds});f.main.isMaximized=()=>true;f.main.setOpacity=()=>{};f.main.hide();
+ f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.setMode('model');
+ const desktop=f.manager.windows.get('model');desktop.bounds={x:100,y:144,width:300,height:616};desktop.getContentBounds=()=>({...desktop.bounds});desktop.setOpacity=()=>{};
+ f.manager.setAppAvatarRect({x:1570,y:200,width:300,height:500,layoutProtocol:true},{relative:true});
+ f.manager.desktopModelView={win:desktop,id:'model-a',rect:{x:0,y:56,width:300,height:500},view:{zoom:1,yaw:0}};
+ const initial={...f.main.bounds},messages=[];
+ f.main.webContents.send=(channel,message)=>{if(channel!=='avatar-handoff')return;messages.push(message);if(message.phase==='layout')f.manager.avatarLayoutReady({...message,rect:{x:message.side==='left'?50:1570,y:200,width:300,height:500},preferredSide:'right'});if(message.phase==='prepare')f.manager.avatarHandoffReady(message.sequence);};
+ assert.equal(await f.manager.revealMain(),true);
+ assert.equal(messages.filter(m=>m.phase==='layout').at(-1).side,'left');assert.deepEqual(f.main.bounds,initial);assert.equal(desktop.bounds.x,50);
 });
 test('close aligns an existing model before fading and keeps the aligned bounds through setup', async t => {
  const f=await fixture(t);await f.manager.setMode('model');const desktop=f.manager.windows.get('model');
  f.manager.setAppAvatarRect({x:300,y:200,width:350,height:400});
  await f.manager.closeChoice('model');
  assert.deepEqual(desktop.getBounds(),{x:300,y:144,width:350,height:516});
+});
+test('closing tracks the moved main content and above-dock insets, retaining the real view', async t => {
+ const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});f.main.getContentBounds=()=>({x:430,y:180,width:1000,height:800});
+ await f.manager.setPreferences({inputPosition:'above'});
+ f.manager.setAppAvatarRect({x:260,y:220,width:300,height:400,view:{zoom:1.7,yaw:35}},{relative:true});
+ await f.manager.closeChoice('model');const desktop=f.manager.windows.get('model');
+ assert.deepEqual(desktop.getBounds(),{x:690,y:248,width:300,height:564});
+ assert.deepEqual(f.manager.handoffModelView,{sequence:f.manager.handoffSequence,zoom:1.7,yaw:35});
+});
+test('handoff uses the avatar display rather than the prior saved desktop display', async t => {
+ const f=await fixture(t),left={x:-1280,y:0,width:1280,height:900},right={x:0,y:0,width:1920,height:1040};
+ f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+ f.screen.getPrimaryDisplay=()=>({workArea:right});f.screen.getDisplayNearestPoint=p=>({workArea:p.x<0?left:right});f.screen.getAllDisplays=()=>[{workArea:left},{workArea:right}];
+ f.manager.preferences.positions.model={x:900,y:200};f.manager.setAppAvatarRect({x:-900,y:180,width:300,height:400});
+ await f.manager.closeChoice('model');assert.deepEqual(f.manager.windows.get('model').getBounds(),{x:-900,y:124,width:300,height:516});
 });
 test('system reduced motion turns native fades into an immediate transition', async t => {
  const f=await fixture(t),values=[];f.manager.e.systemPreferences={getAnimationSettings:()=>({prefersReducedMotion:true})};
@@ -190,6 +320,13 @@ test('a model loading failure restores the main window instead of hiding it', as
   const desktop=f.manager.windows.get('model');await f.manager.viewCall({sender:desktop.webContents,senderFrame:desktop.webContents.mainFrame},'model-frame-error','model-a');await closing;
   assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(desktop.isVisible(),false);assert.match(errors[0],/尚未准备好/);
 });
+test('closing with no selected model leaves the main window available and reports the error', async t => {
+  const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
+  await f.manager.closeChoice('model');
+  assert.equal(f.main.isVisible(),true);
+  assert.equal(f.manager.windows.has('model'),false);
+  assert.match(errors[0],/没有可用的 3D 模型/);
+});
 test('opacity failure during a handoff cancels both fades and restores the main window', async t => {
   const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
   class OpacityWindow extends FakeWindow {
@@ -198,8 +335,8 @@ test('opacity failure during a handoff cancels both fades and restores the main 
   }
   f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
   await f.manager.closeChoice('pet');await new Promise(resolve=>setTimeout(resolve,40));
-  const desktop=f.manager.windows.get('pet');assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);
-  assert.equal(desktop.isVisible(),false);assert.equal(desktop.opacity,1);assert.match(errors[0],/native opacity failed/);
+  assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);
+  assert.equal(f.manager.windows.has('pet'),false);assert.match(errors[0],/native opacity failed/);
 });
 test('failure while preparing the desktop window restores main and discards the unfinished host', async t => {
   const f=await fixture(t),errors=[];let created;f.manager.onError=error=>errors.push(error.message);
@@ -229,9 +366,9 @@ test('all original pet preferences persist without overriding unrelated preferen
   for(const invalid of [{opacity:0},{opacity:1.1},{soundVolume:NaN},{soundVolume:-1},{scale:.59}])assert.throws(()=>sanitizePreferences(invalid));
 });
 test('close remembers the selected behavior only when requested', async t=>{
-  const f=await fixture(t);await f.manager.closeChoice('pet');assert.equal(f.manager.preferences.closeAction,'ask');
+  const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});await f.manager.closeChoice('pet');assert.equal(f.manager.preferences.closeAction,'ask');
   f.main.show();await f.manager.closeChoice('both',{remember:true});assert.equal(f.manager.preferences.closeAction,'both');
-  f.main.show();f.main.emit('close',{preventDefault(){}});assert.equal(f.main.visible,false);assert.equal(f.requested(),0);
+  f.main.show();const hidden=new Promise(resolve=>f.main.once('hide',resolve));f.main.emit('close',{preventDefault(){}});await hidden;assert.equal(f.main.visible,false);assert.equal(f.requested(),0);
 });
 test('focus starts, persists, completes once and cancels without an API',async t=>{
   const f=await fixture(t);await f.manager.setMode('pet');const events=[];f.manager.windows.get('pet').webContents.send=(channel,data)=>events.push({channel,data});
@@ -451,6 +588,16 @@ test('location-based daylight reaches the companion and invalid coordinates fall
  f.manager.setCharacter({id:'yukino',presentation:{scene:'beach',daylightLocation:{latitude:91,longitude:0}}});
  assert.equal(f.manager.getState().character.presentation.daylightLocation,null);
  assert.ok(win,'model window is active for state broadcasts');
+});
+
+test('fixed scene time is retained in companion state and malformed hours are bounded',async t=>{
+ const f=await fixture(t);
+ f.manager.setCharacter({id:'yukino',presentation:{scene:'sakura',followTime:false,fixedHour:21.5}});
+ assert.equal(f.manager.getState().character.presentation.followTime,false);
+ assert.equal(f.manager.getState().character.presentation.fixedHour,21.5);
+ f.manager.setCharacter({id:'yukino',presentation:{scene:'sakura',fixedHour:Infinity}});
+ assert.equal(f.manager.getState().character.presentation.followTime,true);
+ assert.equal(f.manager.getState().character.presentation.fixedHour,14);
 });
 
 test('changing character identity clears the prior bubble and resets model mouth before publishing new state',async t=>{
