@@ -199,7 +199,7 @@ async function dragPanelHarness(t,{reducedMotion=false}={}){
  const offsets=new Map(),animations=[],changes=[],listeners=new Map();let side='left',captured=false,releases=0;
  const rect=left=>({left,top:10,width:300,height:500}),chat={getBoundingClientRect:()=>({...rect(side==='left'?540:220),width:640}),animate:animate('chat')};
  function animate(kind){return (frames,options)=>{let reject;const animation={finished:new Promise((_resolve,r)=>reject=r),cancel(){reject(new DOMException('cancelled','AbortError'));}};animations.push({kind,frames,options,animation});return animation;};}
- const main={clientWidth:1000,getBoundingClientRect:()=>({left:200,width:1000}),querySelector:selector=>selector==='.chat'?chat:null};
+ const hole=new Map(),main={clientWidth:1000,style:{setProperty:(key,value)=>hole.set(key,value)},getBoundingClientRect:()=>({left:200,top:0,width:1000}),querySelector:selector=>selector==='.chat'?chat:null};
  globalThis.getComputedStyle=()=>({paddingLeft:'20px',paddingRight:'20px',columnGap:'20px'});
  globalThis.window.addEventListener=(name,fn)=>listeners.set(name,fn);globalThis.window.removeEventListener=(name,fn)=>{if(listeners.get(name)===fn)listeners.delete(name);};
  const props={side,width:300,onChange:change=>{changes.push(change);side=change.side||side;},onSettings(){},containerRef:{current:main},character:{id:'a',modelId:''},reducedMotion};
@@ -209,11 +209,12 @@ async function dragPanelHarness(t,{reducedMotion=false}={}){
  element.getBoundingClientRect=()=>rect((side==='left'?220:880)+(panel().props.className.includes('is-dragging')?parseFloat(offsets.get('--drag-offset-x'))||0:0));
  element.animate=animate('panel');
  const owner={setPointerCapture(){captured=true;},hasPointerCapture(){return captured;},releasePointerCapture(){captured=false;releases++;}},event=(clientX,patch={})=>({button:0,isPrimary:true,pointerId:1,clientX,currentTarget:owner,target:{closest:()=>null},preventDefault(){},...patch});
- return {h,render,panel,handle,event,offsets,animations,changes,listeners,get releases(){return releases;},get side(){return side;}};
+ return {h,render,panel,handle,event,offsets,hole,animations,changes,listeners,get releases(){return releases;},get side(){return side;}};
 }
 
 test('actual panel follows the pointer across the full content width and FLIPs chat on release',async t=>{
  const d=await dragPanelHarness(t);d.handle().props.onPointerDown(d.event(250));d.render();
+ assert.equal(d.hole.get('--drag-hole-x'),'20px');assert.equal(d.hole.get('--drag-hole-width'),'300px');
  assert.match(d.panel().props.style.transform,/translate3d\(var\(--drag-offset-x/);
  d.handle().props.onPointerMove(d.event(1100));d.render();assert.equal(d.offsets.get('--drag-offset-x'),'660px','not clamped to half of the 1000px workspace');
  assert.equal(d.side,'left','do not reflow chat while dragging');
@@ -255,9 +256,9 @@ test('automatic climate settings explain consent, remove manual coordinates and 
  t.after(()=>{SceneClimateContext._currentValue=saved});
  const h=await hookHarness(t,'src/ui/SunlightLocationSettings.jsx'),props={enabled:false,onChange:value=>submitted=value};
  const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
- const nodes=()=>walk(h.tree),toggle=()=>nodes().find(node=>node.props?.role==='switch');
- h.render(props);assert.equal(requested,0);assert.equal(nodes().filter(node=>node.type==='input').length,1);assert.equal(toggle().props.type,'checkbox');assert.equal(toggle().props.checked,false);
- const text=JSON.stringify(h.tree);for(const pattern of [/系统时钟/,/操作系统/,/小数点后两位/,/https:\/\/api\.open-meteo\.com\/v1\/forecast/,/不保存精确坐标/,/不使用 IP 定位/])assert.match(text,pattern);
+ const nodes=()=>walk(h.tree),toggle=()=>nodes().find(node=>node.props?.role==='switch'&&node.props?.['aria-label']==='自动定位与实时天气');
+ h.render(props);assert.equal(requested,0);assert.equal(nodes().filter(node=>node.type==='input').length,2);assert.equal(toggle().props.type,'checkbox');assert.equal(toggle().props.checked,false);
+ const text=JSON.stringify(h.tree);for(const pattern of [/本地时钟/,/操作系统/,/小数点后两位/,/https:\/\/api\.open-meteo\.com\/v1\/forecast/,/不保存精确坐标/,/不使用 IP 定位/])assert.match(text,pattern);
  toggle().props.onChange({target:{checked:true}});assert.equal(submitted,true);assert.equal(requested,1);
  SceneClimateContext._currentValue={...SceneClimateContext._currentValue,phase:'locating',status:'正在请求系统位置授权'};
  h.render({...props,enabled:true});const cancel=nodes().find(node=>node.type==='button'&&node.props.children==='取消并关闭自动天气');assert.ok(cancel);cancel.props.onClick();assert.equal(submitted,false);assert.equal(cleared,1);

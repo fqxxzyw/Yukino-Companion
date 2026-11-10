@@ -10,6 +10,7 @@
 .api-config-title{display:flex;align-items:baseline;gap:8px;min-width:0;max-width:100%}.api-config-title strong{font-size:12.5px;font-weight:600;overflow-wrap:anywhere}.api-config-title small{font-size:10.5px;color:var(--tertiary);overflow-wrap:anywhere}
 .api-config-purpose,.api-config-task{font-size:11px;line-height:1.5;color:var(--secondary);overflow-wrap:anywhere}.api-config-task{color:var(--tertiary)}
 .api-config-status{justify-self:end}
+.api-test-result{display:flex;flex-direction:column;gap:3px;max-width:220px;min-width:0;text-align:left;color:var(--secondary);font-size:11px;line-height:1.4;overflow-wrap:anywhere}.api-test-result strong{color:var(--text);font-weight:600}.api-test-result small{color:var(--secondary)}.api-test-result[role=alert] strong{color:var(--danger)}
 .api-config-actions{display:flex;gap:4px;align-items:center;justify-self:end}.api-config-actions .icon{width:32px;height:32px;border-radius:9px}.api-config-actions .icon.danger{color:var(--danger)}
 .api-empty{display:flex;align-items:center;gap:12px;padding:16px;border:1px dashed color-mix(in srgb,var(--line) 90%,var(--secondary));border-radius:12px;color:var(--secondary);flex-wrap:wrap}.api-empty>svg{color:var(--tertiary);flex:none}.api-empty>div{flex:1;min-width:150px}.api-empty strong{display:block;font-size:12px;color:var(--text)}.api-empty p{margin:4px 0 0;font-size:11px;line-height:1.6}
 .api-route-summary{display:flex;align-items:center;gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}

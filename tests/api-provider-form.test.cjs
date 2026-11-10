@@ -37,6 +37,28 @@ const choose=(h,id)=>{h.byLabel('API 服务商').props.onChange({target:{value:i
 const enter=(h,label,value)=>{const input=h.input(label);assert.ok(input,label);input.props.onChange({target:{value}});h.render();};
 const nativeConfig=state=>state.apiManagement.configs.find(config=>config.providerId==='aliyun-asr');
 
+test('saved multi-purpose chat test reports progress and the actual result beside its button',async t=>{
+ const profile={id:'fixture-chat',providerId:'deepseek',name:'Fixture',base:'https://example.invalid',model:'fixture-model',visionEnabled:true};
+ const gate=deferred(),requests=[];
+ const h=await harness(t,'ApiManagementSettings',{state:{profiles:[profile],activeProfile:profile.id},api:{apiConfigValidate:request=>{requests.push(request);return gate.promise;}}});await h.settle();
+ const pending=h.byLabel('测试此配置').props.onClick();h.render();assert.ok(h.text().includes('测试中'));assert.equal(h.byLabel('测试此配置').props.disabled,true);
+ await Promise.resolve();assert.deepEqual(requests,[{configId:'fixture-chat',kind:'connection'}]);
+ gate.resolve({status:'failed',message:'模拟连接失败'});await pending;h.render();assert.ok(h.text().includes('模拟连接失败'));assert.ok(h.text().includes('验证失败'));assert.equal(h.byLabel('测试此配置').props.disabled,false);
+});
+
+test('saved configuration test shows a rejected desktop request beside the config',async t=>{
+ const profile={id:'fixture-chat',providerId:'deepseek',name:'Fixture',base:'https://example.invalid',model:'fixture-model'};
+ const h=await harness(t,'ApiManagementSettings',{state:{profiles:[profile],activeProfile:profile.id},api:{apiConfigValidate:async()=>{throw Error('模拟桌面连接异常');}}});await h.settle();
+ await h.byLabel('测试此配置').props.onClick();h.render();assert.ok(h.text().includes('模拟桌面连接异常'));assert.ok(h.nodes().some(node=>node.props?.role==='alert'));
+});
+
+test('successful saved configuration test is visible and editing clears its old result',async t=>{
+ const profile={id:'fixture-chat',providerId:'deepseek',name:'Fixture',base:'https://example.invalid',model:'fixture-model'};
+ const h=await harness(t,'ApiManagementSettings',{state:{profiles:[profile],activeProfile:profile.id},api:{apiConfigValidate:async()=>({status:'passed',message:'模拟连接成功'})}});await h.settle();
+ await h.byLabel('测试此配置').props.onClick();h.render();assert.ok(h.text().includes('模拟连接成功'));assert.ok(h.text().includes('已验证'));
+ const main=h.nodes().find(node=>node.type==='button'&&node.props.className==='api-config-main');main.props.onClick();h.render();assert.ok(!h.text().includes('模拟连接成功'));
+});
+
 test('form metadata provides official defaults without copying secrets, and retains all exceptional required fields',async()=>{
  const {providerConfigDefaults,providerFormFields,preferredBrandService}=await helpers,catalog=apiServiceCatalog().providers;
  for(const provider of catalog){const config=providerConfigDefaults(provider,'new-id');assert.equal(config.base,provider.base);assert.equal(config.model,provider.model||'');assert.equal(config.credentialId,'new-id');assert.ok(!Object.values(config.fields).includes('secret'));for(const field of provider.fields||[])if(field.secret)assert.equal(Object.hasOwn(config.fields,field.id),false);}

@@ -173,7 +173,8 @@ test('settings CSS parses strictly and includes bounded layouts for every new sh
  assert.match(css,/\.settings-resource-notice\{/);
  assert.doesNotMatch(css,/\.main\{[^}]*transition:grid-template-columns/,'grid columns must commit before paired FLIP measurement');
  assert.match(css,/\.app:not\(\.reduce\) \.main \.chat,[^{]+\{filter:blur\(0px\);transition:filter \.5s/,'background gradually clears after release');
- assert.match(css,/:has\(\.character-panel\.is-dragging\)[^{]*\{filter:blur\(3px\);transition-duration:\.32s/,'drag defocus has its own gradual transition, independent of paired FLIP');
+ assert.match(css,/\.main::after\{[^}]*backdrop-filter:blur\(3px\)[^}]*mask-composite:exclude[^}]*transition:opacity \.5s/,'drag defocus uses a masked layer that fades after release');
+ assert.match(css,/:has\(\.character-panel\.is-dragging\)::after\{opacity:1;transition-duration:\.32s/,'drag defocus fades in independently of paired FLIP');
  assert.match(css,/@media\(prefers-reduced-motion:reduce\),\(prefers-reduced-transparency:reduce\),\(forced-colors:active\)\{[^}]+filter:none!important/);
  assert.match(css,/\.character-drag-handle\{[^}]*-webkit-app-region:no-drag/);
 });

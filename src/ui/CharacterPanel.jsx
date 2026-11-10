@@ -17,6 +17,7 @@ export default function CharacterPanel({side, width, onChange, onSettings, onInt
   const panel = useRef(null), gesture = useRef(null), changeRef = useRef(onChange),snapFrom=useRef(null),snap=useRef(new DockMotion()),chatSnap=useRef(new DockMotion()),targetRef=useRef(side);
   const [dragging, setDragging] = useState(false), [target, setTarget] = useState(null);
   const jelly=useRef({lastX:0,lastTime:0,amount:0,state:{position:0,velocity:0}});
+  const holeActive=useRef(false);
   changeRef.current = onChange;
   const display=presentationConfig(presentation),wallpaperActive=display.wallpaper.enabled&&display.wallpaper.items.length>0,gaze=useRef(gazeTarget(0,0,0,0,false)),gazeAim=useRef(gaze.current),adapter=useRef(null);
   const [reload,setReload]=useState(0),[view,setView]=useState({zoom:1,yaw:0});const orbit=useRef(null),handoffViewRef=useRef(view);handoffViewRef.current=view;
@@ -79,6 +80,24 @@ export default function CharacterPanel({side, width, onChange, onSettings, onInt
     frame=requestAnimationFrame(tick);
     return()=>{cancelAnimationFrame(frame);element.style.removeProperty('--drag-stretch-x');element.style.removeProperty('--drag-stretch-y')};
   },[dragging,reducedMotion]);
+  useLayoutEffect(()=>{
+    const element=panel.current,main=containerRef.current;
+    if(!element||!main||(!dragging&&!holeActive.current))return;
+    holeActive.current=true;
+    const until=dragging?Infinity:performance.now()+520;
+    let frame;
+    const updateHole=()=>{
+      const rect=element.getBoundingClientRect(),bounds=main.getBoundingClientRect();
+      main.style.setProperty('--drag-hole-x',`${rect.left-bounds.left}px`);
+      main.style.setProperty('--drag-hole-y',`${rect.top-bounds.top}px`);
+      main.style.setProperty('--drag-hole-width',`${rect.width}px`);
+      main.style.setProperty('--drag-hole-height',`${rect.height}px`);
+      if(performance.now()<until)frame=requestAnimationFrame(updateHole);
+      else holeActive.current=false;
+    };
+    updateHole();
+    return()=>cancelAnimationFrame(frame);
+  },[dragging,containerRef]);
   useLayoutEffect(()=>{
     if(reducedMotion||!active){snap.current.cancel();chatSnap.current.cancel();}
     if(!active){snapFrom.current=null;return;}

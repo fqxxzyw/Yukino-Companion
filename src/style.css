@@ -494,10 +494,23 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app.scene-spread .workspace{background-color:color-mix(in srgb,var(--surface-soft) 35%,transparent);background-image:none}.app.scene-spread .sidebar{background:color-mix(in srgb,var(--surface-soft) 70%,transparent)}
 /* Keep conversation text readable over both bright and dark moving scenery.
    The treatment is local to each reply, leaving the scene itself unobscured. */
-.app.scene-spread .message.assistant .message-body{padding:11px 15px 8px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 3px 16px var(--shadow)}
+.app.scene-spread .message.assistant .message-body{--text:#f8fbff;--secondary:#f0f5fa;color:var(--text);padding:11px 15px 8px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:17px;background:radial-gradient(ellipse at 35% 0%,color-mix(in srgb,var(--surface) 30%,transparent),transparent 55%),color-mix(in srgb,var(--surface) 18%,transparent);backdrop-filter:blur(14px) saturate(1.08);box-shadow:inset 0 1px color-mix(in srgb,var(--surface) 50%,transparent),0 6px 24px var(--shadow);text-shadow:0 1px 2px #0b1824,0 0 5px #0b1824e0}
 .app.scene-spread .message.assistant .speaker{margin-top:0}
-@media(prefers-reduced-transparency:reduce){.app.scene-spread .message.assistant .message-body{background:var(--surface)}}
-@media(forced-colors:active){.app.scene-spread .message.assistant .message-body{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none}}
+@media(prefers-reduced-transparency:reduce){.app.scene-spread .message.assistant .message-body{--text:inherit;--secondary:inherit;color:inherit;background:var(--surface);backdrop-filter:none;text-shadow:none}}
+@media(forced-colors:active){.app.scene-spread .message.assistant .message-body{--text:CanvasText;--secondary:CanvasText;background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none;text-shadow:none}}
+
+/* A local reply is one stored message but each displayed part has its own surface. */
+.local-reply-language{display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.local-reply-language+.local-reply-language{margin-top:12px}
+.local-reply-language .language-label{margin:0}
+.local-reply-segment{max-width:100%;width:fit-content;padding:9px 15px;border:1px solid var(--line);border-radius:17px;background:var(--surface-soft)}
+.local-reply-segment.is-entering{transform-origin:12% 85%;animation:reply-jelly-in .48s both}
+@keyframes reply-jelly-in{0%{opacity:0;transform:translateY(8px) scale(.9,.84)}55%{opacity:1;transform:translateY(-2px) scale(1.035,1.055)}75%{transform:translateY(1px) scale(.985,.98)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.local-reply-segment.is-entering{animation:none}}
+.app.scene-spread .message.assistant .message-body.local-reply-body{padding:0;border:0;background:none;backdrop-filter:none;box-shadow:none}
+.app.scene-spread .local-reply-segment{border-color:color-mix(in srgb,var(--line) 70%,transparent);background:radial-gradient(ellipse at 35% 0%,color-mix(in srgb,var(--surface) 30%,transparent),transparent 55%),color-mix(in srgb,var(--surface) 18%,transparent);backdrop-filter:blur(14px) saturate(1.08);box-shadow:inset 0 1px color-mix(in srgb,var(--surface) 50%,transparent),0 6px 24px var(--shadow)}
+@media(prefers-reduced-transparency:reduce){.app.scene-spread .local-reply-segment{background:var(--surface);backdrop-filter:none}}
+@media(forced-colors:active){.app.scene-spread .local-reply-segment{background:Canvas;color:CanvasText;border-color:CanvasText;box-shadow:none;backdrop-filter:none}}
 
 /* Functional character and resource controls; motion honors both OS and app. */
 .character-switcher{app-region:no-drag;-webkit-app-region:no-drag;max-width:230px;min-width:140px}.character-switcher .select-trigger{font-size:13px;font-weight:650;background:transparent;border-color:transparent}
@@ -589,9 +602,10 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .main .chat{transform-origin:top left}
 .character-panel.is-dragging{will-change:transform}
 .app:not(.reduce) .main .chat,.app:not(.reduce) .scene-ui-backdrop{filter:blur(0px);transition:filter .5s cubic-bezier(.2,.65,.3,1)}
-.app:not(.reduce):has(.character-panel.is-dragging) .main .chat,.app:not(.reduce):has(.character-panel.is-dragging) .scene-ui-backdrop{filter:blur(3px);transition-duration:.32s}
+.main::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);mask:linear-gradient(#000 0 0) 0 0/100% 100% no-repeat,linear-gradient(#000 0 0) var(--drag-hole-x,0px) var(--drag-hole-y,0px)/var(--drag-hole-width,0px) var(--drag-hole-height,0px) no-repeat;mask-composite:exclude;transition:opacity .5s cubic-bezier(.2,.65,.3,1)}
+.app:not(.reduce) .main:has(.character-panel.is-dragging)::after{opacity:1;transition-duration:.32s}
 .reduce .scene-ui-backdrop{filter:none!important}
-@media(prefers-reduced-motion:reduce),(prefers-reduced-transparency:reduce),(forced-colors:active){.app .main .chat,.app .scene-ui-backdrop{filter:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce),(prefers-reduced-transparency:reduce),(forced-colors:active){.app .main .chat,.app .scene-ui-backdrop{filter:none!important;transition:none!important}.main::after{display:none}}
 .wallpaper-settings{margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 82%,transparent)}.wallpaper-settings h4{margin:0;font-size:14px}.wallpaper-list{display:grid;gap:5px;margin:12px 0}.wallpaper-item{display:flex;gap:6px}.wallpaper-item button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:7px 10px}.wallpaper-item button:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.wallpaper-item button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}.wallpaper-error{color:#9b342b;font-size:12px}
 .wallpaper-item button:first-child{display:flex;align-items:center;gap:10px}.wallpaper-item img{width:76px;height:48px;object-fit:cover;border-radius:6px;flex:none}.wallpaper-item span{overflow:hidden;text-overflow:ellipsis}
 /* Scroll the outfit list, keeping its close control in a separate fixed row. */
@@ -660,7 +674,8 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app.scene-city .environment-backdrop-canvas{opacity:1}
 .app.scene-city .workspace{background:linear-gradient(90deg,color-mix(in srgb,var(--surface) 8%,transparent),transparent 65%)}
 .app.scene-city .sidebar{background:color-mix(in srgb,var(--surface-soft) 52%,transparent);backdrop-filter:blur(18px) saturate(130%)}
-.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:color-mix(in srgb,var(--surface) 10%,transparent)!important;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:22px;box-shadow:inset 0 1px 1px #ffffff4d,0 10px 32px var(--shadow);backdrop-filter:blur(5px) saturate(1.08)}
+.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:color-mix(in srgb,var(--surface) 10%,transparent)!important;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:22px;box-shadow:inset 0 1px 1px #ffffff4d,0 10px 32px var(--shadow);backdrop-filter:blur(5px) saturate(1.08);transition:backdrop-filter .38s cubic-bezier(.2,.65,.3,1),box-shadow .25s,background .35s}
+.app.scene-city .character-panel.is-dragging{backdrop-filter:blur(0px) saturate(1.08)}
 .app.scene-city .character-panel::before{z-index:1;background:linear-gradient(135deg,#ffffff0d,transparent 40%,#ffffff03 80%),radial-gradient(ellipse at var(--glass-light-x,35%) var(--glass-light-y,0%),#ffffff12,transparent 58%)}
 .app.scene-city .welcome-symbol{display:none}
 .app.scene-city-night .workspace{background:linear-gradient(90deg,#0b142c40,transparent 60%)}
@@ -677,6 +692,14 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app.scene-city-night .composer{background:linear-gradient(140deg,#d7a5750a,transparent 65%),#111f32c7;border-color:#aabedb45;box-shadow:inset 0 1px #e6d5c220,0 12px 38px #0309165c}
 @media(prefers-reduced-transparency:reduce){.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:var(--surface)!important;backdrop-filter:none}.app.scene-city .character-panel::before{background:none}.app.scene-city .sidebar,.app.scene-city-night .workspace,.app.scene-city-night .sidebar,.app.scene-city-night .titlebar,.app.scene-city-night .composer,.app.scene-city-night .suggestions button{background:var(--surface)!important;backdrop-filter:none}.app.scene-city-night .character-model-host{mask-image:none}}
 @media(forced-colors:active){.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:Canvas!important;border-color:CanvasText;backdrop-filter:none;box-shadow:none}.app.scene-city .character-panel::before{background:none}.app.scene-city-night .workspace,.app.scene-city-night .sidebar,.app.scene-city-night .titlebar,.app.scene-city-night .composer,.app.scene-city-night .suggestions button{background:Canvas!important;color:CanvasText;box-shadow:none}.app.scene-city-night .welcome h1,.app.scene-city-night .welcome p,.app.scene-city-night .chat-toolbar>span,.app.scene-city-night .character-panel .stage-top .icon,.app.scene-city-night .character-grip{color:CanvasText;text-shadow:none}.app.scene-city-night .character-panel{border-color:CanvasText}.app.scene-city-night .character-model-host{mask-image:none}}
+
+/* Fade a separate glass layer in and out beneath the character when moving it.
+   Keeping the layer mounted lets the return transition finish after release. */
+.character-panel::after{content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 18% 0%,#ffffff70,transparent 48%),linear-gradient(135deg,#e6faff38 0%,#ffffff18 42%,#d9e5ff38 100%);border:1px solid #ffffff75;box-shadow:inset 0 1px 2px #ffffffa6,inset 0 -2px 12px #b8d8f23d,0 18px 45px #203c6026;transition:opacity .38s cubic-bezier(.2,.65,.3,1)}
+.character-panel.is-dragging::after{opacity:1}
+.reduce .character-panel::after{transition:none}
+@media(prefers-reduced-motion:reduce){.character-panel::after{transition:none}}
+@media(prefers-reduced-transparency:reduce),(forced-colors:active){.character-panel::after{display:none}}
 
 /* Keep installation choices and status readable in narrow windows and at zoom. */
 @media(max-width:520px){.setup-features{grid-template-columns:minmax(0,1fr)}.setup-dialog>header{gap:10px;padding:18px 16px}.setup-dialog h2{font-size:18px}.setup-content{padding:0 16px 18px}.setup-dialog>footer{padding:14px 16px;align-items:stretch}.setup-dialog>footer>div{width:100%}.setup-dialog>footer>div>button{width:100%;justify-content:center}.setup-step{grid-template-columns:25px minmax(0,1fr)}.setup-step .setup-state{grid-column:2}.setup-download-summary strong{margin-left:0}.setup-progress b{overflow-wrap:anywhere}}

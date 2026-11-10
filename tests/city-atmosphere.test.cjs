@@ -62,6 +62,9 @@ test('spread scene styling follows day and night and preserves accessibility fal
  assert.doesNotMatch(css,/scene-city-night \.character-model-host\{[^}]*border-radius:0/);
  assert.match(css,/prefers-reduced-transparency:reduce[^}]+scene-city/);assert.match(css,/forced-colors:active[^}]+scene-city/);
  assert.match(app,/citySceneActive=Boolean\(s\.presentation\?\.spread\)&&!\(wallpaperSettings\.enabled&&wallpaperSettings\.items\.length\)/);
- assert.match(app,/themeVariables\(s\.accent,cityNight\?'#0d1729':s\.background\)/);assert.match(app,/sceneStage=\{false\}/);
+ assert.match(app,/themeVariables\(s\.accent,themeBackground\(s\.background,s\.themeMode,systemDark,cityNight\)\)/);assert.match(app,/sceneStage=\{false\}/);
+ const {themeBackground}=await import('../src/ui/theme.mjs');
+ assert.equal(themeBackground('#f1f6fc',undefined,false,true),'#0d1729','legacy theme follows the city night');
+ assert.equal(themeBackground('#f1f6fc','light',false,true),'#f1f6fc','an explicit theme remains independent of the scene');
  assert.doesNotMatch(app,/patch\(\{background:'#0d1729'/);
 });
