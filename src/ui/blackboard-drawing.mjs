@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {drawPoster} from './scene-artwork.mjs';
 
 export const BLACKBOARD_SIZE=Object.freeze({width:1568,height:444});
 export const BLACKBOARD_COLOR='#183c30';
@@ -9,21 +10,79 @@ let nextOwner=0;
 // Own the drawing independently of a WebGL scene. Detaching or disposing GPU
 // resources retains the canvas, marks and snapshot so failed sends can retry.
 export class BlackboardDrawingController{
- constructor({canvasFactory=()=>document.createElement('canvas'),textureFactory=canvas=>new THREE.CanvasTexture(canvas)}={}){
+ constructor({canvasFactory=()=>document.createElement('canvas'),textureFactory=canvas=>new THREE.CanvasTexture(canvas),posterPainter=drawPoster,requestFrame=callback=>globalThis.requestAnimationFrame(callback),cancelFrame=id=>globalThis.cancelAnimationFrame(id)}={}){
   this.canvas=canvasFactory();this.canvas.width=BLACKBOARD_SIZE.width;this.canvas.height=BLACKBOARD_SIZE.height;
   this.context=this.canvas.getContext('2d');if(!this.context)throw Error('当前环境无法使用黑板画布。');
-  this.canvasFactory=canvasFactory;this.textureFactory=textureFactory;this.owner=++nextOwner;this.revision=0;this.marks=[];this.listeners=new Set();this.raycaster=new THREE.Raycaster();this.pointer=new THREE.Vector2();this.paint();
+  this.canvasFactory=canvasFactory;this.textureFactory=textureFactory;this.posterPainter=posterPainter;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.owner=++nextOwner;this.revision=0;this.marks=[];this.assistantText='';this.assistantPoster=null;this.posterProgress=0;this.posterFrame=null;this.posterPending=false;this.posterGeneration=0;this.listeners=new Set();this.raycaster=new THREE.Raycaster();this.pointer=new THREE.Vector2();this.paint();
  }
  subscribe(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener)}
  changed(){
   this.cachedSnapshot=null;if(this.texture)this.texture.needsUpdate=true;
-  if(this.overlay)this.overlay.visible=this.hasInk();
+  if(this.overlay)this.overlay.visible=this.hasInk()||Boolean(this.assistantText)||Boolean(this.assistantPoster);
   this.renderer?.requestRender?.();for(const listener of this.listeners)listener(this);
  }
  paint(){
   const ctx=this.context;ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
   ctx.strokeStyle='#ffffff';ctx.fillStyle='#ffffff';ctx.lineWidth=4.4;ctx.lineCap='round';ctx.lineJoin='round';
+  if(this.assistantPoster&&this.posterPainter){ctx.save();try{this.posterPainter(ctx,this.assistantPoster,this.posterProgress);}finally{ctx.restore();}}
+  else this.paintAssistantText();
+  // The poster painter may change colour and stroke width. User ink stays white.
+  ctx.strokeStyle='#ffffff';ctx.fillStyle='#ffffff';ctx.lineWidth=4.4;ctx.lineCap='round';ctx.lineJoin='round';
   for(const mark of this.marks)this.paintMark(mark);
+ }
+ // Assistant writing is a separate, replaceable layer: it is visible on the
+ // board but never counts as a user stroke or starts the idle-send timer.
+ setAssistantText(text){
+  if(typeof text!=='string')return false;
+  const next=Array.from(text.replace(/\r\n?/g,'\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g,'')).slice(0,1000).join('').trim();
+  if(next===this.assistantText&&!this.assistantPoster)return false;
+  this.cancelPosterAnimation();this.assistantPoster=null;this.posterProgress=0;this.posterPending=false;this.assistantText=next;this.paint();this.changed();return true;
+ }
+ // The animated artwork is separate from marks and revisions, so it cannot
+ // initiate a user-image send and repainting it never discards the user's ink.
+ setAssistantPoster(poster){
+  if(!poster||typeof poster!=='object'||Array.isArray(poster)||typeof poster.text!=='string'||!Array.isArray(poster.elements)||typeof this.posterPainter!=='function')return false;
+  this.cancelPosterAnimation();this.assistantText='';this.assistantPoster=poster;this.posterProgress=0;this.posterPending=true;
+  this.paint();this.changed();if(this.board)this.startPosterAnimation();return true;
+ }
+ startPosterAnimation(){
+  if(!this.posterPending||!this.assistantPoster||!this.board)return;
+  this.posterPending=false;
+  const poster=this.assistantPoster,generation=this.posterGeneration,startProgress=this.posterProgress;
+  const headingLength=typeof poster.title?.text==='string'?Array.from(poster.title.text).length:0;
+  const duration=Math.max(2400,Math.min(12000,headingLength*520+poster.text.length*240+poster.elements.length*380+1200));let started=null;
+  const tick=time=>{
+   if(generation!==this.posterGeneration)return;
+   this.posterFrame=null;if(!Number.isFinite(time))return;
+   if(started===null)started=time;
+   this.posterProgress=Math.min(1,Math.max(0,startProgress+(time-started)/duration));this.paint();this.changed();
+   if(this.posterProgress<1)this.posterFrame=this.requestFrame(tick);
+  };
+  this.posterFrame=this.requestFrame(tick);
+ }
+ cancelPosterAnimation(){this.posterGeneration++;if(this.posterFrame!==null)this.cancelFrame(this.posterFrame);this.posterFrame=null;}
+ paintAssistantText(){
+  if(!this.assistantText)return;
+  // Chat bubbles occupy the left side of the board. Keep board replies on the
+  // right so a short answer cannot disappear underneath the reply bubble.
+  const ctx=this.context,pad=34,left=Math.ceil(this.canvas.width*.52),maxWidth=this.canvas.width-left-pad;
+  ctx.textBaseline='top';ctx.fillStyle='#ffffff';
+  let lines=[],lineHeight=54,maxLines=0,measure;
+  for(let size=42;size>=24;size-=2){
+   ctx.font=`${size}px sans-serif`;lineHeight=Math.ceil(size*1.28);maxLines=Math.floor((this.canvas.height-pad*2)/lineHeight);
+   measure=text=>{const width=ctx.measureText(text)?.width;return Number.isFinite(width)?width:Array.from(text).length*size;};
+   lines=[];let line='';
+   for(const char of this.assistantText){
+    if(char==='\n'){lines.push(line);line='';continue;}
+    const candidate=line+char;
+    if(line&&measure(candidate)>maxWidth){lines.push(line);line=char;}else line=candidate;
+   }
+   lines.push(line);
+   if(lines.length<=maxLines)break;
+  }
+  const visible=lines.slice(0,maxLines);
+  if(lines.length>maxLines){let last=visible[maxLines-1];while(last&&measure(last+'…')>maxWidth)last=Array.from(last).slice(0,-1).join('');visible[maxLines-1]=last+'…';}
+  visible.forEach((value,index)=>ctx.fillText(value,left,pad+index*lineHeight,maxWidth));
  }
  paintMark({from,to}){
   const ctx=this.context,x=to.x*this.canvas.width,y=(1-to.y)*this.canvas.height;
@@ -43,10 +102,10 @@ export class BlackboardDrawingController{
   this.inkMaterial=new THREE.MeshBasicMaterial({name:'classroom:user-chalk-material',color:'#ffffff',map:this.texture,transparent:true,opacity:1,toneMapped:false,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   this.overlay=new THREE.Mesh(board.geometry,this.inkMaterial);this.overlay.name='classroom:user-chalk-overlay';this.overlay.position.z=.002;this.overlay.renderOrder=board.renderOrder+1;this.overlay.raycast=()=>{};
   board.add(this.overlay);
-  this.changed();return true;
+  this.changed();if(this.posterPending)this.startPosterAnimation();return true;
  }
  detach(){
-  this.end();const renderer=this.renderer;
+  this.end();const renderer=this.renderer;if(this.board){this.cancelPosterAnimation();this.posterPending=Boolean(this.assistantPoster)&&this.posterProgress<1;}
   this.overlay?.removeFromParent();this.inkMaterial?.dispose();this.texture?.dispose();
   this.overlay=null;this.inkMaterial=null;this.texture=null;this.material=null;this.originalMap=null;this.board=null;this.renderer=null;
   if(renderer&&!renderer.disposed)renderer.requestRender?.();
@@ -100,5 +159,5 @@ export class BlackboardDrawingController{
   if(area<=1)return null; // Back-facing or sub-pixel boards cannot accept ink.
   return {points,clipPath:`polygon(${points.map(p=>`${p.x.toFixed(2)}px ${p.y.toFixed(2)}px`).join(',')})`};
  }
- dispose(){this.detach();this.listeners.clear()}
+ dispose(){this.detach();this.cancelPosterAnimation();this.posterPending=false;this.listeners.clear()}
 }

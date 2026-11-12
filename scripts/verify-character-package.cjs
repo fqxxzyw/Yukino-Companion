@@ -16,6 +16,7 @@ function verifyCharacterPackage(archive) {
   const manifest = JSON.parse(read('manifest.json'));
   if (manifest.schema_version !== 2 || manifest.id !== 'yukino') throw Error('角色包 manifest 不兼容');
   const required = [manifest.runtime_path, manifest.compact_path, manifest.bible_path, manifest.training_path, manifest.evidence_path];
+  if(manifest.voice_path)required.push(manifest.voice_path);
   const skills=[manifest.skill_zh_path,manifest.skill_en_path,manifest.skill_compact_path];
   if(skills.some(Boolean)){if(skills.some(value=>!value))throw Error('人物技能资源清单不完整');required.push(...skills);}
   required.forEach(read);

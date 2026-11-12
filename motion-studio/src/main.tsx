@@ -21,7 +21,7 @@ import { compatibility } from './compatibility.ts';
 import { regionLabel, Timeline } from './Timeline.tsx';
 import { Workspace } from './Workspace.tsx';
 import { download, messageOf, Stage, timecode, useTransport, useViewport } from './session.tsx';
-import { StudioBrand, ThemeButton, WindowControls } from './WindowChrome.tsx';
+import { StudioBrand, ThemeButton, WindowControls, StudioUpdateNotice } from './WindowChrome.tsx';
 import type { CompanionModelRequest } from './WindowChrome.tsx';
 import { MotionMenu } from './MotionMenu.tsx';
 import { ExpressionPanel } from './ExpressionPanel.tsx';
@@ -723,7 +723,7 @@ function Studio() {
         <button className="action-button export" title="导出供独立播放器加载的动作 JSON" onClick={() => exportFile(true)} disabled={armed}><Download size={15} /> 导出动作包</button>
         <ThemeButton />
       </div>
-      <WindowControls />
+      <StudioUpdateNotice /><WindowControls />
       <input hidden type="file" accept=".yukinomotion,.json" ref={openInput} onChange={(event) => {
         const file = event.target.files?.[0]; event.target.value = ''; if (file) void openProject(file);
       }} />

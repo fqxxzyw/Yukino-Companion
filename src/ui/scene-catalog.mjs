@@ -11,7 +11,7 @@ const entries={
  kyoto:{label:'朱影寻春',kind:'outdoor',description:'清水寺西门与三重塔、林间朱红鸟居通道的组合微缩景观；并非实地相邻关系。',clear:'#9daaa4',direction:[1,.85,1.3]},
  sakura:{label:'花影随流',kind:'outdoor',description:'垂樱小路旁的清浅溪流，能看见河床石子；花枝随风轻摇，花瓣落在水面后随流漂远。',clear:'#87b8cd',direction:[.55,.5,1.4]}
 };
-export const SCENES=Object.freeze(Object.fromEntries(Object.entries(entries).map(([id,v])=>[id,Object.freeze({...v,liveDaylight:true,background:`radial-gradient(ellipse at 50% 42%,${v.clear},#172332)`,lighting:Object.freeze({ambient:v.kind==='indoor'?.9:.75,key:1,color:'#eef4ff',direction:Object.freeze(v.direction)})})])));
+export const SCENES=Object.freeze(Object.fromEntries(Object.entries(entries).map(([id,v])=>[id,Object.freeze({...v,thumbnail:`./scene-previews/${id}.jpg`,liveDaylight:true,background:`radial-gradient(ellipse at 50% 42%,${v.clear},#172332)`,lighting:Object.freeze({ambient:v.kind==='indoor'?.9:.75,key:1,color:'#eef4ff',direction:Object.freeze(v.direction)})})])));
 // Old identifiers migrate without retaining any old geometry or changing model files.
 const legacy={studio:'bookshop',beach:'kasai',seaside:'kasai'};
 export const sceneId=value=>Object.hasOwn(SCENES,value)?value:Object.hasOwn(legacy,value)?legacy[value]:'classroom';

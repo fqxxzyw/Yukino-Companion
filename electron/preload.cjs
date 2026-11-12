@@ -45,6 +45,7 @@ window.addEventListener('DOMContentLoaded', () => {
   attach();
 });
 contextBridge.exposeInMainWorld('desktop', {
+  appUpdateCheck:()=>invoke('app-update-check'),appUpdateDownload:()=>invoke('app-update-download'),appUpdateOpen:()=>invoke('app-update-open'),onAppUpdateProgress:fn=>subscribe('app-update-progress',fn),
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
   wallpaperPick:()=>invoke('wallpaper-pick'), wallpaperRead:id=>invoke('wallpaper-read',id),
   load:()=>invoke('load'), save:state=>invoke('save',state), saveKey:(id,key,base)=>invoke('key',id,key,base), copyText:value=>invoke('copy-text',value),
@@ -65,7 +66,7 @@ contextBridge.exposeInMainWorld('desktop', {
   characterModelImport:id=>invoke('character-model-import',id), characterModelData:id=>invoke('character-model-data',id), characterDocument:()=>invoke('character-document'), characterPreview:()=>invoke('character-preview'), characterDraft:request=>invoke('character-draft',request), characterDraftCancel:()=>invoke('character-draft-cancel'),
   reportAvatarRect:rect=>invoke('avatar-rect',rect), characterModelCatalog:()=>invoke('character-model-catalog'), characterModelInspect:()=>invoke('character-model-inspect'), characterModelConfirm:options=>invoke('character-model-confirm',options), characterModelCancel:()=>invoke('character-model-cancel'),
   openTripo:()=>invoke('open-tripo'),
-  onChunk:fn=>subscribe('chunk',fn),onSpeechText:fn=>subscribe('speech-text',fn), onError:fn=>subscribe('app-error',fn),
+  onChunk:fn=>subscribe('chunk',fn),onMemoryExtracted:fn=>subscribe('memory-extracted',fn),onSpeechText:fn=>subscribe('speech-text',fn), onError:fn=>subscribe('app-error',fn),
   voiceResources:()=>invoke('voice-resources'), voiceInstall:(id,options)=>invoke('voice-install',id,options), onVoiceConfig:fn=>subscribe('voice-config-updated',fn),
   voiceClonePick:()=>invoke('voice-clone-pick'),voiceCloneRecording:bytes=>invoke('voice-clone-recording',bytes),voiceCloneCreate:request=>invoke('voice-clone-create',request),voiceCloneCancel:()=>invoke('voice-clone-cancel'),
   voiceVerify:(id,component)=>invoke('voice-verify',id,component),voiceWeightStatus:component=>invoke('voice-weight-status',component),voiceRemove:(id,component)=>invoke('voice-remove',id,component),voiceReference:()=>invoke('voice-reference'),openVoiceDocs:()=>invoke('voice-docs'),

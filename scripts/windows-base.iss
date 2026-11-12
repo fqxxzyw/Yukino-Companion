@@ -11,11 +11,14 @@
 #ifndef CHINESE_MESSAGES
   #define CHINESE_MESSAGES "compiler:Languages\ChineseSimplified.isl"
 #endif
+#ifndef APP_VERSION
+  #define APP_VERSION "0.4.0"
+#endif
 #define ProductAppId "io.github.fqxxzyw.yukino.base"
 [Setup]
 AppId={#ProductAppId}
 AppName=Yukino Companion
-AppVersion=0.4.0
+AppVersion={#APP_VERSION}
 AppPublisher=fqxxzyw
 DefaultDirName={localappdata}\Programs\Yukino Companion
 DefaultGroupName=Yukino Companion
@@ -40,7 +43,7 @@ WizardResizable=no
 ShowLanguageDialog=no
 SetupIconFile={#AddBackslash(SourcePath)}..\branding\app-icon.ico
 OutputDir={#OUTPUT_DIR}
-OutputBaseFilename=Yukino-Companion-0.4.0-Base-Setup
+OutputBaseFilename=Yukino-Companion-{#APP_VERSION}-Base-Setup
 Compression=lzma2/normal
 SolidCompression=yes
 DiskSpanning=no

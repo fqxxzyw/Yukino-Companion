@@ -48,7 +48,9 @@ async function inspectDetachedResources(directory){
   await check(directory);return bytes;
 }
 async function main(){
-  const output=path.join(root,'build/base-app');
+  const outputName=process.env.YUKINO_BASE_OUTPUT_NAME||'base-app';
+  if(!/^[a-zA-Z0-9_-]+$/.test(outputName))throw Error('Invalid base output directory name');
+  const output=path.join(root,'build',outputName);
   const config={...pkg.build,extends:null,files:[...pkg.build.files,'resources/*.json','resources/voice-presets/**/*','!electron/companion-view/assets/voices/**/*','!electron/companion-view/assets/voices.json'],directories:{output:'build/base-electron'},extraResources:[
     {from:'inference',to:'inference',filter:['*.py','requirements.txt']},
     {from:'translation',to:'translation',filter:['*.py','*.json','*.txt','NOTICE.md','README.md']},
@@ -57,6 +59,13 @@ async function main(){
     {from:'resources/voice-presets',to:'voice-presets',filter:['**/*']},
     {from:'build/aria2',to:'aria2',filter:['**/*']}
   ]};
+  // Development may have additional character variants in public/. Vite copies
+  // them all, so exclude the non-base GLBs from the package without deleting
+  // the developer's source assets.
+  const baseModels=new Set(require('../resources/character-models.json').models.filter(model=>/^yukino-0[1-7]-v1$/.test(model.id)).map(model=>path.basename(model.url)));
+  for(const name of await fs.readdir(path.join(root,'public/characters'))){
+    if(name.toLowerCase().endsWith('.glb')&&!baseModels.has(name))config.files.push('!dist/characters/'+name);
+  }
   await fs.mkdir(path.join(root,'build'),{recursive:true});
   const filename=path.join(root,'build/electron-builder-base.json');await fs.writeFile(filename,JSON.stringify(config,null,2));
   const run=args=>{const r=spawnSync(process.execPath,args,{cwd:root,env:{...process.env,YUKINO_BASE_BUILD:'1',CSC_IDENTITY_AUTO_DISCOVERY:'false'},stdio:'inherit',shell:false});if(r.error||r.status!==0)throw r.error||Error('Base build failed: '+args[0]);};

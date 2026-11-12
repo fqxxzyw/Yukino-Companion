@@ -2,9 +2,10 @@ const {canUseSkin}=require('./skin-policy.cjs');
 const electron = require('electron');
 const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard, nativeImage, screen, protocol} = electron;
 const {mainWindowSize}=require('./main-window-size.cjs');
+let appUpdater;
 const development = require('./development.cjs').configureDevelopment(app);
 const motionEditor = require('./motion-editor.cjs').createMotionEditor({
-  BrowserWindow, ipcMain, net, protocol, screen, session, development: Boolean(development.url),
+  BrowserWindow, ipcMain, net, protocol, screen, session, development: Boolean(development.url), getUpdater:()=>appUpdater,
   getCompanionModel: async id=>{const data=await readCharacterModel(id);const entry=characterEntry(id);return {id:entry.id,label:entry.label,sha256:entry.sha256,data};},
 });
 if (development.enabled) {
@@ -277,6 +278,10 @@ else {
     companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:showMainWindow,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:(text,context)=>companionChatRequests.submit(text,context),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind,options)=>companionVisual?.open(owner,kind,options),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
+    appUpdater=require('./app-update.cjs').createUpdater({app,dialog,shell,send});
+    handle('app-update-check',()=>appUpdater.check());
+    handle('app-update-download',()=>appUpdater.download());
+    handle('app-update-open',()=>appUpdater.open());
     handle('flush-complete', (id,ok)=>{flushResolvers.get(id)?.(ok);});
     handle('copy-text', value=>{if(typeof value!=='string'||value.length>200000)throw Error('复制内容无效');clipboard.writeText(value);return true;});
     handle('load', async () => {
@@ -498,12 +503,18 @@ else {
         if(useLocal){await bundleReady;clearTimeout(timer);timer=setTimeout(()=>ctrl.abort(),(localChat.config.timeout+30)*1000);}
         ctrl.signal.throwIfAborted();
         const prepared = preparePersonaChat(settings.state,settings.profile,messages);
+        const {startMemoryExtraction,memoryUserText,affinityContext}=require('./automatic-memory.cjs');
+        const relationshipContext=affinityContext(messages.at(-1)?.content,state);
+        if(relationshipContext)prepared.messages[0].content+='\n\n'+relationshipContext;
         if(drawingImage)prepared.messages=attachDrawingImage(prepared.messages,drawingImage);
         const noTranslation=settings.state.translationMode==='none';
         let translationTarget=null;if(!noTranslation&&state.apiManagement){try{translationTarget=await taskSettings('translation',settings.profile.id);}catch(error){translationTarget={kind:'unconfigured',error:error.message};}}
         const localTranslation = noTranslation?false:translationTarget?translationTarget.kind==='local':useLocal || settings.state.translationMode === 'local' || prepared.localRoleplay;
         const separateTranslation=noTranslation?false:localTranslation||Boolean(translationTarget&&translationTarget.profile?.id!==settings.profile.id);
-        prepared.messages[0].content += '\n\n' + (noTranslation?PLAIN_INSTRUCTION:outputInstruction(separateTranslation));
+        const {classroomBoardActive,blackboardInstruction,readBlackboardResponse,blackboardResponseStatus,requestsBlackboardWriting}=require('./blackboard-response.cjs');
+        const latestMessage=messages.at(-1);
+        const classroomBoard=classroomBoardActive(state)&&latestMessage?.role==='user'&&requestsBlackboardWriting(latestMessage.content);
+        prepared.messages[0].content += '\n\n' + (classroomBoard?blackboardInstruction({bilingual:!noTranslation&&!separateTranslation}):(noTranslation?PLAIN_INSTRUCTION:outputInstruction(separateTranslation)));
         const translateRequest=async(request,options)=>{if(translationTarget?.kind==='unconfigured')throw Error(translationTarget.error);if(!localTranslation)return translateWithApi({...translationTarget||settings,...request,...options,transport:chat});await bundleReady;return translation.translate(request,options);};
         let translationStream=null;
         if(!noTranslation&&streamSpeech===true&&separateTranslation){
@@ -520,11 +531,19 @@ else {
           // Parse it instead of leaking its Japanese field or closing braces
           // into the Chinese display. Plain Chinese retains streaming.
           parser.push(text);
-          if((separateTranslation||noTranslation)&&!/^\s*(?:\{|`)/.test(raw))onChinese(text);
+          if(!classroomBoard&&(separateTranslation||noTranslation)&&!/^\s*(?:\{|`)/.test(raw))onChinese(text);
         };
         if(useLocal)await localChat.generate(prepared.messages,{requestId:id,signal:ctrl.signal,onChunk:onToken});
         else await chat({...settings,...prepared,signal:ctrl.signal,onToken});
         ctrl.signal.throwIfAborted();
+        // Run the optional extraction alongside translation. A slow or incompatible
+        // provider never prevents the response from being delivered.
+        let memoryTask=null;
+        if(!useLocal&&!drawingImage&&state.autoMemory!==false){
+          const characterId=state.activeCharacter;
+          const expectedMemory=state.characters?.find(item=>item.id===characterId)?.memory||'';
+          memoryTask=startMemoryExtraction({transport:chat,settings,text:memoryUserText(messages),signal:ctrl.signal,onResult:memories=>send('memory-extracted',{id,characterId,expectedMemory,memories})});
+        }
         clearTimeout(timer); timer=setTimeout(()=>ctrl.abort(),300000);
         const pair = parser.value();
         const streamed=translationStream?await translationStream.finish():null;
@@ -532,7 +551,11 @@ else {
         ctrl.signal.throwIfAborted();
         companions.showReply({id,...bilingual});
         companions.clearCapabilityError?.('chat');
-        return {ok:true,bilingual};
+        ctrl.signal.throwIfAborted();
+        memoryTask?.publish();
+        const blackboard=classroomBoard?readBlackboardResponse(raw):null;
+        const blackboardStatus=classroomBoard&&!drawingImage?blackboardResponseStatus(latestMessage.content,blackboard):null;
+        return {ok:true,bilingual,...(classroomBoard?{blackboard,...(blackboardStatus?{blackboardStatus}:{})}:{})};
       } catch(error) {
         if(ctrl.signal.aborted) return {stopped:true};ctrl.abort(); throw error;
       } finally {clearTimeout(timer);if(controller===ctrl)controller=null;}

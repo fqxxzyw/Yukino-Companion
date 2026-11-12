@@ -3,6 +3,8 @@ $ErrorActionPreference='Stop'
 $project=Split-Path $PSScriptRoot -Parent
 function Absolute([string]$Value){if(-not [IO.Path]::IsPathRooted($Value)){$Value=Join-Path $project $Value};return [IO.Path]::GetFullPath($Value)}
 $SourceDirectory=Absolute $SourceDirectory; $OutputDirectory=Absolute $OutputDirectory
+$version=(Get-Content -LiteralPath (Join-Path $project 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+if($version -notmatch '^\d+\.\d+\.\d+$'){throw 'package.json must contain a numeric release version'}
 $toolRoot=Join-Path $project 'build/inno-setup'; [void][IO.Directory]::CreateDirectory($toolRoot)
 function FetchVerified([string]$Url,[string]$Destination,[string]$Digest){
  if((Test-Path -LiteralPath $Destination -PathType Leaf) -and (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLowerInvariant() -eq $Digest){return}
@@ -28,9 +30,9 @@ $messages=Join-Path $toolRoot 'ChineseSimplified.isl'
 FetchVerified 'https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/Files/Languages/Unofficial/ChineseSimplified.isl' $messages '7d544b9bb1d142cfa11f2e5d3cc8abe2e55f8e066c5124e3772675aa236e1278'
 foreach($file in @('Yukino Companion.exe','resources/app.asar','resources/runtime-catalog.json','resources/aria2/aria2c.exe')){if(-not(Test-Path -LiteralPath (Join-Path $SourceDirectory $file))){throw "Missing base application input: $file"}}
 [void][IO.Directory]::CreateDirectory($OutputDirectory)
-& $compiler '/Qp' "/DSOURCE_DIR=$SourceDirectory" "/DOUTPUT_DIR=$OutputDirectory" "/DCHINESE_MESSAGES=$messages" (Join-Path $PSScriptRoot 'windows-base.iss')
+& $compiler '/Qp' "/DSOURCE_DIR=$SourceDirectory" "/DOUTPUT_DIR=$OutputDirectory" "/DCHINESE_MESSAGES=$messages" "/DAPP_VERSION=$version" (Join-Path $PSScriptRoot 'windows-base.iss')
 if($LASTEXITCODE -ne 0){throw 'Inno Setup compilation failed'}
-$file=Get-Item -LiteralPath (Join-Path $OutputDirectory 'Yukino-Companion-0.4.0-Base-Setup.exe')
+$file=Get-Item -LiteralPath (Join-Path $OutputDirectory "Yukino-Companion-$version-Base-Setup.exe")
 if($file.Length -lt 1MB -or $file.Length -gt 512MB){throw 'Unexpected base installer size'}
 $report=@{schemaVersion=1;file=$file.Name;bytes=$file.Length;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant();compiler='Inno Setup 6.7.3';modelsEmbedded=$false;characterModelsEmbedded=$true;runtimeEmbedded=$false}
 $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'base-installer.json') -Encoding utf8

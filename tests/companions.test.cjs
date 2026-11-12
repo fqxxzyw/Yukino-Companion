@@ -275,6 +275,34 @@ test('close aligns an existing model before fading and keeps the aligned bounds 
  await f.manager.closeChoice('model');
  assert.deepEqual(desktop.getBounds(),{x:300,y:144,width:350,height:516});
 });
+test('first close preserves the visible character canvas near the screen edge', async t => {
+ for(const [position,reply] of [['below',false],['above',true]]){
+  const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  f.main.getContentBounds=()=>({x:0,y:0,width:1920,height:1040});
+  await f.manager.setPreferences({inputPosition:position});
+  if(reply)f.manager.showReply({id:'first',zh:'测试回复'});
+  const source={x:1510,y:100,width:300,height:928};
+  f.manager.setAppAvatarRect(source,{relative:true});
+  assert.equal(f.manager.windows.has('model'),false,'this is the first desktop window');
+  await f.manager.closeChoice('model');
+  const bounds=f.manager.windows.get('model').getBounds(),extra=f.manager.modelExtra;
+  const top=(position==='above'?152:56)+extra,bottom=position==='above'?12:60;
+  assert.deepEqual({x:bounds.x,y:bounds.y+top,width:bounds.width,height:bounds.height-top-bottom},source);
+  if(reply){f.manager.clearReply();const cleared=f.manager.windows.get('model').getBounds();assert.equal(cleared.y+(position==='above'?152:56),source.y);assert.equal(cleared.height-(position==='above'?164:116),source.height);}
+ }
+});
+test('remembered native close measures a first desktop character before positioning it', async t => {
+ const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+ f.main.getContentBounds=()=>({x:100,y:80,width:1000,height:800});
+ await f.manager.setPreferences({closeAction:'model'});
+ let request;
+ f.main.webContents.send=(channel,message)=>{if(channel==='avatar-handoff'&&message.phase==='measure'){request=message;f.manager.avatarLayoutReady({...message,rect:{x:620,y:140,width:300,height:550,view:{zoom:1.4,yaw:15}},preferredSide:'right'});}};
+ assert.equal(f.manager.appAvatarRect,undefined);
+ const hidden=new Promise(resolve=>f.main.once('hide',resolve));f.main.emit('close',{preventDefault(){}});await hidden;
+ assert.equal(request.side,'current');
+ assert.deepEqual(f.manager.windows.get('model').getBounds(),{x:720,y:164,width:300,height:666});
+ assert.deepEqual(f.manager.handoffModelView,{sequence:request.sequence,zoom:1.4,yaw:15});
+});
 test('closing tracks the moved main content and above-dock insets, retaining the real view', async t => {
  const f=await fixture(t);f.manager.setCharacter({id:'yukino',modelId:'model-a'});f.main.getContentBounds=()=>({x:430,y:180,width:1000,height:800});
  await f.manager.setPreferences({inputPosition:'above'});

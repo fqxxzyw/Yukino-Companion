@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('studioWindow', {
+  updateSupported: () => ipcRenderer.invoke('studio:update-supported').catch(() => false),
+  updateCheck: () => ipcRenderer.invoke('studio:update-check'),
+  updateDownload: () => ipcRenderer.invoke('studio:update-download'),
+  updateOpen: () => ipcRenderer.invoke('studio:update-open'),
   minimize: () => ipcRenderer.invoke('studio:window-action', 'minimize'),
   maximize: () => ipcRenderer.invoke('studio:window-action', 'maximize'),
   close: () => ipcRenderer.invoke('studio:window-action', 'close'),

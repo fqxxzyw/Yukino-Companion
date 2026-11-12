@@ -16,10 +16,10 @@ export default function SceneQuickMenu({scene,onScene,onOverview,onReturn,onPhot
   {onPhoto&&<button type="button" className="scene-menu-trigger" onClick={()=>{release();close();onPhoto()}}>近景细看</button>}
   {onReset&&<button type="button" className="scene-menu-trigger" onClick={()=>{release();close();onReset()}}>完整微缩景观</button>}
   {open&&<section id={popoverId} className="scene-menu-popover" aria-label="场景与总览"><header><strong>场景</strong><small>微缩景观 · 随时间与天气变化</small></header>
-   {SCENE_GROUPS.map(group=><div key={group.kind} className="scene-menu-group" role="group" aria-label={group.label+'场景'}><strong>{group.label}</strong><div>{Object.entries(SCENES).filter(([,item])=>item.kind===group.kind).map(([id,item])=><button type="button" key={id} aria-pressed={selected===id} onClick={()=>{release();onScene?.(id);setOpen(false);trigger.current?.focus({preventScroll:true})}}>{item.label}</button>)}</div></div>)}
+   {SCENE_GROUPS.map(group=><div key={group.kind} className="scene-menu-group" role="group" aria-label={group.label+'场景'}><strong>{group.label}</strong><div>{Object.entries(SCENES).filter(([,item])=>item.kind===group.kind).map(([id,item])=><button type="button" key={id} aria-pressed={selected===id} onClick={()=>{release();onScene?.(id);setOpen(false);trigger.current?.focus({preventScroll:true})}}><img className="scene-thumbnail" src={item.thumbnail} alt="" loading="lazy"/><span>{item.label}</span></button>)}</div></div>)}
    <button type="button" className="scene-overview-hold" disabled={!overviewEnabled} onPointerDown={event=>{if(event.button!==0)return;event.preventDefault();event.currentTarget.focus({preventScroll:true});event.currentTarget.setPointerCapture(event.pointerId);overview()}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release} onKeyDown={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();if(!event.repeat)overview()}}} onKeyUp={event=>{if(event.key===' '||event.key==='Enter'){event.preventDefault();release()}}} onBlur={release}><Map size={15}/>按住查看上帝视角</button>
    <p>{overviewEnabled?'Ctrl＋滚轮缩放全图，Ctrl＋拖动水平环视。松开 Ctrl 缓慢回位；普通滚轮仍用于页面滚动。':'选择场景后启用三维背景，可按住此按钮查看总览。'}</p>
-   <label><span>缓慢场景动态</span><input type="checkbox" role="switch" checked={motionEnabled} onChange={event=>onMotion?.(event.target.checked)}/></label>
+   <label><span>缓慢场景动态</span><input className="scene-switch" type="checkbox" role="switch" checked={motionEnabled} onChange={event=>onMotion?.(event.target.checked)}/></label>
   </section>}
  </div>;
 }

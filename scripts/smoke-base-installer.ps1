@@ -1,6 +1,7 @@
-﻿param([string]$Installer='release/Yukino-Companion-0.4.0-Base-Setup.exe',[string]$PayloadManifest='',[switch]$VerifyCurrentFeatures)
+﻿param([string]$Installer='',[string]$PayloadManifest='',[switch]$VerifyCurrentFeatures)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
+if(-not $Installer){$version=$env:APP_VERSION;if(-not $version){$version=(Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version};if($version -notmatch '^\d+\.\d+\.\d+$'){throw 'Invalid release version'};$Installer="release/Yukino-Companion-$version-Base-Setup.exe"}
 $Installer=[IO.Path]::GetFullPath((Join-Path $root $Installer))
 $output=Join-Path $root 'build/base-installer-review';[void][IO.Directory]::CreateDirectory($output)
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('Yukino 基础安装测试 '+[Guid]::NewGuid().ToString('N'))

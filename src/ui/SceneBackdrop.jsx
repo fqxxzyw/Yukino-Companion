@@ -2,14 +2,30 @@ import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {SCENES,revealOrigin,presentationConfig} from './avatar-presentation.mjs';
 import {sceneId} from './scene-catalog.mjs';
 import {bundledWallpaper} from './bundled-wallpapers.mjs';
+import './scene-loading.css';
 const sceneBackground=scene=>SCENES[sceneId(scene)].background;
 const styleFor=entry=>({background:entry?.url?'var(--bg)':entry?.scene?sceneBackground(entry.scene):'transparent'});
 function WallpaperImage({entry,opacity}){return entry?.url?<div className="wallpaper-image-layer" style={{position:'absolute',inset:0,backgroundImage:`url("${entry.url}")`,backgroundSize:'cover',backgroundPosition:'center',opacity}}/>:null;}
-export default function SceneBackdrop({scene,timeOfDay,weather=null,enabled,reducedMotion,wallpaper,selectionRevision=0,onCurrentWallpaper,rendererRef,motionEnabled=true}){
+export default function SceneBackdrop({scene,timeOfDay,weather=null,enabled,confined=false,reducedMotion,wallpaper,selectionRevision=0,onCurrentWallpaper,rendererRef,motionEnabled=true}){
  const settings=presentationConfig({wallpaper}).wallpaper,ids=settings.items.map(item=>item.id),idKey=ids.join(','),wallpaperMode=settings.enabled&&ids.length>0,sceneEnabled=enabled&&!wallpaperMode;
  const [index,setIndex]=useState(0),[current,setCurrent]=useState({key:null,scene:null}),[previous,setPrevious]=useState(null),[sceneStatus,setSceneStatus]=useState(null),[sceneRetry,setSceneRetry]=useState(0),cache=useRef(new Map()),previousRef=useRef(null);
  const latest=useRef({scene,timeOfDay,weather,motionEnabled,sceneEnabled});latest.current={scene,timeOfDay,weather,motionEnabled,sceneEnabled};
- const canvasHost=useRef(null),renderer=useRef(null),layer=useRef(null);
+ const canvasHost=useRef(null),renderer=useRef(null),layer=useRef(null),clipHost=useRef(null),statusOverlay=useRef(null);
+ useLayoutEffect(()=>{
+  const host=clipHost.current;if(!host||!confined||!sceneEnabled)return;
+  const root=host.closest('.app');let frame,last='';
+  const update=()=>{
+   const panel=root?.querySelector('.character-panel'),rect=panel?.getBoundingClientRect(),bounds=host.getBoundingClientRect();
+   const visible=rect&&rect.width>0&&rect.height>0;
+   const left=visible?rect.left-bounds.left:0,top=visible?rect.top-bounds.top:0,width=visible?rect.width:0,height=visible?rect.height:0;
+   const radius=panel?parseFloat(getComputedStyle(panel).borderTopLeftRadius)||0:0;
+   const key=[left,top,width,height,bounds.width,bounds.height,radius].join();
+   if(key!==last){last=key;host.style.clipPath=`inset(${top}px ${bounds.width-left-width}px ${bounds.height-top-height}px ${left}px round ${radius}px)`;}
+   if(statusOverlay.current){Object.assign(statusOverlay.current.style,{left:`${left+width/2}px`,top:`${top+52}px`,maxWidth:`${Math.max(0,width-24)}px`,visibility:visible?'':'hidden'});}
+   frame=requestAnimationFrame(update);
+  };
+  update();return()=>{cancelAnimationFrame(frame);host.style.removeProperty('clip-path');if(statusOverlay.current)statusOverlay.current.removeAttribute('style');};
+ },[confined,sceneEnabled]);
  useEffect(()=>{setIndex(0)},[idKey,selectionRevision]);
  useEffect(()=>{if(!wallpaperMode||!settings.rotation||ids.length<2)return;const timer=setInterval(()=>setIndex(value=>(value+1)%ids.length),settings.intervalSeconds*1000);return()=>clearInterval(timer)},[wallpaperMode,settings.rotation,settings.intervalSeconds,idKey,selectionRevision]);
  const selected=ids[index%Math.max(ids.length,1)];
@@ -39,5 +55,5 @@ export default function SceneBackdrop({scene,timeOfDay,weather=null,enabled,redu
   let live=true;const animation=element.animate([{clipPath:`circle(0% at ${x}% ${y}%)`,filter:'blur(9px)',opacity:.45},{clipPath:`circle(85% at ${x}% ${y}%)`,filter:'blur(3px)',opacity:1,offset:.72},{clipPath:`circle(150% at ${x}% ${y}%)`,filter:'blur(0px)',opacity:1}],{duration:1550,easing:'cubic-bezier(.22,.65,.25,1)',fill:'both'});
   animation.finished.then(()=>{if(live){setPrevious(null);animation.cancel()}}).catch(()=>{});return()=>{live=false;animation.cancel()};
  },[current.key,reducedMotion]);
- return <><div className="scene-ui-backdrop" aria-hidden="true"><div style={styleFor(previous)}><WallpaperImage entry={previous} opacity={previous?.scene?1:settings.opacity}/></div><div ref={layer} style={styleFor(current)}><WallpaperImage entry={current} opacity={settings.opacity}/><div className="environment-backdrop-canvas" ref={canvasHost} style={{display:sceneEnabled?'':'none'}}/></div></div>{sceneEnabled&&sceneStatus&&<div className={'scene-load-status '+sceneStatus.kind} role={sceneStatus.kind==='error'?'alert':'status'} aria-live={sceneStatus.kind==='error'?'assertive':'polite'}>{sceneStatus.kind==='loading'?<><span className="scene-load-spinner" aria-hidden="true"/>正在加载「{SCENES[sceneStatus.id].label}」场景…</>:<>场景加载失败，请检查图形加速。<button type="button" onClick={()=>setSceneRetry(value=>value+1)}>重试</button></>}</div>}</>;
+ return <><div ref={clipHost} className={'scene-ui-backdrop'+(sceneEnabled?' has-scene':'')+(confined&&sceneEnabled?' is-panel-scene':'')} aria-hidden="true"><div style={styleFor(previous)}><WallpaperImage entry={previous} opacity={previous?.scene?1:settings.opacity}/></div><div ref={layer} style={styleFor(current)}><WallpaperImage entry={current} opacity={settings.opacity}/><div className="environment-backdrop-canvas" ref={canvasHost} style={{display:sceneEnabled?'':'none'}}/><div key={sceneId(scene)} className={'scene-loading-veil'+(sceneEnabled&&sceneStatus?.kind==='loading'?' is-loading':'')}/></div></div>{sceneEnabled&&sceneStatus&&<div ref={statusOverlay} className={'scene-load-status '+sceneStatus.kind} role={sceneStatus.kind==='error'?'alert':'status'} aria-live={sceneStatus.kind==='error'?'assertive':'polite'}>{sceneStatus.kind==='loading'?<><span className="scene-load-spinner" aria-hidden="true"/>正在加载「{SCENES[sceneStatus.id].label}」场景…</>:<>场景加载失败，请检查图形加速。<button type="button" onClick={()=>setSceneRetry(value=>value+1)}>重试</button></>}</div>}</>;
 }

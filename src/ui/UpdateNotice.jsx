@@ -1,0 +1,11 @@
+import React,{useEffect,useState} from 'react';
+import {Download} from 'lucide-react';
+
+export default function UpdateNotice({api}){
+ const [release,setRelease]=useState(null),[open,setOpen]=useState(false),[busy,setBusy]=useState(false),[checking,setChecking]=useState(false),[progress,setProgress]=useState(null),[message,setMessage]=useState('');
+ useEffect(()=>{if(!api?.appUpdateCheck)return;let active=true;const check=()=>api.appUpdateCheck().then(value=>{if(active)setRelease(value)}).catch(()=>{});const timer=setTimeout(check,5000),interval=setInterval(check,6*60*60*1000);const off=api.onAppUpdateProgress?.(value=>{if(active)setProgress(value)});return()=>{active=false;clearTimeout(timer);clearInterval(interval);off?.()}},[api]);
+ if(!api?.appUpdateCheck)return null;
+ async function check(){setChecking(true);setMessage('');try{const value=await api.appUpdateCheck();setRelease(value);if(!value)setMessage('当前没有可用的正式版更新。')}catch(error){setMessage('检查更新失败：'+error.message)}finally{setChecking(false)}}
+ async function download(){setBusy(true);setProgress(null);setMessage('');try{const result=await api.appUpdateDownload();if(result?.saved)setMessage('下载完成。请关闭应用后运行安装包，并选择原安装目录更新。')}catch(error){setMessage(error.message)}finally{setBusy(false);setProgress(null)}}
+ return <div className="app-update"><button type="button" className="app-update-trigger" onClick={()=>setOpen(!open)} aria-expanded={open}><Download size={14} aria-hidden="true"/><span>{release?`发现新版本 ${release.version}`:'应用更新'}</span></button>{open&&<div className="app-update-popover" role="dialog" aria-label="应用更新"><strong>{release?`发现新版本 ${release.version}`:'应用更新'}</strong><p>下载后运行安装包，选择当前安装目录即可更新；聊天、设置和已下载资源会保留。</p>{release&&!release.downloadable&&<p>此版本暂无可直接下载的基础安装包，请前往 GitHub 查看。</p>}{busy&&<p>正在下载 {progress?.total?Math.round(progress.bytes/progress.total*100)+'%':'…'}</p>}{message&&<p role="status">{message}</p>}<div>{release?.downloadable&&<button type="button" disabled={busy} onClick={download}>下载更新</button>}<button type="button" disabled={busy||checking} onClick={check}>{checking?'检查中…':'检查更新'}</button><button type="button" onClick={()=>api.appUpdateOpen().catch(error=>setMessage(error.message))}>前往 GitHub</button><button type="button" onClick={()=>setOpen(false)}>关闭</button></div></div>}</div>;
+}

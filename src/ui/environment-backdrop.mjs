@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {loadSceneFactory} from '../scenes/registry.mjs';
 import {sceneId,scenePreset} from './scene-catalog.mjs';
-import {dioramaFrame,galleryKey,setCameraFrameShift,sceneWorkspaceShift} from './scene-camera.mjs';
+import {classroomBoardTarget,dioramaFrame,galleryKey,setCameraFrameShift,sceneWorkspaceShift} from './scene-camera.mjs';
 import {SceneOverview} from './scene-overview.mjs';
 import {sceneDaylight,sceneLightingPreset,applyWindowNight} from './scene-daylight.mjs';
 const clockHour=()=>{const d=new Date();return d.getHours()+d.getMinutes()/60};
+const transitionBlur='blur(8px)';
 const paintOpportunity=()=>new Promise(resolve=>{let done=false;const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve()}};const timer=setTimeout(finish,100);requestAnimationFrame(()=>requestAnimationFrame(finish))});
 const rendererState=gl=>({exposure:gl.toneMappingExposure,toneMapping:gl.toneMapping,shadowType:gl.shadowMap.type,shadows:gl.shadowMap.enabled});
 function restoreRenderer(gl,state){gl.toneMappingExposure=state.exposure;gl.toneMapping=state.toneMapping;gl.shadowMap.type=state.shadowType;gl.shadowMap.enabled=state.shadows;gl.shadowMap.needsUpdate=true;}
@@ -24,6 +25,14 @@ export class EnvironmentBackdrop {
   if(interactive){this.controls=controlsFactory(this.camera,this.gl.domElement);this.controls.enableDamping=!reducedMotion;this.controls.dampingFactor=.085;this.controls.enablePan=false;this.controls.minPolarAngle=.08;this.controls.maxPolarAngle=Math.PI*.48;this.controls.enableZoom=true;}
   this.resizeObserver=new ResizeObserver(()=>{if(!this.disposed){this.resize();this.requestRender()}});this.resizeObserver.observe(host);
   this.compositionTarget=!interactive?host.closest?.('.app')?.querySelector('.chat'):null;if(this.compositionTarget)this.resizeObserver.observe(this.compositionTarget);
+  this.appRoot=!interactive?host.closest?.('.app'):null;
+  // Transforms during a drag do not notify ResizeObserver. Wake the renderer
+  // on the actual gesture and through its short docking animation instead.
+  this.compositionDown=e=>{if(e.button===0&&e.target?.closest?.('.character-drag-handle')){this.compositionPointer=e.pointerId;this.requestRender()}};
+  this.compositionMove=e=>{if(this.compositionPointer===e.pointerId)this.requestRender()};
+  this.compositionUp=e=>{if(this.compositionPointer===e.pointerId){this.compositionPointer=null;this.compositionFollowUntil=performance.now()+900;this.requestRender()}};
+  this.compositionBlur=()=>{this.compositionPointer=null;this.compositionFollowUntil=0;};
+  if(!interactive){document.addEventListener('pointerdown',this.compositionDown,true);window.addEventListener('pointermove',this.compositionMove,true);window.addEventListener('pointerup',this.compositionUp,true);window.addEventListener('pointercancel',this.compositionUp,true);window.addEventListener('blur',this.compositionBlur);}
   const layout=this.compositionTarget?.closest?.('.main');if(layout&&globalThis.MutationObserver){this.layoutObserver=new MutationObserver(()=>{if(!this.disposed){this.resize();this.requestRender()}});this.layoutObserver.observe(layout,{attributes:true,attributeFilter:['class']})}
   this.wheel=e=>{
    if(!e.ctrlKey||this.disposed||!this.current||e.target?.closest?.('input,textarea,[contenteditable="true"],.modal-backdrop,.settings-shell'))return;
@@ -47,6 +56,10 @@ export class EnvironmentBackdrop {
   } catch(error) {
    this.resizeObserver?.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
    const doc=globalThis.document,win=globalThis.window;
+   if(this.compositionDown)doc?.removeEventListener('pointerdown',this.compositionDown,true);
+   if(this.compositionMove)win?.removeEventListener('pointermove',this.compositionMove,true);
+   if(this.compositionUp){win?.removeEventListener('pointerup',this.compositionUp,true);win?.removeEventListener('pointercancel',this.compositionUp,true);}
+   if(this.compositionBlur)win?.removeEventListener('blur',this.compositionBlur);
    if(this.wheel)(interactive?host:doc)?.removeEventListener('wheel',this.wheel,true);
    if(this.visibility)doc?.removeEventListener('visibilitychange',this.visibility);
    if(this.pointerDown)this.pointerSurface?.removeEventListener('pointerdown',this.pointerDown,true);
@@ -88,6 +101,9 @@ export class EnvironmentBackdrop {
     const look=home?.target?new THREE.Vector3(...home.target):frame.target;
     if(home&&this.aspect()<1.25)warmCamera.position.sub(look).multiplyScalar(1.25/this.aspect()).add(look);
     warmCamera.lookAt(look);warmCamera.aspect=this.aspect();setCameraFrameShift(warmCamera,home?.shiftY,this.workspaceShift());warmCamera.updateProjectionMatrix();warmCamera.updateMatrixWorld(true);
+    // Keep the previous coloured scene visible until the new scene is fully
+    // compiled and has produced its first real frame. An unlit override would
+    // expose grey geometry while materials are still being prepared.
     await this.gl.compileAsync?.(nextScene,warmCamera);
     if(this.disposed||epoch!==this.epoch)return false;
     // compileAsync does not upload all textures or draw shadows. Gate on an actual offscreen frame.
@@ -119,20 +135,30 @@ export class EnvironmentBackdrop {
  freezeFrame(){
   if(!this.current||this.contextUnavailable)return;
   this.render();
-  const canvas=this.gl.domElement,old=this.frozen;
+  const canvas=this.gl.domElement,old=this.frozen,incoming=this.revealSnapshot;
   const frozen=document.createElement('canvas');frozen.width=canvas.width;frozen.height=canvas.height;
-  Object.assign(frozen.style,{position:'absolute',inset:'0',width:'100%',height:'100%',zIndex:'3',pointerEvents:'none'});
+  Object.assign(frozen.style,{position:'absolute',inset:'0',width:'100%',height:'100%',zIndex:'3',pointerEvents:'none',filter:transitionBlur});
   const ctx=frozen.getContext('2d');
-  if(old){ctx.drawImage(old,0,0,frozen.width,frozen.height);const clip=getComputedStyle(canvas).clipPath;const circle=/circle\(([\d.]+)% at ([\d.]+)% ([\d.]+)%\)/.exec(clip);ctx.save();if(circle){ctx.beginPath();ctx.arc(frozen.width*Number(circle[2])/100,frozen.height*Number(circle[3])/100,Math.hypot(frozen.width,frozen.height)/Math.SQRT2*Number(circle[1])/100,0,Math.PI*2);ctx.clip();}ctx.drawImage(canvas,0,0);ctx.restore();}
+  if(old&&incoming){ctx.drawImage(old,0,0,frozen.width,frozen.height);const clip=getComputedStyle(incoming).clipPath;const circle=/circle\(([\d.]+)% at ([\d.]+)% ([\d.]+)%\)/.exec(clip);ctx.save();if(circle){ctx.beginPath();ctx.arc(frozen.width*Number(circle[2])/100,frozen.height*Number(circle[3])/100,Math.hypot(frozen.width,frozen.height)/Math.SQRT2*Number(circle[1])/100,0,Math.PI*2);ctx.clip();}ctx.drawImage(incoming,0,0,frozen.width,frozen.height);ctx.restore();}
   else ctx.drawImage(canvas,0,0);
-  this.revealAnimation?.cancel();this.revealAnimation=null;old?.remove();this.frozen=frozen;this.host.append(frozen);
+  this.clearFrozen();this.frozen=frozen;this.host.append(frozen);this.host.dataset.frozen='true';
   canvas.style.visibility='hidden';
  }
- clearFrozen(){this.revealAnimation?.cancel();this.revealAnimation=null;this.frozen?.remove();this.frozen=null;this.gl.domElement.style.visibility='';}
+ clearFrozen(){this.revealAnimation?.cancel();this.revealAnimation=null;this.revealSnapshot?.remove();this.revealSnapshot=null;this.frozen?.remove();this.frozen=null;delete this.host.dataset.frozen;delete this.host.dataset.revealing;this.gl.domElement.style.visibility='';}
  revealFrame(){
-  const canvas=this.gl.domElement;canvas.style.visibility='';if(!this.frozen||this.reducedMotion||!canvas.animate){this.clearFrozen();return;}
-  this.frozen.style.zIndex='1';Object.assign(canvas.style,{position:'relative',zIndex:'2'});
-  const animation=canvas.animate([{clipPath:'circle(0% at 72% 65%)',filter:'blur(9px)'},{clipPath:'circle(85% at 72% 65%)',filter:'blur(3px)',offset:.72},{clipPath:'circle(150% at 72% 65%)',filter:'blur(0px)'}],{duration:1650,easing:'cubic-bezier(.22,.65,.25,1)',fill:'both'});
+  const canvas=this.gl.domElement;if(!this.frozen||this.reducedMotion){this.clearFrozen();return;}
+  // Clip a 2D snapshot rather than relying on the compositor to clip an active
+  // WebGL surface. Both coloured frames remain visible throughout the reveal.
+  const incoming=document.createElement('canvas');incoming.width=canvas.width;incoming.height=canvas.height;
+  const ctx=incoming.getContext('2d');if(!ctx||!incoming.animate){this.clearFrozen();return;}
+  ctx.drawImage(canvas,0,0);
+  const host=this.host.getBoundingClientRect(),avatar=!this.interactive&&this.host.closest?.('.app')?.querySelector('.character-panel')?.getBoundingClientRect();
+  const x=avatar&&host.width?THREE.MathUtils.clamp((avatar.left+avatar.width/2-host.left)/host.width*100,0,100):50;
+  const y=avatar&&host.height?THREE.MathUtils.clamp((avatar.top+avatar.height/2-host.top)/host.height*100,0,100):50;
+  const circle=radius=>`circle(${radius}% at ${x}% ${y}%)`;
+  Object.assign(incoming.style,{position:'absolute',inset:'0',width:'100%',height:'100%',zIndex:'3',pointerEvents:'none'});
+  this.frozen.style.zIndex='2';this.revealSnapshot=incoming;this.host.append(incoming);this.host.dataset.revealing='true';
+  const animation=incoming.animate([{clipPath:circle(0)},{clipPath:circle(150)}],{duration:1050,easing:'cubic-bezier(.25,.65,.32,1)',fill:'both'});
   this.revealAnimation=animation;animation.finished.then(()=>{if(this.revealAnimation===animation)this.clearFrozen()}).catch(()=>{});
  }
  lightScene(factory,scene,id){
@@ -172,6 +198,24 @@ export class EnvironmentBackdrop {
  }
  aspect(){return Math.max(.1,(this.host.clientWidth||1)/Math.max(1,this.host.clientHeight||1))}
  workspaceShift(){return this.interactive?0:sceneWorkspaceShift(this.host.getBoundingClientRect?.(),this.compositionTarget?.getBoundingClientRect?.())}
+ updateClassroomComposition(dt){
+  if(this.interactive||this.environmentScene!=='classroom'||!this.appRoot?.classList?.contains('scene-spread')||!this.homeFrame||this.overview.active)return false;
+  const main=this.appRoot.querySelector('.main'),panel=main?.querySelector('.character-panel'),board=this.current?.root?.getObjectByName('classroom:board'),host=this.host.getBoundingClientRect?.();
+  const target=classroomBoardTarget(main?.getBoundingClientRect?.(),panel?.getBoundingClientRect?.());
+  if(target===null||!board?.geometry||!host?.height||!host?.width)return false;
+  if(!board.geometry.boundingBox)board.geometry.computeBoundingBox();
+  if(!board.geometry.boundingBox)return false;
+  board.updateWorldMatrix(true,false);this.camera.updateMatrixWorld(true);
+  const center=board.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(board.matrixWorld).project(this.camera);
+  if(!Number.isFinite(center.x)||!Number.isFinite(center.z)||center.z<-1||center.z>1)return false;
+  const current=Number.isFinite(this.frameShiftX)?this.frameShiftX:0,screenX=host.left+(center.x+1)*host.width/2;
+  const desired=THREE.MathUtils.clamp(current+(screenX-target)/host.height,-.6,.6);
+  const next=this.reducedMotion?desired:current+(desired-current)*(1-Math.exp(-Math.max(.01,dt)*9));
+  if(Math.abs(next-current)<.00001)return Math.abs(desired-current)>.0001;
+  this.frameShiftX=next;this.homeFrame.shiftX=next;if(this.overview.home)this.overview.home.shiftX=next;
+  setCameraFrameShift(this.camera,this.homeFrame.shiftY,next);this.camera.updateProjectionMatrix();
+  return Math.abs(desired-next)>.0001;
+ }
  configureShadows(root){root.traverse(node=>{if(node.isLight&&node.shadow){node.shadow.mapSize.set(node.castShadow?2048:512,node.castShadow?2048:512);node.shadow.autoUpdate=false;node.shadow.needsUpdate=true}})}
  applyClimate(){
   if(!this.current)return;const daylight=sceneDaylight(this.timeOfDay),preset=sceneLightingPreset(this.timeOfDay,this.current.lightingPresets),key=preset+':'+daylight.night;
@@ -184,7 +228,12 @@ export class EnvironmentBackdrop {
   this.current.setMotion?.({enabled:this.motion&&!this.reducedMotion});this.current.setMotionEnabled?.(this.motion&&!this.reducedMotion);
  }
  resize(reset=false){
-  const width=this.host.clientWidth,height=this.host.clientHeight,shiftX=this.workspaceShift();if(!width||!height||!this.current)return false;if(!reset&&this.width===width&&this.height===height&&this.frameShiftX===shiftX)return true;this.frameShiftX=shiftX;
+  const width=this.host.clientWidth,height=this.host.clientHeight;
+  if(!width||!height||!this.current)return false;
+  // Docking moves the aperture and chat, not the world behind them. Reframe
+  // only for a new scene or a genuinely resized window.
+  if(!reset&&this.width===width&&this.height===height)return true;
+  const shiftX=this.workspaceShift();this.frameShiftX=shiftX;
   const oldTarget=this.controls?.target||this.target,oldHome=this.homeFrame;
   const oldDistance=oldHome?.position.distanceTo(oldHome.target),oldOffset=this.camera.position.clone().sub(oldTarget);
   const preserve=this.interactive&&!reset&&oldDistance>0&&oldOffset.length()>0;
@@ -217,16 +266,17 @@ export class EnvironmentBackdrop {
   const dt=Math.min(.08,Math.max(0,(now-(this.last||now))/1000));
   // Cap passive animation at 25 fps instead of forcing two 60 fps WebGL views.
   if(this.last&&now-this.last<(this.interactive?30:40)){this.requestRender();return}this.last=now;
-  try{
-   if(this.overview.active){this.overview.step(dt);if(this.controls)this.controls.target.copy(this.target)}
+  let composing=false;try{
+    if(this.overview.active){this.overview.step(dt);if(this.controls)this.controls.target.copy(this.target)}
    else if(this.controls){this.controls.enabled=true;this.controls.update();this.target.copy(this.controls.target)}
+    composing=this.updateClassroomComposition(dt);
    if(this.motion&&!this.reducedMotion){this.time+=dt*.6;this.current?.update?.(dt*.6,this.time)}
    this.current?.updateTime?.(new Date());this.render();
   }catch(error){this.onError?.(error);return}
-  if(this.overview.active||this.motion&&!this.reducedMotion||this.controls)this.requestRender();
+   if(this.overview.active||this.motion&&!this.reducedMotion||this.controls||composing||this.compositionPointer!=null||now<(this.compositionFollowUntil||0))this.requestRender();
  }
  render(){if(this.disposed||this.contextUnavailable||!this.scene||!this.resize())return;this.current.render?this.current.render(this.gl,this.scene,this.camera):this.gl.render(this.scene,this.camera)}
- showOverview(){if(!this.current)return;this.overview.reset({position:this.camera.position,target:this.controls?.target||this.target,shiftY:this.homeFrame?.shiftY||0},this.overviewFrame);this.overview.show();if(this.controls)this.controls.enabled=false;this.requestRender()}
+ showOverview(){if(!this.current)return;this.overview.reset({position:this.camera.position,target:this.controls?.target||this.target,shiftY:this.homeFrame?.shiftY||0,shiftX:this.homeFrame?.shiftX||0},this.overviewFrame);this.overview.show();if(this.controls)this.controls.enabled=false;this.requestRender()}
  releaseOverview(){this.release()}
  showPhoto(){if(!this.interactive||!this.current?.cameraPresets?.photo)return false;this.detailView=true;this.resize(true);this.requestRender();return true}
  key(key){if(!this.current)return false;if(key==='Home'){this.detailView=false;this.resize(true)}else if(key==='+'||key==='='||key==='-'){this.camera.position.sub(this.target).multiplyScalar(key==='-'?1.1:1/1.1).add(this.target)}else if(!galleryKey(this.camera,this.target,key))return false;this.controls?.target.copy(this.target);this.requestRender();return true}
@@ -234,6 +284,7 @@ export class EnvironmentBackdrop {
  disposeSceneTextures(scene){const textures=new Set([scene?.background,scene?.environment].filter(t=>t?.isTexture));for(const t of textures)t.dispose()}
  dispose(){
   if(this.disposed)return;this.disposed=true;this.epoch++;clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
+  if(!this.interactive){document.removeEventListener('pointerdown',this.compositionDown,true);window.removeEventListener('pointermove',this.compositionMove,true);window.removeEventListener('pointerup',this.compositionUp,true);window.removeEventListener('pointercancel',this.compositionUp,true);window.removeEventListener('blur',this.compositionBlur);}
   (this.interactive?this.host:document).removeEventListener('wheel',this.wheel,true);window.removeEventListener('keyup',this.release);window.removeEventListener('blur',this.release);document.removeEventListener('visibilitychange',this.visibility);
   this.pointerSurface.removeEventListener('pointerdown',this.pointerDown,true);window.removeEventListener('pointermove',this.pointerMove,true);window.removeEventListener('pointerup',this.pointerUp,true);window.removeEventListener('pointercancel',this.pointerUp,true);
   this.gl.domElement.removeEventListener('webglcontextlost',this.lost);this.gl.domElement.removeEventListener('webglcontextrestored',this.restored);

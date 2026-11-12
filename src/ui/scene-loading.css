@@ -1,0 +1,6 @@
+.scene-loading-veil{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:opacity .5s ease}
+.scene-loading-veil.is-loading{opacity:1;animation:scene-loading-reveal .65s ease-out both}
+/* The retained frame is already blurred; do not blur it a second time. */
+.scene-ui-backdrop:has(.environment-backdrop-canvas[data-frozen]) .scene-loading-veil{backdrop-filter:none;-webkit-backdrop-filter:none}
+@keyframes scene-loading-reveal{from{clip-path:circle(0% at 72% 65%);opacity:0}to{clip-path:circle(150% at 72% 65%);opacity:1}}
+@media(prefers-reduced-motion:reduce){.scene-loading-veil{transition:none}.scene-loading-veil.is-loading{animation:none}}

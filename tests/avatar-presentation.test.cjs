@@ -22,3 +22,12 @@ test('reduced motion swaps without walking but keeps single greeting',async()=>{
 test('no renderer is reported as unavailable instead of pretending a skin changed',async()=>{const {AvatarPresentationController}=await load;await assert.rejects(new AvatarPresentationController(null).changeOutfit('uniform'),/尚未接入/);});
 test('rapid selection aborts pending load, disposes its prepared scene and loads latest choice',async()=>{const {AvatarPresentationController}=await load;let resolve;const gate=new Promise(done=>resolve=done),events=[];const renderer={prepareOutfit:async id=>{events.push('prepare:'+id);if(id==='a')await gate;return {id}},disposePrepared:item=>events.push('dispose:'+item.id),commitOutfit:async item=>events.push('commit:'+item.id),greet:async()=>{}};const controller=new AvatarPresentationController(renderer),a=controller.changeOutfit('a',{reducedMotion:true});const rejected=assert.rejects(a,{name:'AbortError'});const b=controller.changeOutfit('b',{reducedMotion:true});resolve();await rejected;await b;assert.deepEqual(events,['prepare:a','dispose:a','prepare:b','commit:b']);assert.equal(controller.outfit,'b');assert.equal(controller.active,null);});
 test('disposing with a replacement queued prevents late loads and commits',async()=>{const {AvatarPresentationController}=await load;let resolve;const gate=new Promise(done=>resolve=done),events=[];const controller=new AvatarPresentationController({prepareOutfit:async id=>{events.push(id);await gate;return {id}},disposePrepared:()=>events.push('dispose'),commitOutfit:async()=>events.push('commit')});const a=controller.changeOutfit('a',{reducedMotion:true}),ra=assert.rejects(a,{name:'AbortError'}),b=controller.changeOutfit('b',{reducedMotion:true}),rb=assert.rejects(b,{name:'AbortError'});controller.dispose();resolve();await Promise.all([ra,rb]);assert.deepEqual(events,['a','dispose']);});
+test('scene visibility migrates from old fullscreen setting and keeps fullscreen preference independently',async()=>{
+ const {presentationConfig}=await load;
+ assert.equal(presentationConfig({}).sceneEnabled,false);
+ assert.equal(presentationConfig({spread:true}).sceneEnabled,true);
+ const disabled=presentationConfig({sceneEnabled:false,spread:true});
+ assert.equal(disabled.sceneEnabled,false);
+ assert.equal(disabled.spread,true);
+ assert.equal(presentationConfig({...disabled,sceneEnabled:true}).spread,true);
+});

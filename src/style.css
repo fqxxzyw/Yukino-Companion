@@ -504,6 +504,13 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .local-reply-language+.local-reply-language{margin-top:12px}
 .local-reply-language .language-label{margin:0}
 .local-reply-segment{max-width:100%;width:fit-content;padding:9px 15px;border:1px solid var(--line);border-radius:17px;background:var(--surface-soft)}
+.typing-bubble{display:flex;align-items:center;gap:5px;min-height:39px;padding:9px 15px}
+.local-reply-parts>.typing-bubble:not(:first-child){margin-top:7px}
+.typing-bubble>span{width:6px;height:6px;border-radius:50%;background:var(--secondary);animation:typing-dot 1.15s ease-in-out infinite}
+.typing-bubble>span:nth-child(2){animation-delay:.14s}.typing-bubble>span:nth-child(3){animation-delay:.28s}
+@keyframes typing-dot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.typing-bubble.is-static>span{animation:none}
+@media(prefers-reduced-motion:reduce){.typing-bubble>span{animation:none}}
 .local-reply-segment.is-entering{transform-origin:12% 85%;animation:reply-jelly-in .48s both}
 @keyframes reply-jelly-in{0%{opacity:0;transform:translateY(8px) scale(.9,.84)}55%{opacity:1;transform:translateY(-2px) scale(1.035,1.055)}75%{transform:translateY(1px) scale(.985,.98)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){.local-reply-segment.is-entering{animation:none}}
@@ -533,7 +540,8 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 /* One in-bounds toolbar; popovers are sized to the stage, never the window. */
 .character-panel,.character-panel.is-dragging,.character-panel.is-spread{background:color-mix(in srgb,var(--surface) 18%,transparent)!important;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:22px;opacity:1;backdrop-filter:none;box-shadow:inset 0 1px color-mix(in srgb,var(--surface) 50%,transparent),0 6px 24px var(--shadow)}
 .character-panel::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(circle at var(--glass-light-x,35%) 0%,color-mix(in srgb,var(--surface) 40%,transparent),transparent 45%)}
-.character-panel .character-model-host{inset:52px 12px 14px;z-index:0;min-height:0;border-radius:16px;background:transparent}
+.character-panel{--character-view-inset:52px 12px 14px;--character-view-radius:16px}
+.character-panel .character-model-host{inset:var(--character-view-inset);z-index:0;min-height:0;border-radius:var(--character-view-radius);background:transparent}
 .character-panel .character-model-host:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
 .character-panel .stage-top{position:absolute;left:9px;right:9px;top:8px;height:34px;padding:0;gap:3px;z-index:5;justify-content:flex-start}
 .character-panel .character-grip{flex:1;cursor:grab;min-height:32px;min-width:14px;display:flex;align-items:center;justify-content:center;gap:4px;letter-spacing:0;opacity:.8}
@@ -545,7 +553,8 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .character-panel .character-scene-menu{left:0;right:0;top:42px;width:auto;max-height:calc(100cqh - 70px);overflow:auto;overscroll-behavior:contain;border-color:var(--line);padding:12px;scrollbar-gutter:stable}
 .character-panel .character-scene-menu .scene-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0;margin:12px 0 16px}
 .character-scene-menu .scene-picker .scene-choice{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-width:0;margin:0;padding:5px 5px 8px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--secondary);font-size:11px;line-height:1.45;text-align:center}
-.character-scene-menu .scene-choice-swatch{position:relative;display:grid;place-items:center;height:44px;border-radius:8px;color:#fff;overflow:hidden;box-shadow:inset 0 1px 0 #ffffff24}
+.character-scene-menu .scene-choice-swatch{position:relative;display:grid;place-items:center;height:64px;border-radius:8px;color:#fff;overflow:hidden;box-shadow:inset 0 1px 0 #ffffff24}
+.character-scene-menu .scene-choice-swatch img{width:100%;height:100%;display:block;object-fit:cover}
 .character-scene-menu .scene-choice-swatch::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#ffffff16,transparent 65%);pointer-events:none}
 .character-scene-menu .scene-choice-swatch svg{position:relative;filter:drop-shadow(0 1px 2px #0003)}
 .character-scene-menu .scene-choice-name{padding:0 2px;overflow-wrap:anywhere}
@@ -588,7 +597,10 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .scene-menu-popover{position:absolute;right:0;top:calc(100% + 9px);width:min(310px,calc(100vw - 24px));max-height:calc(100dvh - 100px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:15px;border:1px solid var(--line);border-radius:17px;background:color-mix(in srgb,var(--surface) 97%,transparent);box-shadow:0 16px 48px #102d5133;backdrop-filter:blur(14px);color:var(--text);text-align:left;white-space:normal}
 .scene-menu-popover>header{display:grid;gap:5px;margin-bottom:14px}.scene-menu-popover>header>strong{font-size:13px}.scene-menu-popover>header>small{font-size:10px;line-height:1.6;color:var(--secondary)}
 .scene-menu-group{margin:12px 0}.scene-menu-group>strong{display:block;font-size:10px;color:var(--secondary);margin-bottom:7px}.scene-menu-group>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-.scene-menu-group button{min-height:35px;padding:8px 7px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);font-size:11px;text-align:left;overflow-wrap:anywhere}
+.scene-menu-group button{display:flex;flex-direction:column;gap:6px;min-height:35px;padding:5px 5px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-soft);font-size:11px;text-align:left;overflow-wrap:anywhere}
+.scene-menu-group button>.scene-thumbnail{display:block;object-fit:cover;width:100%;height:64px;border-radius:6px}
+.scene-menu-group button>span{padding:0 3px}
+.scene-options .scene-thumbnail{display:block;object-fit:cover;width:100%;height:76px;border-radius:8px}
 .scene-menu-group button:hover{background:var(--hover)}.scene-menu-group button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--accent-text);font-weight:600}
 .scene-overview-hold{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:39px;padding:9px;border:1px solid var(--line);border-radius:11px;background:var(--surface-soft);font-size:11px;touch-action:none;user-select:none}.scene-overview-hold:not(:disabled):active{background:color-mix(in srgb,var(--accent) 15%,var(--surface));color:var(--accent-text)}
 .scene-menu-popover>p{font-size:10px;line-height:1.7;color:var(--secondary);margin:9px 0 13px}.scene-menu-popover>label{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;padding-top:11px;border-top:1px solid var(--line)}.scene-menu-popover input{accent-color:var(--accent);flex:none}
@@ -601,11 +613,11 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
    background during a drag and clears it on release, never interpolating grid. */
 .main .chat{transform-origin:top left}
 .character-panel.is-dragging{will-change:transform}
-.app:not(.reduce) .main .chat,.app:not(.reduce) .scene-ui-backdrop{filter:blur(0px);transition:filter .5s cubic-bezier(.2,.65,.3,1)}
-.main::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);mask:linear-gradient(#000 0 0) 0 0/100% 100% no-repeat,linear-gradient(#000 0 0) var(--drag-hole-x,0px) var(--drag-hole-y,0px)/var(--drag-hole-width,0px) var(--drag-hole-height,0px) no-repeat;mask-composite:exclude;transition:opacity .5s cubic-bezier(.2,.65,.3,1)}
-.app:not(.reduce) .main:has(.character-panel.is-dragging)::after{opacity:1;transition-duration:.32s}
-.reduce .scene-ui-backdrop{filter:none!important}
-@media(prefers-reduced-motion:reduce),(prefers-reduced-transparency:reduce),(forced-colors:active){.app .main .chat,.app .scene-ui-backdrop{filter:none!important;transition:none!important}.main::after{display:none}}
+/* Filter the actual painted layers, including WebGL and text. A backdrop
+   overlay may omit separate GPU/compositor surfaces on Windows. */
+.app.is-character-dragging > .scene-ui-backdrop{filter:url(#yukino-drag-focus-scene)!important;transition:none}
+.app.is-character-dragging .main > .chat{filter:url(#yukino-drag-focus-chat)!important;transition:none}
+@media(forced-colors:active){.app.is-character-dragging > .scene-ui-backdrop,.app.is-character-dragging .main > .chat{filter:none!important}}
 .wallpaper-settings{margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 82%,transparent)}.wallpaper-settings h4{margin:0;font-size:14px}.wallpaper-list{display:grid;gap:5px;margin:12px 0}.wallpaper-item{display:flex;gap:6px}.wallpaper-item button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:7px 10px}.wallpaper-item button:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.wallpaper-item button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}.wallpaper-error{color:#9b342b;font-size:12px}
 .wallpaper-item button:first-child{display:flex;align-items:center;gap:10px}.wallpaper-item img{width:76px;height:48px;object-fit:cover;border-radius:6px;flex:none}.wallpaper-item span{overflow:hidden;text-overflow:ellipsis}
 /* Scroll the outfit list, keeping its close control in a separate fixed row. */
@@ -674,8 +686,11 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app.scene-city .environment-backdrop-canvas{opacity:1}
 .app.scene-city .workspace{background:linear-gradient(90deg,color-mix(in srgb,var(--surface) 8%,transparent),transparent 65%)}
 .app.scene-city .sidebar{background:color-mix(in srgb,var(--surface-soft) 52%,transparent);backdrop-filter:blur(18px) saturate(130%)}
-.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:color-mix(in srgb,var(--surface) 10%,transparent)!important;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:22px;box-shadow:inset 0 1px 1px #ffffff4d,0 10px 32px var(--shadow);backdrop-filter:blur(5px) saturate(1.08);transition:backdrop-filter .38s cubic-bezier(.2,.65,.3,1),box-shadow .25s,background .35s}
+.app.scene-city .character-panel,.app.scene-city .character-panel.is-dragging{background:color-mix(in srgb,var(--surface) 10%,transparent)!important;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:22px;box-shadow:inset 0 1px 1px #ffffff4d,0 10px 32px var(--shadow);backdrop-filter:blur(8px) saturate(1.08);transition:backdrop-filter .22s ease-out,box-shadow .25s,background .35s}
 .app.scene-city .character-panel.is-dragging{backdrop-filter:blur(0px) saturate(1.08)}
+.character-panel.has-local-scene{backdrop-filter:blur(8px);transition:backdrop-filter .22s ease-out}
+.character-panel.has-local-scene.is-dragging{backdrop-filter:blur(0px)}
+@media(forced-colors:active){.character-panel.has-local-scene{backdrop-filter:none}}
 .app.scene-city .character-panel::before{z-index:1;background:linear-gradient(135deg,#ffffff0d,transparent 40%,#ffffff03 80%),radial-gradient(ellipse at var(--glass-light-x,35%) var(--glass-light-y,0%),#ffffff12,transparent 58%)}
 .app.scene-city .welcome-symbol{display:none}
 .app.scene-city-night .workspace{background:linear-gradient(90deg,#0b142c40,transparent 60%)}
@@ -719,3 +734,38 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app.is-closing .scene-ui-backdrop{opacity:1;filter:blur(1px);pointer-events:none}
 .app.reduce.is-closing .sidebar,.app.reduce.is-closing .titlebar,.app.reduce.is-closing .settings,.app.reduce.is-closing .main .chat,.app.reduce.is-closing .scene-ui-backdrop{filter:none!important;transition:none!important}
 @media(prefers-reduced-motion:reduce),(prefers-reduced-transparency:reduce),(forced-colors:active){.app.is-closing .sidebar,.app.is-closing .titlebar,.app.is-closing .settings,.app.is-closing .main .chat,.app.is-closing .scene-ui-backdrop{filter:none!important;transition:none!important}}
+.app-update { position: relative; flex: none; -webkit-app-region: no-drag; }
+.app-update-trigger { border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); color: var(--accent-text); padding: 5px 10px; cursor: pointer; font-size: 12px; }
+.app-update-popover { position: absolute; z-index: 1000; right: 0; top: calc(100% + 10px); width: 300px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: 0 12px 30px var(--shadow); font-size: 13px; }
+.app-update-popover p { line-height: 1.5; color: var(--secondary); }
+.app-update-popover div { display: flex; gap: 8px; flex-wrap: wrap; }
+.app-update-popover button { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--text); padding: 7px 10px; cursor: pointer; }
+
+/* Match the four titlebar control surfaces; leave the native window buttons alone. */
+.titlebar{--title-control-height:36px;--title-control-width:clamp(88px,8.4vw,132px)}
+.titlebar>:is(.chat-source-switch,.model-pill),.titlebar>.scene-quick-menu>.scene-menu-trigger,.titlebar>.app-update>.app-update-trigger{width:var(--title-control-width);height:var(--title-control-height);max-width:none;flex:none}
+.titlebar>:is(.chat-source-switch,.model-pill),.titlebar>.scene-quick-menu>.scene-menu-trigger,.titlebar>.app-update>.app-update-trigger{box-sizing:border-box;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--text);font-size:12px;font-weight:500;box-shadow:inset 0 1px #ffffff38;line-height:1}
+.titlebar>.app-update>.app-update-trigger{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.titlebar>.app-update>.app-update-trigger>span{overflow:hidden;text-overflow:ellipsis}
+.titlebar>.chat-source-switch{padding:3px}
+.titlebar>.chat-source-switch>button{flex:1;min-width:0;justify-content:center;padding:0 3px;font-size:inherit;font-weight:inherit}
+.titlebar>.model-pill{justify-content:center;padding:0 8px;gap:6px}
+.titlebar>.scene-quick-menu>.scene-menu-trigger{padding:0 7px}
+.titlebar>.scene-quick-menu>.scene-menu-trigger>span{overflow:hidden;text-overflow:ellipsis}
+.titlebar>.app-update>.app-update-trigger{padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+@media(min-width:801px){.titlebar>.scene-quick-menu>.scene-menu-trigger>span{display:block}}
+@media(max-width:920px){.titlebar>.drag>.character-switcher{min-width:0;max-width:100%}}
+@media(max-width:800px){.titlebar{--title-control-width:72px}.titlebar>.model-pill>svg{display:none}}
+@media(max-width:620px){.titlebar{--title-control-width:clamp(56px,12vw,74px)}}
+/* Scene controls and the panel-scoped environment. */
+input.scene-switch{appearance:none;-webkit-appearance:none;position:relative;flex:0 0 auto;width:38px;height:22px;margin:0;border:0;border-radius:999px;background:color-mix(in srgb,var(--secondary) 35%,var(--surface));cursor:pointer;transition:background .2s}
+input.scene-switch::before{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px #0004;transition:transform .2s}
+input.scene-switch:checked{background:var(--accent)}
+input.scene-switch:checked::before{transform:translateX(16px)}
+input.scene-switch:focus-visible{outline:2px solid var(--accent-text);outline-offset:3px}
+input.scene-switch:disabled{opacity:.45;cursor:not-allowed}.switch-disabled{opacity:.55}
+.scene-ui-backdrop.is-panel-scene{clip-path:inset(0 100% 100% 0)}
+.app:has(> .scene-ui-backdrop.is-panel-scene)>.workspace{background-color:transparent}
+.scene-ui-backdrop.has-scene .environment-backdrop-canvas{opacity:1}
+@media(forced-colors:active){input.scene-switch{appearance:auto;-webkit-appearance:auto;width:auto;height:auto}input.scene-switch::before{display:none}}
+input.scene-switch::after{display:none}

@@ -19,6 +19,15 @@ export function sceneWorkspaceShift(host,workspace){
  if(right<=left)return 0;
  return THREE.MathUtils.clamp(((host.left+host.right)-(left+right))/(2*host.height),-.6,.6);
 }
+// Keep the board centred in the space opposite the character.  Between docks,
+// interpolate continuously from the actual painted panel rectangle so the
+// board moves with the drag rather than jumping when the grid changes columns.
+export function classroomBoardTarget(main,panel){
+ if(!main||!panel||![main.left,main.right,main.width,panel.left,panel.right,panel.width].every(Number.isFinite)||main.width<=0||panel.width<=0||panel.width>=main.width*.65)return null;
+ const travel=main.width-panel.width;if(travel<=0)return null;
+ const progress=THREE.MathUtils.clamp((panel.left-main.left)/travel,0,1);
+ return (main.left+main.right+panel.width)/2-panel.width*progress;
+}
 // A bounding sphere fits at every azimuth, including the base's far corners.
 // Fit against the narrower FOV, so portrait windows never crop a square plinth.
 export function dioramaFrame(bounds,aspect=1,options={}){

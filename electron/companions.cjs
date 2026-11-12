@@ -188,7 +188,7 @@ class CompanionManager {
       event.preventDefault();
       if (this.preferences.closeAction === 'quit') { this.closeFeedback('start');this.quit(); return; }
       if (this.preferences.closeAction === 'ask') { this.onCloseRequested(); return; }
-      this.closeChoice(this.preferences.closeAction).catch(this.onError);
+      this.closeChoice(this.preferences.closeAction,{measure:true}).catch(this.onError);
     });
     if(this.mainOwnsModel())this.suppressDesktopModel();
     this.refreshActivity();
@@ -203,7 +203,7 @@ class CompanionManager {
   getState() { const usage = this.usage.snapshot(); return { ...structuredClone(this.preferences), preferences: structuredClone(this.preferences), effectiveMode:this.effectiveMode(), proactiveStatus:{...this.proactiveStatus}, usage: { ...usage, available: !this.usageReadError, warning: this.usageReadError || '', totalMs: usage.usageMs, todayMs: usage.today.usageMs, sessionMs: usage.session.usageMs }, startupAvailable:this.startupAvailable, voiceCount:this.voiceCatalog?.files?.length||0, focus:{active:this.preferences.focusEnds>Date.now(),endsAt:this.preferences.focusEnds,remainingMs:Math.max(0,this.preferences.focusEnds-Date.now())}, chatBusy:this.chatBusy, visionActive:this.visionActive, character:{...this.character}, modelReady: Boolean(this.character.modelId), petReady: true, active: [...this.windows.keys()] }; }
   updatePrefs(patch) { return this.setPreferences(patch); }
   closeFeedback(phase) { const win=this.mainWindow;if(win&&!win.isDestroyed())win.webContents.send('close-feedback',{phase}); }
-  async closeChoice(mode, {remember=false}={}) {
+  async closeChoice(mode, {remember=false,measure=false}={}) {
     if(mode!=='quit'&&!MODES.has(mode))throw Error('无效的关闭选项');
     const sequence=++this.handoffSequence;
     this.closeFeedback('start');
@@ -211,6 +211,18 @@ class CompanionManager {
     catch(error){if(sequence===this.handoffSequence)this.closeFeedback('end');throw error;}
     if(sequence!==this.handoffSequence)return this.getState();
     if(mode==='quit'){this.quit();return;}
+    // A remembered close action bypasses the renderer's confirmation dialog.
+    // Ask it for the current canvas before creating the first desktop window.
+    if(measure&&kindsForMode(mode).includes('model')){
+      const main=this.mainWindow;
+      if(main&&!main.isDestroyed()&&main.isVisible()){
+        let current;
+        try{current=await this.requestAvatarLayout(main,sequence,'current');}
+        catch(error){if(sequence===this.handoffSequence)this.closeFeedback('end');throw error;}
+        if(sequence!==this.handoffSequence)return this.getState();
+        if(current?.rect)this.setAppAvatarRect(current.rect,{relative:true});
+      }
+    }
     this.closeMode=mode;this.alignNext=!!this.appAvatarRect;this.preparingHandoff=true;this.prepareHandoffView(sequence);
     try {this.applyMode();this.prepareDesktopAlignment();const model=this.windows.get('model');if(model)this.sendState(model,'model');await this.persist();}
     catch(error){if(sequence===this.handoffSequence)this.recoverHandoff(error);throw error;}
@@ -244,6 +256,7 @@ class CompanionManager {
       if(this.mainOwnsModel())this.suppressDesktopModel();
       else if(model&&!model.isDestroyed()&&model.handoffSuppressed){model.handoffSuppressed=false;this.opacity(model,1);model.showInactive?.();}
     }
+    this.modelAllowOverflow=false;
     for (const [kind, win] of this.windows) {
       const bounds = this.boundsFor(kind);
       const current=win.getBounds();
@@ -309,9 +322,13 @@ class CompanionManager {
     const win=this.windows.get('model');
     if(!win||win.isDestroyed()||this.preparingHandoff||this.handoffActive||this.drag?.kind==='model')return;
     const current=win.getBounds(),area=this.e.screen.getDisplayNearestPoint({x:current.x+current.width/2,y:current.y+current.height/2}).workArea;
-    const baseHeight=Math.max(1,current.height-this.modelExtra),extra=modelReplyExtra(baseHeight,area.height,this.hasModelReply());
+    const baseHeight=Math.max(1,current.height-this.modelExtra),extra=modelReplyExtra(baseHeight,this.modelAllowOverflow?Infinity:area.height,this.hasModelReply());
     const delta=extra-this.modelExtra;if(!delta)return;
-    const bounds=clampBounds({...current,y:current.y-delta,height:baseHeight+extra},area);
+    const next={...current,y:current.y-delta,height:baseHeight+extra};
+    const top=(this.preferences.inputPosition==='above'?152:56)+extra,bottom=this.preferences.inputPosition==='above'?12:60;
+    const body={x:0,y:top/next.height,width:1,height:Math.max(1,next.height-top-bottom)/next.height};
+    const areas=this.e.screen.getAllDisplays?.().map(display=>display.workArea)||[area];
+    const bounds=this.modelAllowOverflow?(clampSubject(next,body,areas)||clampBounds(next,area)):clampBounds(next,area);
     win.setBounds(bounds);this.modelExtra=extra;
     if(this.preferences.positions.model)this.preferences.positions.model={...this.preferences.positions.model,x:bounds.x,y:bounds.y+extra};
   }
@@ -335,10 +352,14 @@ class CompanionManager {
       const targetArea=this.e.screen.getDisplayNearestPoint({x:Math.round(rect.x+rect.width/2),y:Math.round(rect.y+rect.height/2)}).workArea;
       const top=this.preferences.inputPosition==='above'?152:56,bottom=this.preferences.inputPosition==='above'?12:60;
       const areas=this.e.screen.getAllDisplays?.().map(item=>item.workArea)||[area];
-      const alignedBase=Math.min(targetArea.height,Math.round(rect.height)+top+bottom),alignedExtra=modelReplyExtra(alignedBase,targetArea.height,this.hasModelReply());
+      // The transparent controls may extend beyond the work area while the
+      // character canvas itself remains on screen. Clamping the entire window
+      // would push a full-height avatar away from its actual in-app position.
+      const alignedBase=Math.round(rect.height)+top+bottom,alignedExtra=modelReplyExtra(alignedBase,Infinity,this.hasModelReply());
       this.computedModelExtra=alignedExtra;
       const aligned={x:Math.round(rect.x),y:Math.round(rect.y-top-alignedExtra),width:Math.min(targetArea.width,Math.max(1,Math.round(rect.width))),height:alignedBase+alignedExtra};
-      return clampSubject(aligned,this.visibleBody(kind,null),areas)||clampBounds(aligned,targetArea);
+      const canvas={x:0,y:(top+alignedExtra)/aligned.height,width:1,height:Math.round(rect.height)/aligned.height};
+      return clampSubject(aligned,canvas,areas)||clampBounds(aligned,targetArea);
     }
     const offset = this.effectiveMode() === 'both' && kind === 'model' ? viewportSize('pet',scale,area).width+12 : 0;
     const bounds={ x: saved?.x ?? (this.preferences.position === 'left' ? area.x + 24 + offset : area.x + area.width - width - 24 - offset), y: (saved?.y ?? area.y + area.height - height)-extra, width, height:height+extra };
@@ -357,9 +378,11 @@ class CompanionManager {
     if(!this.alignNext||!win||win.isDestroyed())return;
     const bounds=this.boundsFor('model'),current=win.getBounds();
     if(['x','y','width','height'].some(key=>current[key]!==bounds[key]))win.setBounds(bounds);
+    this.modelAllowOverflow=true;
     this.modelExtra=this.computedModelExtra||0;
   }
   createWindow(kind) {
+    if(kind==='model'&&!this.alignNext)this.modelAllowOverflow=false;
     const win = new this.e.BrowserWindow({ ...this.boundsFor(kind), transparent: true, frame: false, resizable: false, maximizable: false, minimizable: false, skipTaskbar: true, show: false, alwaysOnTop: this.preferences.alwaysOnTop, hasShadow: false, backgroundColor: '#00000000', webPreferences: { preload: path.join(__dirname, 'companion-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy:'no-user-gesture-required' } });
     if(kind==='model')this.modelExtra=this.computedModelExtra||0;
     this.windows.set(kind, win);
@@ -663,7 +686,7 @@ class CompanionManager {
     const requestId=(this.avatarLayoutRequestId=(this.avatarLayoutRequestId||0)+1);
     let timer;
     const result=new Promise(resolve=>{this.avatarLayoutPending={sequence,requestId,side,resolve};timer=setTimeout(()=>resolve(null),1500);});
-    try{win.webContents.send('avatar-handoff',{phase:'layout',sequence,requestId,side});return await result;}finally{clearTimeout(timer);if(this.avatarLayoutPending?.requestId===requestId)this.avatarLayoutPending=null;}
+    try{win.webContents.send('avatar-handoff',{phase:side==='current'?'measure':'layout',sequence,requestId,side});return await result;}finally{clearTimeout(timer);if(this.avatarLayoutPending?.requestId===requestId)this.avatarLayoutPending=null;}
   }
   async revealMain() {
     const sequence=++this.handoffSequence;

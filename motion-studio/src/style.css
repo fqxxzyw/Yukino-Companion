@@ -349,3 +349,8 @@ summary { cursor: pointer; }
   .stage-caption { display: none; }
   .stage-time { margin-left: auto; }
 }
+
+.studio-update { position:relative; flex:none; -webkit-app-region:no-drag; }
+.studio-update-popover { position:absolute; z-index:1000; right:0; top:calc(100% + 8px); width:300px; padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); box-shadow:0 12px 30px var(--shadow); }
+.studio-update-popover p { line-height:1.5; color:var(--muted); }
+.studio-update-popover div { display:flex; gap:6px; flex-wrap:wrap; }

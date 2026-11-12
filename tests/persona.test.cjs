@@ -185,8 +185,25 @@ test('user supplied Chinese and English skills remain available and their matchi
 test('the asar character verifier requires both user skill documents when the manifest declares them',async t=>{
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'yukino-skill-package-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));const source=path.join(temp,'source');
  fs.mkdirSync(path.join(source,'characters'),{recursive:true});fs.cpSync(path.join(__dirname,'../characters/yukino'),path.join(source,'characters/yukino'),{recursive:true});fs.mkdirSync(path.join(source,'electron'));for(const file of ['persona.cjs','main.cjs','preload.cjs'])fs.writeFileSync(path.join(source,'electron',file),'// runtime');
- const archive=path.join(temp,'complete.asar');await finished(await asar.createPackage(source,archive));assert.equal(verifyCharacterPackage(archive).resources,9);
+ const archive=path.join(temp,'complete.asar');await finished(await asar.createPackage(source,archive));assert.equal(verifyCharacterPackage(archive).resources,10);
  fs.rmSync(path.join(source,'characters/yukino/SKILL_EN.md'));const broken=path.join(temp,'missing.asar');await finished(await asar.createPackage(source,broken));assert.throws(()=>verifyCharacterPackage(broken),/SKILL_EN/);
+});
+
+test('the built-in voice guide reaches detailed, compact and local requests without leaking into custom roles', async () => {
+  const scenarios=['早啊。','你只要说我没错就行。','今天很累，不想解释。'];
+  for(const [index,[settings,profile]] of [[{},remote],[{personaPromptMode:'compact'},remote],[{},local]].entries()){
+    const question=scenarios[index];
+    const incoming=[{role:'user',content:'你好'},{role:'assistant',content:'我完全理解你的感受。还有什么可以帮你？'},{role:'user',content:question}];
+    const body=await payload(settings,profile,incoming);
+    assert.match(body.messages[0].content,/雪乃的说话方式/);
+    assert.match(body.messages[0].content,/历史里的套话也不必沿用/);
+    assert.match(body.messages[0].content,/不照抄句子/);
+    assert.equal(body.messages.at(-1).content,question);
+    assert.equal(body.messages[2].content,incoming[1].content);
+  }
+  assert.match(characterDocument().text,/雪乃的说话方式/);
+  const custom={activeCharacter:'custom',characters:[{id:'custom',name:'小雨',persona:'说话热情'}]};
+  assert.doesNotMatch(buildPersonaPrompt(custom,remote).content,/雪乃的说话方式|征求意见/);
 });
 
 test('main-process IPC compiles persisted settings before the real HTTP transport', async () => {

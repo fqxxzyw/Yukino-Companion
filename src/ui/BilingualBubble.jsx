@@ -4,6 +4,11 @@ export function LanguageSwitch({value,onChange,label='气泡显示语言',compac
   return <div className={'segmented language-switch'+(compact?' compact':'')} role="group" aria-label={label}>{[['zh','中文'],['ja','日本語'],['both','双语']].map(([v,t])=><button key={v} type="button" aria-pressed={value===v} className={value===v?'active':''} onClick={()=>onChange(v)}>{t}</button>)}</div>;
 }
 export function messageCopy(message,language) {const zh=message.zh||message.content||'',ja=message.ja||'';return language==='both'&&zh&&ja?`${zh}\n\n${ja}`:language==='ja'&&ja?ja:zh||ja;}
+function TypingBubble({reducedMotion}) {
+ return <div className={'bubble local-reply-segment typing-bubble'+(reducedMotion?' is-static':'')} role="status" aria-label="正在输入">
+  <span aria-hidden="true"/><span aria-hidden="true"/><span aria-hidden="true"/>
+ </div>;
+}
 export default function BilingualBubble({message,language,animate=false,reducedMotion=false,onReveal,onEntranceStart}) {
  const zh=message.zh||message.content||'',ja=message.ja||'',waiting=message.status==='streaming';
  const groups=[];
@@ -24,13 +29,14 @@ export default function BilingualBubble({message,language,animate=false,reducedM
  },[visible,pending]);
  useLayoutEffect(()=>{if(live.current&&visible>0)revealCallback.current?.();},[visible]);
  if(message.role!=='assistant')return <div className="bubble">{typeof message.image==='string'&&message.image.length<2800000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(message.image)&&<img className="blackboard-message-image" src={message.image} alt="教室黑板上的白色手绘"/>}{message.content}</div>;
- if(!zh&&!ja)return <div className="bubble thinking">{waiting?'正在思考…':message.status==='stopped'?'已停止':'没有收到回复'}</div>;
+ if(!zh&&!ja)return waiting?<TypingBubble reducedMotion={reducedMotion}/>:<div className="bubble thinking">{message.status==='stopped'?'已停止':'没有收到回复'}</div>;
  let offset=0;
  return <div className="local-reply-parts">
   {groups.map(group=>{const start=offset;offset+=group.parts.length;const shown=live.current?Math.max(0,visible-start):group.parts.length;if(!shown)return null;return <section className="local-reply-language" lang={group.lang} key={group.lang}>
    {language==='both'&&<span className="language-label">{group.label}</span>}
    {group.parts.slice(0,shown).map((part,index)=><div className={'bubble local-reply-segment'+(live.current&&!reducedMotion?' is-entering':'')} key={index}>{part}</div>)}
   </section>})}
-  {language==='ja'&&!ja&&<span className="translation-note">{waiting?'中文已返回，日文准备中':'尚无日文版本 · 以上显示中文原文'}</span>}
+  {language==='ja'&&!ja&&!waiting&&<span className="translation-note">尚无日文版本 · 以上显示中文原文</span>}
+  {waiting&&<TypingBubble reducedMotion={reducedMotion}/>}
  </div>;
 }

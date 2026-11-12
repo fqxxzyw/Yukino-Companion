@@ -47,7 +47,7 @@ function harness(T){
  }
  const doc=new Node(),win=new Node(),frames=new Map(),observers=[];doc.hidden=false;doc.createElement=()=>new Node();let seq=0;
  Object.defineProperties(globalThis,{document:{value:doc,configurable:true},window:{value:win,configurable:true},ResizeObserver:{value:class{constructor(fn){this.fn=fn;observers.push(this)}observe(){}disconnect(){this.disconnected=true}},configurable:true},requestAnimationFrame:{value:fn=>{frames.set(++seq,fn);return seq},configurable:true},cancelAnimationFrame:{value:id=>frames.delete(id),configurable:true}});
- const host=new Node(),gl={domElement:new Node(),shadowMap:{},renders:0,sizes:0,setPixelRatio(value){this.dpr=value},setSize(){this.sizes++},render(scene,camera){if(this.nextError&&this.target){this.nextError=false;throw Error('test draw failure')}this.renders++;this.lastScene=scene;this.lastCamera=camera},getDrawingBufferSize(out){return out.set(8,8)},getRenderTarget(){return this.target||null},setRenderTarget(value){this.target=value},readRenderTargetPixels(){},resetState(){},dispose(){this.disposes=(this.disposes||0)+1}};
+ const host=new Node(),gl={domElement:new Node(),shadowMap:{},renders:0,sizes:0,setPixelRatio(value){this.dpr=value},getPixelRatio(){return this.dpr},setSize(){this.sizes++},render(scene,camera){if(this.nextError&&this.target){this.nextError=false;throw Error('test draw failure')}this.renders++;this.lastScene=scene;this.lastCamera=camera;if(scene.overrideMaterial)this.lastPreview={material:scene.overrideMaterial.type,shadows:this.shadowMap.enabled,dpr:this.dpr}},getDrawingBufferSize(out){return out.set(8,8)},getRenderTarget(){return this.target||null},setRenderTarget(value){this.target=value},readRenderTargetPixels(){},resetState(){},dispose(){this.disposes=(this.disposes||0)+1}};
  const made=[];let controls;
  const loadFactory=async id=>()=>{const root=new T.Group(),geometry=new T.BoxGeometry(12,6,12),material=new T.MeshBasicMaterial(),mesh=new T.Mesh(geometry,material);mesh.position.y=3;root.add(mesh);const current={id,root,lightingPresets:['day','night'],disposed:0,setLighting(){},dispose(){current.disposed++;geometry.dispose();material.dispose()}};made.push(current);return current};
  return {doc,win,host,gl,frames,observers,made,options:{rendererFactory:()=>gl,loadFactory,controlsFactory:(camera)=>{controls=new Node();Object.assign(controls,{target:camera.position.clone().set(0,0,0),update:()=>false,dispose(){this.disposed=true}});return controls}},get controls(){return controls},tick(){const work=[...frames.values()];frames.clear();for(const fn of work)fn(100)},restore(){for(const [key,descriptor]of saved)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key]}};
@@ -97,6 +97,23 @@ test('context loss is honest and recoverable; failed scene swaps retain owned pr
   h.gl.domElement.emit('webglcontextlost',{preventDefault(){prevented++}});assert.equal(prevented,1);assert.equal(errors,2);assert.equal(renderer.contextUnavailable,true);assert.equal(h.host.dataset.fallback,'true');const count=h.gl.renders;renderer.render();assert.equal(h.gl.renders,count);
   h.gl.domElement.emit('webglcontextrestored');h.tick();assert.equal(renderer.contextUnavailable,false);assert.ok(h.gl.renders>count);assert.equal(h.host.dataset.fallback,undefined);
  }finally{renderer?.dispose();await renderer?.queue;h.restore()}
+});
+
+test('old coloured frame remains blurred while compiling and a superseded scene never commits',async()=>{
+ const T=await THREE,{EnvironmentBackdrop}=await import('../src/ui/environment-backdrop.mjs');const h=harness(T);let renderer,release;
+ try{
+  renderer=new EnvironmentBackdrop(h.host,{...h.options,reducedMotion:true});assert.equal(await renderer.update('city'),true);
+  let unblock;const gate=new Promise(resolve=>{unblock=resolve});release=unblock;
+  let first=true,compiling=false;h.gl.compileAsync=()=>first?(first=false,compiling=true,gate):Promise.resolve();
+  const old=renderer.current,pending=renderer.update('forest');
+  const deadline=Date.now()+3000;while(!compiling&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(compiling,true);assert.equal(h.host.dataset.scene,'city');assert.equal(h.host.dataset.frozen,'true');assert.equal(renderer.current,old,'old scene stays visible while the new scene compiles');
+  assert.equal(renderer.frozen.style.filter,'blur(8px)');
+  assert.equal(h.gl.lastPreview,undefined,'no grey override material is drawn');
+  const latest=renderer.update('classroom');release();
+  assert.equal(await pending,false);assert.equal(await latest,true);
+  assert.equal(renderer.environmentScene,'classroom');assert.equal(h.made[1].disposed,1,'superseded scene resources are released');assert.equal(h.host.dataset.frozen,undefined);
+ }finally{release?.();renderer?.dispose();await renderer?.queue;h.restore()}
 });
 
 test('partial renderer initialization releases canvas and GL resources on control failure',async()=>{
