@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {loadSceneFactory} from '../scenes/registry.mjs';
 import {sceneId,scenePreset} from './scene-catalog.mjs';
-import {classroomBoardTarget,dioramaFrame,galleryKey,setCameraFrameShift,sceneWorkspaceShift} from './scene-camera.mjs';
+import {applySceneView,classroomBoardTarget,dioramaFrame,galleryKey,setCameraFrameShift,sceneWorkspaceShift} from './scene-camera.mjs';
+import {DEFAULT_SCENE_VIEW,sceneViewConfig} from './scene-view.mjs';
 import {SceneOverview} from './scene-overview.mjs';
 import {sceneDaylight,sceneLightingPreset,applyWindowNight} from './scene-daylight.mjs';
 const clockHour=()=>{const d=new Date();return d.getHours()+d.getMinutes()/60};
@@ -11,8 +12,9 @@ const paintOpportunity=()=>new Promise(resolve=>{let done=false;const finish=()=
 const rendererState=gl=>({exposure:gl.toneMappingExposure,toneMapping:gl.toneMapping,shadowType:gl.shadowMap.type,shadows:gl.shadowMap.enabled});
 function restoreRenderer(gl,state){gl.toneMappingExposure=state.exposure;gl.toneMapping=state.toneMapping;gl.shadowMap.type=state.shadowType;gl.shadowMap.enabled=state.shadows;gl.shadowMap.needsUpdate=true;}
 export class EnvironmentBackdrop {
- constructor(host,{interactive=false,reducedMotion=false,onError,onReady,onBeforeSwap,loadFactory=loadSceneFactory,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas)}={}){
-  Object.assign(this,{host,interactive,reducedMotion,onError,onReady,onBeforeSwap,loadFactory});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;
+ constructor(host,{interactive=false,preview=false,reducedMotion=false,onError,onReady,onBeforeSwap,loadFactory=loadSceneFactory,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas)}={}){
+  Object.assign(this,{host,interactive,preview,reducedMotion,onError,onReady,onBeforeSwap,loadFactory});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;
+  this.sceneView=DEFAULT_SCENE_VIEW;
   this.camera=new THREE.PerspectiveCamera(34,1,.05,1500);this.target=new THREE.Vector3();
   this.overview=new SceneOverview(this.camera,this.target,{reducedMotion});
   // Preserve native detail on the common 150% Windows display scale. Rendering
@@ -24,15 +26,15 @@ export class EnvironmentBackdrop {
   host.append(this.gl.domElement);this.gl.domElement.setAttribute('aria-label','提供的三维场景');
   if(interactive){this.controls=controlsFactory(this.camera,this.gl.domElement);this.controls.enableDamping=!reducedMotion;this.controls.dampingFactor=.085;this.controls.enablePan=false;this.controls.minPolarAngle=.08;this.controls.maxPolarAngle=Math.PI*.48;this.controls.enableZoom=true;}
   this.resizeObserver=new ResizeObserver(()=>{if(!this.disposed){this.resize();this.requestRender()}});this.resizeObserver.observe(host);
-  this.compositionTarget=!interactive?host.closest?.('.app')?.querySelector('.chat'):null;if(this.compositionTarget)this.resizeObserver.observe(this.compositionTarget);
-  this.appRoot=!interactive?host.closest?.('.app'):null;
+  this.appRoot=!interactive&&!preview?host.closest?.('.app'):null;
+  this.compositionTarget=this.appRoot?.querySelector('.chat');if(this.compositionTarget)this.resizeObserver.observe(this.compositionTarget);
   // Transforms during a drag do not notify ResizeObserver. Wake the renderer
   // on the actual gesture and through its short docking animation instead.
   this.compositionDown=e=>{if(e.button===0&&e.target?.closest?.('.character-drag-handle')){this.compositionPointer=e.pointerId;this.requestRender()}};
   this.compositionMove=e=>{if(this.compositionPointer===e.pointerId)this.requestRender()};
   this.compositionUp=e=>{if(this.compositionPointer===e.pointerId){this.compositionPointer=null;this.compositionFollowUntil=performance.now()+900;this.requestRender()}};
   this.compositionBlur=()=>{this.compositionPointer=null;this.compositionFollowUntil=0;};
-  if(!interactive){document.addEventListener('pointerdown',this.compositionDown,true);window.addEventListener('pointermove',this.compositionMove,true);window.addEventListener('pointerup',this.compositionUp,true);window.addEventListener('pointercancel',this.compositionUp,true);window.addEventListener('blur',this.compositionBlur);}
+  if(!interactive&&!preview){document.addEventListener('pointerdown',this.compositionDown,true);window.addEventListener('pointermove',this.compositionMove,true);window.addEventListener('pointerup',this.compositionUp,true);window.addEventListener('pointercancel',this.compositionUp,true);window.addEventListener('blur',this.compositionBlur);}
   const layout=this.compositionTarget?.closest?.('.main');if(layout&&globalThis.MutationObserver){this.layoutObserver=new MutationObserver(()=>{if(!this.disposed){this.resize();this.requestRender()}});this.layoutObserver.observe(layout,{attributes:true,attributeFilter:['class']})}
   this.wheel=e=>{
    if(!e.ctrlKey||this.disposed||!this.current||e.target?.closest?.('input,textarea,[contenteditable="true"],.modal-backdrop,.settings-shell'))return;
@@ -49,9 +51,12 @@ export class EnvironmentBackdrop {
   this.lost=e=>{e.preventDefault();this.contextUnavailable=true;cancelAnimationFrame(this.frame);this.frame=0;host.dataset.fallback='true';onError?.(Error('三维场景的图形设备暂不可用。'))};
   this.restored=()=>{this.contextUnavailable=false;this.gl.resetState();this.gl.shadowMap.needsUpdate=true;if(this.current)delete host.dataset.fallback;this.requestRender()};
   this.gl.domElement.addEventListener('webglcontextlost',this.lost);this.gl.domElement.addEventListener('webglcontextrestored',this.restored);
-  (interactive?host:document).addEventListener('wheel',this.wheel,{passive:false,capture:true});window.addEventListener('keyup',this.release);window.addEventListener('blur',this.release);document.addEventListener('visibilitychange',this.visibility);
-  this.pointerSurface=interactive?host:document;
-  this.pointerSurface.addEventListener('pointerdown',this.pointerDown,true);window.addEventListener('pointermove',this.pointerMove,{capture:true,passive:false});window.addEventListener('pointerup',this.pointerUp,true);window.addEventListener('pointercancel',this.pointerUp,true);
+  document.addEventListener('visibilitychange',this.visibility);
+  if(!preview){
+   this.pointerSurface=interactive?host:document;
+   this.pointerSurface.addEventListener('wheel',this.wheel,{passive:false,capture:true});window.addEventListener('keyup',this.release);window.addEventListener('blur',this.release);
+   this.pointerSurface.addEventListener('pointerdown',this.pointerDown,true);window.addEventListener('pointermove',this.pointerMove,{capture:true,passive:false});window.addEventListener('pointerup',this.pointerUp,true);window.addEventListener('pointercancel',this.pointerUp,true);
+  }
   this.tick=this.tick.bind(this);
   } catch(error) {
    this.resizeObserver?.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
@@ -60,7 +65,7 @@ export class EnvironmentBackdrop {
    if(this.compositionMove)win?.removeEventListener('pointermove',this.compositionMove,true);
    if(this.compositionUp){win?.removeEventListener('pointerup',this.compositionUp,true);win?.removeEventListener('pointercancel',this.compositionUp,true);}
    if(this.compositionBlur)win?.removeEventListener('blur',this.compositionBlur);
-   if(this.wheel)(interactive?host:doc)?.removeEventListener('wheel',this.wheel,true);
+   if(this.wheel)this.pointerSurface?.removeEventListener('wheel',this.wheel,true);
    if(this.visibility)doc?.removeEventListener('visibilitychange',this.visibility);
    if(this.pointerDown)this.pointerSurface?.removeEventListener('pointerdown',this.pointerDown,true);
    if(this.release){win?.removeEventListener('keyup',this.release);win?.removeEventListener('blur',this.release);}
@@ -71,36 +76,40 @@ export class EnvironmentBackdrop {
    this.gl.dispose();this.gl.domElement.remove();throw error;
   }
  }
- update(value,timeOfDay=clockHour(),weather=null){
+ update(value,timeOfDay=clockHour(),weather=null,view=DEFAULT_SCENE_VIEW){
   if(this.disposed)return Promise.resolve(false);
-  const id=sceneId(value);this.timeOfDay=timeOfDay;this.weather=weather;
-  if(this.current&&this.environmentScene===id&&!this.loading){this.applyClimate();this.requestRender();return Promise.resolve(true)}
+  const id=sceneId(value),nextView=sceneViewConfig(view);this.timeOfDay=timeOfDay;this.weather=weather;
+  this.requestedView=nextView;
+  if(this.loading&&this.loadingScene===id)return this.queue;
+  if(this.current&&this.environmentScene===id&&!this.loading){
+   if(Object.keys(nextView).some(key=>nextView[key]!==this.sceneView[key])){this.sceneView=nextView;this.resize(true)}
+   this.applyClimate();this.requestRender();return Promise.resolve(true)
+  }
   // Freeze synchronously BEFORE import/construction. React never has to race a new GPU frame.
   if(!this.loading)this.freezeFrame();
-  const epoch=++this.epoch;this.loading=true;this.host.dataset.loading='true';
+  const epoch=++this.epoch;this.loading=true;this.loadingScene=id;this.host.dataset.loading='true';
   this.queue=this.queue.catch(()=>{}).then(async()=>{
    if(this.disposed||epoch!==this.epoch)return false;
    let next,nextScene,target,committed=false;
    const prior=rendererState(this.gl);
-   const previous={current:this.current,scene:this.scene,bounds:this.bounds,environmentScene:this.environmentScene,lightingKey:this.lightingKey,camera:this.camera.clone(),target:this.target.clone()};
+   const previous={current:this.current,scene:this.scene,bounds:this.bounds,environmentScene:this.environmentScene,lightingKey:this.lightingKey,sceneView:this.sceneView,detailView:this.detailView,camera:this.camera.clone(),target:this.target.clone()};
    try{
     await paintOpportunity();
     const create=await this.loadFactory(id);if(this.disposed||epoch!==this.epoch)return false;
     this.preparing=true;
     // A factory without its own tone mapper must not inherit the previous scene's mapper.
     this.gl.toneMapping=THREE.NeutralToneMapping;
-    nextScene=new THREE.Scene();next=create({scene:nextScene,renderer:this.gl});if(!next?.root)throw Error('场景没有提供三维根节点');nextScene.add(next.root);
+    nextScene=new THREE.Scene();next=await create({scene:nextScene,renderer:this.gl});
+    if(this.disposed||epoch!==this.epoch)return false;
+    if(!next?.root)throw Error('场景没有提供三维根节点');nextScene.add(next.root);
     this.configureShadows(next.root);nextScene.updateMatrixWorld(true);
     this.lightScene(next,nextScene,id);
     const bounds=next.bounds?.isBox3?next.bounds.clone():new THREE.Box3().setFromObject(next.framingRoot||next.root);
     if(bounds.isEmpty()||![...bounds.min.toArray(),...bounds.max.toArray()].every(Number.isFinite))throw Error('场景边界无效');
-    const warmCamera=this.camera.clone(),frame=dioramaFrame(bounds,this.aspect(),{...next.cameraPresets?.overview,tight:true});
-    const home=this.interactive?null:next.cameraPresets?.companion;
-    warmCamera.fov=home?.fov||next.cameraPresets?.overview?.fov||34;
-    warmCamera.position.copy(home?.position?new THREE.Vector3(...home.position):frame.position);
-    const look=home?.target?new THREE.Vector3(...home.target):frame.target;
-    if(home&&this.aspect()<1.25)warmCamera.position.sub(look).multiplyScalar(1.25/this.aspect()).add(look);
-    warmCamera.lookAt(look);warmCamera.aspect=this.aspect();setCameraFrameShift(warmCamera,home?.shiftY,this.workspaceShift());warmCamera.updateProjectionMatrix();warmCamera.updateMatrixWorld(true);
+    const warmCamera=this.camera.clone(),aspect=this.aspect();
+    const {homeFrame,fov,distance}=this.cameraFraming(next,bounds,aspect,this.requestedView,false);
+    warmCamera.fov=fov;warmCamera.far=Math.max(1500,distance*5);warmCamera.position.copy(homeFrame.position);
+    warmCamera.lookAt(homeFrame.target);warmCamera.aspect=aspect;setCameraFrameShift(warmCamera,homeFrame.shiftY,homeFrame.shiftX);warmCamera.updateProjectionMatrix();warmCamera.updateMatrixWorld(true);
     // Keep the previous coloured scene visible until the new scene is fully
     // compiled and has produced its first real frame. An unlit override would
     // expose grey geometry while materials are still being prepared.
@@ -113,7 +122,7 @@ export class EnvironmentBackdrop {
     try{this.gl.setRenderTarget(target);this.gl.shadowMap.needsUpdate=true;this.gl.render(nextScene,warmCamera);const pixel=new Uint8Array(4);this.gl.readRenderTargetPixels(target,0,0,1,1,pixel);}
     finally{this.gl.setRenderTarget(priorTarget);target.dispose();target=null;}
     if(this.disposed||epoch!==this.epoch)return false;
-    this.current=next;this.scene=nextScene;this.bounds=bounds;this.environmentScene=id;this.lightingKey=null;
+    this.current=next;this.scene=nextScene;this.bounds=bounds;this.environmentScene=id;this.lightingKey=null;this.sceneView=this.requestedView;this.detailView=false;
     this.resize(true);this.applyClimate();
     this.render(); // Still concealed by the frozen overlay; rollback remains possible.
     committed=true;this.scheduleTimeUpdate();
@@ -122,7 +131,7 @@ export class EnvironmentBackdrop {
     this.host.dataset.scene=id;this.host.dataset.ready='true';delete this.host.dataset.fallback;
     this.revealFrame();this.onReady?.(id);return true;
    }catch(error){
-    if(!committed){this.current=previous.current;this.scene=previous.scene;this.bounds=previous.bounds;this.environmentScene=previous.environmentScene;this.lightingKey=previous.lightingKey;this.camera.copy(previous.camera);this.target.copy(previous.target);}
+    if(!committed){this.current=previous.current;this.scene=previous.scene;this.bounds=previous.bounds;this.environmentScene=previous.environmentScene;this.lightingKey=previous.lightingKey;this.sceneView=previous.sceneView;this.detailView=previous.detailView;this.camera.copy(previous.camera);this.target.copy(previous.target);}
     if(epoch===this.epoch&&!this.disposed){this.host.dataset.fallback='true';this.onError?.(error)}return false;
    }finally{
     target?.dispose();
@@ -152,7 +161,7 @@ export class EnvironmentBackdrop {
   const incoming=document.createElement('canvas');incoming.width=canvas.width;incoming.height=canvas.height;
   const ctx=incoming.getContext('2d');if(!ctx||!incoming.animate){this.clearFrozen();return;}
   ctx.drawImage(canvas,0,0);
-  const host=this.host.getBoundingClientRect(),avatar=!this.interactive&&this.host.closest?.('.app')?.querySelector('.character-panel')?.getBoundingClientRect();
+  const host=this.host.getBoundingClientRect(),avatar=this.appRoot?.querySelector('.character-panel')?.getBoundingClientRect();
   const x=avatar&&host.width?THREE.MathUtils.clamp((avatar.left+avatar.width/2-host.left)/host.width*100,0,100):50;
   const y=avatar&&host.height?THREE.MathUtils.clamp((avatar.top+avatar.height/2-host.top)/host.height*100,0,100):50;
   const circle=radius=>`circle(${radius}% at ${x}% ${y}%)`;
@@ -163,6 +172,7 @@ export class EnvironmentBackdrop {
  }
  lightScene(factory,scene,id){
   const daylight=sceneDaylight(this.timeOfDay),preset=sceneLightingPreset(this.timeOfDay,factory.lightingPresets);
+  if(factory.fixedLighting)return {daylight,preset};
   factory.setLighting?.(preset);applyWindowNight(factory.root,daylight.night);
   this.boostAtmosphere(factory,daylight);
   const nativeNight=factory.lightingPresets?.includes('night');scene.backgroundIntensity=daylight.night&&!nativeNight ? .22 : 1;
@@ -209,7 +219,8 @@ export class EnvironmentBackdrop {
   const center=board.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(board.matrixWorld).project(this.camera);
   if(!Number.isFinite(center.x)||!Number.isFinite(center.z)||center.z<-1||center.z>1)return false;
   const current=Number.isFinite(this.frameShiftX)?this.frameShiftX:0,screenX=host.left+(center.x+1)*host.width/2;
-  const desired=THREE.MathUtils.clamp(current+(screenX-target)/host.height,-.6,.6);
+  const offset=(this.sceneView?.horizontal||0)*host.width/100,shift=offset/host.height;
+  const desired=THREE.MathUtils.clamp(current+(screenX-target-offset)/host.height,-.6-shift,.6-shift);
   const next=this.reducedMotion?desired:current+(desired-current)*(1-Math.exp(-Math.max(.01,dt)*9));
   if(Math.abs(next-current)<.00001)return Math.abs(desired-current)>.0001;
   this.frameShiftX=next;this.homeFrame.shiftX=next;if(this.overview.home)this.overview.home.shiftX=next;
@@ -227,30 +238,51 @@ export class EnvironmentBackdrop {
   else this.current.setWeather?.(this.weather);
   this.current.setMotion?.({enabled:this.motion&&!this.reducedMotion});this.current.setMotionEnabled?.(this.motion&&!this.reducedMotion);
  }
+ cameraFraming(scene,bounds,aspect,view,detailView){
+  const preset=scene.cameraPresets?.overview||{};
+  const frame=dioramaFrame(bounds,aspect,{...preset,tight:true});
+  const home=this.interactive?(detailView?scene.cameraPresets?.photo:null):scene.cameraPresets?.companion;
+  const target=home?.target?new THREE.Vector3(...home.target):frame.target;
+  const position=home?.position?new THREE.Vector3(...home.position):frame.position;
+  if(home?.position&&home?.target&&aspect<1.25)position.sub(target).multiplyScalar(1.25/aspect).add(target);
+  const homeFrame=applySceneView({position,target,shiftY:home?.shiftY||0,shiftX:this.workspaceShift()},aspect,view);
+  return {homeFrame,fov:home?.fov||preset.fov||34,distance:frame.distance};
+ }
  resize(reset=false){
   const width=this.host.clientWidth,height=this.host.clientHeight;
   if(!width||!height||!this.current)return false;
   // Docking moves the aperture and chat, not the world behind them. Reframe
   // only for a new scene or a genuinely resized window.
-  if(!reset&&this.width===width&&this.height===height)return true;
-  const shiftX=this.workspaceShift();this.frameShiftX=shiftX;
+  const sizeChanged=this.width!==width||this.height!==height;
+  if(!reset&&!sizeChanged)return true;
   const oldTarget=this.controls?.target||this.target,oldHome=this.homeFrame;
   const oldDistance=oldHome?.position.distanceTo(oldHome.target),oldOffset=this.camera.position.clone().sub(oldTarget);
   const preserve=this.interactive&&!reset&&oldDistance>0&&oldOffset.length()>0;
   const zoom=preserve?oldOffset.length()/oldDistance:1;
-  this.width=width;this.height=height;this.gl.setSize(width,height,false);this.camera.aspect=width/height;const preset=this.current.cameraPresets?.overview||{};
-  const frame=dioramaFrame(this.bounds,width/height,{...preset,tight:true});
-  const home=this.interactive?(this.detailView?this.current.cameraPresets?.photo:null):this.current.cameraPresets?.companion;
-  this.camera.fov=home?.fov||preset.fov||34;this.camera.far=Math.max(1500,frame.distance*5);setCameraFrameShift(this.camera,home?.shiftY,shiftX);this.camera.updateProjectionMatrix();
-  if(home?.position&&home?.target){this.camera.position.fromArray(home.position);this.target.fromArray(home.target);if(width/height<1.25)this.camera.position.sub(this.target).multiplyScalar(1.25/(width/height)).add(this.target);}
-  else {this.camera.position.copy(frame.position);this.target.copy(frame.target);}
-  this.camera.lookAt(this.target);this.homeFrame={position:this.camera.position.clone(),target:this.target.clone(),shiftY:home?.shiftY||0,shiftX};
+  if(sizeChanged){this.width=width;this.height=height;this.gl.setSize(width,height,false);}
+  this.camera.aspect=width/height;
+  const {homeFrame,fov,distance}=this.cameraFraming(this.current,this.bounds,width/height,this.sceneView,this.detailView);
+  this.homeFrame=homeFrame;this.frameShiftX=homeFrame.shiftX;
+  this.camera.fov=fov;this.camera.far=Math.max(1500,distance*5);this.camera.updateProjectionMatrix();
   // A sphere-fit keeps the entire miniature visible at every horizontal azimuth.
   const miniature=dioramaFrame(this.bounds,width/height,{fov:this.camera.fov,direction:[.8,.78,1.3],padding:1.06});
   this.overviewFrame={target:miniature.target.clone(),position:miniature.position.clone()};
   this.overview.reset(this.homeFrame,this.overviewFrame);
   if(preserve){this.camera.position.copy(this.target).add(oldOffset.normalize().multiplyScalar(this.homeFrame.position.distanceTo(this.homeFrame.target)*zoom));this.camera.lookAt(this.target);}
-  if(this.controls){this.controls.target.copy(this.target);this.controls.maxPolarAngle=Math.PI*(this.detailView?.54:.48);this.controls.minDistance=frame.distance*(this.detailView?.06:.22);this.controls.maxDistance=frame.distance*2.2;this.controls.update();}
+  if(this.controls){
+   const radius=homeFrame.position.distanceTo(homeFrame.target);
+   this.controls.target.copy(this.target);
+   this.controls.maxPolarAngle=this.sceneView.elevation?Math.PI-.08:Math.PI*(this.detailView?.54:.48);
+   this.controls.minDistance=Math.min(distance*(this.detailView?.06:.22),radius);
+   this.controls.maxDistance=Math.max(distance*2.2,radius);
+   if(reset&&this.controls.enableDamping){
+    // Apply and clear the previous drag's inertia before restoring Home.
+    this.controls.enableDamping=false;this.controls.update();
+    this.camera.position.copy(homeFrame.position);this.camera.lookAt(homeFrame.target);
+    this.controls.target.copy(homeFrame.target);this.controls.enableDamping=true;
+   }
+   this.controls.update();
+  }
   return true;
  }
  scheduleTimeUpdate(){
@@ -284,9 +316,12 @@ export class EnvironmentBackdrop {
  disposeSceneTextures(scene){const textures=new Set([scene?.background,scene?.environment].filter(t=>t?.isTexture));for(const t of textures)t.dispose()}
  dispose(){
   if(this.disposed)return;this.disposed=true;this.epoch++;clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
-  if(!this.interactive){document.removeEventListener('pointerdown',this.compositionDown,true);window.removeEventListener('pointermove',this.compositionMove,true);window.removeEventListener('pointerup',this.compositionUp,true);window.removeEventListener('pointercancel',this.compositionUp,true);window.removeEventListener('blur',this.compositionBlur);}
-  (this.interactive?this.host:document).removeEventListener('wheel',this.wheel,true);window.removeEventListener('keyup',this.release);window.removeEventListener('blur',this.release);document.removeEventListener('visibilitychange',this.visibility);
-  this.pointerSurface.removeEventListener('pointerdown',this.pointerDown,true);window.removeEventListener('pointermove',this.pointerMove,true);window.removeEventListener('pointerup',this.pointerUp,true);window.removeEventListener('pointercancel',this.pointerUp,true);
+  if(!this.interactive&&!this.preview){document.removeEventListener('pointerdown',this.compositionDown,true);window.removeEventListener('pointermove',this.compositionMove,true);window.removeEventListener('pointerup',this.compositionUp,true);window.removeEventListener('pointercancel',this.compositionUp,true);window.removeEventListener('blur',this.compositionBlur);}
+  document.removeEventListener('visibilitychange',this.visibility);
+  if(this.pointerSurface){
+   this.pointerSurface.removeEventListener('wheel',this.wheel,true);window.removeEventListener('keyup',this.release);window.removeEventListener('blur',this.release);
+   this.pointerSurface.removeEventListener('pointerdown',this.pointerDown,true);window.removeEventListener('pointermove',this.pointerMove,true);window.removeEventListener('pointerup',this.pointerUp,true);window.removeEventListener('pointercancel',this.pointerUp,true);
+  }
   this.gl.domElement.removeEventListener('webglcontextlost',this.lost);this.gl.domElement.removeEventListener('webglcontextrestored',this.restored);
   // A pending compile still owns its GPU resources; release the renderer after it settles.
   const finish=()=>{this.clearFrozen();this.current?.dispose?.();this.disposeSceneTextures(this.scene);this.gl.dispose();this.gl.domElement.remove()};

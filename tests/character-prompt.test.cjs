@@ -8,6 +8,8 @@ async function harness(t,{clipboard,props={}}={}){
  const iconModule=await import('lucide-react'),icons=Object.fromEntries(['Check','Copy','LoaderCircle','Mic','Plus','UserRound','X'].map(name=>[name,iconModule[name]]));
  const {getSkinStatus}=await import('../src/companion/skin-unlocks.mjs');
  const {buildCharacterPrompt}=await import('../src/ui/character-prompt.mjs');
+ const {SCENES}=await import('../src/ui/scene-catalog.mjs');
+ const {skinGroups}=await import('../src/ui/skin-groups.mjs');
  const source=await fs.readFile(path.join(__dirname,'../src/ui/CharacterSettings.jsx'),'utf8');
  let {code}=await transformWithOxc(source,'CharacterSettings.jsx');
  code=code.replace(/^import .*;\s*$/gm,'').replace('export default function','return function');
@@ -18,7 +20,7 @@ async function harness(t,{clipboard,props={}}={}){
   useEffect(fn,deps){const n=cursor++,old=values[n];if(!old||deps.some((value,i)=>!Object.is(value,old[i]))){values[n]=deps;effects.push(()=>{cleanups.get(n)?.();cleanups.set(n,fn());});}},
  };
  const Select=()=>null,SkinPicker=()=>null;
- const deps={React:{},...icons,...hooks,Select,SkinPicker,getSkinStatus,buildCharacterPrompt,modelCardPreviews:{get(){throw Error('No preview rendering in handler tests');}},globalThis:{navigator:clipboard===undefined?undefined:{clipboard}},_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
+ const deps={React:{},...icons,...hooks,Select,SkinPicker,SCENES,skinGroups,getSkinStatus,buildCharacterPrompt,modelCardPreviews:{get(){throw Error('No preview rendering in handler tests');}},globalThis:{navigator:clipboard===undefined?undefined:{clipboard}},_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
  const component=new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;\n${code}`)(deps);
  let currentProps={characters:[{id:'yukino',name:'雪之下雪乃',builtin:true}],current:{id:'yukino',name:'雪之下雪乃',builtin:true},models:[],onCreate:async()=>{},onSelect(){},onModelChange(){},...props};
  function render(next=currentProps){currentProps=next;let limit=0;do{cursor=0;dirty=false;tree=component(currentProps);effects.splice(0).forEach(fn=>fn());assert.ok(++limit<12,'effects must settle');}while(dirty);return tree;}
@@ -79,6 +81,30 @@ test('character voice language is selected at creation and retained separately f
  const created=[],h=await harness(t,{props:{onCreate:async value=>created.push(value)}});h.name('角色');h.setPersona('设定');
  h.select('新角色生成语音语言').props.onChange({target:{value:'zh'}});h.render();await h.submit();
  assert.equal(created[0].voiceLanguage,'zh');
+});
+
+test('lower creation button reveals the form and an imported scene is saved as the character default',async t=>{
+ const {createCharacter,normalizeCharacters,selectCharacter,updateCharacterDefaultScene}=await import('../src/companion/characters.mjs');
+ const importedId=`custom-${'a'.repeat(64)}`;
+ let state=normalizeCharacters({presentation:{scene:'classroom',wallpaper:{enabled:true},sceneViews:{forest:{yaw:90}}}});
+ const h=await harness(t,{props:{importedScenes:[{id:importedId,label:'我的场景'}],onCreate:async input=>{state=createCharacter(state,input);}}});
+ const toggle=()=>h.byType('button').find(node=>node.props['aria-controls']==='character-create-body');
+ const body=()=>h.nodes().find(node=>node.props.id==='character-create-body');
+ assert.equal(body().props.hidden,true);
+ toggle().props.onClick();h.render();assert.equal(toggle().props['aria-expanded'],true);assert.equal(body().props.hidden,false);
+ h.name('新角色');h.setPersona('设定');
+ const select=h.select('新建角色的默认场景');
+ assert.ok(select.props.children.some(option=>option?.props?.value==='forest'));
+ assert.ok(select.props.children.some(option=>option?.props?.value===importedId));
+ select.props.onChange({target:{value:importedId}});h.render();await h.submit();
+ const characterId=state.activeCharacter;
+ assert.equal(state.characters.at(-1).defaultSceneId,importedId);
+ assert.equal(state.presentation.scene,importedId);
+ assert.equal(state.presentation.wallpaper.enabled,false);
+ assert.deepEqual(state.presentation.sceneViews,{forest:{yaw:90}});
+ state=selectCharacter(normalizeCharacters(JSON.parse(JSON.stringify(state))),'yukino');
+ state=updateCharacterDefaultScene(state,'forest');assert.equal(state.presentation.scene,'forest');
+ state=selectCharacter(state,characterId);assert.equal(state.presentation.scene,importedId);
 });
 
 test('optional prompt stays collapsed, validates names and never replaces the editable persona',async t=>{

@@ -18,6 +18,7 @@ if (development.enabled) {
   process.on('SIGTERM', () => app.quit());
 }
 const {WallpaperStore}=require('./wallpapers.cjs');
+const {SceneImportStore,SCENE_EXTENSIONS}=require('./scene-imports.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {writeAtomicJson} = require('./atomic-json.cjs');
@@ -299,6 +300,17 @@ else {
     const wallpaperStore=new WallpaperStore(resourceDataRoot,{decode:buffer=>{const image=nativeImage.createFromBuffer(buffer);return image.isEmpty()?null:image.getSize();}});
     handle('wallpaper-pick',()=>withResourceStorage(async()=>{const result=await dialog.showOpenDialog(win,{title:'选择自定义壁纸',properties:['openFile','multiSelections'],filters:[{name:'图片（PNG、JPEG、WebP）',extensions:['png','jpg','jpeg','webp']}]});return result.canceled?[]:wallpaperStore.import(result.filePaths);}));
     handle('wallpaper-read',id=>wallpaperStore.read(id));
+    const sceneStore=new SceneImportStore(app.getPath('userData'));
+    handle('scene-list',()=>sceneStore.list());
+    handle('scene-import',async()=>{
+      const result=await dialog.showOpenDialog(win,{
+        title:'导入自定义场景',properties:['openFile'],
+        filters:[{name:'三维场景与模型',extensions:[...SCENE_EXTENSIONS]}],
+      });
+      return result.canceled||!result.filePaths[0]?null:sceneStore.import(result.filePaths[0]);
+    });
+    handle('scene-read',id=>sceneStore.read(id));
+    handle('scene-remove',id=>sceneStore.remove(id));
     handle('character-model-data',readCharacterModel);
     handle('character-model-catalog',()=>modelStore().catalog());
     async function pickCharacterModel(title,extensions=['glb']){if(modelPickerOpen)throw Error('模型文件选择窗口已打开');const epoch=++modelPickEpoch;modelStore().cancel();modelPickerOpen=true;try{const result=await dialog.showOpenDialog(win,{title,properties:['openFile'],filters:[{name:'人物模型（最多 64 MiB）',extensions}]});return result.canceled||epoch!==modelPickEpoch?null:result.filePaths[0];}finally{modelPickerOpen=false;}}
@@ -309,6 +321,7 @@ else {
     win.on('closed',cancelModelImport);win.on('hide',cancelModelImport);win.webContents.on('render-process-gone',cancelModelImport);
     handle('character-model-import',async id=>{await modelStore().initialize();const entry=characterEntry(id);if(entry.custom)throw Error('自定义模型请使用检查后导入');const file=await pickCharacterModel('导入 '+entry.label+' 的已发布 GLB');return file?modelStore().importBuiltin(id,file):false;});
     handle('open-tripo',()=>shell.openExternal('https://studio.tripo3d.ai/'));
+    handle('character-guide-link',id=>{const links=require('../resources/character-guide-links.json');if(typeof id!=='string'||!Object.hasOwn(links,id))throw Error('未知教程链接');return shell.openExternal(links[id]);});
     handle('character-document', () => characterDocument());
     const characterDraft=new (require('./character-draft.cjs').CharacterDraft)({
       resolve:async id=>{

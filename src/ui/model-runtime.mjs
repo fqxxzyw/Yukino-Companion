@@ -4,8 +4,8 @@ import {BlinkScheduler,bindValidatedBlink,bindIsolatedReviewBlink} from './blink
 import {BLINK_REVIEW_V5,BLINK_REVIEW_MODEL} from './blink-review-contract.mjs';
 import {SpeechMotionDirector} from '../speech/motion.mjs';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {SCENES,AvatarPresentationController} from './avatar-presentation.mjs';
-import {sceneId} from './scene-catalog.mjs';
+import {AvatarPresentationController} from './avatar-presentation.mjs';
+import {sceneId,scenePreset} from './scene-catalog.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
 import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
@@ -122,7 +122,7 @@ export class GlbAvatarRenderer{
  setEnvironment({id=this.environmentId,timeOfDay=this.timeOfDay}={}){
   // Models remain draft/replacement assets. No scene owns or edits their rig.
   this.environmentId=sceneId(id);this.timeOfDay=timeOfDay;
-  const light=sunlightConfig(timeOfDay),preset=SCENES[this.environmentId].lighting;
+  const light=sunlightConfig(timeOfDay),preset=scenePreset(this.environmentId).lighting;
   this.ambient.intensity=light.ambient*preset.ambient*2;this.ambient.color.set(light.ambientColor);this.ambient.groundColor.set(light.groundColor);
   this.key.intensity=light.intensity*preset.key;this.key.color.set(light.color);this.key.position.set(...light.position);
  }

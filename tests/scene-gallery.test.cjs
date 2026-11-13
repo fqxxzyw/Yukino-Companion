@@ -132,6 +132,33 @@ test('detail camera keeps live climate updates and Home restores the full miniat
  }finally{renderer?.dispose();await renderer?.queue;h.restore()}
 });
 
+test('saved framing updates a loaded scene without reloading and Home returns to its saved view',async()=>{
+ const T=await THREE,{EnvironmentBackdrop}=await import('../src/ui/environment-backdrop.mjs');const h=harness(T);let renderer;
+ try{
+  renderer=new EnvironmentBackdrop(h.host,{...h.options,interactive:true,reducedMotion:true});
+  const view={horizontal:20,vertical:15,azimuth:45,elevation:25,scale:150};
+  const loading=renderer.update('city',12);assert.equal(renderer.update('city',13,null,view),loading);
+  assert.equal(await loading,true);assert.equal(h.made.length,1);
+  const customized=renderer.camera.position.clone(),projected=renderer.target.clone().project(renderer.camera);
+  assert.ok(Math.abs(projected.x-.4)<1e-8);assert.ok(Math.abs(projected.y+.3)<1e-8);
+  renderer.key('ArrowLeft');renderer.key('+');renderer.key('Home');assert.ok(renderer.camera.position.distanceTo(customized)<1e-8);
+  await renderer.update('city',13,null,{});const defaultPosition=renderer.camera.position.clone();
+  assert.ok(Math.abs(defaultPosition.distanceTo(renderer.target)/customized.distanceTo(renderer.target)-1.5)<1e-8);
+  assert.ok(defaultPosition.distanceTo(customized)>1);assert.equal(renderer.camera.view.enabled,false);assert.equal(h.made.length,1);
+ }finally{renderer?.dispose();await renderer?.queue;h.restore()}
+});
+
+test('an inline preview ignores workspace offsets and leaves document gestures to the app',async()=>{
+ const T=await THREE,{EnvironmentBackdrop}=await import('../src/ui/environment-backdrop.mjs');const h=harness(T);let renderer;
+ try{
+  h.host.closest=()=>{throw Error('preview must not query the app layout');};
+  renderer=new EnvironmentBackdrop(h.host,{...h.options,preview:true,reducedMotion:true});
+  assert.equal(await renderer.update('city',12,null,{horizontal:25}),true);
+  assert.deepEqual([...h.doc.listeners.keys()],['visibilitychange']);assert.equal(h.win.listeners.size,0);
+  assert.equal(renderer.homeFrame.shiftX,-.375);
+ }finally{renderer?.dispose();await renderer?.queue;h.restore()}
+});
+
 test('gallery exposes its scene menu while settings owns instructions and app is hidden/inert during viewing',async()=>{
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{createServer}=await import('vite');const server=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});
  try{

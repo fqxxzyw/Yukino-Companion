@@ -1,9 +1,10 @@
 import {fixedSceneHour} from './scene-time.mjs';
 import {defaultWallpaperConfig} from './bundled-wallpapers.mjs';
-import {SCENES,sceneId} from './scene-catalog.mjs';
+import {sceneId,scenePreset} from './scene-catalog.mjs';
+import {sceneViewsConfig} from './scene-view.mjs';
 export {SCENES} from './scene-catalog.mjs';
 export const PRESENTATION_DEFAULTS=Object.freeze({scene:'classroom',sceneEnabled:false,spread:false,gaze:true,wardrobeOpen:false,timeOfDay:'noon',followTime:true,fixedHour:14,renderStyle:'lit'});
-export function presentationConfig(value={}){const raw=value.wallpaper||defaultWallpaperConfig(),seen=new Set(),items=(Array.isArray(raw.items)?raw.items:[]).filter(item=>item&&typeof item.id==='string'&&/^[a-f0-9]{64}$/.test(item.id)&&!seen.has(item.id)&&seen.add(item.id)).slice(0,20).map(item=>({id:item.id,name:typeof item.name==='string'?item.name.slice(0,120):'壁纸'}));const wallpaper={items,enabled:raw.enabled===true,rotation:raw.rotation===true,opacity:typeof raw.opacity==='number'&&Number.isFinite(raw.opacity)?Math.max(0,Math.min(1,raw.opacity)):1,intervalSeconds:Math.min(3600,Math.max(10,Number(raw.intervalSeconds)||300))};return {followTime:value.followTime!==false,fixedHour:fixedSceneHour(value.fixedHour),wallpaper,scene:sceneId(value.scene),sceneEnabled:typeof value.sceneEnabled==='boolean'?value.sceneEnabled:value.spread===true,spread:value.spread===true,gaze:value.gaze!==false,wardrobeOpen:value.wardrobeOpen===true,timeOfDay:['morning','noon','evening'].includes(value.timeOfDay)?value.timeOfDay:'noon',renderStyle:['natural','toon'].includes(value.renderStyle)?value.renderStyle:'lit'};}
+export function presentationConfig(value={}){const raw=value.wallpaper||defaultWallpaperConfig(),seen=new Set(),items=(Array.isArray(raw.items)?raw.items:[]).filter(item=>item&&typeof item.id==='string'&&/^[a-f0-9]{64}$/.test(item.id)&&!seen.has(item.id)&&seen.add(item.id)).slice(0,20).map(item=>({id:item.id,name:typeof item.name==='string'?item.name.slice(0,120):'壁纸'}));const wallpaper={items,enabled:raw.enabled===true,rotation:raw.rotation===true,opacity:typeof raw.opacity==='number'&&Number.isFinite(raw.opacity)?Math.max(0,Math.min(1,raw.opacity)):1,intervalSeconds:Math.min(3600,Math.max(10,Number(raw.intervalSeconds)||300))};return {followTime:value.followTime!==false,fixedHour:fixedSceneHour(value.fixedHour),wallpaper,scene:sceneId(value.scene),sceneViews:sceneViewsConfig(value.sceneViews),sceneEnabled:typeof value.sceneEnabled==='boolean'?value.sceneEnabled:value.spread===true,spread:value.spread===true,gaze:value.gaze!==false,wardrobeOpen:value.wardrobeOpen===true,timeOfDay:['morning','noon','evening'].includes(value.timeOfDay)?value.timeOfDay:'noon',renderStyle:['natural','toon'].includes(value.renderStyle)?value.renderStyle:'lit'};}
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 export function gazeTarget(x,y,width,height,inside=true){
  if(!inside||!(width>0&&height>0)||![x,y].every(Number.isFinite))return {eyeX:0,eyeY:0,headYaw:0,headPitch:0};
@@ -16,7 +17,7 @@ export function revealOrigin(panel,viewport){if(!panel||!viewport?.width||!viewp
 // synthesized here. All promises finish only when the adapter's animation ends.
 export class AvatarPresentationController{
  constructor(renderer,{greet}={}){this.renderer=renderer;this.greet=greet||((options)=>renderer?.greet?.(options));this.active=null;this.outfit=null;}
- setEnvironment(id){const safeId=sceneId(id);this.renderer?.setEnvironment?.({id:safeId,lighting:SCENES[safeId].lighting});}
+ setEnvironment(id){const safeId=sceneId(id);this.renderer?.setEnvironment?.({id:safeId,lighting:scenePreset(safeId).lighting});}
  setGaze(target){this.renderer?.setGaze?.(target);}
  changeOutfit(id,{reducedMotion=false}={}){
   if(!this.renderer)return Promise.reject(Error('人物模型尚未接入，暂时不能切换服装。'));

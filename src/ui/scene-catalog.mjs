@@ -14,6 +14,20 @@ const entries={
 export const SCENES=Object.freeze(Object.fromEntries(Object.entries(entries).map(([id,v])=>[id,Object.freeze({...v,thumbnail:`./scene-previews/${id}.jpg`,liveDaylight:true,background:`radial-gradient(ellipse at 50% 42%,${v.clear},#172332)`,lighting:Object.freeze({ambient:v.kind==='indoor'?.9:.75,key:1,color:'#eef4ff',direction:Object.freeze(v.direction)})})])));
 // Old identifiers migrate without retaining any old geometry or changing model files.
 const legacy={studio:'bookshop',beach:'kasai',seaside:'kasai'};
-export const sceneId=value=>Object.hasOwn(SCENES,value)?value:Object.hasOwn(legacy,value)?legacy[value]:'classroom';
-export const scenePreset=value=>SCENES[sceneId(value)];
-export const SCENE_GROUPS=Object.freeze([{kind:'indoor',label:'室内'},{kind:'outdoor',label:'室外'}]);
+const customPreset=Object.freeze({
+ label:'导入的场景',kind:'custom',description:'从本机导入的三维场景。',clear:'#839caa',
+ direction:Object.freeze([1,.8,1.5]),background:'radial-gradient(ellipse at 50% 42%,#839caa,#172332)',
+ lighting:Object.freeze({ambient:.9,key:1,color:'#eef4ff',direction:Object.freeze([1,.8,1.5])})
+});
+export const isCustomSceneId=value=>typeof value==='string'&&/^custom-[a-f0-9]{64}$/.test(value);
+export const sceneId=value=>Object.hasOwn(SCENES,value)||isCustomSceneId(value)?value:Object.hasOwn(legacy,value)?legacy[value]:'classroom';
+export function scenePreset(value,importedScenes=[]){
+ const id=sceneId(value);
+ if(!isCustomSceneId(id))return SCENES[id];
+ const entry=importedScenes.find(item=>item.id===id);
+ return entry?{...customPreset,label:entry.label}:customPreset;
+}
+export function sceneEntries(importedScenes=[]){
+ return [...Object.entries(SCENES),...importedScenes.map(entry=>[entry.id,{...customPreset,label:entry.label}])];
+}
+export const SCENE_GROUPS=Object.freeze([{kind:'indoor',label:'室内'},{kind:'outdoor',label:'室外'},{kind:'custom',label:'已导入'}]);

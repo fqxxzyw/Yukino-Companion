@@ -5,11 +5,27 @@ const defaultDirection=new THREE.Vector3(1.25,1,1.5).normalize();
 // Shift the frame vertically without pitching the camera: a frontal board keeps
 // parallel edges while the composition includes the foreground classroom floor.
 export function setCameraFrameShift(camera,value=0,horizontal=0){
- const shift=Number.isFinite(value)?THREE.MathUtils.clamp(value,-.45,.45):0;
- const shiftX=Number.isFinite(horizontal)?THREE.MathUtils.clamp(horizontal,-.6,.6):0;
+ const shift=Number.isFinite(value)?value:0;
+ const shiftX=Number.isFinite(horizontal)?horizontal:0;
  if(!shift&&!shiftX){if(camera.view?.enabled)camera.clearViewOffset();return;}
  const aspect=camera.aspect||1,view=camera.view;
  if(!view?.enabled||view.fullWidth!==aspect||view.fullHeight!==1||view.offsetX!==shiftX||view.offsetY!==shift)camera.setViewOffset(aspect,1,shiftX,shift,aspect,1);
+}
+// Move the projection by viewport percentages, then orbit and dolly around
+// the authored target. A zero adjustment leaves the authored pose intact.
+export function applySceneView(frame,aspect,view){
+ frame.shiftX-=view.horizontal*aspect/100;
+ frame.shiftY-=view.vertical/100;
+ if(!view.azimuth&&!view.elevation&&view.scale===100)return frame;
+ const offset=frame.position.clone().sub(frame.target);
+ if(view.azimuth||view.elevation){
+  const spherical=new THREE.Spherical().setFromVector3(offset);
+  spherical.theta+=THREE.MathUtils.degToRad(view.azimuth);
+  if(view.elevation)spherical.phi=THREE.MathUtils.clamp(spherical.phi-THREE.MathUtils.degToRad(view.elevation),.08,Math.PI-.08);
+  offset.setFromSpherical(spherical);
+ }
+ frame.position.copy(frame.target).addScaledVector(offset,100/view.scale);
+ return frame;
 }
 // Align the camera's subject with the conversation area, excluding sidebar and
 // character card; dimensions are normalized to the full render height.
