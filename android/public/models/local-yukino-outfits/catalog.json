@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "retireOriginals": true,
+  "outfits": {
+    "beret": {
+      "sha256": "03dbd98f767d8214bea7ee3bcfface63a44934bcd635637e0fcec22a34e98fd8",
+      "bytes": 28637592,
+      "actionPack": {
+        "sha256": "27e6df9ca0c7bf837ec2ccd3fc798dc734708bbbbbda11b129bb9e560ccc276b",
+        "bytes": 231392
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    },
+    "black-qipao": {
+      "sha256": "1cd18dad58c0ca03485235ad0cfa7101060410d4ba662deca8a0df28eca042e1",
+      "bytes": 21264488,
+      "actionPack": {
+        "sha256": "c2a4ed275ce4dc2e98bace596d863e545980bce4b54c4b8a784ea31a2ae574a1",
+        "bytes": 233203
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    },
+    "kimono": {
+      "sha256": "b8b26e8c49fff87f2797d3e12b9f7d8d5042de01ce204ce81c1a24492ea70b54",
+      "bytes": 91124284,
+      "actionPack": {
+        "sha256": "4e5ae8e8f90a7b4a1fed5def0a1bdb5e9f05a9001bd44d93340194a192c5b2c1",
+        "bytes": 271934
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    },
+    "summer-uniform": {
+      "sha256": "dd2cd3c0ccba9af80ba74531e8f32364e696d271db14fed8242e17f583b6b168",
+      "bytes": 18606852,
+      "actionPack": {
+        "sha256": "5acd67dcdad7eb50a3543f3fb2aba9130fc7865f060f9ac34ee01eac2d3ef4f7",
+        "bytes": 232052
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    },
+    "swimsuit": {
+      "sha256": "b6bf109f5e754d1a73e9a139079c52255cea2b3279b12894d90302353efbaead",
+      "bytes": 67340092,
+      "actionPack": {
+        "sha256": "32ead412307ad777bcff72298d474c4073bc128c248cf52c69d28a1e45288858",
+        "bytes": 232899
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    },
+    "twin-tail": {
+      "sha256": "30598576bc3fdcf52c6b399a2f818ba78ff602d3479e0c65f37e94eb0adc82d6",
+      "bytes": 18262748,
+      "actionPack": {
+        "sha256": "dc84bca551dec82f5d4fa57305ecc23367dedd7b220f8caf701124494f5f9f02",
+        "bytes": 306204
+      },
+      "clips": {
+        "Idle_Breathe": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Listen_Attentive": {
+          "duration": 3.9583333333333335,
+          "loop": true
+        },
+        "Nod_Subtle": {
+          "duration": 3.9583333333333335,
+          "loop": false
+        },
+        "Thoughtful_Glance": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 12,
+          "autonomous": false
+        },
+        "Gentle_Disagreement": {
+          "duration": 3.9583333333333335,
+          "loop": false,
+          "autonomous": false
+        }
+      }
+    }
+  }
+}

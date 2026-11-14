@@ -1,0 +1,15 @@
+{
+  "appId": "io.github.fqxxzyw.yukino",
+  "appName": "Yukino Companion",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0a1220"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "StatusBar": {
+      "style": "DARK"
+    }
+  }
+}

@@ -16,6 +16,8 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 > 当前提供 Windows 测试版。源码进度与已发布安装器可能不同步；安装器的能力、验收范围和已知问题以对应发行页为准。
 
+安卓版源码位于 [`android/`](android/)，使用远程 API，不包含桌面版的本地推理。构建步骤、模型下载与签名说明见 [android/README.md](android/README.md)。
+
 <a id="download"></a>
 
 ## 下载与安装
@@ -326,6 +328,7 @@ Yukino-Companion/
 ├─ public/                      # 前端静态资源与人物、场景资产入口
 ├─ scripts/                     # 资源准备、开发、打包与验证脚本
 ├─ tests/                       # 自动化测试
+├─ android/                     # Capacitor 安卓应用（API 优先，说明见 android/README.md）
 ├─ docs/                        # 开发、资源与发布说明
 └─ .github/workflows/           # 自动化检查与构建工作流
 ```

@@ -1,0 +1,34 @@
+node_modules/
+dist/
+*.apk
+*.aab
+.idea/
+.DS_Store
+
+# Capacitor / Gradle build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/capacitor-cordova-android-plugins/
+
+# Signing keys are never committed
+*.jks
+*.keystore
+keystore.properties
+android/keystore.properties
+android/app/keystore.properties
+scripts/env.local.sh
+
+# Large VRM outfits are fetched from the GitHub release, not stored in git
+*.vrm
+public/models/local-yukino-outfits/*.vrm
+Yukino-3D-Models-*.zip
+Yukino-Winter-Uniform-*.vrm
+
+# Local smoke / screenshot captures
+smoke-*.png
+companion-*.png
+characters-outfits.png
+scenes-outfits.png
