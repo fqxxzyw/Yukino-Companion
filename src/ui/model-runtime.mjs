@@ -9,9 +9,17 @@ import {sceneId,scenePreset} from './scene-catalog.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
 import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
+import {bindAvatarTouchZones,hitAvatarTouchZone} from './avatar-touch.mjs';
 import {sunlightConfig} from './sunlight.mjs';
 import {walkingContract,travelDistance,makeWalkingPlan,sampleWalkingPlan} from './walking-transition.mjs';
 import {prepareCustomStanding} from './custom-standing.mjs';
+import {bindCandidateModelControls} from './candidate-model-controls.mjs';
+import {bindCandidateBeret} from './beret-interaction.mjs';
+import {restoreCandidateMaterialMaps} from './candidate-model-materials.mjs';
+import {bindConversationExpression,conversationExpression} from './conversation-expression.mjs';
+import {bindAnimeReactions} from './anime-reactions/index.mjs';
+import {animeReplyCue} from './reaction-cue.mjs';
+import {loadLocalCharacterActions} from './local-character-actions.mjs';
 export function reviewBlinkModelAllowed(entry,optIn){return optIn===true&&entry?.reviewOnly===true&&entry.id===BLINK_REVIEW_MODEL.id&&entry.sha256===BLINK_REVIEW_V5.assetSha256;}
 export function selectModel(catalog,id,{reviewOptIn=false}={}){return catalog.find(item=>item.id===id&&item.url&&(item.reviewOnly||item.sha256===BLINK_REVIEW_V5.assetSha256?reviewBlinkModelAllowed(item,reviewOptIn):item.ready))||null}
 export function microClipNames(entry,clips){if(entry?.custom)return [];return Object.keys(entry?.clips||{}).filter(name=>entry.clips[name].loop===false&&entry.clips[name].autonomous!==false&&clips?.has(name))}
@@ -41,13 +49,33 @@ export class GlbAvatarRenderer{
   this.gl=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});this.gl.setPixelRatio(Math.min(devicePixelRatio||1,1.75));this.gl.setClearColor(0,0);this.gl.outputColorSpace=THREE.SRGBColorSpace;
   this.gl.domElement.setAttribute('aria-label','3D角色预览');this.container.append(this.gl.domElement);
   this.ambient=new THREE.HemisphereLight(0xffffff,0xbac6df,2);this.key=new THREE.DirectionalLight(0xffffff,2);this.key.position.set(-2,3,4);this.scene.add(this.ambient,this.key);
+  this.portraitFill=new THREE.HemisphereLight('#fff4eb','#d9c5b7',.24);this.portraitFill.visible=false;this.scene.add(this.portraitFill);
   this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(container);this.resize();this.setEnvironment();this.last=performance.now();this.nextMicro=performance.now()+12000;
   this.renderFrame=this.renderFrame.bind(this);this.frame=requestAnimationFrame(this.renderFrame);
-  this.blinkVisibility=()=>{if(document.hidden){this.resetBlink();this.resetGarment();}};document.addEventListener('visibilitychange',this.blinkVisibility);
-  this.contextLost=event=>{event.preventDefault();this.resetBlink();this.resetGarment();this.onStatus({phase:'error',message:'图形设备暂不可用，请重新选择模型或重启应用。'})};this.gl.domElement.addEventListener('webglcontextlost',this.contextLost);
+  this.blinkVisibility=()=>{if(document.hidden){this.resetBlink();this.resetGarment();this.cancelBeret();this.cancelReaction();}};document.addEventListener('visibilitychange',this.blinkVisibility);
+  this.contextLost=event=>{event.preventDefault();this.resetBlink();this.resetGarment();this.cancelBeret();this.cancelReaction();this.onStatus({phase:'error',message:'图形设备暂不可用，请重新选择模型或重启应用。'})};this.gl.domElement.addEventListener('webglcontextlost',this.contextLost);
  }
  resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;const ratio=Math.min(globalThis.devicePixelRatio||1,1.75);if(this.resizeWidth===width&&this.resizeHeight===height&&this.resizeRatio===ratio)return;if(this.walkingMotion)this.resetTransition({finish:true});if(this.resizeRatio!==undefined&&this.resizeRatio!==ratio)this.gl.setPixelRatio(ratio);this.resizeWidth=width;this.resizeHeight=height;this.resizeRatio=ratio;this.gl.setSize(width,height,false);this.camera.aspect=width/height;this.fitCamera();if(this.root&&this.visible!==false&&!document.hidden)this.gl.render(this.scene,this.camera);}
  hitTest(x,y){return modelHitTest({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,raycaster:this.hitRaycaster||=new THREE.Raycaster()});}
+ touchZone(x,y){
+  if(this.disposed||this.visible===false||this.walkingMotion||this.walkExitHeld||this.transitionAnimation)return null;
+  return hitAvatarTouchZone({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,zones:this.currentPrepared?.touchZones,raycaster:this.hitRaycaster||=new THREE.Raycaster(),beret:this.currentPrepared?.beret});
+ }
+ grabBeret(pointerId,x,y){
+  const beret=this.currentPrepared?.beret;
+  if(!beret||this.reducedMotion||this.walkingMotion||this.walkExitHeld||this.transitionAnimation)return false;
+  const rect=this.container.getBoundingClientRect();
+  if(!rect.width||!rect.height)return false;
+  const raycaster=this.hitRaycaster||=new THREE.Raycaster();
+  this.root.updateWorldMatrix(true,true);this.camera.updateMatrixWorld();
+  raycaster.setFromCamera({x:(x-rect.left)/rect.width*2-1,y:1-(y-rect.top)/rect.height*2},this.camera);
+  const grabbed=beret.hitTest(raycaster)&&beret.grab(pointerId);
+  if(grabbed&&this.touchReaction)this.cancelReaction();
+  return grabbed;
+ }
+ moveBeret(pointerId,x,y){this.currentPrepared?.beret?.move(pointerId,x,y);}
+ releaseBeret(pointerId){this.currentPrepared?.beret?.release(pointerId);}
+ cancelBeret(){this.currentPrepared?.beret?.cancel();}
  fitCamera(){
   const width=this.container?.clientWidth,height=this.container?.clientHeight;
   if(width>0&&height>0)this.portraitAspect=width/height;
@@ -73,18 +101,31 @@ export class GlbAvatarRenderer{
   const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(value=>value.toString(16).padStart(2,'0')).join('');if(digest!==entry.sha256)throw Error('人物模型 SHA-256 校验失败。');
   const json=assertEmbeddedAsset(bytes),skinning=assertSupportedSkinWeights(json,bytes);
   const loader=new GLTFLoader();
-  if(entry.custom&&json.extensions?.VRMC_vrm?.specVersion==='1.0'){
+  if((entry.custom||entry.format==='vrm')&&json.extensions?.VRMC_vrm?.specVersion==='1.0'){
    const {VRMLoaderPlugin}=await import('@pixiv/three-vrm');
    loader.register(parser=>new VRMLoaderPlugin(parser,{autoUpdateHumanBones:false}));
   }
   const gltf=await loader.parseAsync(bytes,'');
   if(signal?.aborted||this.disposed){disposeObject(gltf.scene);signal?.throwIfAborted();throw Error('人物加载已取消');}
-  try{walkingContract(entry,new Map(gltf.animations.map(clip=>[clip.name,clip])));applyRenderStyle(gltf.scene,this.renderStyle);applyEightWeightSkinning(gltf,skinning);}catch(error){disposeObject(gltf.scene);throw error;}
+  try{
+   if(entry.actionPack){const actions=await loadLocalCharacterActions(gltf,entry,this.api,signal);gltf.animations.push(...actions);}
+   signal?.throwIfAborted();if(this.disposed)throw Error('人物加载已取消');
+   walkingContract(entry,new Map(gltf.animations.map(clip=>[clip.name,clip])));await restoreCandidateMaterialMaps(gltf,entry);applyRenderStyle(gltf.scene,this.renderStyle,{candidate:entry.runtimeCandidate});applyEightWeightSkinning(gltf,skinning);
+  }catch(error){disposeObject(gltf.scene);throw error;}
   gltf.scene.updateMatrixWorld(true);const sourceBounds=new THREE.Box3().setFromObject(gltf.scene),size=sourceBounds.getSize(new THREE.Vector3());if(![size.x,size.y,size.z].every(Number.isFinite)||size.y<=0){disposeObject(gltf.scene);throw Error('人物尺寸无效。');}
-  let garmentBinding;try{garmentBinding=bindNormalGarment(gltf.scene,entry,THREE)}catch(error){disposeObject(gltf.scene);throw error;}
-  return {entry,gltf,sourceBounds,size,garmentBinding};
+  let garmentBinding,candidateControls,beret,expression,anime;
+  try{
+   candidateControls=bindCandidateModelControls(gltf,entry.runtimeCandidate);
+   expression=bindConversationExpression(gltf.scene,entry.runtimeCandidate);
+   garmentBinding=bindNormalGarment(gltf.scene,entry,THREE);
+   anime=bindAnimeReactions({gltf,entry});
+   await anime?.ready;
+   signal?.throwIfAborted();if(this.disposed)throw Error('人物加载已取消');
+   if(entry.runtimeCandidate==='beret'&&(entry.compatibilityBaseSha256??entry.sha256)==='03dbd98f767d8214bea7ee3bcfface63a44934bcd635637e0fcec22a34e98fd8')beret=bindCandidateBeret(gltf);
+  }catch(error){garmentBinding?.dispose();anime?.dispose();disposeObject(gltf.scene);throw error;}
+  return {entry,gltf,sourceBounds,size,garmentBinding,candidateControls,beret,expression,anime,touchZones:bindAvatarTouchZones(gltf,entry)};
  }
- disposePrepared(prepared){prepared?.garmentBinding?.dispose();disposeObject(prepared?.gltf?.scene);}
+ disposePrepared(prepared){prepared?.garmentBinding?.dispose();prepared?.beret?.dispose();prepared?.anime?.dispose();disposeObject(prepared?.gltf?.scene);}
  async commitOutfit(prepared){
   if(this.disposed){this.disposePrepared(prepared);return;}
   const {sourceBounds,size}=prepared;if(!sourceBounds||!size||!Number.isFinite(size.y)||size.y<=0)throw Error('人物尺寸无效。');
@@ -92,31 +133,62 @@ export class GlbAvatarRenderer{
   if((prepared.entry.reviewOnly||prepared.entry.sha256===BLINK_REVIEW_V5.assetSha256)&&!reviewBlinkModelAllowed(prepared.entry,this.blinkReviewOptIn))throw Error('隔离眨眼审阅需要本次明确同意。');
   // Loading/exit can span a settings change. Apply the latest style before
   // disposing the visible model; installEightWeightMesh handles adapted meshes.
-  applyRenderStyle(prepared.gltf.scene,this.renderStyle);
+  applyRenderStyle(prepared.gltf.scene,this.renderStyle,{candidate:prepared.entry.runtimeCandidate});
   const blinkBinding=this.prepareBlinkBinding(prepared),standing=prepareCustomStanding(prepared.entry,prepared.gltf)?.clip;
   this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();
-  const old=this.root;this.mixer?.stopAllAction();if(old){old.removeFromParent();this.mixer?.uncacheRoot(old);disposeObject(old);}
+  const old=this.root;this.currentPrepared?.beret?.dispose();this.disposeReaction();this.mixer?.stopAllAction();if(old){old.removeFromParent();this.mixer?.uncacheRoot(old);disposeObject(old);}
   this.entry=standing?{...prepared.entry,defaultClip:standing.name,clips:{...prepared.entry.clips,[standing.name]:{duration:standing.duration,loop:true}}}:prepared.entry;
+  this.updatePortraitFill();
   if(this.loadController)this.loadController.outfit=this.entry.id;this.root=prepared.gltf.scene;this.root.updateMatrixWorld(true);this.walkExitHeld=false;
   this.authoredPose=[];this.root.traverse(node=>this.authoredPose.push({node,position:node.position.clone(),quaternion:node.quaternion.clone(),scale:node.scale.clone()}));
   // Parent transform leaves the supplied bind pose, authored bones and clips intact.
   const wrapper=new THREE.Group(),pivot=new THREE.Group(),centered=new THREE.Group();centered.add(this.root);const sourceCenter=sourceBounds.getCenter(new THREE.Vector3());centered.position.set(-sourceCenter.x,-sourceBounds.min.y,-sourceCenter.z);pivot.add(centered);wrapper.add(pivot);this.pivot=pivot;wrapper.scale.setScalar(2/size.y);wrapper.position.y=(this.entry.walking?.floorOffsetModelUnits||0)*wrapper.scale.y;this.basePosition=wrapper.position.clone();this.root=wrapper;this.scene.add(wrapper);wrapper.updateMatrixWorld(true);
   const box=new THREE.Box3().setFromObject(wrapper);this.bounds={size:box.getSize(new THREE.Vector3()),center:box.getCenter(new THREE.Vector3())};this.fitCamera();
   this.meshes=[];this.head=null;wrapper.traverse(object=>{if(object.isMesh)this.meshes.push(object);if(this.entry.importMode!=='static'&&object.isBone&&object.name==='J_Bip_C_Neck')this.head=object;});this.headBase=this.head?.quaternion.clone();
-  this.mixer=new THREE.AnimationMixer(wrapper);this.clips=new Map(prepared.gltf.animations.map(clip=>[clip.name,clip]));if(standing)this.clips.set(standing.name,standing);this.bodyActions=new Set();this.currentAction=null;this.garmentBinding=prepared.garmentBinding;
-  this.finished=()=>{if(!this.speechMotion&&!this.walkingMotion&&!this.walkExitHeld)this.play(this.entry.defaultClip||'Idle_Breathe')};this.mixer.addEventListener('finished',this.finished);this.play(this.entry.defaultClip||'Idle_Breathe');this.mixer.update(0);this.updateGarment(0);mouthWeights(this.meshes,this.entry.mouth,0);
+  this.mixer=new THREE.AnimationMixer(wrapper);this.clips=new Map(prepared.gltf.animations.map(clip=>[clip.name,clip]));if(standing)this.clips.set(standing.name,standing);this.bodyActions=new Set();this.currentAction=null;this.garmentBinding=prepared.garmentBinding;this.candidateControls=prepared.candidateControls;this.candidateBlink=this.candidateControls?.face.hasBlink?new BlinkScheduler():null;
+  this.finished=({action})=>{if(action===this.currentAction&&!this.speechMotion&&!this.walkingMotion&&!this.walkExitHeld)this.play(this.entry.defaultClip||'Idle_Breathe')};this.mixer.addEventListener('finished',this.finished);this.play(this.entry.defaultClip||'Idle_Breathe');this.mixer.update(0);this.candidateControls?.gaze.capture();this.candidateControls?.face.capture();this.updateGarment(0);if(!this.candidateControls)mouthWeights(this.meshes,this.entry.mouth,0);
   // Frame the real initial idle pose once, not the much wider skin bind pose.
   // This keeps the full body large and stable without refitting on every frame.
-  wrapper.updateMatrixWorld(true);const idleBox=new THREE.Box3().setFromObject(wrapper,true);
+  wrapper.updateMatrixWorld(true);
+  if(this.candidateControls)prepared.gltf.userData?.vrm?.springBoneManager?.setInitState();
+  const idleBox=new THREE.Box3().setFromObject(wrapper,true);
   const idleSize=idleBox.getSize(new THREE.Vector3());if([idleSize.x,idleSize.y,idleSize.z].every(Number.isFinite)&&idleSize.y>0)this.bounds={size:idleSize,center:idleBox.getCenter(new THREE.Vector3())};
-  this.container.dataset.modelReady=this.entry.id;this.gl.domElement.dataset.rendered='false';this.currentPrepared=prepared;if(this.sceneStage)this.setEnvironment();this.blinkBinding=blinkBinding;this.blinkScheduler=blinkBinding?new BlinkScheduler():null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;this.resetBlink();this.setView();this.onStatus({phase:'ready',message:this.entry.label+' · '+this.entry.version});
+  this.container.dataset.modelReady=this.entry.id;this.gl.domElement.dataset.rendered='false';this.currentPrepared=prepared;if(this.entry.runtimeCandidate)this.nextMicro=performance.now()+11000;if(this.sceneStage)this.setEnvironment();this.blinkBinding=blinkBinding;this.blinkScheduler=blinkBinding?new BlinkScheduler():null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;this.resetBlink();this.setView();this.onStatus({phase:'ready',message:this.entry.label+' · '+this.entry.version});
  }
  cancelLoad(){this.epoch++;this.loadController?.active?.abort();}
  async load(id,{animate=false}={}){const epoch=++this.epoch;let prepared;try{if(animate){if(!this.loadController){this.loadController=new AvatarPresentationController(this);this.loadController.outfit=this.entry?.id||null;}await this.loadController.changeOutfit(id,{reducedMotion:this.reducedMotion});return;}this.loadController?.active?.abort();prepared=await this.prepareOutfit(id);if(epoch!==this.epoch){this.disposePrepared(prepared);prepared=null;return;}await this.commitOutfit(prepared);prepared=null;}catch(error){if(prepared&&this.currentPrepared!==prepared)this.disposePrepared(prepared);if(epoch===this.epoch&&!this.disposed)this.onStatus({phase:'error',message:error.message})}}
  play(name){if(this.speechMotion||this.walkingMotion||this.walkExitHeld||this.entry?.importMode==='static'||!Object.hasOwn(this.entry?.clips||{},name))return false;const clip=this.clips?.get(name);if(!clip)return false;const next=this.mixer.clipAction(clip);(this.bodyActions ||= new Set()).add(next);if(this.currentAction===next&&next.isRunning())return true;next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1);const loop=this.entry.clips[name]?.loop===true;next.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);next.clampWhenFinished=!loop;next.play();if(this.currentAction)this.currentAction.crossFadeTo(next,.3,false);this.currentAction=next;return true;}
  setActivity(activity){if(this.activity===activity)return;this.activity=activity;this.resetBlink();if(activity==='thinking')this.play('Listen_Attentive');else this.play(this.entry?.defaultClip||'Idle_Breathe');}
  setGaze(gaze){this.gaze=gaze;}
- setVisible(value){this.visible=value!==false;}
+ get supportsAnimeReactions(){return Boolean(this.currentPrepared?.anime);}
+ reactToExpression(id,strength){if(this.disposed||this.visible===false||document.hidden||this.reducedMotion||this.walkingMotion||this.walkExitHeld||this.transitionAnimation)return false;const animation=this.currentPrepared?.anime;if(!animation?.playEmotion(id,strength))return false;this.replyExpression=null;this.reactionLegacyCue='';this.touchReaction=false;this.reactionTime=performance.now();return true;}
+ reactToTouch(id){
+  if(!this.entry||this.visible===false||document.hidden||this.reducedMotion||this.walkingMotion||this.walkExitHeld||this.transitionAnimation||this.currentPrepared?.beret?.active)return;
+  if(this.reactToExpression(id)){
+   this.touchReaction=true;
+   return;
+  }
+  if(this.activity!=='idle'||this.audioPlayer?.getSnapshot?.()?.playing||this.hasCompetingBodyAction())return;
+  const clip={shy_talking:'Think_Downcast',happy:'Nod_Subtle',pout:'Look_Left',angry:'Reject_Gentle'}[id];
+  if(clip&&!this.play(clip)&&id==='angry')this.play('Look_Left');
+ }
+ reactToReply(text){
+  const cue=conversationExpression(text);
+  if(this.currentPrepared?.anime){
+   const reaction=animeReplyCue(text);
+   if(reaction&&this.reactToExpression(reaction))this.reactionLegacyCue=cue;
+   return;
+  }
+  this.replyExpression=cue?{cue,started:performance.now()}:null;
+ }
+ cancelReaction(){
+  this.currentPrepared?.anime?.stopEmotion();
+  this.currentPrepared?.expression?.restore();
+  this.replyExpression=null;this.reactionLegacyCue='';this.reactionTime=undefined;this.touchReaction=false;
+  delete this.container.dataset.animeReaction;delete this.container.dataset.conversationExpression;
+ }
+ disposeReaction(){this.cancelReaction();this.currentPrepared?.anime?.dispose();}
+ setVisible(value){this.visible=value!==false;if(!this.visible)this.cancelReaction();}
  setSceneStage(value){const next=value===true;if(this.sceneStage===next)return;this.sceneStage=next;this.setEnvironment();this.fitCamera();}
  setSceneWeather(value){this.sceneWeather=value;this.setEnvironment();}
  setEnvironment({id=this.environmentId,timeOfDay=this.timeOfDay}={}){
@@ -126,14 +198,17 @@ export class GlbAvatarRenderer{
   this.ambient.intensity=light.ambient*preset.ambient*2;this.ambient.color.set(light.ambientColor);this.ambient.groundColor.set(light.groundColor);
   this.key.intensity=light.intensity*preset.key;this.key.color.set(light.color);this.key.position.set(...light.position);
  }
- setRenderStyle(style){this.renderStyle=['natural','toon'].includes(style)?style:'lit';if(this.container?.dataset)this.container.dataset.renderStyle=this.renderStyle;applyRenderStyle(this.root,this.renderStyle);}
+ updatePortraitFill(){
+  if(this.portraitFill)this.portraitFill.visible=Boolean(this.entry?.runtimeCandidate&&this.renderStyle==='lit');
+ }
+ setRenderStyle(style){this.renderStyle=['natural','toon'].includes(style)?style:'lit';if(this.container?.dataset)this.container.dataset.renderStyle=this.renderStyle;this.updatePortraitFill();this.currentPrepared?.anime?.restore();applyRenderStyle(this.root,this.renderStyle,{candidate:this.entry?.runtimeCandidate});}
 
- setReducedMotion(value){this.reducedMotion=value;if(value){this.resetBlink();this.stopSpeechMotion(true);this.resetTransition({finish:true});}}
- clear(){this.disposeBlink();this.disposeGarment();this.stopSpeechMotion(true);this.speechDirector?.reset();this.epoch++;this.loadController?.active?.abort();if(this.loadController)this.loadController.outfit=null;this.resetTransition();this.mixer?.stopAllAction();if(this.root){this.root.removeFromParent();this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.root=null;this.pivot=null;this.authoredPose=[];this.basePosition=null;this.entry=null;this.currentPrepared=null;this.mixer=null;this.clips=null;this.bodyActions?.clear();this.currentAction=null;this.head=null;this.headBase=null;this.bounds=null;this.meshes=[];delete this.container.dataset.modelReady;this.gl.domElement.dataset.rendered='false';this.onStatus({phase:'idle',message:''});}
- restoreAuthoredPose(){for(const item of this.authoredPose||[]){item.node.position.copy(item.position);item.node.quaternion.copy(item.quaternion);item.node.scale.copy(item.scale)}if(this.head)this.headBase=this.head.quaternion.clone();}
+ setReducedMotion(value){this.reducedMotion=value;if(value){this.cancelReaction();this.resetBlink();this.stopSpeechMotion(true);this.resetTransition({finish:true});this.cancelBeret();this.candidateControls?.gaze.restore();this.candidateControls?.face.restore();if(this.candidateControls&&this.hasCompetingBodyAction()){this.mixer.stopAllAction();this.restoreAuthoredPose();this.currentAction=null;this.play(this.entry.defaultClip||'Idle_Breathe');this.mixer.update(0);this.candidateControls.gaze.capture();this.candidateControls.face.capture();}}}
+ clear(){this.disposeBlink();this.disposeGarment();this.currentPrepared?.beret?.dispose();this.disposeReaction();this.stopSpeechMotion(true);this.speechDirector?.reset();this.epoch++;this.loadController?.active?.abort();if(this.loadController)this.loadController.outfit=null;this.resetTransition();this.mixer?.stopAllAction();if(this.root){this.root.removeFromParent();this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.root=null;this.pivot=null;this.authoredPose=[];this.basePosition=null;this.entry=null;this.currentPrepared=null;this.mixer=null;this.clips=null;this.bodyActions?.clear();this.currentAction=null;this.head=null;this.headBase=null;this.bounds=null;this.meshes=[];delete this.container.dataset.modelReady;this.gl.domElement.dataset.rendered='false';this.onStatus({phase:'idle',message:''});}
+ restoreAuthoredPose(){for(const item of this.authoredPose||[]){item.node.position.copy(item.position);item.node.quaternion.copy(item.quaternion);item.node.scale.copy(item.scale)}if(this.head)this.headBase=this.head.quaternion.clone();this.candidateControls?.gaze.capture();}
  resetTransition({finish=false}={}){this.transitionAnimation?.cancel();this.transitionAnimation=null;this.container.style.opacity='';this.container.style.transform='';const motion=this.walkingMotion;this.walkingMotion=null;if(motion){clearTimeout(motion.timer);motion.signal?.removeEventListener('abort',motion.abort)}if(motion||this.walkExitHeld){this.walkExitHeld=false;this.mixer?.stopAllAction();this.restoreAuthoredPose();this.currentAction=null;if(this.root){this.root.visible=true;this.root.position.copy(this.basePosition);this.pivot.rotation.y=THREE.MathUtils.degToRad(this.yaw||0)}this.play(this.activity==='thinking'?'Listen_Attentive':this.entry?.defaultClip||'Idle_Breathe');this.fitCamera();}if(motion){this.onStatus?.({phase:'ready',message:this.entry?.label||''});this.container.dataset.transitionPhase=finish?'skipped':'cancelled';if(finish)motion.resolve();else motion.reject(motion.signal?.reason||new DOMException('行走过渡已取消','AbortError'));}}
  beginWalking(kind,signal){
-  this.resetBlink();this.stopSpeechMotion(true);this.resetTransition();signal?.throwIfAborted();if(this.reducedMotion)return Promise.resolve();
+  this.cancelReaction();this.resetBlink();this.stopSpeechMotion(true);this.resetTransition();signal?.throwIfAborted();if(this.reducedMotion)return Promise.resolve();
   const contract=walkingContract(this.entry,this.clips),idleClip=this.clips.get(this.entry.defaultClip||'Idle_Breathe');if(!contract||!idleClip)throw Error('该版本没有完整的行走与待机动作。');
   const plan=makeWalkingPlan({contract,kind,scale:this.root.scale.y,distance:travelDistance(this.bounds,this.camera),yaw:THREE.MathUtils.degToRad(this.yaw||0)});
   this.mixer.stopAllAction();this.restoreAuthoredPose();this.currentAction=null;
@@ -149,8 +224,8 @@ export class GlbAvatarRenderer{
  setBlinkReviewConsent(value){this.blinkReviewOptIn=value===true;if(!this.blinkReviewOptIn){this.cancelLoad();if(this.entry?.reviewOnly)this.clear();else this.resetBlink();}}
  prepareBlinkBinding(prepared){const contract=prepared.entry.blinkContract;if(!contract)return null;const meshes=[];prepared.gltf.scene.traverse(node=>{if(node.isMesh)meshes.push(node)});const binding=prepared.entry.reviewOnly?bindIsolatedReviewBlink(meshes,contract,prepared.entry.sha256,{reviewOptIn:this.blinkReviewOptIn}):bindValidatedBlink(meshes,contract,prepared.entry.sha256);if(!binding)throw Error('眨眼资产或通道合同尚未通过当前模式校验。');return binding;}
  setBlinkDiagnosticClosure(value){if(!reviewBlinkModelAllowed(this.entry,this.blinkReviewOptIn)||!this.blinkBinding)return false;if(value===null){this.resetBlink();return true;}if(!Number.isFinite(value)||value<0||value>1)return false;this.blinkDiagnostic=value;this.blinkBinding.apply(value);return true;}
- resetBlink(){this.blinkDiagnostic=null;this.blinkBinding?.clear();this.blinkScheduler?.stop();if(this.container?.dataset)this.container.dataset.blinkWeight='0';}
- disposeBlink(){this.blinkBinding?.dispose();this.blinkScheduler?.dispose();this.blinkBinding=null;this.blinkScheduler=null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;if(this.container?.dataset)delete this.container.dataset.blinkWeight;}
+ resetBlink(){this.blinkDiagnostic=null;this.blinkBinding?.clear();this.blinkScheduler?.stop();this.candidateBlink?.stop();if(this.container?.dataset)this.container.dataset.blinkWeight='0';}
+ disposeBlink(){this.blinkBinding?.dispose();this.blinkScheduler?.dispose();this.candidateBlink?.dispose();this.candidateBlink=null;this.candidateControls=null;this.blinkBinding=null;this.blinkScheduler=null;this.blinkAudioToken=null;this.blinkAudioPlaying=false;if(this.container?.dataset){delete this.container.dataset.blinkWeight;delete this.container.dataset.candidateClip;delete this.container.dataset.candidateClipTime;delete this.container.dataset.beretActive;delete this.container.dataset.beretLift;}}
  updateBlink(now,snapshot,{visible=typeof document==='undefined'||!document.hidden}={}){
   if(!this.blinkBinding||!this.blinkScheduler)return;
   const playing=snapshot?.playing===true;if(playing!==this.blinkAudioPlaying||playing&&snapshot.token!==this.blinkAudioToken){this.resetBlink();this.blinkAudioPlaying=playing;this.blinkAudioToken=snapshot?.token;}
@@ -182,20 +257,60 @@ export class GlbAvatarRenderer{
   }else if(this.speechMotion){const motion=this.speechMotion;motion.releasing=true;motion.weight=Math.max(0,motion.weight-Math.max(0,dt)*2.5);motion.action.setEffectiveWeight(motion.weight);motion.idle.setEffectiveWeight(1-motion.weight);if(!motion.weight)this.stopSpeechMotion(true);}
  }
  renderFrame(now){if(this.disposed)return;this.frame=requestAnimationFrame(this.renderFrame);const elapsed=now-this.last;if(elapsed<(document.hidden?200:this.reducedMotion?100:1000/30))return;this.last=now;const dt=Math.min(elapsed/1000,.1);
+  const candidate=this.candidateControls,beret=this.currentPrepared?.beret,expression=this.currentPrepared?.expression,anime=this.currentPrepared?.anime;
+  anime?.restore();expression?.restore();beret?.restoreFace();
   const walking=this.walkingMotion;if(walking)this.advanceWalking(dt);
   const snapshot=this.audioPlayer?.getSnapshot?.();this.updateSpeechMotion(snapshot,dt);
   const bodyClip=this.currentAction?.getClip?.().name,headAvailable=!snapshot?.playing&&!walking&&!this.speechMotion&&(!bodyClip||bodyClip===(this.entry?.defaultClip||'Idle_Breathe'));this.gazeBlend=Math.max(0,Math.min(1,(this.gazeBlend??1)+(headAvailable?dt/.2:-dt/.08)));
+  candidate?.gaze.restore();candidate?.face.restore();
   if(this.head&&this.headBase)this.head.quaternion.copy(this.headBase);
-  this.mixer?.update(this.reducedMotion?0:dt);if(this.head){this.headBase.copy(this.head.quaternion);if(!this.reducedMotion&&!walking&&!this.speechMotion){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-3,Math.min(3,this.gaze?.headPitch||0))),this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-4,Math.min(4,this.gaze?.headYaw||0))),0));this.head.quaternion.multiply(q);}}
-  if(!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.speechMotion&&!snapshot?.playing&&this.activity==='idle'&&now>=this.nextMicro){this.nextMicro=now+16000+Math.random()*12000;const clips=microClipNames(this.entry,this.clips);if(clips.length)this.play(clips[Math.floor(Math.random()*clips.length)]);}
+  // Candidate clips are authored in seconds. Keep their clock independent of
+  // the smaller step used for spring simulation when the renderer drops frames.
+  const mixerDt=candidate&&!document.hidden&&!walking?Math.min(elapsed/1000,.5):dt;
+  this.mixer?.update(this.reducedMotion?0:mixerDt);if(this.head){this.headBase.copy(this.head.quaternion);if(!this.reducedMotion&&!walking&&!this.speechMotion){const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-3,Math.min(3,this.gaze?.headPitch||0))),this.gazeBlend*THREE.MathUtils.degToRad(Math.max(-4,Math.min(4,this.gaze?.headYaw||0))),0));this.head.quaternion.multiply(q);}}
+  const visible=!document.hidden&&this.visible!==false;
+  const candidateActive=visible&&!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.transitionAnimation;
+  candidate?.gaze.capture();candidate?.face.capture();
+  if(candidateActive){
+   const reaction=beret?.update(dt);
+   if(reaction?.active)candidate?.gaze.apply(reaction,1,{hat:true});
+   else candidate?.gaze.apply(this.gaze||{},this.gazeBlend);
+  }else{
+   if(beret?.active)beret.cancel();
+   if(visible&&this.reducedMotion&&headAvailable&&!this.walkExitHeld&&!this.transitionAnimation){
+    candidate?.gaze.apply({},1);
+   }
+  }
+  if(!this.reducedMotion&&!walking&&!this.walkExitHeld&&!this.speechMotion&&!snapshot?.playing&&this.activity==='idle'&&!this.hasCompetingBodyAction()&&!beret?.active&&now>=this.nextMicro){this.nextMicro=now+(candidate?14000:16000)+Math.random()*(candidate?9000:12000);const clips=microClipNames(this.entry,this.clips);if(clips.length)this.play(clips[Math.floor(Math.random()*clips.length)]);}
   this.updateGarment(dt,{visible:!document.hidden});
-  if(!document.hidden&&this.visible!==false&&!this.reducedMotion)this.currentPrepared?.gltf.userData?.vrm?.update(dt);
-  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));this.updateBlink(now,snapshot);this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(this.visible!==false&&!document.hidden&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
+  if(visible&&!this.reducedMotion)this.currentPrepared?.gltf.userData?.vrm?.update(dt);
+  if(candidateActive&&beret?.active)beret.positionHat();
+  const level=this.reducedMotion?0:snapshot?(snapshot.playing&&!snapshot.paused?snapshot.level:0):this.audioPlayer?.getLevel?.()||0;
+  if(candidate){
+   const {dataset}=this.container;
+   dataset.candidateClip=this.currentAction?.getClip().name||'';
+   dataset.candidateClipTime=String(this.currentAction?.time||0);
+   if(beret){dataset.beretActive=String(beret.active);dataset.beretLift=String(beret.lift||0);}
+   const closure=this.candidateBlink?.update(now,{enabled:candidateActive,paused:snapshot?.paused})??0;
+   candidate.face.apply([this.currentAction,this.speechMotion?.action,...(this.bodyActions||[])].filter(Boolean),level,closure);
+  }else mouthWeights(this.meshes,this.entry?.mouth,level*(this.entry?.mouth?.recommended_dialogue_range?.[1]||0));
+  const cue=this.replyExpression;
+  if(cue&&now-cue.started>2100)this.replyExpression=null;
+  if(candidateActive)beret?.applyFace(this.gaze?.eyeY);
+  this.updateBlink(now,snapshot);
+  const reaction=candidateActive&&this.reactionTime!==undefined&&anime?.update(Math.max(0,now-this.reactionTime)/1000,{speaking:snapshot?.playing&&!snapshot?.paused||level>.015,camera:this.camera});
+  this.reactionTime=reaction?now:undefined;
+  if(!reaction)this.touchReaction=false;
+  const showCue=candidateActive&&!reaction&&!beret?.active&&cue&&expression?.apply(cue.cue,(now-cue.started)/1000);
+  if(reaction)this.container.dataset.animeReaction=reaction;else delete this.container.dataset.animeReaction;
+  const conversationCue=showCue?cue.cue:reaction&&this.reactionLegacyCue;
+  if(conversationCue)this.container.dataset.conversationExpression=conversationCue;else delete this.container.dataset.conversationExpression;
+  this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(visible&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
  }
  async exit({signal}={}){if(this.entry?.walking)return this.beginWalking('exit',signal);await this.transition([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-15%)'}],signal,true);}
  async enter({signal}={}){if(this.entry?.walking)return this.beginWalking('enter',signal);await this.transition([{opacity:0,transform:'translateX(15%)'},{opacity:1,transform:'translateX(0)'}],signal);}
  async transition(frames,signal,retain=false){
-  this.resetBlink();this.stopSpeechMotion(true);this.resetTransition();this.container.dataset.transitionMode='fade';if(this.reducedMotion)return;signal?.throwIfAborted();
+  this.cancelReaction();this.resetBlink();this.stopSpeechMotion(true);this.resetTransition();this.container.dataset.transitionMode='fade';if(this.reducedMotion)return;signal?.throwIfAborted();
   const animation=this.container.animate(frames,{duration:240,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'});this.transitionAnimation=animation;
   const abort=()=>this.resetTransition();signal?.addEventListener('abort',abort,{once:true});
   try{await animation.finished;signal?.throwIfAborted();if(this.transitionAnimation===animation&&retain){const last=frames[frames.length-1];this.container.style.opacity=last.opacity;this.container.style.transform=last.transform;}}
@@ -204,5 +319,5 @@ export class GlbAvatarRenderer{
  }
 
  async greet(){if(!this.reducedMotion)this.play('Nod_Subtle');}
- dispose(){this.disposeBlink();this.disposeGarment();if(this.blinkVisibility)document.removeEventListener('visibilitychange',this.blinkVisibility);this.stopSpeechMotion(true);this.speechDirector?.reset();this.loadController?.dispose();this.key?.shadow?.dispose();this.resetTransition();this.disposed=true;this.epoch++;cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.mixer?.stopAllAction();if(this.root){this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.gl.domElement.removeEventListener('webglcontextlost',this.contextLost);this.authoredPose=[];this.basePosition=null;this.bodyActions?.clear();this.gl.dispose();this.gl.domElement.remove();}
+ dispose(){this.disposeBlink();this.disposeGarment();this.currentPrepared?.beret?.dispose();this.disposeReaction();if(this.blinkVisibility)document.removeEventListener('visibilitychange',this.blinkVisibility);this.stopSpeechMotion(true);this.speechDirector?.reset();this.loadController?.dispose();this.key?.shadow?.dispose();this.resetTransition();this.disposed=true;this.epoch++;cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.mixer?.stopAllAction();if(this.root){this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.gl.domElement.removeEventListener('webglcontextlost',this.contextLost);this.authoredPose=[];this.basePosition=null;this.bodyActions?.clear();this.gl.dispose();this.gl.domElement.remove();}
 }

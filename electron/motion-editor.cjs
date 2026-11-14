@@ -34,10 +34,10 @@ function motionEditorFile(url, characterRoot) {
   return model ? path.join(characterRoot, model[1]) : null;
 }
 
-function createMotionEditor({ BrowserWindow, ipcMain, net, protocol, screen, session, development, getCompanionModel, getUpdater }) {
+function createMotionEditor({ BrowserWindow, ipcMain, net, protocol, screen, session, development, getCompanionModel, getUpdater, additionalSchemes = [] }) {
   protocol?.registerSchemesAsPrivileged([{
     scheme, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
-  }]);
+  }, ...additionalSchemes]);
   const characterRoot = path.join(appRoot, development ? 'public' : 'dist', 'characters');
   const windows = new Map();
   let partition;

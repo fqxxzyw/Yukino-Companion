@@ -104,8 +104,8 @@ function moveDraggedWindow(win, drag, screen, finalInputPoint=null, body=drag.bo
 
 
 class CompanionManager {
-  constructor({ electron, dataDir, onOpenMain = () => {}, onQuit = () => electron.app.quit(), onChange = () => {}, onCloseRequested = () => {}, onError = () => {}, onOpenSettings = () => {}, onChat = async () => false, onChatStop = () => {}, onVision = () => {}, onVisionStop = () => {}, onModelCatalog = async()=>({models:[]}), onUse=()=>{}, onReminder=()=>{}, onProactive=async()=>{throw Error('主动生成尚未准备');}, onModelData = async () => { throw Error('人物模型数据尚未准备好'); } }) {
-    this.e = electron; this.dataDir = dataDir; this.onOpenMain = onOpenMain; this.onQuit = onQuit; this.onChange = onChange; this.onCloseRequested = onCloseRequested; this.onError = onError; this.onOpenSettings = onOpenSettings; this.onChat=onChat; this.onChatStop=onChatStop; this.onVision=onVision;this.onVisionStop=onVisionStop;this.visionActive=false;this.onModelData=onModelData;this.onModelCatalog=onModelCatalog;this.onUse=onUse;this.onReminder=onReminder;this.reminders=new CompanionReminderPolicy();this.character={id:'yukino',name:'雪之下雪乃',modelId:''};
+  constructor({ electron, dataDir, onOpenMain = () => {}, onQuit = () => electron.app.quit(), onChange = () => {}, onCloseRequested = () => {}, onError = () => {}, onOpenSettings = () => {}, onChat = async () => false, onChatStop = () => {}, onVision = () => {}, onVisionStop = () => {}, onModelCatalog = async()=>({models:[]}), onLive2DViewer=async()=>null, onModelActionData = async()=>{throw Error('人物动作数据尚未准备好');}, onUse=()=>{}, onReminder=()=>{}, onProactive=async()=>{throw Error('主动生成尚未准备');}, onModelData = async () => { throw Error('人物模型数据尚未准备好'); } }) {
+    this.e = electron; this.dataDir = dataDir; this.onOpenMain = onOpenMain; this.onQuit = onQuit; this.onChange = onChange; this.onCloseRequested = onCloseRequested; this.onError = onError; this.onOpenSettings = onOpenSettings; this.onChat=onChat; this.onChatStop=onChatStop; this.onVision=onVision;this.onVisionStop=onVisionStop;this.visionActive=false;this.onModelData=onModelData;this.onModelActionData=onModelActionData;this.onModelCatalog=onModelCatalog;this.onLive2DViewer=onLive2DViewer;this.onUse=onUse;this.onReminder=onReminder;this.reminders=new CompanionReminderPolicy();this.character={id:'yukino',name:'雪之下雪乃',modelId:''};
     this.quotes = new QuotePicker(petQuotes); this.petMood={affection:12,annoyance:0,lastInteraction:Date.now()};
     this.preferences = { ...DEFAULTS, positions: {} }; this.windows = new Map(); this.menus = new Map(); this.chatBusy=false; this.listeners = [];
     this.usage = new UsageTracker({ file: path.join(dataDir, 'companionship.json') });
@@ -125,7 +125,7 @@ class CompanionManager {
       }
     }
     await this.setResourceRoot(path.join(__dirname,'companion-view/assets'), {notify:false});
-    this.startupAvailable=['win32','darwin'].includes(process.platform)&&!!this.e.app.isPackaged&&typeof this.e.app.setLoginItemSettings==='function';
+    this.startupAvailable=!process.env.YUKINO_PORTABLE_LAUNCHER&&['win32','darwin'].includes(process.platform)&&!!this.e.app.isPackaged&&typeof this.e.app.setLoginItemSettings==='function';
     if(this.startupAvailable)this.preferences.startup=!!this.e.app.getLoginItemSettings().openAtLogin;
     const { powerMonitor, ipcMain, screen } = this.e;
     const listen = (emitter, name, fn) => { emitter.on(name, fn); this.listeners.push(() => emitter.removeListener(name, fn)); };
@@ -267,11 +267,11 @@ class CompanionManager {
     await this.persist(); this.emit(); return this.getState();
   }
   setCharacter(value={}) {
-    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,followTime:value.presentation.followTime!==false,fixedHour:typeof value.presentation.fixedHour==='number'&&Number.isFinite(value.presentation.fixedHour)?Math.min(23+59/60,Math.max(0,value.presentation.fixedHour)):14,renderStyle:value.presentation.renderStyle,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
+    const next={id:typeof value.id==='string'?value.id.slice(0,120):'yukino',name:typeof value.name==='string'?value.name.slice(0,120):'雪之下雪乃',modelId:typeof value.modelId==='string'?value.modelId.slice(0,200):'',...(value.presentation&&typeof value.presentation==='object'?{presentation:{scene:value.presentation.scene,timeOfDay:value.presentation.timeOfDay,followTime:value.presentation.followTime!==false,fixedHour:typeof value.presentation.fixedHour==='number'&&Number.isFinite(value.presentation.fixedHour)?Math.min(23+59/60,Math.max(0,value.presentation.fixedHour)):14,renderStyle:value.presentation.renderStyle,avatarRenderer:value.id==='yukino'&&value.presentation.avatarRenderer==='live2d'?'live2d':'3d',gaze:value.presentation.gaze!==false,daylightLocation:daylightLocation(value.presentation.daylightLocation)}}:{})};
     // A conversation belongs to the character identity, not the currently worn model.
     // Clear before broadcasting the new identity so no window receives its predecessor's reply.
     if(next.id!==this.character.id){this.cancelProactive();this.walkFraction={x:0,y:0};this.reply=null;this.updateModelReplyLayout();this.setMouthLevel(0);this.clearSpeechSnapshot();}
-    if(next.id!==this.character.id||next.modelId!==this.character.modelId)this.modelFrame=null;
+    if(next.id!==this.character.id||next.modelId!==this.character.modelId||next.presentation?.avatarRenderer!==this.character.presentation?.avatarRenderer)this.modelFrame=null;
     this.character=next;
     for(const [kind,win] of this.windows)this.sendState(win,kind);
     for(const [kind,win] of this.menus)this.sendState(win,kind,true);
@@ -302,6 +302,11 @@ class CompanionManager {
     this.updateModelReplyLayout();
     for (const [kind, win] of this.windows) { moved=this.keepReplyVisible(win,kind)||moved; this.sendState(win, kind); }
     if(moved)this.persist().catch(this.onError);
+  }
+  showAvatarTouch(feedback){
+    const win=this.windows.get('model');
+    if(win&&!win.isDestroyed()&&win.isVisible()&&!win.handoffSuppressed&&!this.preferences.mouseThrough&&!this.preferences.interactionPaused&&!this.preferences.quietMode&&!this.pauses.size&&this.modelFrame?.ready&&this.modelFrame.win===win&&feedback?.characterId===this.character.id&&feedback.modelId===this.character.modelId)
+      win.webContents.send('companion-action',{name:'avatar-touch-feedback',feedback});
   }
   // Body-only clamping is still used without a reply. Once a reply is visible,
   // protect its controls too, including replies arriving after an edge drag.
@@ -428,6 +433,14 @@ class CompanionManager {
       if(this.windows.get('pet')!==win||win.isDestroyed()||this.preferences.petRenderer!=='video-preview'||this.character.id!=='yukino')throw Error('连续动画预览选择已改变。');
       return pack;
     }
+    if(action==='live2d-viewer'){if(kind!=='model'||this.character.presentation?.avatarRenderer!=='live2d')throw Error('仅雪乃人物窗口可读取 Live2D');return this.onLive2DViewer();}
+    if(action==='avatar-touch'){
+      if(isMenu||kind!=='model'||!win.isVisible()||win.handoffSuppressed||this.drag?.kind==='model'||this.character.id!=='yukino'||this.preferences.mouseThrough||this.preferences.interactionPaused||this.preferences.quietMode||this.pauses.size)return false;
+      if(!this.modelFrame?.ready||this.modelFrame.win!==win||this.modelFrame.id!==this.character.modelId||payload?.modelId!==this.character.modelId)return false;
+      if(typeof payload?.id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(payload.id)||!['head','face','near'].includes(payload.zone)||!(payload.gesture==='tap'||payload.zone==='head'&&payload.gesture==='stroke'))return false;
+      this.onUse({touch:{id:payload.id,zone:payload.zone,gesture:payload.gesture,modelId:this.character.modelId,voice:!this.speechBusy&&!this.chatBusy},characterId:this.character.id});
+      return true;
+    }
     if(action==='model-character'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型配置');return {...this.character};}
     if(action==='model-catalog'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型目录');return this.onModelCatalog();}
     if(action==='model-view'){
@@ -436,6 +449,7 @@ class CompanionManager {
       this.desktopModelView={win,id:this.character.modelId,rect:{...rect},view:{zoom:view.zoom,yaw:view.yaw}};return true;
     }
     if(action==='model-data'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型资源');const id=payload===undefined?this.character.modelId:payload;if(typeof id!=='string'||!id||id!==this.character.modelId)throw Error('请选择当前人物的模型资源');this.modelFrame=null;return this.onModelData(id);}
+    if(action==='model-action-data'){if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('仅人物窗口可读取当前模型的动作');return this.onModelActionData(payload);}
     if(action==='model-frame'||action==='model-frame-error'){
       if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('无效的人物渲染状态');
       this.modelFrame={win,id:payload,ready:action==='model-frame'};return true;

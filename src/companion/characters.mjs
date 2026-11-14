@@ -23,7 +23,7 @@ export function rememberCharacterModel(character,modelId){
 }
 export function characterWardrobe(character,models=[]){
  const ids=new Set([...(Array.isArray(character?.skinIds)?character.skinIds:[]),character?.modelId].filter(Boolean));
- return models.filter(model=>ids.has(model.id)||(character?.id===DEFAULT_CHARACTER_ID&&/^yukino-0[1-7](?:-|$)/.test(model.id)));
+ return models.filter(model=>ids.has(model.id)||(character?.id===DEFAULT_CHARACTER_ID&&(model.runtimeCandidate||/^yukino-0[1-7](?:-|$)/.test(model.id))));
 }
 export function patchCharacterState(state,patch){
  const changed=Object.fromEntries(fields.filter(key=>Object.hasOwn(patch,key)).map(key=>[key,patch[key]]));

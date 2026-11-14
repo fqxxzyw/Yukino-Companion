@@ -34,7 +34,7 @@ function rested(value, now) {
 export function advanceRelationship(value,{type,id,now=Date.now()}={}) {
   now=safeNow(now);
   const out=rested(value,now);
-  if(!['message','checkin','kindness','boundary'].includes(type))return out;
+  if(!['message','checkin','kindness','boundary','touch-boundary'].includes(type))return out;
   if(typeof id!=='string'||!id||id.length>150)throw Error('互动记录需要唯一编号');
   if(out.recentEvents.includes(id))return out;
   out.recentEvents=[...out.recentEvents,id].slice(-100);
@@ -49,6 +49,8 @@ export function advanceRelationship(value,{type,id,now=Date.now()}={}) {
     // Only an explicit, reviewable boundary event may deduct affection.
     // This module deliberately has no keyword sentiment classifier.
     out.affection=clamp(out.affection-2,35);out.stamina=clamp(out.stamina-4,100);out.boundaryUntil=now+5*60000;
+  }else if(type==='touch-boundary'){
+    out.affection=clamp(out.affection-1,35);
   }else if(type==='checkin'&&today>out.lastCheckin&&now>=out.lastCheckinAt){
     out.lastCheckin=today;out.lastCheckinAt=now;out.checkinDays+=1;out.affection=clamp(out.affection+2,35);
   }

@@ -6,54 +6,111 @@ import {useReducedMotion} from './ui/use-reduced-motion.mjs';
 import {useLocalDaylight} from './ui/use-local-daylight.mjs';
 import {sceneTimeFor} from './ui/scene-time.mjs';
 import {GlbAvatarRenderer} from './ui/model-runtime.mjs';
+import {createLive2DView} from './ui/live2d-view.mjs';
+import {startAvatarGesture,moveAvatarGesture,finishAvatarGesture,playTouchReaction} from './ui/avatar-touch-view.mjs';
+import {avatarRendererFor,gazeTarget,smoothGaze} from './ui/avatar-presentation.mjs';
 import {createDesktopModelScale} from './ui/desktop-model-scale.mjs';
 import {friendlyError} from './ui/errors.mjs';
 import catalog from '../resources/character-models.json';
 import './model-window.css';
 import './ui/control-motion.css';
 
+const neutralGaze=gazeTarget(0,0,0,0,false);
+
 function ModelWindow(){
  const host=useRef(null),renderer=useRef(null),mouth=useRef(0),speechClock=useRef(new RemoteSpeechClock());
- const drag=useRef(null),loadedIdentity=useRef(null),orbit=useRef(null),hit=useRef({last:null,time:0}),through=useRef(false),scaleControl=useRef(null),modelIdRef=useRef(null);
- const replyBody=useRef(null),replyPinned=useRef(true),replyId=useRef(null);
- const [state,setState]=useState({character:{},preferences:{}}),[status,setStatus]=useState({phase:'idle'});
+ const drag=useRef(null),loadedIdentity=useRef(null),orbit=useRef(null),hatDrag=useRef(null),hit=useRef({last:null,time:0}),through=useRef(false),scaleControl=useRef(null),modelIdRef=useRef(null);
+ const replyBody=useRef(null),replyPinned=useRef(true),replyId=useRef(null),gazeAim=useRef(neutralGaze),gazeEnabled=useRef(true);
+ const [state,setState]=useState({character:{},preferences:{}}),[status,setStatus]=useState({phase:'idle'}),[rendererVersion,bumpRenderer]=useState(0);
+ const [touchFeedback,setTouchFeedback]=useState(null),lastReactionReply=useRef(null);
  const [text,setText]=useState(''),[error,setError]=useState(null),[view,setView]=useState({zoom:1,yaw:0}),[showLatest,setShowLatest]=useState(false),[loadAttempt,setLoadAttempt]=useState(0);
  const api=window.companion,call=(action,payload)=>api?.call(action,payload)||Promise.resolve(false);
- modelIdRef.current=state.character?.modelId;
+ const modelId=state.character?.modelId,live2d=avatarRendererFor(state.character?.presentation,state.character?.id)==='live2d',hasAvatar=live2d||Boolean(modelId);
+ modelIdRef.current=modelId;
  const reportStatus=value=>{setStatus(value);if(value.phase==='error'&&modelIdRef.current)call('model-frame-error',modelIdRef.current).catch(()=>{})};
  through.current=state.preferences?.mouseThrough===true;
+ gazeEnabled.current=state.character?.presentation?.gaze!==false;
  const reply=state.preferences?.showBubbles===false||!state.reply?'':state.preferences?.bubbleLanguage==='ja'?(state.reply.ja||(state.reply.zh?`中文：${state.reply.zh}`:'')):state.preferences?.bubbleLanguage==='both'?[state.reply.zh,state.reply.ja].filter(Boolean).join('\n'):(state.reply.zh||(state.reply.ja?`中文暂不可用 · 日文原文：\n${state.reply.ja}`:''));
  const reducedMotion=useReducedMotion(state.preferences?.animation===false);
  const daylightHour=sceneTimeFor(state.character?.presentation,useLocalDaylight());
 
  useEffect(()=>{const control=createDesktopModelScale({save:scale=>call('prefs',{scale}),onError:error=>setError({kind:'operation',message:friendlyError(error)})});scaleControl.current=control;return()=>{control.dispose();scaleControl.current=null}},[]);
  useEffect(()=>{scaleControl.current?.sync(state.preferences?.scale)},[state.preferences?.scale]);
- useEffect(()=>{renderer.current?.setView(view)},[view,state.character?.modelId]);
+ useEffect(()=>{renderer.current?.setView?.(view)},[view,modelId,rendererVersion]);
  useEffect(()=>{const element=host.current;if(!element||!state.character?.modelId)return;const report=()=>{const rect=element.getBoundingClientRect();if(rect.width>0&&rect.height>0)call('model-view',{rect:{x:rect.left,y:rect.top,width:rect.width,height:rect.height},view}).catch(()=>{});};const observer=typeof ResizeObserver==='function'?new ResizeObserver(report):null;observer?.observe(element);report();return()=>observer?.disconnect()},[state.character?.modelId,view.zoom,view.yaw]);
  useEffect(()=>{const next=state.handoffModelView;if(next&&Number.isFinite(next.zoom)&&Number.isFinite(next.yaw))setView({zoom:next.zoom,yaw:next.yaw});},[state.handoffModelView?.sequence]);
  useEffect(()=>{const element=host.current;if(!element)return;const wheel=event=>{event.preventDefault();if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;scaleControl.current?.change(-event.deltaY*.0015)};element.addEventListener('wheel',wheel,{passive:false});return()=>element.removeEventListener('wheel',wheel)},[]);
- useEffect(()=>{const off=api?.onState(setState),actionOff=api?.onAction?.(value=>{if(value.name==='chat-error')setError({kind:value.kind||'chat',message:friendlyError(value.message)});else if(value.name==='capability-recovered')setError(current=>current?.kind===value.kind?null:current)}),mouthOff=api?.onMouth?.(value=>{mouth.current=value}),speechOff=api?.onSpeech?.(value=>{if(value)speechClock.current.receive(value);else{speechClock.current.clear();renderer.current?.resetSpeechClock?.()}});call('ready');return()=>{off?.();actionOff?.();mouthOff?.();speechOff?.();speechClock.current.clear()}},[]);
- useEffect(()=>{try{renderer.current=new GlbAvatarRenderer(host.current,{renderEnvironment:false,catalog:catalog.models,api:{characterModelData:id=>call('model-data',id)},audioPlayer:{getLevel:()=>speechClock.current.snapshot?speechClock.current.getLevel():mouth.current,getSnapshot:()=>speechClock.current.getSnapshot()},onFirstFrame:id=>{if(id===modelIdRef.current)call('model-frame',id).catch(()=>{})},onStatus:reportStatus});}catch(error){reportStatus({phase:'error',message:error.message})}return()=>renderer.current?.dispose()},[]);
- useEffect(()=>{let active=true;if(loadedIdentity.current!==state.character?.id){renderer.current?.clear();setText('');setError(null);mouth.current=0;speechClock.current.clear();loadedIdentity.current=state.character?.id}renderer.current?.cancelLoad();if(!state.character?.modelId){renderer.current?.clear();return;}if(!renderer.current){reportStatus({phase:'error',message:'3D 渲染器不可用，请重新打开人物窗口。'});return;}setStatus({phase:'loading',message:'正在加载人物模型'});call('model-catalog').then(next=>{if(!active)return;if(next?.models&&renderer.current)renderer.current.catalog=next.models;return renderer.current?.load(state.character.modelId,{animate:true})}).catch(error=>{if(active)reportStatus({phase:'error',message:error.message})});return()=>{active=false;renderer.current?.cancelLoad()}},[state.character?.id,state.character?.modelId,loadAttempt]);
- useEffect(()=>{const value=state.character?.presentation||{};renderer.current?.setEnvironment({id:value.scene,timeOfDay:daylightHour});renderer.current?.setRenderStyle(value.renderStyle)},[state.character?.presentation?.scene,daylightHour,state.character?.presentation?.renderStyle]);
- useEffect(()=>{renderer.current?.setReducedMotion(reducedMotion);renderer.current?.setActivity(state.chatBusy?'thinking':'idle')},[reducedMotion,state.chatBusy]);
- useEffect(()=>{const stop=()=>{drag.current=null;orbit.current=null;call('drag-end').catch(()=>{})};window.addEventListener('blur',stop);return()=>window.removeEventListener('blur',stop)},[]);
+ useEffect(()=>{const off=api?.onState(setState),actionOff=api?.onAction?.(value=>{if(value.name==='chat-error')setError({kind:value.kind||'chat',message:friendlyError(value.message)});else if(value.name==='capability-recovered')setError(current=>current?.kind===value.kind?null:current);else if(value.name==='avatar-touch-feedback'&&value.feedback)setTouchFeedback(value.feedback)}),mouthOff=api?.onMouth?.(value=>{mouth.current=value}),speechOff=api?.onSpeech?.(value=>{if(value)speechClock.current.receive(value);else{speechClock.current.clear();renderer.current?.resetSpeechClock?.()}});call('ready');return()=>{off?.();actionOff?.();mouthOff?.();speechOff?.();speechClock.current.clear()}},[]);
+ useEffect(()=>{
+  let current=true,instance;
+  const audioPlayer={getLevel:()=>speechClock.current.snapshot?speechClock.current.getLevel():mouth.current,getSnapshot:()=>speechClock.current.getSnapshot()};
+  const onStatus=value=>{if(current)reportStatus(value);};
+  const onFirstFrame=id=>{if(current&&id&&id===modelIdRef.current)call('model-frame',id).catch(()=>{});};
+  const initialize=async()=>{try{
+   if(live2d){
+    onStatus({phase:'loading',message:'正在加载 Live2D 雪乃'});
+    const viewerUrl=await call('live2d-viewer');
+    if(!current)return;
+    instance=await createLive2DView(host.current,{viewerUrl,audioPlayer,onStatus,debug:new URLSearchParams(location.search).has('live2dDebug'),onFirstFrame:()=>onFirstFrame(modelIdRef.current)});
+   }else instance=new GlbAvatarRenderer(host.current,{renderEnvironment:false,catalog:catalog.models,api:{characterModelData:id=>call('model-data',id),characterActionData:id=>call('model-action-data',id)},audioPlayer,onFirstFrame,onStatus});
+   if(!current){instance.dispose();return;}
+   renderer.current=instance;bumpRenderer(value=>value+1);
+  }catch(error){onStatus({phase:'error',message:error.message});}};
+  void initialize();
+  return()=>{current=false;if(renderer.current===instance)renderer.current=null;instance?.dispose()};
+ },[live2d,live2d?loadAttempt:0]);
+ useEffect(()=>{let active=true;const instance=renderer.current;if(loadedIdentity.current!==state.character?.id){if(!instance?.isLive2D)instance?.clear();setText('');setError(null);mouth.current=0;speechClock.current.clear();loadedIdentity.current=state.character?.id}if(live2d||!instance||instance.isLive2D)return;instance.cancelLoad();if(!modelId){instance.clear();return;}setStatus({phase:'loading',message:'正在加载人物模型'});call('model-catalog').then(next=>{if(!active)return;if(next?.models)instance.catalog=next.models;return instance.load(modelId,{animate:true})}).catch(error=>{if(active)reportStatus({phase:'error',message:error.message})});return()=>{active=false;instance.cancelLoad()}},[state.character?.id,modelId,loadAttempt,live2d,rendererVersion]);
+ useEffect(()=>{const value=state.character?.presentation||{};renderer.current?.setEnvironment?.({id:value.scene,timeOfDay:daylightHour});renderer.current?.setRenderStyle?.(value.renderStyle)},[state.character?.presentation?.scene,daylightHour,state.character?.presentation?.renderStyle,rendererVersion]);
+ useEffect(()=>{if(status.phase==='ready'&&state.reply?.id&&lastReactionReply.current!==state.reply.id){lastReactionReply.current=state.reply.id;renderer.current?.reactToReply?.(state.reply.zh||state.reply.ja)}},[state.reply?.id,status.phase,rendererVersion]);
+ useEffect(()=>{orbit.current=null;setTouchFeedback(null);},[state.character?.id,modelId,live2d,state.preferences?.mouseThrough,state.preferences?.interactionPaused,state.preferences?.quietMode,state.playbackPaused]);
+ useEffect(()=>{if(!touchFeedback)return;if(touchFeedback.characterId===state.character?.id&&touchFeedback.modelId===modelId&&!hatDrag.current)playTouchReaction(renderer.current,touchFeedback);const timer=setTimeout(()=>setTouchFeedback(null),3500);return()=>clearTimeout(timer)},[touchFeedback]);
+ useEffect(()=>{renderer.current?.setReducedMotion?.(reducedMotion);renderer.current?.setActivity?.(state.chatBusy?'thinking':'idle')},[reducedMotion,state.chatBusy,rendererVersion]);
+ useEffect(()=>{const stop=()=>{drag.current=null;orbit.current=null;hatDrag.current=null;renderer.current?.cancelBeret?.();gazeAim.current=neutralGaze;call('drag-end').catch(()=>{})};window.addEventListener('blur',stop);return()=>window.removeEventListener('blur',stop)},[]);
  useLayoutEffect(()=>{if(replyId.current!==state.reply?.id){replyId.current=state.reply?.id;replyPinned.current=true;setShowLatest(false)}if(replyPinned.current&&replyBody.current)replyBody.current.scrollTop=replyBody.current.scrollHeight},[reply,state.reply?.id]);
 
  useEffect(()=>{
   // Electron forwards mouse movement even while clicks pass through. Keep the
   // controls interactive and test the animated model rather than its full canvas.
   function move(event){
+   const rect=host.current?.getBoundingClientRect();
+   if(rect){
+    const x=event.clientX-rect.left,y=event.clientY-rect.top;
+    gazeAim.current=gazeTarget(x,y,rect.width,rect.height,x>=0&&y>=0&&x<rect.width&&y<rect.height);
+   }
    const control=event.target instanceof Element&&event.target.closest('.model-toolbar,.model-bubble,.compact-dock,.model-feedback,.model-window-fallback');
-   let interactive=!!control||!!drag.current||!!orbit.current;
+   let interactive=!!control||!!drag.current||!!orbit.current||!!hatDrag.current;
    if(!interactive&&!through.current){
     const now=performance.now();if(now-hit.current.time<40)return;hit.current.time=now;
-    interactive=!!renderer.current?.hitTest(event.clientX,event.clientY);
+    interactive=!!renderer.current?.hitTest?.(event.clientX,event.clientY);
    }
    if(interactive!==hit.current.last){hit.current.last=interactive;call('hit-test',interactive).catch(()=>{hit.current.last=null})}
   }
-  window.addEventListener('mousemove',move);return()=>window.removeEventListener('mousemove',move);
+  const leave=event=>{if(!event.relatedTarget)gazeAim.current=neutralGaze};
+  let gaze=neutralGaze,last=performance.now(),frame;
+  function update(now){
+   const aim=gazeEnabled.current&&!drag.current&&!orbit.current&&!hatDrag.current?gazeAim.current:neutralGaze;
+   gaze=smoothGaze(gaze,aim,now-last);last=now;renderer.current?.setGaze?.(renderer.current.isLive2D?aim:gaze);
+   frame=requestAnimationFrame(update);
+  }
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseout',leave);
+  frame=requestAnimationFrame(update);
+  return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseout',leave);cancelAnimationFrame(frame)};
  },[]);
+ function stopModelPointer(event,cancel=false){
+  if(hatDrag.current?.id===event.pointerId){
+   hatDrag.current=null;
+   if(cancel)renderer.current?.cancelBeret?.();else renderer.current?.releaseBeret?.(event.pointerId);
+  }
+  if(orbit.current?.id===event.pointerId){
+   const gesture=orbit.current;orbit.current=null;
+   if(!cancel&&!through.current){applyOrbit(event,gesture);if(touchEnabled){const touch=finishAvatarGesture(event,gesture,renderer.current);if(touch)call('avatar-touch',{...touch,modelId}).catch(()=>{});}}
+  }
+ }
+ const touchEnabled=state.character?.id==='yukino'&&status.phase==='ready'&&!state.preferences?.interactionPaused&&!state.preferences?.quietMode&&!state.playbackPaused;
+ function applyOrbit(event,active){
+  if(moveAvatarGesture(event,active)&&!live2d)setView(current=>({...current,yaw:((active.yaw+(event.clientX-active.x)*.4+180)%360+360)%360-180}));
+ }
  async function submit(event){event.preventDefault();try{if(state.chatBusy)await call('chat-stop');else if(text.trim()){await call('chat-submit',text);setText('')}}catch(error){setError({kind:'chat',message:friendlyError(error)})}}
  const toggleThrough=()=>call('prefs',{mouseThrough:!through.current}).then(()=>{hit.current.last=null}).catch(error=>setError({kind:'operation',message:friendlyError(error)}));
  const language=state.preferences?.bubbleLanguage||'zh';
@@ -65,7 +122,7 @@ function ModelWindow(){
    onPointerCancel={()=>{if(!drag.current)return;drag.current=null;call('drag-cancel')}}>
    <div className="model-toolbar">
     <span className="model-name" title={`${state.character?.name||'人物模型'} · 拖动此处移动窗口`}>{state.character?.name||'人物模型'}</span>
-    <button aria-label="恢复全身正面" disabled={status.phase==='walking'} title="滚轮缩放，拖动仅旋转；点击复位" onClick={()=>{if(!renderer.current?.walkingMotion&&!renderer.current?.walkExitHeld){setView({zoom:1,yaw:0});scaleControl.current?.reset()}}}>↺</button>
+    <button aria-label="恢复全身正面" disabled={status.phase==='walking'} title="滚轮缩放，拖动仅旋转；点击复位" onClick={()=>{if(!renderer.current?.walkingMotion&&!renderer.current?.walkExitHeld){renderer.current?.reset?.();setView({zoom:1,yaw:0});scaleControl.current?.reset()}}}>↺</button>
     <button aria-label="人物设置" title="人物设置" onClick={()=>call('settings')}>⚙</button>
     <button aria-label={through.current?'关闭人物鼠标穿透':'开启人物鼠标穿透'} aria-pressed={through.current} title={through.current?'人物穿透已开启 · 按钮仍可操作':'人物可交互'} onClick={toggleThrough}>◎</button>
    </div>
@@ -78,10 +135,10 @@ function ModelWindow(){
     </footer>
    </section>}
   </header>
-  <div ref={host} className="model-window-canvas" tabIndex={0} role="group" aria-label="模型预览，左右键旋转，上下键缩放" onKeyDown={event=>{if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key))return;event.preventDefault();if(event.key==='Home'){setView({zoom:1,yaw:0});scaleControl.current?.reset()}else if(event.key==='ArrowUp'||event.key==='ArrowDown')scaleControl.current?.change(event.key==='ArrowUp'?.1:-.1);else setView(current=>({...current,yaw:((current.yaw+(event.key==='ArrowLeft'?-15:15)+180)%360+360)%360-180}))}} hidden={!state.character?.modelId}
-   onPointerDown={event=>{if(through.current||event.button!==0||renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;event.currentTarget.setPointerCapture(event.pointerId);orbit.current={id:event.pointerId,x:event.clientX,yaw:view.yaw}}}
-   onPointerMove={event=>{if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld){orbit.current=null;return;}const active=orbit.current;if(active?.id===event.pointerId)setView(current=>({...current,yaw:((active.yaw+(event.clientX-active.x)*.4+180)%360+360)%360-180}))}} onPointerUp={()=>{orbit.current=null}} onPointerCancel={()=>{orbit.current=null}}/>
-  {(!state.character?.modelId||status.phase==='error')&&<div className="model-window-fallback" role="alert"><p>{!state.character?.modelId?'当前角色没有可用的 3D 模型。':`3D 模型加载失败：${status.message||'请重试。'}`}</p>{state.character?.modelId&&<button onClick={()=>setLoadAttempt(value=>value+1)}>重新加载模型</button>}<button onClick={()=>call('settings')}>选择人物模型</button></div>}
+  <div ref={host} className="model-window-canvas" tabIndex={0} role="group" aria-label={live2d?'Live2D 雪乃预览':'模型预览，左右键旋转，上下键缩放'} onKeyDown={event=>{if(renderer.current?.walkingMotion||renderer.current?.walkExitHeld)return;if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key))return;event.preventDefault();if(event.key==='Home'){renderer.current?.reset?.();setView({zoom:1,yaw:0});scaleControl.current?.reset()}else if(event.key==='ArrowUp'||event.key==='ArrowDown')scaleControl.current?.change(event.key==='ArrowUp'?.1:-.1);else setView(current=>({...current,yaw:((current.yaw+(event.key==='ArrowLeft'?-15:15)+180)%360+360)%360-180}))}} hidden={!hasAvatar}
+   onPointerDown={event=>{const instance=renderer.current;if(instance?.isLive2D&&!instance.hitTest(event.clientX,event.clientY)){event.preventDefault();return}if(through.current||event.button!==0||event.isPrimary===false||hatDrag.current||orbit.current||instance?.walkingMotion||instance?.walkExitHeld||instance?.transitionAnimation||!instance?.hitTest?.(event.clientX,event.clientY))return;event.currentTarget.setPointerCapture(event.pointerId);if(instance.grabBeret?.(event.pointerId,event.clientX,event.clientY)){hatDrag.current={id:event.pointerId,x:event.clientX,y:event.clientY};return;}orbit.current=startAvatarGesture(event,instance,touchEnabled,view.yaw)}}
+   onPointerMove={event=>{if(through.current||renderer.current?.walkingMotion||renderer.current?.walkExitHeld||renderer.current?.transitionAnimation){stopModelPointer(event,true);return;}const hat=hatDrag.current;if(hat?.id===event.pointerId){renderer.current?.moveBeret?.(event.pointerId,event.clientX-hat.x,hat.y-event.clientY);return;}const active=orbit.current;if(active?.id===event.pointerId)applyOrbit(event,active)}} onPointerUp={event=>stopModelPointer(event)} onPointerCancel={event=>stopModelPointer(event,true)} onLostPointerCapture={event=>stopModelPointer(event,true)}/>
+  {(!hasAvatar||status.phase==='error')&&<div className="model-window-fallback" role="alert"><p>{!hasAvatar?'当前角色没有可用的模型。':status.message||'人物加载失败，请重试。'}</p>{hasAvatar&&<button onClick={()=>setLoadAttempt(value=>value+1)}>重新加载模型</button>}<button onClick={()=>call('settings')}>选择人物模型</button></div>}
   <CompactDock value={text} onChange={setText} busy={state.chatBusy} visualActive={state.visionActive} onSubmit={submit} label={`与${state.character?.name||'角色'}对话`} onVisual={()=>call(state.visionActive?'vision-stop':'vision-open',{mode:'camera'}).catch(error=>setError({kind:'vision',message:friendlyError(error)}))}/>
   <div className="model-feedback">
    {(status.phase==='loading'||status.phase==='error'||status.phase==='walking')&&<p className="model-window-status" role="status">{status.message}</p>}

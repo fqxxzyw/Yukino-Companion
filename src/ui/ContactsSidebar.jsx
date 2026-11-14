@@ -15,10 +15,12 @@ export function contactGroups(characters,conversations,query=''){
 // imports without a local preview keep a neutral fallback; never fetch an
 // external image while the contacts list is displayed.
 export function ContactAvatar({character={},models=[]}){
- const thumbnail=models.find(model=>model.id===character.modelId)?.thumbnail;
- const source=typeof thumbnail==='string'&&/^\.\/characters\/thumbnails\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|webp)$/i.test(thumbnail)?thumbnail:'';
- const [failed,setFailed]=useState('');
- return <span className="contact-avatar" aria-hidden="true">{source&&failed!==source?<img src={source} alt="" onError={()=>setFailed(source)}/>:<UserRound size={16}/>}</span>;
+ const model=models.find(model=>model.id===character.modelId);
+ const [failed,setFailed]=useState([]);
+ const source=[model?.avatarThumbnail,model?.thumbnail].find(thumbnail=>
+  typeof thumbnail==='string'&&/^\.\/characters\/thumbnails\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|webp)$/i.test(thumbnail)&&!failed.includes(thumbnail));
+ const portrait=source&&source===model?.avatarThumbnail;
+ return <span className="contact-avatar" aria-hidden="true">{source?<img className={portrait?'contact-avatar-portrait':undefined} src={source} alt="" onError={()=>setFailed(previous=>[...previous,source])}/>:<UserRound size={16}/>}</span>;
 }
 
 export default function ContactsSidebar({characters=[],conversations=[],models=[],activeCharacter,activeConversation,collapsed=false,query='',busy=false,onCharacter,onConversation,onDelete}){

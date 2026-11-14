@@ -72,11 +72,13 @@ export function getSkinStatus(model,{relationship,usedDates}={}){
 // unlock or issue an automatic skin command, and all seven base outfits must pass.
 export function conversationSkin(text,models,progress,{role='user',enabled=true}={}){
  if(!enabled||role!=='user'||typeof text!=='string'||!/(?:换上|换成|切换到|切换成|穿上)/.test(text))return null;
- const base=Array.from({length:7},(_,i)=>models.find(item=>item.id===`yukino-${String(i+1).padStart(2,'0')}-v1`));
+ const local=models.filter(item=>item.runtimeCandidate);
+ const retired=local.length>0&&!models.some(item=>/^yukino-0[1-7]-v1$/.test(item.id)&&!item.runtimeCandidate);
+ const base=retired?local:Array.from({length:7},(_,i)=>models.find(item=>item.id===`yukino-${String(i+1).padStart(2,'0')}-v1`));
  if(base.some(item=>!item||!getSkinStatus(item,progress).unlocked))return null;
  const requested=[...models].filter(item=>item.label&&text.includes(item.label)).sort((a,b)=>b.label.length-a.label.length)[0];
  if(requested&&getSkinStatus(requested,progress).unlocked)return requested.id;
- if(/(?:换上|换成|切换到|切换成|穿上)\s*(?:原版)?校服/.test(text))return 'yukino-07-v1';
+ if(/(?:换上|换成|切换到|切换成|穿上)\s*(?:原版)?校服/.test(text))return retired?local.find(item=>item.runtimeCandidate==='summer-uniform')?.id||null:'yukino-07-v1';
  return null;
 }
 // Preserve explicit legacy per-day records without inventing dates from total

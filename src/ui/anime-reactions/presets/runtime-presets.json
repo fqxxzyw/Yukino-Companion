@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "status": "portable integration defaults, not source curves or target-app validation",
+  "presets": {
+    "surprise": {
+      "seconds": 3.5,
+      "icon": "exclamation",
+      "motion": "pop",
+      "channels": {
+        "surprise": 0.74,
+        "mouthOpen": 0.18
+      }
+    },
+    "question": {
+      "seconds": 3.5,
+      "icon": "question",
+      "motion": "sway",
+      "channels": {
+        "question": 0.62
+      }
+    },
+    "annoyed": {
+      "seconds": 3.5,
+      "icon": "anger",
+      "motion": "pulse",
+      "channels": {
+        "annoyed": 0.6,
+        "blush": 0.12
+      }
+    },
+    "awkward": {
+      "seconds": 3.5,
+      "icon": "sweat",
+      "motion": "drop",
+      "channels": {
+        "awkward": 0.55
+      }
+    },
+    "shy_speaking": {
+      "seconds": 3.5,
+      "icon": null,
+      "motion": "none",
+      "channels": {
+        "softJoy": 0.23,
+        "blush": 0.64,
+        "blushLines": 0.46
+      }
+    },
+    "flustered": {
+      "seconds": 3.5,
+      "icon": "sweat",
+      "motion": "drop",
+      "channels": {
+        "awkward": 0.4,
+        "blush": 0.76,
+        "blushLines": 0.55
+      }
+    },
+    "pleased": {
+      "seconds": 3.5,
+      "icon": "sparkle",
+      "motion": "pulse",
+      "channels": {
+        "softJoy": 0.62,
+        "blush": 0.24
+      }
+    },
+    "mild_protest": {
+      "seconds": 3.5,
+      "icon": "anger",
+      "motion": "pop",
+      "channels": {
+        "annoyed": 0.55,
+        "blush": 0.6,
+        "blushLines": 0.42
+      }
+    },
+    "heart": {
+      "seconds": 3.5,
+      "icon": "heart",
+      "motion": "heart_float",
+      "channels": {
+        "softJoy": 0.42,
+        "blush": 0.36
+      },
+      "iconTiming": {
+        "rise": 0.18,
+        "popSeconds": 0.28
+      }
+    },
+    "broken_heart": {
+      "seconds": 3.5,
+      "icon": "broken-heart",
+      "motion": "heart_split",
+      "channels": {
+        "innerBrowRaise": 0.32,
+        "mouthCornerDown": 0.16
+      },
+      "iconTiming": {
+        "splitAt": 0.65,
+        "splitSeconds": 0.35,
+        "spread": 0.07,
+        "rotation": 12,
+        "fall": 0.14
+      }
+    }
+  },
+  "defaults": {
+    "timeUnit": "seconds",
+    "coordinateUnit": "headWidth",
+    "relativePositiveX": "screenRight",
+    "relativePositiveY": "up",
+    "rotationUnit": "degrees",
+    "anchor": [
+      0.62,
+      0.2
+    ],
+    "iconWidth": 0.22,
+    "faceAttackSeconds": 0.35,
+    "faceReleaseSeconds": 0.55
+  }
+}

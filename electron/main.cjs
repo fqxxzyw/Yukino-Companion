@@ -4,8 +4,10 @@ const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, cl
 const {mainWindowSize}=require('./main-window-size.cjs');
 let appUpdater;
 const development = require('./development.cjs').configureDevelopment(app);
+const {createLive2DAssets,live2dScheme}=require('./live2d-assets.cjs');
+const live2dAssets = createLive2DAssets({app,protocol,session});
 const motionEditor = require('./motion-editor.cjs').createMotionEditor({
-  BrowserWindow, ipcMain, net, protocol, screen, session, development: Boolean(development.url), getUpdater:()=>appUpdater,
+  BrowserWindow, ipcMain, net, protocol, screen, session, additionalSchemes:[live2dScheme], development: Boolean(development.url), getUpdater:()=>appUpdater,
   getCompanionModel: async id=>{const data=await readCharacterModel(id);const entry=characterEntry(id);return {id:entry.id,label:entry.label,sha256:entry.sha256,data};},
 });
 if (development.enabled) {
@@ -58,7 +60,7 @@ const {selectResourceDirectory,assertWritableDirectory,ResourceDirectoryGate,reb
 const defaultVoicePreset=require('../resources/voice-presets/yukino-default.json');
 const {providerCatalog, discoverModels} = require('./providers.cjs');
 const {TranslationService, validateConfig: validateTranslation} = require('./translation.cjs');
-const {BILINGUAL_INSTRUCTION, BilingualStream, completeBilingual} = require('./bilingual.cjs');
+const {BILINGUAL_INSTRUCTION, BilingualStream, completeBilingual, hasKana, isMostlyJapanese} = require('./bilingual.cjs');
 const {CompanionManager} = require('./companions.cjs');
 const voiceCatalog = require('../resources/voice-models.json');
 const translationManifest = require('../translation/model-manifest.json');
@@ -66,13 +68,14 @@ const outputInstruction = local => local ? '请用简体中文自然回答。不
 // "不翻译" bypasses local/API translation entirely and never asks for a second language.
 const PLAIN_INSTRUCTION = '请直接、自然地回答，只使用当前角色惯用的语言，不要自行附加其他语言的翻译或双语格式。';
 let win, controller, proactiveGeneration, speech, speechCache, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks,aquaEnvironment,cloudSpeech;
+let touchGeneration;
 let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false;
 const flushResolvers=new Map();
 function flushRenderer() {
   if(!win || win.isDestroyed()) return Promise.resolve(false);
   return new Promise(resolve => { const id=require('node:crypto').randomUUID(); const timer=setTimeout(()=>{flushResolvers.delete(id);resolve(false);},5000); flushResolvers.set(id,ok=>{clearTimeout(timer);flushResolvers.delete(id);resolve(ok===true);}); send('flush-state',{id}); });
 }
-const installationOptions = () => ({packaged:app.isPackaged,executable:process.execPath,sourceRoot:path.join(__dirname,'..'),userData:app.getPath('userData')});
+const installationOptions = () => ({packaged:app.isPackaged,executable:process.env.YUKINO_PORTABLE_LAUNCHER||process.execPath,sourceRoot:path.join(__dirname,'..'),userData:app.getPath('userData')});
 const location = name => installationResourceLocation(installationOptions(), name);
 const resourceRoot = () => app.isPackaged ? process.resourcesPath : path.join(__dirname, '../build');
 const send = (channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); };
@@ -124,7 +127,8 @@ function handle(name, fn) {
 function modelStore(){return characterModels??=new CharacterModelStore({dataRoot:app.getPath('userData'),builtinRoot:path.join(__dirname,development.url?'../public':'../dist')});}
 function characterEntry(id){return modelStore().entry(id);}
 async function readCharacterModel(id){await modelStore().initialize();const entry=characterEntry(id),state=await read('state.json',{});if(!canUseSkin(entry,state))throw Error('此服装尚未解锁或未通过模型验收。');return modelStore().read(id);}
-async function updateCompanionCharacter(state){try{await modelStore().initialize();}catch(error){send('app-error',{message:error.message});}const selected=state?.characters?.find(item=>item.id===state.activeCharacter)||{id:'yukino',name:'雪之下雪乃',modelId:'yukino-07-v1'};let modelId='';try{const entry=characterEntry(selected.modelId);modelId=canUseSkin(entry,state)?entry.id:selected.id==='yukino'?'yukino-07-v1':''}catch{}companions?.setCharacter?.({id:selected.id,name:selected.name,modelId,presentation:state?.presentation});}
+async function readCharacterActions(id){await modelStore().initialize();const entry=characterEntry(id),state=await read('state.json',{});if(!canUseSkin(entry,state))throw Error('此服装尚未解锁或未通过模型验收。');return modelStore().readActions(id);}
+async function updateCompanionCharacter(state){try{await modelStore().initialize();}catch(error){send('app-error',{message:error.message});}const fallback=modelStore().defaultYukinoModel?.()||'yukino-07-v1';const selected=state?.characters?.find(item=>item.id===state.activeCharacter)||{id:'yukino',name:'雪之下雪乃',modelId:fallback};const requested=selected.id==='yukino'?(modelStore().selectedYukinoModel?.(selected.modelId)??selected.modelId):selected.modelId;let modelId='';try{const entry=characterEntry(requested);modelId=canUseSkin(entry,state)?entry.id:selected.id==='yukino'?fallback:''}catch{}companions?.setCharacter?.({id:selected.id,name:selected.name,modelId,presentation:state?.presentation});}
 // Low-level reveal used by the companion manager itself (no recursion).
 function showMainWindow() { if (win && !win.isDestroyed()) { win.show(); win.restore(); win.focus(); } }
 // Every external reopen path goes through the same fade-in coordinator.
@@ -134,13 +138,15 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', openMain);
   app.whenReady().then(async () => {
+    if(app.isPackaged&&process.env.YUKINO_PORTABLE_LAUNCHER)require('./portable-entry.cjs').seedPortableAssets();
+    live2dAssets.initialize();
     app.setAppUserModelId?.('io.github.fqxxzyw.yukino');
     await migrateKeys();
     const legacyDataRoot=app.getPath('userData');
     const installDirectory=installationScope(installationOptions());
     const installationConfigDirectory=path.dirname(location('speech.json'));
     const resourceSetting=await read('resource-directory.json',{});
-    const resourceDataRoot=selectResourceDirectory({configured:resourceSetting.directory,configuredInstallDirectory:resourceSetting.installDirectory,installDirectory,packaged:app.isPackaged,executable:process.execPath,userData:installationConfigDirectory});
+    const resourceDataRoot=selectResourceDirectory({configured:resourceSetting.directory,configuredInstallDirectory:resourceSetting.installDirectory,installDirectory,packaged:app.isPackaged,executable:installationOptions().executable,userData:installationConfigDirectory});
     const cacheRoot=app.isPackaged?path.join(installDirectory,'Yukino-Data','speech-cache'):location('speech-cache');
     speechCache=new SpeechCache({root:cacheRoot});
     await speechCache.configure(await read('speech-cache.json',{enabled:false,retentionDays:7}));
@@ -276,7 +282,7 @@ else {
       installTranslation:async signal=>{const status=await translation.install({signal});signal.throwIfAborted();await write('translation.json',status.config);return status;},
       installVoice:async signal=>{const config=await voiceConfig();signal.throwIfAborted();const status=await speech.readiness(config);signal.throwIfAborted();const managed=await voiceResources.inspect();signal.throwIfAborted();if(managed.coreReady)return {paths:{},expected:config};const paths=await voiceResources.install('core',{signal});signal.throwIfAborted();const missing=new Set(status.missing?.map(item=>item.key));return {paths:Object.fromEntries(Object.entries(paths).filter(([key])=>missing.has(key))),expected:config};},saveVoice:async result=>{const config=await updateVoice(latest=>{const current=mergeVoiceDefaults(latest,voiceBundle),paths=Object.fromEntries(Object.entries(result.paths||{}).filter(([key])=>current[key]===result.expected?.[key]));return mergeVoiceDefaults({...latest,...paths},voiceBundle);});speech.configure(config);send('voice-config-updated',config);}});
     bundleReady.catch(error=>send('app-error',{message:error.message}));
-    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:showMainWindow,onModelData:readCharacterModel,onModelCatalog:()=>modelStore().catalog(),onUse:()=>send('companion-use',{type:'pet-interaction'}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:(text,context)=>companionChatRequests.submit(text,context),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind,options)=>companionVisual?.open(owner,kind,options),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
+    companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:showMainWindow,onModelData:readCharacterModel,onModelActionData:readCharacterActions,onModelCatalog:()=>modelStore().catalog(),onLive2DViewer:()=>live2dAssets.viewerUrl(),onUse:value=>send('companion-use',{type:'pet-interaction',...value}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:(text,context)=>companionChatRequests.submit(text,context),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind,options)=>companionVisual?.open(owner,kind,options),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
     appUpdater=require('./app-update.cjs').createUpdater({app,dialog,shell,send});
@@ -288,7 +294,15 @@ else {
     handle('load', async () => {
       const saved = await read('state.json',null);stateSignature=visualSignature(saved);
       await updateCompanionCharacter(saved);
-      return {state:saved?migratePersonaState(saved):null,keyIds:Object.keys(await read('keys.json',{})),character:characterInfo()};
+      let state=saved?migratePersonaState(saved):null;
+      const fallback=modelStore().defaultYukinoModel();
+      if(fallback!=='yukino-07-v1'){
+        const characters=Array.isArray(state?.characters)?state.characters:[];
+        const yukino=characters.find(item=>item.id==='yukino');
+        const next=yukino?{...yukino,modelId:modelStore().selectedYukinoModel(yukino.modelId)}:{id:'yukino',name:'雪之下雪乃',modelId:fallback};
+        state={...state,characters:yukino?characters.map(item=>item===yukino?next:item):[next,...characters]};
+      }
+      return {state,keyIds:Object.keys(await read('keys.json',{})),character:characterInfo()};
     });
     handle('save', async state => {
       if (!state || !Array.isArray(state.conversations) || !Array.isArray(state.profiles) || JSON.stringify(state).length > 10000000) throw Error('无效或过大的设置');
@@ -312,6 +326,7 @@ else {
     handle('scene-read',id=>sceneStore.read(id));
     handle('scene-remove',id=>sceneStore.remove(id));
     handle('character-model-data',readCharacterModel);
+    handle('character-action-data',readCharacterActions);
     handle('character-model-catalog',()=>modelStore().catalog());
     async function pickCharacterModel(title,extensions=['glb']){if(modelPickerOpen)throw Error('模型文件选择窗口已打开');const epoch=++modelPickEpoch;modelStore().cancel();modelPickerOpen=true;try{const result=await dialog.showOpenDialog(win,{title,properties:['openFile'],filters:[{name:'人物模型（最多 64 MiB）',extensions}]});return result.canceled||epoch!==modelPickEpoch?null:result.filePaths[0];}finally{modelPickerOpen=false;}}
     handle('character-model-inspect',async()=>{const file=await pickCharacterModel('选择自定义 GLB 或 VRM，先检查再确认导入',['glb','vrm']);return file?modelStore().inspectFile(file):null;});
@@ -454,10 +469,49 @@ else {
       endpoint(profile.base); return {profile,key:entry?(await apiManager.credentials(entry)).apiKey||'':await key(id,profile.base),state:migratePersonaState(state)};
     }
     async function taskSettings(task,fallbackId){const state=migratePersonaState(await read('state.json',{}));if(!state.apiManagement){if(['chat','proactive'].includes(task)&&state.chatMode==='local')return {kind:'local',state,profile:{id:'builtin-local',name:'本地雪乃',model:'oregairu-small',base:'http://127.0.0.1'}};return {kind:'api',...await config(fallbackId||state.activeProfile)};}const route=resolveTaskRoute(state,task);if(route.kind==='local')return {kind:'local',state,profile:{id:'builtin-local',name:'本地雪乃',model:'oregairu-small',base:'http://127.0.0.1'}};return {kind:'api',...await config(route.configId)};}
+    handle('avatar-touch-reply',async ({reaction,gesture,target}={})=>{
+      const moods={shy:'有些害羞',happy:'有些开心',chide:'轻轻嗔怪'};
+      if(typeof reaction!=='string'||!Object.hasOwn(moods,reaction)||!['tap','stroke'].includes(gesture)||!target||controller||touchGeneration||shuttingDown)return null;
+      if(companions?.preferences?.interactionPaused||companions?.preferences?.quietMode)return null;
+      const request=new AbortController();
+      touchGeneration=request;
+      const fallback=new Promise(resolve=>request.signal.addEventListener('abort',()=>resolve(null),{once:true}));
+      const timer=setTimeout(()=>request.abort(),3500);
+      try{
+        const settings=await taskSettings('chat');
+        const {state,profile}=settings;
+        if(settings.kind!=='api'||state.activeCharacter!=='yukino'||state.avatarTouchEnabled===false||state.presentation?.avatarRenderer==='live2d'||
+          profile.id!==target.id||profile.base!==target.base||profile.model!==target.model||controller)return null;
+        request.signal.throwIfAborted();
+        const persona=buildPersonaPrompt({...state,useMemory:false,
+          characters:state.characters?.map(character=>({...character,useMemory:false})),
+        },profile);
+        const messages=[
+          {role:'system',content:`${persona.content}\n\n回应来自应用的虚拟人物互动。用角色的语气直接说一句话，情绪保持${moods[reaction]}。每种语言不超过 60 字，不写旁白、动作说明、称呼或额外内容，不假定恋爱关系或现实中的身体接触。${BILINGUAL_INSTRUCTION}`},
+          {role:'user',content:gesture==='stroke'?'【应用事件】用户轻抚了虚拟人物的头顶。':'【应用事件】用户轻点了虚拟人物的头顶。'},
+        ];
+        const parser=new BilingualStream(()=>{});
+        await Promise.race([fallback,chat({...settings,messages,signal:request.signal,onToken:text=>{
+          if(parser.raw.length+text.length>1500)throw Error('触摸回复过长');
+          parser.push(text);
+        }})]);
+        request.signal.throwIfAborted();
+        const {zh,ja}=parser.value();
+        const shortLine=text=>text.length>0&&text.length<=80&&!/[\r\n<>`]/u.test(text);
+        return shortLine(zh)&&shortLine(ja)&&/[\u3400-\u9fff]/u.test(zh)&&!isMostlyJapanese(zh)&&hasKana(ja)?{zh,ja}:null;
+      }catch{
+        return null;
+      }finally{
+        clearTimeout(timer);
+        request.abort();
+        if(touchGeneration===request)touchGeneration=null;
+      }
+    });
     function effectiveVisionState(state){if(!state?.apiManagement)return state;try{const route=resolveTaskRoute(state,'vision');return {...state,chatMode:'api',activeProfile:route.configId,profiles:[{...route.config,visionEnabled:route.config.capabilities.includes('vision')}]};}catch{return {...state,chatMode:'api',activeProfile:'unconfigured-vision',profiles:[]};}}
     async function visionConfig(id){const selected=await taskSettings('vision',id);if(selected.kind==='local'||isYukinoLocal(selected.profile))throw Error('本地文本模型不能识别图片，请单独配置云端视觉 API。');if(!selected.profile.visionEnabled)throw Error('请在 API 管理中为视觉识别分配支持图片的云端模型。');return {...selected,state:{...selected.state,chatMode:'api'}};}
     async function generateProactive(event,{signal,characterId}) {
       if(controller)throw Error('对话正在进行，主动消息已延后。');
+      touchGeneration?.abort();
       const ctrl=new AbortController();controller=ctrl;proactiveGeneration=ctrl;
       const abort=()=>ctrl.abort();signal.addEventListener('abort',abort,{once:true});if(signal.aborted)ctrl.abort();
       let timer=setTimeout(()=>ctrl.abort(),90000);
@@ -488,6 +542,7 @@ else {
     handle('vision-cancel',()=>{vision.cancel();return true;});
     async function conversationCommand({text,requestId}={}){
       if(typeof text!=='string'||text.length>24000)throw Error('命令输入无效。');
+      touchGeneration?.abort();
       const context=requestId?companionChatRequests.context(requestId,text):null;
       return executeConversationCommand(text,{visual:companionVisual,owner:context?.owner||win,kind:context?.kind||'main',onReply:bilingual=>companions.showReply({id:require('node:crypto').randomUUID(),...bilingual})});
     }
@@ -500,6 +555,7 @@ else {
       if(!output) throw Error('连接成功但未返回正文'); return '连接成功 · 模型已返回内容';
     });
     handle('chat', async ({id,profileId,messages,mode,streamSpeech=false,image}) => {
+      touchGeneration?.abort();
       if(proactiveGeneration){const previous=proactiveGeneration;companions?.cancelProactive?.();previous.abort();if(controller===previous)controller=null;proactiveGeneration=null;}
       if(controller) throw Error('请先停止当前回复');
       if(typeof id!=='string'||id.length>200||!Array.isArray(messages)||messages.length>200||messages.some(m=>!m||!['system','user','assistant'].includes(m.role)||typeof m.content!=='string'||m.content.length>100000)) throw Error('消息格式不正确');
@@ -573,7 +629,7 @@ else {
         if(ctrl.signal.aborted) return {stopped:true};ctrl.abort(); throw error;
       } finally {clearTimeout(timer);if(controller===ctrl)controller=null;}
     });
-    handle('stop',()=>{const previous=controller;previous?.abort();if(controller===previous)controller=null;for(const request of translationRequests.values())request.abort();localChat?.cancel();translation?.cancelRequests();});
+    handle('stop',()=>{touchGeneration?.abort();const previous=controller;previous?.abort();if(controller===previous)controller=null;for(const request of translationRequests.values())request.abort();localChat?.cancel();translation?.cancelRequests();});
     handle('setup-status',options=>setup.status(options));
     handle('setup-install',options=>withResourceStorage(()=>setup.install(options)));
     const resourceInstallBusy=()=>Boolean(setup?.controller||voiceResources?.controller||resourcePacks?.controller||translation?.installToken||runtime?.controller||aquaEnvironment?.controller);
@@ -709,6 +765,12 @@ else {
       companions?.setAppAvatarRect({x:rect.x,y:rect.y,width:rect.width,height:rect.height,view:rect.view,layoutProtocol:rect.layoutProtocol===true},{relative:true});
       return true;
     });
+    handle('live2d-viewer',()=>live2dAssets.viewerUrl());
+    handle('avatar-touch-feedback',value=>{
+      if(value?.characterId!=='yukino'||typeof value.id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(value.id)||!['shy','happy','chide','boundary'].includes(value.reaction))return false;
+      companions?.showAvatarTouch({id:value.id,characterId:value.characterId,modelId:value.modelId,reaction:value.reaction});
+      return true;
+    });
     handle('avatar-handoff-ready',sequence=>companions?.avatarHandoffReady(sequence));
     handle('avatar-layout-ready',value=>companions?.avatarLayoutReady?.(value));
     handle('close-choice',(mode,options)=>companions.closeChoice(mode,options));
@@ -717,10 +779,10 @@ else {
     handle('motion-editor-theme',theme=>motionEditor.updateTheme(theme));
     handle('community',()=>shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/'));
     handle('help',topic=>{if(topic!==undefined&&!['downloads','integrity','api','first-run'].includes(topic))throw Error('未知帮助主题');return shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/#help');});
-    win.on('closed',()=>{voiceStart.cancel();companionChatRequests.cancel();companionVisual?.close();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();});
-    win.webContents.on('did-start-navigation',details=>{if(details.isMainFrame===true&&details.isSameDocument===false){speechClockReady=false;voiceStart.cancel();companionChatRequests.cancel();companionVisual?.stop();companions?.setSpeechBusy?.(false);companions?.resetSpeechClock?.();companions?.setMouthLevel?.(0);companions?.setChatBusy?.(false);vision?.cancel();controller?.abort();localChat?.cancel();speech?.stop?.();translation?.cancel();}});
+    win.on('closed',()=>{touchGeneration?.abort();voiceStart.cancel();companionChatRequests.cancel();companionVisual?.close();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();});
+    win.webContents.on('did-start-navigation',details=>{if(details.isMainFrame===true&&details.isSameDocument===false){touchGeneration?.abort();speechClockReady=false;voiceStart.cancel();companionChatRequests.cancel();companionVisual?.stop();companions?.setSpeechBusy?.(false);companions?.resetSpeechClock?.();companions?.setMouthLevel?.(0);companions?.setChatBusy?.(false);vision?.cancel();controller?.abort();localChat?.cancel();speech?.stop?.();translation?.cancel();}});
     win.webContents.on('dom-ready',()=>{companions?.resetSpeechClock?.();speechClockReady=true;});
-    win.webContents.on('render-process-gone',()=>{speechClockReady=false;voiceStart.cancel();companionChatRequests.cancel();companionVisual?.stop();companions?.setSpeechBusy?.(false);companions?.showError?.('聊天服务窗口已停止，请打开主窗口恢复。');companions?.setChatBusy?.(false);companions?.setMouthLevel?.(0);companions?.resetSpeechClock?.();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.cancel();speech?.dispose();translation?.cancel();voiceResources?.cancel();});
+    win.webContents.on('render-process-gone',()=>{touchGeneration?.abort();speechClockReady=false;voiceStart.cancel();companionChatRequests.cancel();companionVisual?.stop();companions?.setSpeechBusy?.(false);companions?.showError?.('聊天服务窗口已停止，请打开主窗口恢复。');companions?.setChatBusy?.(false);companions?.setMouthLevel?.(0);companions?.resetSpeechClock?.();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.cancel();speech?.dispose();translation?.cancel();voiceResources?.cancel();});
     if (development.url) await win.loadURL(development.url);
     else await win.loadFile(path.join(__dirname,'../dist/index.html'));
     if (development.enabled) win.setTitle('Yukino Companion · Development');
@@ -733,6 +795,7 @@ app.on('window-all-closed',()=>{if(!companions || companions.quitting)app.quit()
 app.on('before-quit',event=>{
   if(shutdownComplete)return;
   event.preventDefault();if(shuttingDown)return;shuttingDown=true;
+  touchGeneration?.abort();
   voiceStart?.cancel();companionChatRequests.cancel();companionVisual?.close();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();voiceResources?.cancel();
   if(companions)companions.quitting=true;
   flushRenderer().then(()=>Promise.allSettled([companions?.dispose(),speechCache?.configure({enabled:false}),saveQueue])).finally(()=>{shutdownComplete=true;app.quit();});
