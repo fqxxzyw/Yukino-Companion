@@ -56,14 +56,29 @@ export class Live2DAvatarRenderer {
     this.disposed = false;
     this.lastTick = -Infinity;
     this.ready = new Promise((resolve, reject) => {
+      const attempts = [];
+      let handshake = null, settled = false;
+      const closeAttempts = keep => {
+        for (const port of attempts) if (port !== keep) port.close();
+        attempts.length = 0;
+      };
+      const fail = error => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearInterval(handshake);
+        closeAttempts();
+        this.port = null;
+        reject(error);
+      };
       const timer = setTimeout(() => fail(Error('本地 Live2D 查看器未响应')), 12000);
-      const fail = error => { clearTimeout(timer); this.port?.close(); reject(error); };
       this.abortReady = () => fail(new DOMException('Live2D disposed', 'AbortError'));
-      this.frame.addEventListener('load', () => {
-        if (this.disposed) return;
+      const connect = () => {
+        if (this.disposed || settled || !this.frame.contentWindow) return;
         const channel = new MessageChannel();
-        this.port = channel.port1;
-        this.port.onmessage = ({ data }) => {
+        const port = channel.port1;
+        attempts.push(port);
+        port.onmessage = ({ data }) => {
           const { type, value } = data || {};
           if (type === 'ready' && !this.parameters) {
             try {
@@ -73,20 +88,29 @@ export class Live2DAvatarRenderer {
                   mask.length !== Math.ceil(width * height / 8)) throw Error('Live2D 轮廓无效');
               this.parameters = parameterMap(parameters);
               this.silhouette = { width, height, mask };
+              this.port = port;
+              settled = true;
               clearTimeout(timer);
+              clearInterval(handshake);
+              closeAttempts(port);
               this.schedule();
               resolve(parameters);
             } catch (error) { fail(error); }
           } else if (type === 'error') {
             const error = Error(typeof value === 'string' ? value.slice(0, 250) : 'Live2D 无法渲染');
             if (this.parameters) { this.setVisible(false); this.onError(error); }
-            else fail(error);
+            else { this.port = port; fail(error); }
           } else if (debug && type === 'gaze') {
+            this.port = port;
             this.setGaze(value);
             if (value) this.resume();
           } else if (debug && type === 'reset') {
+            this.port = port;
             this.reset({ hold: true });
-          } else if (debug && type === 'manual') this.manual = true;
+          } else if (debug && type === 'manual') {
+            this.port = port;
+            this.manual = true;
+          }
         };
         try {
           this.frame.contentWindow.postMessage({ type: 'yukino-live2d-connect' },
@@ -95,6 +119,14 @@ export class Live2DAvatarRenderer {
           channel.port2.close();
           fail(error);
         }
+      };
+      this.frame.addEventListener('load', () => {
+        if (this.disposed) return;
+        // A custom-scheme OOPIF can fire load before its deferred bridge script
+        // installs the message listener. Repeat the handshake briefly rather
+        // than failing once the first few milliseconds are missed.
+        connect();
+        handshake = setInterval(connect, 300);
       }, { once: true });
     });
     this.ready.catch(error => { if (!this.disposed) onError(error); });

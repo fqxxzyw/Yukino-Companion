@@ -18,10 +18,6 @@ function configurePortable() {
   app.setPath('userData', profile);
   app.setPath('sessionData', profile);
   process.env.YUKINO_PORTABLE_LAUNCHER = launcher;
-
-  const viewer = path.join(profile, 'live2d', 'viewer-bridge.js');
-  if (!process.env.YUKINO_LIVE2D_DIR && !fs.existsSync(viewer))
-    process.env.YUKINO_LIVE2D_DIR = path.join(process.resourcesPath, 'live2d');
 }
 
 function seed(file, make) {

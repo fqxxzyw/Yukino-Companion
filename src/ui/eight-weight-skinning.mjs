@@ -317,7 +317,7 @@ export function applyEightWeightSkinning(gltf, inspection) {
   const seen = new Set();
   let count = 0;
   for (const scene of gltf.scenes || [gltf.scene]) scene.traverse(mesh => {
-    if (!mesh.isMesh || seen.has(mesh)) return;
+    if (!mesh.isMesh || seen.has(mesh) || mesh.userData?.celOutline) return;
     seen.add(mesh);
     const ref = gltf.parser.associations.get(mesh);
     const record = records.get(`${ref?.meshes}/${ref?.primitives}`);
@@ -337,6 +337,12 @@ export function applyEightWeightSkinning(gltf, inspection) {
     if (Array.isArray(mesh.material)) fail('八权重暂不支持多材质组网格；请导出分离的 glTF 图元。');
     mesh.material = clonePatched(mesh.material);
     installEightWeightMesh(mesh);
+    // Cel silhouettes share the surface geometry; keep them on the adapted copy
+    // so eight-weight and four-weight meshes never drift apart.
+    for (const child of mesh.children) if (child.userData?.celOutline) {
+      child.geometry = mesh.geometry;
+      installEightWeightMesh(child);
+    }
     count++;
   });
   if (!count) fail('未找到需要八权重适配的已加载图元。');

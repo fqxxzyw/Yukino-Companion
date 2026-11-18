@@ -12,7 +12,7 @@ const smooth=value=>{const x=Math.max(0,Math.min(1,value));return x*x*(3-2*x);};
 // The Windows shell provides the prepared, local-only Cubism viewer.
 export async function createLive2DView(host,{audioPlayer,onStatus,viewerUrl,onFirstFrame,debug=false}={}){
  const url=viewerUrl===undefined?await window.desktop?.live2dViewer?.():viewerUrl;
- if(!url)throw Error('这台电脑还没有准备 Live2D 雪乃，可以切回 3D 服装。');
+ if(!url)throw Error('Live2D 随包资源缺失或不完整，请重新安装完整版本，或切回 3D 服装。');
  if(!host)throw new DOMException('人物窗口已关闭','AbortError');
  const {Live2DAvatarRenderer}=await import('./live2d/renderer-ipc.mjs');
  const renderer=new Live2DAvatarRenderer(host,{viewerUrl:url,audioPlayer,debug,onError:error=>onStatus?.({phase:'error',message:error.message})});

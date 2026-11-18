@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>雪乃 S0 Live2D 调试</title>
+<style>
+  html, body { margin: 0; background: transparent; }
+  canvas { display: block; }
+  #panel { display: none; }
+  body.debug { display: flex; background: #30303a; color: #fff; font: 14px system-ui; }
+  body.debug #panel { display: block; padding: 16px; width: 380px; }
+  label { display: grid; grid-template-columns: 155px 135px 65px; align-items: center; }
+
+    body:not(.debug) { height: 100vh; display: grid; place-items: center; }
+    body:not(.debug) canvas { width: min(100vw, 74.642857vh); height: auto; }
+  </style>
+<body>
+  <canvas id="model" width="418" height="560"></canvas>
+  <section id="panel"><h1>雪乃 S0 · Cubism 参数</h1><p id="status">正在加载本地 Cubism Web 运行时…</p></section>
+  <script defer src="runtime/live2dcubismcore.min.js"></script>
+  <script defer src="runtime/renderer.js"></script>
+<script defer src="viewer-bridge.js"></script>
+</body>
+</html>

@@ -57,7 +57,8 @@ async function main(){
     {from:'model-service/desktop_worker.py',to:'local-chat/desktop_worker.py'},
     {from:'build/base-resource-catalog/runtime-catalog.json',to:'runtime-catalog.json'},
     {from:'resources/voice-presets',to:'voice-presets',filter:['**/*']},
-    {from:'build/aria2',to:'aria2',filter:['**/*']}
+    {from:'build/aria2',to:'aria2',filter:['**/*']},
+    {from:'resources/live2d',to:'live2d',filter:['**/*']}
   ]};
   // Development may have additional character variants in public/. Vite copies
   // them all, so exclude the non-base GLBs from the package without deleting
@@ -98,6 +99,16 @@ function verifyBundledWallpapers(archive){
   }
   return manifest.items.length;
 }
+async function verifyBundledLive2D(resources){
+  const root=path.join(resources,'live2d');
+  const required=['index.html','viewer-bridge.js','parameters.json','model/Yukino.model3.json','model/Yukino.moc3','runtime/live2dcubismcore.min.js','runtime/renderer.js'];
+  for(const file of required)await fs.access(path.join(root,file));
+  const model=JSON.parse(await fs.readFile(path.join(root,'model/Yukino.model3.json'),'utf8'));
+  const references=[model.FileReferences?.Moc,...(model.FileReferences?.Textures||[]),model.FileReferences?.Physics,model.FileReferences?.DisplayInfo,...(model.FileReferences?.Expressions||[]).map(item=>item.File)].filter(Boolean);
+  if(!references.length||references.some(file=>path.isAbsolute(file)||file.split(/[\\/]/).includes('..')))throw Error('Invalid bundled Live2D model references');
+  for(const file of references)await fs.access(path.join(root,'model',file));
+  return {model:'Yukino',references:references.length};
+}
 function verifyBundledProviderLogos(archive){
   const crypto=require('node:crypto'),{allowed,imageExtension}=require('./cache-provider-logos.cjs'),brands=require('../resources/api-brands.json').brands;
   const manifest=JSON.parse(asar.extractFile(archive,path.join('dist','provider-logos','manifest.json')).toString('utf8'));
@@ -126,6 +137,7 @@ async function verifyBaseApp(output){
   if(entries.some(entry=>entry.endsWith('.glb')&&!approved.has(entry)))throw Error('Unrequested extension model entered the base package');
   const wallpapersEmbedded=verifyBundledWallpapers(path.join(resources,'app.asar'));
   const providerLogos=verifyBundledProviderLogos(path.join(resources,'app.asar'));
+  const live2d=await verifyBundledLive2D(resources);
   for(const file of ['electron/main.cjs','electron/preload.cjs','electron/persona.cjs','dist/index.html',
     'electron/motion-editor.cjs','motion-studio/scripts/desktop-preload.cjs','dist/motion-editor/index.html','dist/motion-editor/player.html',
   ])if(!entries.includes('/'+file))throw Error('Missing application file '+file);
@@ -133,11 +145,11 @@ async function verifyBaseApp(output){
   const bytes=await inspectDetachedResources(output);validateUnpackedBudget(bytes);
   const outfits=new Set(characterCatalog.models.filter(item=>item.bundled).map(item=>item.outfitGroup));
   if(outfits.size!==7)throw Error('Expected all seven character outfits');
-  const report={schemaVersion:1,version:pkg.version,bytes,maxUnpackedBytes:MAX_UNPACKED_BYTES,maxInstallerBytes:512*1024**2,modelsEmbedded:false,legacyModelsEmbeddedMeaning:'LLM/TTS weights only; visual character models are recorded separately',languageWeightsEmbedded:false,voiceWeightsEmbedded:false,characterModelsEmbedded:true,characterVariants:characterCatalog.models.filter(item=>item.bundled).length,characterOutfits:outfits.size,wallpapersEmbedded,providerLogos,runtimeEmbedded:false,petVoicesEmbedded:false,bundledAria2:true,executable,validation:'static-package-only',windowsExecutionVerified:false,installerBuilt:false};await fs.writeFile(path.join(root,'build/base-package.json'),JSON.stringify(report,null,2)+'\n');console.log(report);return report;
+  const report={schemaVersion:1,version:pkg.version,bytes,maxUnpackedBytes:MAX_UNPACKED_BYTES,maxInstallerBytes:512*1024**2,modelsEmbedded:false,legacyModelsEmbeddedMeaning:'LLM/TTS weights only; visual character models are recorded separately',languageWeightsEmbedded:false,voiceWeightsEmbedded:false,characterModelsEmbedded:true,characterVariants:characterCatalog.models.filter(item=>item.bundled).length,characterOutfits:outfits.size,live2dEmbedded:true,live2d,wallpapersEmbedded,providerLogos,runtimeEmbedded:false,petVoicesEmbedded:false,bundledAria2:true,executable,validation:'static-package-only',windowsExecutionVerified:false,installerBuilt:false};await fs.writeFile(path.join(root,'build/base-package.json'),JSON.stringify(report,null,2)+'\n');console.log(report);return report;
 }
 if(require.main===module){
   const args=process.argv.slice(2);
   const work=args.length===0?main:args.length===2&&args[0]==='--verify-only'?()=>verifyBaseApp(path.resolve(args[1])):()=>Promise.reject(Error('Usage: node scripts/build-base-app.cjs [--verify-only DIRECTORY]'));
   work().catch(e=>{console.error(e);process.exitCode=1;});
 }
-module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBundledCharacters,verifyBundledWallpapers,verifyBundledProviderLogos,verifyBaseApp};
+module.exports={MAX_UNPACKED_BYTES,validateUnpackedBudget,inspectDetachedResources,readExact,verifyWindowsExecutable,verifyBundledCharacters,verifyBundledWallpapers,verifyBundledProviderLogos,verifyBundledLive2D,verifyBaseApp};

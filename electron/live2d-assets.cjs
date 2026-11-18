@@ -38,15 +38,41 @@ async function findAsset(root, name) {
 
 function createLive2DAssets({ app, session, env = process.env }) {
   let initialized = false;
-  const root = () => env.YUKINO_LIVE2D_DIR
-    ? path.isAbsolute(env.YUKINO_LIVE2D_DIR) ? env.YUKINO_LIVE2D_DIR : null
-    : path.join(app.getPath('userData'), 'live2d');
+  let resolvedRoot = null;
+
+  function candidateRoots() {
+    // An explicit override remains authoritative, including its invalid-path
+    // failure mode. Otherwise the bundled copy shipped with this installation
+    // wins over an old per-user copy left by an earlier manual setup.
+    if (env.YUKINO_LIVE2D_DIR) {
+      return path.isAbsolute(env.YUKINO_LIVE2D_DIR) ? [env.YUKINO_LIVE2D_DIR] : [];
+    }
+    const roots = [];
+    if (app.isPackaged) {
+      if (process.resourcesPath) roots.push(path.join(process.resourcesPath, 'live2d'));
+    } else {
+      roots.push(path.join(__dirname, '..', 'resources', 'live2d'));
+    }
+    try { roots.push(path.join(app.getPath('userData'), 'live2d')); } catch {}
+    return roots;
+  }
+
+  async function resolveRoot() {
+    if (resolvedRoot) return resolvedRoot;
+    for (const directory of candidateRoots()) {
+      if (await findAsset(directory, 'viewer-bridge.js')) {
+        resolvedRoot = directory;
+        return directory;
+      }
+    }
+    return null;
+  }
 
   function initialize() {
     if (initialized || !session.defaultSession?.protocol) return;
     session.defaultSession.protocol.handle(scheme, async (request) => {
       if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405 });
-      const directory = root();
+      const directory = await resolveRoot();
       const asset = live2dAssetRequest(request.url);
       if (!directory || !asset) return new Response(null, { status: 404 });
       const file = await findAsset(directory, asset.name);
@@ -64,8 +90,9 @@ function createLive2DAssets({ app, session, env = process.env }) {
   }
 
   async function viewerUrl() {
-    const directory = root();
-    if (!initialized || !directory) return null;
+    if (!initialized) return null;
+    const directory = await resolveRoot();
+    if (!directory) return null;
     const required = [...fixedFiles.keys(), '/model/Yukino.model3.json'];
     const ready = await Promise.all(required.map(name => findAsset(directory, name.slice(1))));
     return ready.every(Boolean) ? viewer : null;

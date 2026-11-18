@@ -72,7 +72,7 @@ function bindGaze(gltf, candidate) {
       const clamp = (value, bound) => MathUtils.clamp(Number.isFinite(value) ? value : 0, -bound, bound);
       const yaw=clamp(gaze.headYaw,hat?22:12)*(hat?.85:.7);
       const pitch = hat
-        ? -clamp(gaze.headPitch, 24)
+        ? clamp(gaze.headPitch, 24)
         : (neutralPitchDegrees[candidate] ?? 0) - clamp(gaze.headPitch, 7) * .72;
       head?.apply(yaw, pitch, headBlend);
     },

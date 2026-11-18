@@ -98,7 +98,7 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
   return <div className="modal-backdrop account-gate-backdrop">
     <section className="account-gate" role="dialog" aria-modal="true" aria-labelledby="account-gate-title">
       <aside className="account-gate-aside" aria-hidden="true">
-        <img src="./account-gate.jpg" alt=""/>
+        <img src="./wallpapers/yukino-sky-01.png" alt=""/>
       </aside>
       <div className="account-gate-panel">
         <header>

@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
@@ -180,6 +180,13 @@
           "**/*",
           "!**/*.zip",
           "!**/*.part"
+        ]
+      },
+      {
+        "from": "resources/live2d",
+        "to": "live2d",
+        "filter": [
+          "**/*"
         ]
       }
     ],

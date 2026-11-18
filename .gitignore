@@ -18,6 +18,7 @@ build/
 *.gguf
 *.part
 /artifacts/
+/deliverables/
 
 # Losslessly reconstructed from resources/character-source (connector size limit).
 /public/characters/Yukino05_UVDomainRepair.glb

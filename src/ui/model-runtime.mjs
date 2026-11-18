@@ -7,7 +7,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {AvatarPresentationController} from './avatar-presentation.mjs';
 import {sceneId,scenePreset} from './scene-catalog.mjs';
 import {inspectGlbSkinning,applyEightWeightSkinning,disposeEightWeightSkinning} from './eight-weight-skinning.mjs';
-import {applyRenderStyle,modelMaterials,cameraFrame} from './model-style.mjs';
+import {applyRenderStyle,modelMaterials,cameraFrame,updateCelOutlineWindow} from './model-style.mjs';
 import {modelHitTest} from './model-hit-test.mjs';
 import {bindAvatarTouchZones,hitAvatarTouchZone} from './avatar-touch.mjs';
 import {sunlightConfig} from './sunlight.mjs';
@@ -36,6 +36,13 @@ export function mouthWeights(meshes,contract,amount){
   for(const alias of contract.aliases_not_additive?.[name]||[])if(dict[alias]!==undefined)influences[dict[alias]]=0;
   if(dict[name]!==undefined)influences[dict[name]]=value;
  }
+}
+function hideAuxiliaryStarIris(root){
+ root.traverse(node=>{
+  if(!node.isMesh)return;
+  const materials=[node.material].flat().filter(Boolean);
+  if(/IrisSurface_Star/i.test(node.name)||materials.some(material=>/StarPilot/i.test(material.name||'')))node.visible=false;
+ });
 }
 export function assertEmbeddedAsset(bytes){
  const view=new DataView(bytes);if(view.byteLength<20||view.getUint32(0,true)!==0x46546c67||view.getUint32(4,true)!==2||view.getUint32(8,true)!==view.byteLength)throw Error('人物 GLB 文件格式不完整。');
@@ -126,7 +133,7 @@ export class GlbAvatarRenderer{
   this.blinkVisibility=()=>{if(document.hidden){this.resetBlink();this.resetGarment();this.cancelBeret();this.cancelReaction();this.currentPrepared?.headGesture?.cancel();this.cancelTurntable();}};document.addEventListener('visibilitychange',this.blinkVisibility);
   this.contextLost=event=>{event.preventDefault();this.resetBlink();this.resetGarment();this.cancelBeret();this.cancelReaction();this.cancelTurntable();this.onStatus({phase:'error',message:'图形设备暂不可用，请重新选择模型或重启应用。'})};this.gl.domElement.addEventListener('webglcontextlost',this.contextLost);
  }
- resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;const ratio=Math.min(globalThis.devicePixelRatio||1,1.75);if(this.resizeWidth===width&&this.resizeHeight===height&&this.resizeRatio===ratio)return;if(this.walkingMotion)this.resetTransition({finish:true});if(this.resizeRatio!==undefined&&this.resizeRatio!==ratio)this.gl.setPixelRatio(ratio);this.resizeWidth=width;this.resizeHeight=height;this.resizeRatio=ratio;this.gl.setSize(width,height,false);this.camera.aspect=width/height;if(this.turntable)this.turntable.relayout(turntableRadius(this.turntable.count,width/height));this.fitCamera();if(this.root&&this.visible!==false&&!document.hidden)this.gl.render(this.scene,this.camera);}
+ resize(){const width=this.container.clientWidth,height=this.container.clientHeight;if(!width||!height)return;const ratio=Math.min(globalThis.devicePixelRatio||1,1.75);if(this.resizeWidth===width&&this.resizeHeight===height&&this.resizeRatio===ratio)return;if(this.walkingMotion)this.resetTransition({finish:true});if(this.resizeRatio!==undefined&&this.resizeRatio!==ratio)this.gl.setPixelRatio(ratio);this.resizeWidth=width;this.resizeHeight=height;this.resizeRatio=ratio;this.gl.setSize(width,height,false);this.camera.aspect=width/height;if(this.turntable)this.turntable.relayout(turntableRadius(this.turntable.count,width/height));this.fitCamera();if(this.root&&this.visible!==false&&!document.hidden)this.renderScene();}
  hitTest(x,y){return modelHitTest({x,y,rect:this.container.getBoundingClientRect(),camera:this.camera,root:this.root,raycaster:this.hitRaycaster||=new THREE.Raycaster()});}
  touchZone(x,y){
   if(this.disposed||this.visible===false||this.turntable||this.walkingMotion||this.walkExitHeld||this.transitionAnimation)return null;
@@ -197,6 +204,7 @@ export class GlbAvatarRenderer{
    loader.register(parser=>new VRMLoaderPlugin(parser,{autoUpdateHumanBones:false}));
   }
   const gltf=await loader.parseAsync(bytes,'');
+  hideAuxiliaryStarIris(gltf.scene);
   if(signal?.aborted||this.disposed){disposeObject(gltf.scene);signal?.throwIfAborted();throw Error('人物加载已取消');}
   try{
    if(entry.actionPack){const actions=await loadLocalCharacterActions(gltf,entry,this.api,signal);gltf.animations.push(...actions);}
@@ -251,6 +259,7 @@ export class GlbAvatarRenderer{
   const json=assertEmbeddedAsset(bytes),skinning=assertSupportedSkinWeights(json,bytes),loader=new GLTFLoader();
   if((entry.custom||entry.format==='vrm')&&json.extensions?.VRMC_vrm?.specVersion==='1.0'){const {VRMLoaderPlugin}=await import('@pixiv/three-vrm');loader.register(parser=>new VRMLoaderPlugin(parser,{autoUpdateHumanBones:false}));}
   const gltf=await loader.parseAsync(bytes,'');
+  hideAuxiliaryStarIris(gltf.scene);
   if(signal?.aborted||this.disposed){disposeObject(gltf.scene);signal?.throwIfAborted();throw Error('人物加载已取消');}
   if(entry.approvedV2&&!gltf.animations.some(clip=>clip.name===(entry.defaultClip||'Idle_Breathe'))){disposeObject(gltf.scene);throw Error('该服装缺少已通过的垂臂待机动作，已保留当前人物。');}
   let garmentBinding=null;
@@ -536,14 +545,33 @@ export class GlbAvatarRenderer{
    this.rim.color.set(twilight?'#ffcdb0':night?'#bcd2ef':'#d5e6ff');
   }
   if(this.portraitFill)this.portraitFill.intensity=.18+cloud*.10+fog*.07;
+  if(this.fill)this.fill.position.set(2.4,1.5,4);
+  if(this.rim)this.rim.position.set(-2.6,3.2,-3.6);
   if(this.groundShadow?.material?.uniforms?.uOpacity){
    this.groundShadow.material.uniforms.uOpacity.value=night?.10:(.24-cloud*.05-rain*.04-fog*.03-snow*.02);
   }
+  if(this.renderStyle==='natural')this.applyNaturalLighting();
  }
  updatePortraitFill(){
-  if(this.portraitFill)this.portraitFill.visible=Boolean((this.entry?.runtimeCandidate||this.entry?.approvedV2)&&this.renderStyle==='lit');
+  if(this.portraitFill)this.portraitFill.visible=Boolean((this.entry?.runtimeCandidate||this.entry?.approvedV2)&&['natural','lit'].includes(this.renderStyle));
  }
- setRenderStyle(style){if(this.turntable)this.cancelTurntable();this.clearRingCache();this.renderStyle=['natural','toon'].includes(style)?style:'lit';if(this.container?.dataset)this.container.dataset.renderStyle=this.renderStyle;this.updatePortraitFill();this.currentPrepared?.anime?.restore();applyRenderStyle(this.root,this.renderStyle,{candidate:this.entry?.faceChannel||this.entry?.runtimeCandidate});}
+ applyNaturalLighting(){
+  // The original-material view is a neutral studio preview, not a weather-lit
+  // scene. Keep a soft, near-frontal key with matched side fills so the face
+  // has no hard split and white cloth stays white. Textures, colours and
+  // material maps are untouched; no character shadow map or AO is introduced.
+  const center=this.bounds?.center||new THREE.Vector3(0,1,0),height=this.bounds?.size.y||1.7;
+  this.ambient.intensity=2.35;this.ambient.color.set('#ffffff');this.ambient.groundColor.set('#eeeae4');
+  this.key.intensity=.62;this.key.color.set('#fffaf4');this.key.position.set(0,height*.92,7);
+  this.key.target.position.set(center.x,center.y*.92,center.z);
+  if(!this.key.target.parent)this.scene.add(this.key.target);
+  this.key.castShadow=false;
+  if(this.fill){this.fill.intensity=.30;this.fill.color.set('#fff8f1');this.fill.position.set(-2.6,2.0,4);}
+  if(this.rim){this.rim.intensity=.30;this.rim.color.set('#fff7ef');this.rim.position.set(2.6,2.0,4);}
+  if(this.portraitFill){this.portraitFill.visible=true;this.portraitFill.intensity=.42;}
+  this.root?.traverse(mesh=>{if(mesh.isMesh){mesh.castShadow=false;mesh.receiveShadow=false;}});
+ }
+ setRenderStyle(style){if(this.turntable)this.cancelTurntable();this.clearRingCache();this.renderStyle=['natural','toon'].includes(style)?style:'lit';if(this.container?.dataset)this.container.dataset.renderStyle=this.renderStyle;this.updatePortraitFill();this.currentPrepared?.anime?.restore();applyRenderStyle(this.root,this.renderStyle,{candidate:this.entry?.faceChannel||this.entry?.runtimeCandidate});if(this.renderStyle==='natural')this.applyNaturalLighting();else this.setEnvironment();}
 
  setReducedMotion(value){this.reducedMotion=value;this.currentPrepared?.beret?.setReducedMotion?.(value);if(value){this.cancelReaction();this.resetBlink();this.stopSpeechMotion(true);this.resetTransition({finish:true});this.cancelBeret();this.currentPrepared?.headGesture?.cancel();this.cancelTurntable();this.candidateControls?.gaze.restore();this.candidateControls?.face.restore();if(this.candidateControls&&this.hasCompetingBodyAction()){this.mixer.stopAllAction();this.restoreAuthoredPose();this.currentAction=null;this.play(this.entry.defaultClip||'Idle_Breathe');this.mixer.update(0);this.candidateControls.gaze.capture();this.candidateControls.face.capture();}}}
  clear(){this.cancelTurntable();this.clearRingCache();this.flushDisposal();this.disposeBlink();this.disposeGarment();this.currentPrepared?.headGesture?.cancel();this.currentPrepared?.beret?.dispose();this.disposeReaction();this.stopSpeechMotion(true);this.speechDirector?.reset();if(this.groundShadow)this.groundShadow.visible=false;this.epoch++;this.loadController?.active?.abort();if(this.loadController)this.loadController.outfit=null;this.resetTransition();this.mixer?.stopAllAction();if(this.root){this.root.removeFromParent();this.mixer?.uncacheRoot(this.root);disposeObject(this.root)}this.root=null;this.pivot=null;this.authoredPose=[];this.basePosition=null;this.entry=null;this.currentPrepared=null;this.mixer=null;this.clips=null;this.bodyActions?.clear();this.currentAction=null;this.head=null;this.headBase=null;this.bounds=null;this.meshes=[];delete this.container.dataset.modelReady;this.gl.domElement.dataset.rendered='false';this.onStatus({phase:'idle',message:''});}
@@ -598,12 +626,13 @@ export class GlbAvatarRenderer{
    motion.releasing=false;motion.action.time=sample.time;motion.weight=sample.weight;motion.action.setEffectiveWeight(sample.weight);motion.idle.setEffectiveWeight(1-sample.weight);this.container.dataset.speechGesture=sample.name;this.container.dataset.speechTime=String(sample.time);this.container.dataset.speechWeight=String(sample.weight);
   }else if(this.speechMotion){const motion=this.speechMotion;motion.releasing=true;motion.weight=Math.max(0,motion.weight-Math.max(0,dt)*2.5);motion.action.setEffectiveWeight(motion.weight);motion.idle.setEffectiveWeight(1-motion.weight);if(!motion.weight)this.stopSpeechMotion(true);}
  }
+ renderScene(){if(this.renderStyle==='toon')updateCelOutlineWindow(this.root,this.camera,this.gl.domElement.clientHeight||this.container.clientHeight);this.gl.render(this.scene,this.camera);}
  renderFrame(now){if(this.disposed)return;this.frame=requestAnimationFrame(this.renderFrame);const elapsed=now-this.last;if(elapsed<(document.hidden?200:this.reducedMotion?100:1000/30))return;this.last=now;const dt=Math.min(elapsed/1000,.1);
   const turntable=this.turntable;
   if(turntable){
    const state=turntable.update(dt);
    if(this.container?.dataset)this.container.dataset.turntablePhase=state.phase;
-   if(this.visible!==false&&!document.hidden&&this.container.clientWidth&&this.container.clientHeight)this.gl.render(this.scene,this.camera);
+   if(this.visible!==false&&!document.hidden&&this.container.clientWidth&&this.container.clientHeight)this.renderScene();
    if(state.done&&!turntable.finished){turntable.finished=true;turntable.resolve?.(true);}
    return;
   }
@@ -661,7 +690,7 @@ export class GlbAvatarRenderer{
   if(reaction)this.container.dataset.animeReaction=reaction;else delete this.container.dataset.animeReaction;
   const conversationCue=showCue?cue.cue:reaction&&this.reactionLegacyCue;
   if(conversationCue)this.container.dataset.conversationExpression=conversationCue;else delete this.container.dataset.conversationExpression;
-  this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(visible&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.gl.render(this.scene,this.camera);if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
+  this.container.dataset.speechReady=String(!!this.entry&&!walking&&!this.walkExitHeld&&!this.transitionAnimation&&!this.speechMotion&&!snapshot?.playing&&!this.hasCompetingBodyAction());if(visible&&this.container.clientWidth!==0&&this.container.clientHeight!==0){this.renderScene();if(this.entry&&this.gl.domElement.dataset.rendered!=='true'){this.gl.domElement.dataset.rendered='true';this.onFirstFrame?.(this.entry.id);}}if(walking?.sample.done)this.finishWalking(walking);
  }
  async exit({signal}={}){if(this.entry?.walking)return this.beginWalking('exit',signal);await this.transition([{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-15%)'}],signal,true);}
  async enter({signal}={}){if(this.entry?.walking)return this.beginWalking('enter',signal);await this.transition([{opacity:0,transform:'translateX(15%)'},{opacity:1,transform:'translateX(0)'}],signal);}
