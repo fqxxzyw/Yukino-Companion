@@ -7,7 +7,7 @@
 .account-gate{width:min(940px,96vw);max-height:92vh;overflow:auto;display:grid;grid-template-columns:minmax(260px,.82fr) minmax(0,1.18fr);background:var(--surface);border:1px solid color-mix(in srgb,var(--line) 70%,#fff);border-radius:28px;box-shadow:0 34px 100px #142a4438;animation:account-gate-in .26s ease both}
 @keyframes account-gate-in{from{opacity:0;transform:translateY(10px) scale(.992)}to{opacity:1;transform:none}}
 .account-gate-aside{position:relative;min-height:540px;overflow:hidden;border-radius:27px 0 0 27px;background:#1b2a3a}
-.account-gate-aside>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center bottom;opacity:.98}
+.account-gate-aside>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:left center;opacity:.98}
 .account-gate-aside::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#1b2a3a1a 18%,#152333f2 100%)}
 .account-gate-aside>div{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding:30px 30px 34px;color:#eef6ff}
 .account-gate-mark{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:13px;background:#ffffff17;border:1px solid #ffffff24;margin-bottom:18px}
