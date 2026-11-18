@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid slice">
+<defs>
+  <linearGradient id="back" x2=".86" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#203751"/><stop offset=".6" stop-color="#355b86"/><stop offset="1" stop-color="#b2cadd"/></linearGradient>
+  <linearGradient id="one" x2=".3" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#aecbe0"/><stop offset=".48" stop-color="#708fbd"/><stop offset="1" stop-color="#365184"/></linearGradient>
+  <linearGradient id="two" x2=".6" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#cfdfec"/><stop offset=".38" stop-color="#9eb7d8"/><stop offset="1" stop-color="#456098"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#bed5eb" stop-opacity=".61"/><stop offset="1" stop-color="#b7c9de" stop-opacity="0"/></radialGradient>
+</defs>
+<path fill="url(#back)" d="M0 0h1440v810H0z"/>
+<ellipse cx="690" cy="426" rx="829" ry="494" fill="url(#light)" transform="rotate(-22 690 426)"/>
+<path fill="url(#one)" d="M1440 186c-275-22-443 97-558 223C704 605 445 626 342 503 233 374 151 399 0 420v390h1440z" opacity=".73"/>
+<path fill="none" stroke="#cadbee" stroke-opacity=".25" stroke-width="2" d="M1440 187c-275-22-443 97-558 223C704 606 445 628 342 504 233 375 151 401 0 420"/>
+<path fill="url(#two)" d="M1440 335c-335-56-469 96-622 244C616 774 447 802 298 648 194 542 120 605 0 566v244h1440z" opacity=".81"/>
+<path fill="none" stroke="#d4e9ff" stroke-opacity=".36" stroke-width="3" d="M1440 336c-335-55-469 96-622 244C616 775 447 803 298 649 194 543 120 606 0 567"/>
+</svg>

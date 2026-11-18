@@ -1,0 +1,61 @@
+import {API,GITHUB,CATEGORIES,categoryOf,titleOf,excerptOf,voiceMetadata,escapeHtml,safeUrl,markdown,submissionUrl,issueUrl,request} from './lib.mjs';
+const $=selector=>document.querySelector(selector),$$=selector=>[...document.querySelectorAll(selector)];
+const state={issues:[],category:'all',query:'',next:null,loaded:false,loading:false,requestId:0,routeId:0,controller:null};
+const icons={fiction:'Aa',voice:'≋',idea:'✧',bug:'⌁'};
+const date=value=>{try{return new Intl.DateTimeFormat('zh-CN',{month:'short',day:'numeric'}).format(new Date(value));}catch{return '日期未知';}};
+function avatar(user){const url=safeUrl(user?.avatar_url);return url&&new URL(url).hostname==='avatars.githubusercontent.com'?`<img class="avatar" loading="lazy" referrerpolicy="no-referrer" src="${escapeHtml(url)}" alt="">`:'<span class="avatar" aria-hidden="true"></span>';}
+function errorText(error){return error?.name==='TimeoutError'?'连接 GitHub 超时，请稍后重试，或直接前往 GitHub 查看。':error?.message||'暂时无法连接 GitHub，请检查网络后重试。';}
+function notice(error){$('#feed-notice').innerHTML=error?`<div class="notice">${escapeHtml(errorText(error))} <a href="${GITHUB}/issues" target="_blank" rel="noopener noreferrer">在 GitHub 查看 ↗</a></div>`:'';}
+function empty(title,body,publish=false){return `<div class="empty-state"><div class="empty-glyph" aria-hidden="true">＋</div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p>${publish?'<button class="button secondary empty-publish">发布内容 ↗</button>':''}</div>`;}
+function renderFeed(){
+  const available=state.issues.filter(issue=>categoryOf(issue)&&!(issue.labels||[]).some(label=>(label.name||label)==='community:hidden'));
+  const query=state.query.trim().toLocaleLowerCase();
+  const list=available.filter(issue=>(state.category==='all'||categoryOf(issue)===state.category)&&(!query||[titleOf(issue),issue.body,issue.user?.login].join('\n').toLocaleLowerCase().includes(query)));
+  $$('.tabs button').forEach(button=>{button.setAttribute('aria-selected',String(button.dataset.category===state.category));button.tabIndex=button.dataset.category===state.category?0:-1;});
+  $('#feed-title').textContent=state.category==='all'?'社区内容':CATEGORIES[state.category].label;
+  $('#feed-description').textContent=state.category==='all'?'二创文章、音色资源、功能建议和问题反馈。':CATEGORIES[state.category].description;
+  $('#feed-meta').textContent=state.loading?'正在读取 GitHub 上的真实内容…':state.loaded?`当前显示 ${list.length} 篇 · 已载入 ${available.length} 篇社区内容${state.next?' · 还有更多内容':''}`:'连接后显示社区内容';
+  $('#load-more').hidden=!state.next;$('#load-more').disabled=state.loading;$('#refresh').disabled=state.loading;
+  if(!list.length){$('#posts').innerHTML=state.loading&&!state.loaded?'<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>':empty(query?'还没有找到匹配内容':state.loaded?'暂无社区内容':'连接暂未完成',query?'试试其他关键词，或者载入更多内容后再搜索。':state.loaded?'还没有该分类的公开投稿。可通过 GitHub 表单提交内容。':'检查网络后点击刷新，也可以前往 GitHub 直接浏览。',state.loaded&&!query);$('.empty-publish')?.addEventListener('click',()=>openPublish(state.category==='all'?'fiction':state.category));return;}
+  $('#posts').innerHTML=list.map(issue=>{const category=categoryOf(issue);return `<article class="post-card"><div class="post-card-top"><span class="category-tag ${category}">${escapeHtml(CATEGORIES[category].label)}</span><span class="post-number">#${issue.number}${issue.state==='closed'?' · 已关闭':''}</span></div><h3><a class="post-title" href="#post/${issue.number}">${escapeHtml(titleOf(issue))}</a></h3><p>${escapeHtml(excerptOf(issue)||'打开阅读完整内容。')}</p><div class="post-card-bottom">${avatar(issue.user)}<span>${escapeHtml(issue.user?.login||'GitHub 用户')}</span><span class="date">${date(issue.created_at)}</span><span class="comment-count" aria-label="${Number(issue.comments)||0} 条评论">◌ ${Number(issue.comments)||0}</span></div></article>`;}).join('');
+}
+async function loadFeed(more=false){
+  if(state.loading)return;const id=++state.requestId;state.loading=true;notice(null);renderFeed();
+  try{const result=await request(more&&state.next?state.next:`${API}/issues?state=all&sort=created&direction=desc&per_page=60`);if(id!==state.requestId)return;if(!Array.isArray(result.data))throw Error('GitHub 返回的列表格式不正确。');const next=more?[...state.issues,...result.data]:result.data;state.issues=[...new Map(next.filter(issue=>issue&&!issue.pull_request).map(issue=>[issue.number,issue])).values()];state.next=result.next;state.loaded=true;}
+  catch(error){if(id===state.requestId)notice(error);}
+  finally{if(id===state.requestId){state.loading=false;renderFeed();}}
+}
+let publishCategory='fiction';
+function publishLink(){const url=submissionUrl(publishCategory,$('#draft-title').value);$('#publish-continue').href=url;}
+function openPublish(category='fiction'){publishCategory=CATEGORIES[category]?category:'fiction';$('#publish-options').innerHTML=Object.entries(CATEGORIES).map(([id,item])=>`<button class="publish-option" data-publish="${id}" aria-pressed="${id===publishCategory}"><span class="option-icon" aria-hidden="true">${icons[id]}</span><strong>${escapeHtml(item.label)}</strong></button>`).join('');$$('[data-publish]').forEach(button=>button.addEventListener('click',()=>{publishCategory=button.dataset.publish;$$('[data-publish]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));publishLink();}));publishLink();if(!$('#publish-dialog').open)$('#publish-dialog').showModal();}
+function detailShell(html){$('#detail-section').innerHTML=`<a class="back-link" href="#home">← 返回社区</a>${html}`;}
+async function showPost(number,routeId,signal){
+  detailShell('<div class="skeleton"></div>');
+  try{
+    if(!Number.isSafeInteger(number)||number<1)throw Error('无效的内容编号。');
+    const issue=state.issues.find(x=>x.number===number)||(await request(`${API}/issues/${number}`,{signal})).data;
+    if(routeId!==state.routeId)return;const category=categoryOf(issue);if(!category)throw Error('这条记录不是社区投稿，请前往 GitHub 仓库查看。');
+    if((issue.labels||[]).some(label=>(label.name||label)==='community:hidden'))throw Error('这条内容已由维护者从社区列表隐藏。');
+    const url=issueUrl(number),metadata=category==='voice'?voiceMetadata(issue):null;
+    detailShell(`<header class="detail-heading"><span class="category-tag ${category}">${escapeHtml(CATEGORIES[category].label)}</span><h1>${escapeHtml(titleOf(issue))}</h1><div class="detail-meta">${avatar(issue.user)}<span>${escapeHtml(issue.user?.login||'GitHub 用户')}</span><span>· ${date(issue.created_at)} · #${number}</span><a class="button secondary" href="${url}" target="_blank" rel="noopener noreferrer">在 GitHub 查看 ↗</a></div></header>${metadata?`<aside class="resource-box"><h2>音色资源信息</h2><dl><dt>模型与版本</dt><dd>${escapeHtml(metadata.model||'作者尚未填写')}</dd><dt>SHA-256</dt><dd><code>${escapeHtml(metadata.sha256||'未提供有效校验值')}</code></dd><dt>参考声音</dt><dd>${escapeHtml(metadata.reference||'请查看作者的使用说明')}</dd><dt>授权范围</dt><dd>${escapeHtml(metadata.license||'请向作者确认')}</dd></dl>${metadata.url?`<a class="button primary" href="${escapeHtml(metadata.url)}" target="_blank" rel="noopener noreferrer">打开作者的下载链接 ↗</a>`:'<p>作者尚未提供有效的 HTTPS 下载链接。</p>'}<p>以上内容由作者提交，本站未代为验证模型质量或文件校验值。下载后请先核对完整性，再在桌面端导入。</p></aside>`:''}<article class="detail-content markdown">${markdown(issue.body||'作者还没有填写正文。')}</article><section class="comments"><div class="comments-heading"><h2>评论 <span>· ${Number(issue.comments)||0}</span></h2><a class="button secondary" href="${url}#new_comment_field" target="_blank" rel="noopener noreferrer">在 GitHub 登录并评论 ↗</a></div><div id="comments-list" role="status">正在读取公开评论…</div><button class="button secondary" id="more-comments" hidden>载入更多评论</button></section>`);
+    let next=`${API}/issues/${number}/comments?per_page=30`,loading=false;
+    const load=async()=>{if(!next||loading)return;loading=true;const button=$('#more-comments');if(button)button.disabled=true;try{const result=await request(next,{signal});if(routeId!==state.routeId)return;if(!Array.isArray(result.data))throw Error('评论数据格式不正确。');const list=$('#comments-list');if(!list.dataset.loaded){list.innerHTML='';list.dataset.loaded='true';}list.insertAdjacentHTML('beforeend',result.data.map(comment=>`<article class="comment"><header class="detail-meta">${avatar(comment.user)}<strong>${escapeHtml(comment.user?.login||'GitHub 用户')}</strong><span>${date(comment.created_at)}</span></header><div class="markdown">${markdown(comment.body||'')}</div></article>`).join(''));if(!list.children.length)list.innerHTML='<p class="comment-empty">暂无评论。可在 GitHub 登录后评论。</p>';next=result.next;button.hidden=!next;}catch(error){if(!signal.aborted&&routeId===state.routeId){const list=$('#comments-list');if(!list.dataset.loaded)list.innerHTML=`<p class="notice">${escapeHtml(errorText(error))}</p>`;button.hidden=false;button.textContent='重试读取评论';}}finally{loading=false;if(button)button.disabled=false;}};
+    $('#more-comments').addEventListener('click',load);await load();
+  }catch(error){if(!signal.aborted&&routeId===state.routeId)detailShell(`<div class="empty-state"><h3>暂时无法打开这篇内容</h3><p>${escapeHtml(errorText(error))}</p><a class="button secondary" href="${GITHUB}/issues" target="_blank" rel="noopener noreferrer">前往 GitHub 查看 ↗</a></div>`);}
+}
+function route(){
+  if($('#publish-dialog').open)$('#publish-dialog').close();
+  state.controller?.abort();state.controller=new AbortController();const id=++state.routeId;const parts=location.hash.slice(1).split('/');const section=parts[0]||'home';const detail=section==='post';
+  if(section==='help'){location.replace('/help/'+(parts[1]?'#'+parts[1]:''));return;}
+  $('#hero').hidden=detail;$('.ykc-workspace').hidden=detail;$('#feed-section').hidden=detail;$('#detail-section').hidden=!detail;$('#bottom-callout').hidden=detail;
+  $$('[data-nav]').forEach(a=>{const active=a.dataset.nav==='home';a.classList.toggle('active',active);active?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current');});
+  document.title='Yukino · 社区';
+  if(detail)showPost(Number(parts[1]),id,state.controller.signal);else{state.category=section==='voice'?'voice':section==='feed'&&CATEGORIES[parts[1]]?parts[1]:'all';renderFeed();if(!state.loaded&&!state.loading)loadFeed();}
+}
+$('#hero-publish').addEventListener('click',()=>openPublish());$('#publish-button').addEventListener('click',()=>openPublish(state.category));$('#draft-title').addEventListener('input',publishLink);
+$('#publish-dialog').addEventListener('click',event=>{if(event.target===$('#publish-dialog')){const rect=event.target.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)event.target.close();}});
+$$('[data-category]').forEach(button=>button.addEventListener('click',()=>{const category=button.dataset.category;location.hash=category==='all'?'home':category==='voice'?'voice':`feed/${category}`;}));
+$('.tabs').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=$$('.tabs button'),index=tabs.indexOf(document.activeElement);const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[next].focus();tabs[next].click();});
+$('#search').addEventListener('input',event=>{state.query=event.target.value;renderFeed();});$('#refresh').addEventListener('click',()=>loadFeed());$('#load-more').addEventListener('click',()=>loadFeed(true));
+$('.skip-link').addEventListener('click',event=>{event.preventDefault();$('#content').focus();$('#content').scrollIntoView();});
+window.addEventListener('hashchange',()=>{route();window.scrollTo({top:0,behavior:'instant'});});window.addEventListener('pageshow',()=>{if(state.loaded&&location.hash.startsWith('#post/'))route();});route();

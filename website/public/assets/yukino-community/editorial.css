@@ -1,0 +1,35 @@
+/* Scoped to the redesigned community interior; the official shell is separate. */
+.yk-community #content{max-width:1240px;padding-inline:clamp(20px,5vw,64px)}
+.yk-community .ykc-masthead{display:block;min-height:0;padding:clamp(54px,8vw,106px) 0 clamp(33px,5vw,52px);border-bottom:1px solid var(--line)}
+.yk-community .ykc-masthead .hero-copy{padding:0}
+.yk-community .ykc-masthead h1{font-size:clamp(49px,8vw,100px);letter-spacing:-.054em;line-height:1.02;margin:15px 0;font-weight:660}
+.yk-community .ykc-masthead p:not(.eyebrow){color:#c6d0de;font-size:clamp(14px,1.4vw,18px)}
+.yk-community .ykc-masthead .hero-actions{margin-top:22px}
+.yk-community #content .button.primary,.yk-community #content .button.secondary{border-radius:999px}
+.yk-community .ykc-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,27%);gap:clamp(22px,5vw,58px);align-items:start;margin-top:38px}
+.yk-community .community-section{border:0;padding:0;min-width:0}
+.yk-community .section-top{margin-bottom:19px}
+.yk-community .section-top h2{margin:4px 0;font-size:clamp(24px,3.6vw,36px)}
+.yk-community .feed-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.yk-community .tabs{justify-content:flex-start;min-width:0;width:fit-content;max-width:100%;background:#18243588;border:1px solid var(--line)}
+.yk-community .tabs button{flex:none;font-size:13px}
+.yk-community .search{width:100%;min-height:42px;margin-top:3px}
+.yk-community .post-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.yk-community .empty-state{text-align:left;align-items:start;background:linear-gradient(145deg,#17253a9c,#111b28);min-height:218px;padding:23px}
+.yk-community .empty-glyph{height:30px;width:30px;border-radius:9px;margin-bottom:13px;color:#bcd8f7}
+.yk-community .empty-state h3{font-size:19px}
+.yk-community .empty-state p{max-width:unset}
+.yk-community .ykc-guide{margin-top:1px;border:1px solid var(--line);border-radius:21px;background:#142134b3;padding:20px}
+.yk-community .ykc-guide-kicker{color:#a4c9ea;font-size:11px;letter-spacing:.13em}
+.yk-community .ykc-guide-heading h2{margin:7px 0 10px;font-size:21px}
+.yk-community .ykc-guide-heading p{margin-bottom:13px;color:var(--secondary);font-size:13px}
+.yk-community .ykc-guide-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.yk-community .ykc-guide-link:hover{color:var(--blue-dark)}
+.yk-community .ykc-guide-link strong,.yk-community .ykc-guide-link small{display:block}
+.yk-community .ykc-guide-link small{color:var(--muted)}
+.yk-community .bottom-callout{margin-top:40px}
+@media(max-width:760px){.yk-community .ykc-workspace{grid-template-columns:minmax(0,1fr);margin-top:25px}.yk-community .tabs button{font-size:11px}.yk-community .bottom-callout{margin-top:26px}}
+@media(max-width:520px){.yk-community .post-grid{grid-template-columns:1fr}.yk-community .ykc-masthead{padding-top:44px}.yk-community .ykc-masthead .hero-actions{flex-wrap:wrap}}
+/* Use the product page's typography and uninterrupted page backdrop. */
+.yk-community :where(#content, #publish-dialog) { font-family:var(--v2-text); }
+.yk-community #content { background:none; min-height:0; }
