@@ -1,0 +1,40 @@
+/* Q mascot demo only. */
+.ykx-demo{min-width:0;width:min(100% - 48px,1160px);margin-inline:auto;}
+.ykx-kicker{display:block;font-size:.7rem;font-weight:700;letter-spacing:.22em;line-height:1.4;}
+.ykx-button{appearance:none;border:1px solid #b7cedd;border-radius:10px;min-height:42px;color:#234860;background:#f6fbff;font:inherit;font-weight:680;font-size:.86rem;padding:6px 12px;cursor:pointer;touch-action:manipulation;transition:background-color .2s;}
+.ykx-demo{display:grid;grid-template-columns:minmax(0,.64fr) minmax(0,1.36fr);align-items:center;gap:clamp(16px,3.9vw,56px);margin-block:clamp(32px,5vw,68px) 0;padding:clamp(18px,3vw,38px);border:1px solid #5a7f9e74;border-radius:24px;background:linear-gradient(125deg,#172a3c,#1d3448);box-shadow:0 18px 60px #07141c39;color:#edf8ff;box-sizing:border-box}
+.ykx-demo-copy{min-width:0}
+.ykx-demo .ykx-kicker{color:#9fc7e3}
+.ykx-demo h3{font-size:clamp(1.35rem,2.55vw,2.35rem);line-height:1.17;margin:.48em 0 .4em;letter-spacing:-.035em;color:#f3faff}
+.ykx-demo-copy>p{margin:.65em 0 1.1em;color:#d1e0ed;font-size:.9rem;line-height:1.68}
+.ykx-demo-controls{display:flex;gap:8px;flex-wrap:wrap}
+.ykx-demo .ykx-button{background:#263e53;color:#edf8fb;border-color:#789bb77a}
+.ykx-demo .ykx-button:hover{background:#365874}
+.ykx-demo .ykx-primary{background:#a9d5f4;color:#102f45;border-color:#b6dcf8}
+.ykx-demo .ykx-primary:hover{background:#cae9ff}
+.ykx-demo .ykx-demo-status{margin:12px 0 0;min-height:2.7em;font-size:.76rem;color:#b9d3e7;line-height:1.45}
+.ykx-desktop{aspect-ratio:16/10;min-height:172px;position:relative;overflow:hidden;isolation:isolate;border-radius:14px;border:1px solid #95b6ce8a;background:#8eafc9 radial-gradient(ellipse at 30% 0%,#c8e2f5,#668faf 70%);box-shadow:0 12px 28px #0a162650}
+.ykx-pet-stage{background:linear-gradient(155deg,#4b6a859c,#101e2d47),url("/assets/hero-sky-2.jpg") center / cover no-repeat,#7197b7}
+.ykx-taskbar{position:absolute;z-index:5;inset:auto 0 0;display:flex;justify-content:space-between;align-items:center;padding:6px 10px;min-height:22px;background:#1c3046b8;backdrop-filter:blur(12px);color:#f0f8ff;font-size:clamp(.55rem,1vw,.72rem);border-top:1px solid #d2e6fb45;pointer-events:none}
+.ykx-window{position:absolute;overflow:hidden;border-radius:9px;background:#f6faff;color:#1c3b57;border:1px solid #bfd9ef;box-shadow:0 10px 26px #132e5252;min-width:0}
+.ykx-window-bar{background:#e1ecf6;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:7px;align-items:center;padding:5px 8px;min-height:22px;font-size:clamp(.57rem,1vw,.76rem);white-space:nowrap}
+.ykx-window-bar strong{overflow:hidden;text-overflow:ellipsis}
+.ykx-window-bar i{display:inline-block;width:4px;height:4px;border-radius:50%;background:#6d89a4;margin-right:2px}
+.ykx-window-close{font:inherit;font-size:1rem;line-height:1;appearance:none;background:transparent;border:0;color:#24445d;padding:3px 7px;cursor:pointer;border-radius:5px}
+.ykx-window-close:hover{background:#d2e4f2}
+.ykx-chat-window{inset:13% 26% 25% 8%;transition:opacity .47s ease,transform .47s ease,visibility 0s}
+.ykx-pet[data-ykx-closed=true] .ykx-chat-window{opacity:0;visibility:hidden;transform:scale(.974) translateY(6px);transition:opacity .47s ease,transform .47s ease,visibility 0s .47s;pointer-events:none}
+.ykx-chat-sheet{padding:0 8px;font-size:clamp(.55rem,1.32vw,.85rem)}
+.ykx-chat-sheet p{width:max-content;max-width:98%;margin:.5em 0;background:#e6eff7;border-radius:6px;padding:4px 6px}
+.ykx-chat-sheet .ykx-chat-user{margin-left:auto;background:#cce3f4}
+.ykx-pet-sprite{position:absolute;z-index:4;right:4%;bottom:14%;width:clamp(65px,24%,155px);aspect-ratio:192/208;appearance:none;display:block;padding:0;background:transparent;border:0;border-radius:14px;cursor:pointer;touch-action:manipulation}
+.ykx-pet-sprite img,.ykx-pet-sprite canvas{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 4px 8px #182d495a)}
+.ykx-pet-sprite :is(img,canvas)[hidden]{display:none!important}
+.ykx-desktop-icon{position:absolute;top:8%;left:6%;color:#18466a;line-height:1.05;text-shadow:0 1px 0 #dbeaf6}
+.ykx-desktop-icon span{display:block;font-size:1.3rem}.ykx-desktop-icon small{font-size:.55rem}
+.ykx-demo{margin-inline:auto;}
+.ykx-demo :is(button,[tabindex]):focus-visible{outline:2px solid #d3f4ff;outline-offset:2px;}
+@media(max-width:790px){.ykx-demo{grid-template-columns:1fr;gap:14px}.ykx-demo .ykx-demo-status{min-height:0}.ykx-desktop{width:100%}}
+@media(max-width:700px){.ykx-demo{width:calc(100% - 32px)}}
+@media(max-width:480px){.ykx-button{padding-inline:5px;font-size:.75rem;min-height:40px}.ykx-demo{padding:14px;border-radius:18px}.ykx-chat-window{inset:12% 22% 27% 6%}}
+@media(prefers-reduced-motion:reduce){.ykx-demo *{animation:none!important;transition:none!important}}
