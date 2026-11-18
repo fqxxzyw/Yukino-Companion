@@ -1,0 +1,33 @@
+/* Showcase only. The resting layout remains identical to the App preview. */
+#overview .v4-app-actor,#overview .v4-app-compose {transform-origin:top left;}
+#overview [data-overview-dock="left"] .v4-app-actor {left:3%;right:auto;}
+#overview [data-overview-dock="left"] .v4-app-compose {left:auto;right:2.6%;}
+#overview [data-overview-dock="left"] .v4-app-actor,
+#overview [data-overview-demo-phase="dock"] .v4-app-actor {z-index:2;}
+#overview [data-overview-demo-phase="grab"] .v4-app-actor,
+#overview [data-overview-demo-phase="drag"] .v4-app-actor {
+  border-color:#c8e6fc;
+  box-shadow:0 10px 26px #25435e3b,inset 0 1px 0 #f7fbffcd;
+}
+#overview .v4-app-actor::after {
+  content:"";position:absolute;top:4.7%;left:var(--v18-grip-x,50%);width:16%;height:3px;
+  border-radius:99px;background:#657f93b8;transform:translateX(-50%);opacity:0;pointer-events:none;
+}
+#overview [data-overview-demo-phase="approach"] .v4-app-actor::after {opacity:.58;}
+#overview [data-overview-demo-phase="grab"] .v4-app-actor::after,
+#overview [data-overview-demo-phase="drag"] .v4-app-actor::after {opacity:1;background:#4b779a;}
+#overview .v18-dock-cursor {
+  width:clamp(15px,2.4cqw,29px);aspect-ratio:26/33;position:absolute;top:0;left:0;
+  z-index:5;pointer-events:none;opacity:0;transition:opacity 180ms ease;
+}
+#overview .v18-dock-cursor svg {display:block;width:100%;height:100%;filter:drop-shadow(0 2px 3px #12253742);}
+#overview [data-overview-demo-phase="approach"] .v18-dock-cursor,
+#overview [data-overview-demo-phase="grab"] .v18-dock-cursor,
+#overview [data-overview-demo-phase="drag"] .v18-dock-cursor {opacity:1;}
+#overview .v18-dock-cursor::before {
+  content:"";position:absolute;inset:-26% 33% 43% -29%;border:1px solid #315d8c9c;
+  border-radius:50%;background:#b7def889;opacity:0;
+}
+#overview [data-overview-demo-phase="grab"] .v18-dock-cursor::before,
+#overview [data-overview-demo-phase="drag"] .v18-dock-cursor::before {opacity:1;}
+@media(prefers-reduced-motion:reduce){#overview .v18-dock-cursor{display:none!important;}}
