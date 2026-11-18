@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1120">
+ <defs>
+  <linearGradient id="sky" x2="0" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#101a39"/><stop offset=".43" stop-color="#51668d"/><stop offset=".76" stop-color="#9eacc9"/><stop offset="1" stop-color="#e4c6c3"/></linearGradient>
+  <linearGradient id="water" x2="0" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#798ba9"/><stop offset=".47" stop-color="#3d527c"/><stop offset="1" stop-color="#162341"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#fde6cf" stop-opacity=".91"/><stop offset=".38" stop-color="#f7cfc8" stop-opacity=".41"/><stop offset="1" stop-color="#eabac9" stop-opacity="0"/></radialGradient>
+  <linearGradient id="hills" x2="0" y2="1" gradientUnits="objectBoundingBox"><stop stop-color="#26395e"/><stop offset="1" stop-color="#162441"/></linearGradient>
+ </defs>
+ <path fill="url(#sky)" d="M0 0h1600v1120H0z"/>
+ <ellipse cx="1112" cy="465" rx="490" ry="404" fill="url(#glow)"/>
+ <circle cx="1120" cy="466" r="58" fill="#ffe8d6" opacity=".91"/>
+ <path d="M0 549C190 473 271 585 461 515c133-49 189-125 279-106 100 21 202 177 358 183 158 7 235-84 502-73v204H0z" fill="#687b9f"/>
+ <path d="M0 491c189 18 273 175 478 114 91-27 169-96 266-76 103 23 188 96 331 87 191-12 271-114 525-103v217H0z" fill="#4b6089"/>
+ <path d="M0 603c284-38 357 105 571 83 211-22 266-78 391-64 181 20 398 57 638-34v133H0z" fill="#364b73"/>
+ <path fill="url(#water)" d="M0 684h1600v436H0z"/>
+ <path d="M786 763c92-13 240-17 437-7m-605 43c212 13 423 12 676-2M447 854c319-19 717-24 1020-7m-704 63c185 3 387-1 591-15" fill="none" stroke="#d4c1cc" stroke-width="2.5" opacity=".38" stroke-linecap="round"/>
+ <path d="M0 687c163 33 264 154 435 197 180 46 393 25 521 114 50 35 90 74 119 122H0z" fill="url(#hills)"/>
+ <path d="M1600 837c-146 38-230 105-350 121-77 11-111 70-149 162h499z" fill="#192846" opacity=".74"/>
+</svg>

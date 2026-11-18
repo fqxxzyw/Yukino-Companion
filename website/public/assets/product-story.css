@@ -1,0 +1,189 @@
+/* The transition into dialogue leaves its title visible in both scroll directions. */
+#conversation { scroll-margin-top:64px; }
+#conversation .v5-stable-intro .v2-kicker[data-reveal] {opacity:1; transform:none;}
+#conversation .v5-stable-intro .v2-display {visibility:visible;opacity:1;transform:none;}
+/* A live graphic, not a small screenshot of the settings menu. */
+.v5-router { max-width:1010px;color:#15283f;padding:clamp(20px,4vw,48px);border-radius:clamp(19px,3vw,33px);background:#eef4f9;border:1px solid #cadcea;box-shadow:0 16px 72px #293e5e29; }
+.v5-router-top { display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:clamp(16px,4vw,34px); }
+.v5-router-top b{font-size:clamp(1.2rem,2.5vw,1.75rem);} .v5-router-top span{color:#4b657b;font-size:.86rem; }
+.v5-route-track{display:grid;grid-template-columns:minmax(0,.86fr) minmax(42px,.62fr) minmax(0,1.15fr);align-items:stretch;}
+.v5-route-menu{display:grid;gap:10px;}
+.v5-route-menu button{min-height:52px;display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:13px;border:1px solid #cbddeb;background:#fafcfe;color:#283d55;text-align:start;font:inherit;font-weight:670;cursor:pointer;transition:background .25s,color .25s,border-color .25s;}
+.v5-route-menu button span{color:#66829f;font-size:.67rem;font-variant-numeric:tabular-nums;}
+.v5-route-menu button[aria-pressed=true]{background:#152a45;color:#f3f8ff;border-color:#152a45;}
+.v5-route-menu button[aria-pressed=true] span{color:#b1cee7;}
+.v5-route-flow{display:grid;grid-template-rows:repeat(3,1fr);align-items:center;}
+.v5-route-flow i{height:1px;background:#b4c8dd;position:relative;}
+.v5-route-flow i::after{content:"";width:0;height:2px;position:absolute;inset:-1px auto auto 0;border-radius:20px;background:#4079ae;opacity:0;transition:width .62s ease,opacity .34s;}
+.v5-router[data-route=chat] i:nth-child(1)::after,.v5-router[data-route=translation] i:nth-child(2)::after,.v5-router[data-route=voice] i:nth-child(3)::after{width:100%;opacity:1;}
+.v5-route-output{display:grid;align-content:center;padding:clamp(14px,4.5vw,45px);border-radius:16px;border:1px solid #aac4dd;background:linear-gradient(125deg,#e6f0f9,#d8e7f5);}
+.v5-route-output div{display:grid;gap:6px;overflow-wrap:anywhere;}
+.v5-route-output strong{font-size:clamp(1.02rem,3vw,1.9rem);letter-spacing:-.045em;}
+.v5-route-output small,.v5-route-output span{color:#486785;font-size:.78rem;line-height:1.6;}
+/* Screen vision stays a product illustration; no simulated workflow buttons. */
+.v5-vision {display:grid;grid-template-columns:minmax(0,.74fr) minmax(0,1.26fr);align-items:center;gap:clamp(22px,5vw,74px);margin-top:clamp(38px,8vw,98px);}
+.v5-vision-copy h3{font-size:clamp(1.65rem,3.5vw,3rem);line-height:1.12;letter-spacing:-.035em;color:#f4f6fa;margin:.35em 0;}
+.v5-vision-copy>p:last-child{color:#aebccf;line-height:1.7;margin-top:14px;}
+.v5-workspace{position:relative;aspect-ratio:1.6;overflow:hidden;isolation:isolate;min-width:0;border:1px solid #748fb46e;border-radius:clamp(16px,2.2vw,28px);background:#13213b url("/assets/app/dawn-wallpaper.svg") center / cover;box-shadow:0 20px 68px #0007;}
+.v5-work-app{position:absolute;inset:8% 21% 12% 7%;overflow:hidden;border:1px solid #f3f7ffd0;border-radius:clamp(8px,1.3vw,16px);background:#f2f5f9;color:#142a42;box-shadow:0 13px 40px #0c142c64;}
+.v5-window-bar{height:18%;padding:0 5%;background:#dbe5ef;display:flex;align-items:center;gap:4px;}
+.v5-window-bar i{width:5px;height:5px;border-radius:50%;background:#8399ae;}
+.v5-window-bar b{margin:auto;font-size:clamp(7px,.9vw,12px);}
+.v5-document{padding:5% 7%;font-size:clamp(8px,1vw,13px);line-height:1.5;}
+.v5-document strong{font-size:1.31em;}
+.v5-document p{margin:6% 0 0;color:#4c637b;}
+.v5-current-line{background:#dcecff;border-radius:6px;width:max-content;max-width:100%;padding:1% 4%;outline:1px solid transparent;transition:outline-color .36s;}
+.v5-vision[data-vision-state="1"] .v5-current-line,.v5-vision[data-vision-state="2"] .v5-current-line{outline-color:#5893c9;}
+.v5-caret{display:inline-block;width:1px;height:.88em;background:#315e85;margin-inline-start:4px;vertical-align:-.06em;}
+.v5-companion-peek{position:absolute;inset:auto 3% 4% auto;width:38%;display:grid;justify-items:end;transition:opacity .46s,transform .46s cubic-bezier(.23,.64,.22,1);}
+.v5-companion-peek img{width:54%;height:auto;margin-right:5%;filter:drop-shadow(0 1px 9px #00102870);}
+.v5-companion-peek p{margin:0;padding:9%;color:#eff6ff;background:#132841ed;border:1px solid #a8c5e969;border-radius:clamp(8px,1.4vw,15px);font-size:clamp(8px,1.04vw,13px);line-height:1.45;}
+.v5-vision[data-vision-state="0"] .v5-companion-peek,.v5-vision[data-vision-state="1"] .v5-companion-peek{opacity:0;transform:translateY(8px);}
+.v5-account-card{isolation:isolate;position:relative;margin:0;overflow:hidden;min-height:0;aspect-ratio:1.52;border-radius:clamp(16px,2.5vw,26px);border:1px solid #8196bb73;background:#172643;}
+.v5-account-card>img{display:block;width:100%;height:100%;object-fit:cover;}
+.v5-account-card figcaption{position:absolute;inset:auto auto 6% 5%;display:flex;align-items:center;gap:9px;padding:7px 12px 7px 7px;background:#182948e8;border:1px solid #a7b7d348;border-radius:999px;color:#f4f7fc;font-size:.82rem;font-weight:620;}
+.v5-account-card figcaption img{width:27px;height:27px;border-radius:50%;}
+.auth-shell .auth-aside-figure.v5-auth-wall{background:#172643 url("/assets/app/yukino-sky-01.webp") 28% center / cover no-repeat;}
+.auth-shell .auth-aside-figure.v5-auth-wall::before,.auth-shell .auth-aside-figure.v5-auth-wall::after{display:none;}
+@media(max-width:650px){
+ .v5-vision{grid-template-columns:1fr;}
+ .v5-route-track{grid-template-columns:minmax(0,.88fr) minmax(24px,.38fr) minmax(0,1.16fr);}
+ .v5-route-menu button{min-height:46px;padding:7px 8px;gap:5px;}
+ .v5-route-output{padding:11px;}
+ .auth-shell .auth-aside-figure.v5-auth-wall{min-height:150px;aspect-ratio:2.1;}
+}
+@media(prefers-reduced-motion:reduce){
+ .v5-route-flow i::after,.v5-companion-peek,.v5-current-line{transition:none;}
+ .v5-vision .v5-companion-peek{opacity:1!important;transform:none;}
+}
+.v5-router { color:#e6edf7; background:linear-gradient(145deg,#182438,#111922);border-color:#536f934d;box-shadow:0 18px 72px #0005; }
+.v5-router-top span {color:#b1c4da;}
+.v5-route-menu button {background:#142032;color:#d4e1f0;border-color:#6383a64d;}
+.v5-route-menu button span {color:#99b4ce;}
+.v5-route-menu button[aria-pressed=true] {background:#d7eafd;color:#122c45;border-color:#d7eafd;}
+.v5-route-menu button[aria-pressed=true] span {color:#335c7a;}
+.v5-route-flow i {background:#54729763;}
+.v5-route-flow i::after {background:#8ec5f9;}
+.v5-route-output {background:linear-gradient(125deg,#233b55,#1b2c40);border-color:#749ac469;}
+.v5-route-output small,.v5-route-output span {color:#bdd0e5;}
+.v5-read-art{height:auto;aspect-ratio:4/5;background:#192a4a;max-height:min(610px,79svh);}
+.v5-read-art video{display:block;width:100%;height:100%;object-fit:contain;background:#192a4a;}
+@media(max-width:760px){.v5-read-art{width:min(100%,510px);margin-inline:auto;max-height:min(520px,62svh);}}
+
+/* Auth is a dark, separate surface; only its actual login/registration forms. */
+.v2-body .app-view:has(> .auth-shell) {
+  color-scheme:dark; min-height:74svh;
+  background:radial-gradient(ellipse at 32% 4%,#1a2439 0%,#0c1018 45%,#080b11 84%);
+  color:#f2f6fc;
+  --ink:#f2f6fc;--ink-soft:#e0e9f5;--muted:#a9bbd0;--muted-soft:#9eb0c6;
+  --line:#49617b64;--line-strong:#6587ab85;--blue:#91bcf5;--blue-deep:#b3d5ff;
+}
+.v2-body .app-view:has(> .auth-shell) .auth-panel{
+  color:#f2f6fc;background:#131c29;border-color:#6987a749;backdrop-filter:none;
+  box-shadow:0 20px 75px #0006;
+}
+.auth-panel .auth-tabs{background:#202d41;border-color:#7a9bb337;}
+.auth-panel .auth-tabs a[aria-current="page"]{background:#6c9dd744;color:#edf6ff;box-shadow:none;}
+.auth-panel .field input{background:#0d1624;}
+.auth-panel .field input:hover{background:#172438;}
+.auth-panel .field input:focus{background:#142238;border-color:#8ab8ef;box-shadow:0 0 0 3px #78aef42c;}
+.auth-panel .field input[aria-invalid=true]{border-color:#ed99a0;background:#301e2a;}
+.auth-panel .input-toggle:hover{background:#273b53;color:#edf6ff;}
+.auth-panel .form-error{color:#ffd7da;background:#3c222c;border-color:#a7626d8c;}
+.auth-panel .form-notice{color:#cbf3df;background:#14312b;border-color:#5188728c;}
+.auth-panel .form-actions .button-primary{background:#a7cdfb;color:#10253e;}
+.auth-panel .form-actions .button-primary:hover{background:#c8e0ff;}
+.auth-panel .code-row .button:not(.button-primary){background:#21344b;color:#e8f4ff;border-color:#8fb0d05c;}
+.v5-account-card>img{object-position:34% center;}
+
+/* The heading belongs to the chapter, not to its first scene. */
+#scenes .v3-scene-heading {
+  position:relative;
+  padding-block:0 clamp(25px,5vw,60px);
+  width:min(1180px,calc(100% - 56px));
+  min-height:clamp(100px,13.5vw,178px);
+  align-items:end;
+}
+#scenes .v3-scene-heading #scenes-title {
+  font-size:clamp(54px,8.4vw,116px);
+  letter-spacing:-.06em;line-height:1;margin:0;
+}
+@media(max-width:620px) {
+  #scenes .v3-scene-heading{width:calc(100% - 36px);min-height:95px;}
+  #scenes .v3-scene-heading #scenes-title{font-size:clamp(46px,11vw,62px);}
+}
+
+/* One complete login/registration card, not two tall, scrolling panels. */
+.v2-body:has(#app-view:not([hidden]) > .auth-shell) .v2-footer { display:none; }
+.v2-body .app-view:has(> .auth-shell) {
+  min-height:calc(100svh - var(--nav-glass-height,57px));
+  display:grid; place-items:center;
+  padding:clamp(8px,1.6svh,18px) 0;
+}
+.v2-body .app-view:has(> .auth-shell) > .auth-shell {
+  width:min(1080px,calc(100% - 44px)); margin:0 auto; padding:0;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+  gap:0; border-radius:clamp(16px,2vw,26px); overflow:hidden;
+  border:1px solid #7796b753; background:#131c29; box-shadow:0 24px 90px #0007;
+}
+.v2-body .app-view:has(> .auth-shell) .auth-panel {
+  border:0; border-radius:0; box-shadow:none;
+  padding:clamp(16px,3.2svh,32px) clamp(20px,3.4vw,48px);
+}
+.v2-body .app-view:has(> .auth-shell) .auth-aside-figure.v5-auth-wall {
+  width:100%; height:100%; min-height:0; border-radius:0; box-shadow:none; order:-1;
+  aspect-ratio:auto; background-position:31% center;
+}
+.auth-shell .auth-tabs{margin:0 0 12px;}
+.auth-shell .auth-tabs a{padding:5px 12px;}
+.auth-shell .auth-panel h1{font-size:clamp(27px,4.8svh,40px);margin:0 0 7px;}
+.auth-shell .auth-panel .auth-lead{margin:0 0 14px;line-height:1.45;}
+.auth-shell .auth-form{gap:9px;}
+.auth-shell .field{gap:4px;}
+.auth-shell .field input,.auth-shell .code-row .button,.auth-shell .form-actions .button{min-height:37px;}
+.auth-shell .field small,.auth-shell .form-hint{line-height:1.35;}
+.auth-shell .helper-links{margin-top:10px;}
+.auth-shell .skip-account{margin-top:10px;}
+.auth-shell .form-error,.auth-shell .form-notice{padding:6px 9px;}
+.auth-shell .input-toggle{height:29px;}
+@media(max-width:680px) {
+  .v2-body .app-view:has(> .auth-shell) > .auth-shell {
+    grid-template-columns:minmax(0,1fr); width:min(450px,calc(100% - 24px));
+  }
+  .v2-body .app-view:has(> .auth-shell) .auth-aside-figure.v5-auth-wall {
+    height:clamp(86px,15svh,138px); background-position:30% 42%;
+  }
+  .v2-body .app-view:has(> .auth-shell) .auth-panel { padding:15px 17px 19px; }
+}
+@media(max-height:650px) {
+  .auth-shell .auth-form{gap:7px;}
+  .auth-shell .field input,.auth-shell .code-row .button,.auth-shell .form-actions .button{min-height:35px;}
+  .auth-shell .auth-tabs,.auth-shell .auth-panel .auth-lead{margin-bottom:9px;}
+  .auth-shell .helper-links,.auth-shell .skip-account{margin-top:7px;}
+}
+@media(max-width:680px) and (max-height:720px) {
+  .v2-body .app-view:has(> .auth-shell) .auth-aside-figure.v5-auth-wall{height:64px;}
+  .v2-body .app-view:has(> .auth-shell) .auth-panel{padding:9px 15px 11px;}
+  .auth-shell .auth-panel h1{font-size:26px;margin-bottom:5px;}
+  .auth-shell .auth-tabs,.auth-shell .auth-panel .auth-lead{margin-bottom:6px;}
+  .auth-shell .auth-tabs a{padding-block:3px;}
+  .auth-shell .auth-form{gap:5px;}
+  .auth-shell .field{gap:2px;}
+  .auth-shell .field input,.auth-shell .code-row .button,.auth-shell .form-actions .button{min-height:32px;}
+  .auth-shell .helper-links,.auth-shell .skip-account{margin-top:6px;}
+}
+
+/* Local and online are choices within each task, not two unrelated slides. */
+.v5-route-output .v13-route-sources {display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.v13-route-sources button {min-height:38px;padding:4px 12px;border:1px solid #799cbb7a;border-radius:999px;background:#172940;color:#d9e9f9;font:inherit;font-size:.8rem;font-weight:650;cursor:pointer;white-space:nowrap}
+.v13-route-sources button[aria-pressed="true"] {background:#d7eafd;color:#122c45;border-color:#d7eafd}
+.v5-route-menu button:focus-visible,.v13-route-sources button:focus-visible {outline:2px solid #b7ddff;outline-offset:2px}
+.v5-route-output .v13-route-result {min-height:5.4em;align-content:start}
+@media(max-width:650px){
+ .v5-route-output .v13-route-sources {margin-bottom:9px;gap:5px}
+ .v13-route-sources button {min-height:38px;padding-inline:7px;font-size:.71rem}
+ .v5-route-output .v13-route-result {min-height:6.4em}
+}
+
+/* The next chapter enters as soon as the final scene leaves the viewport. */
+.v2-home > #conversation {padding-block-start:clamp(28px,5svh,50px)}

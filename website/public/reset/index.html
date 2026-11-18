@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050608">
+  <title>Yukino Companion · 桌面数字角色</title>
+  <meta name="description" content="Yukino Companion：Windows 桌面数字角色。3D/2D 形象、双语对话、GPT-SoVITS 语音、场景、桌宠与衣橱。无需登录即可使用。">
+  <meta property="og:title" content="Yukino Companion · 桌面数字角色">
+  <meta property="og:description" content="Windows 桌面数字角色：3D / 2D 形象、双语对话、GPT-SoVITS 语音、场景与衣橱。">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/assets/icon-192.png">
+  <link rel="icon" href="/assets/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="preload" as="image" href="/assets/hero-sky.jpg" fetchpriority="high">
+  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/apple.css">
+  <link rel="stylesheet" href="/assets/appearance.css">
+  <link rel="stylesheet" href="/assets/final.css">
+  <link rel="stylesheet" href="/assets/interactive.css">
+  <link rel="stylesheet" href="/assets/site-final.css">
+  <link rel="stylesheet" href="/assets/scene-cinema.css?v=transition-23">
+  <link rel="stylesheet" href="/assets/wardrobe.css?v=wardrobe-parallel-16">
+  <link rel="stylesheet" href="/assets/product.css?v=glass-title-10">
+  <link rel="stylesheet" href="/assets/site-shell.css?v=31">
+  <link rel="stylesheet" href="/assets/overview-drag.css?v=18">
+  <link rel="stylesheet" href="/assets/interaction-showcase.css">
+  <link rel="stylesheet" href="/assets/beret-interaction.css?v=follow-19">
+  <link rel="stylesheet" href="/assets/product-story.css?v=models-13">
+  <link rel="stylesheet" href="/assets/model-routes.css?v=compare-28">
+  <link rel="stylesheet" href="/assets/voice-preview.css?v=voice-19">
+  <link rel="stylesheet" href="/assets/vision-demo.css?v=vision-18">
+  <link rel="stylesheet" href="/assets/live2d-site.css?v=poster-22">
+  <link rel="stylesheet" href="/assets/hero-framing.css?v=portrait-22">
+</head>
+<body class="v2-body">
+<a class="skip-link" href="#main">跳到主要内容</a>
+<header class="site-header v2-header" id="site-header">
+  <div class="v2-nav-inner">
+    <a class="v2-brand" href="/" data-link aria-label="Yukino Companion 首页">
+      <img src="/assets/icon-192.png" width="28" height="28" alt="">
+      <span>Yukino</span>
+    </a>
+    <div class="header-nav v2-nav" id="header-nav">
+      <nav aria-label="主导航">
+        <a href="/#overview" data-link>介绍</a>
+        <a href="/#characters" data-link>形象</a>
+        <a href="/#scenes" data-link>场景</a>
+        <a href="/#conversation" data-link>功能</a>
+        <a href="/community/">社区</a>
+        <a href="/help/">帮助</a>
+      </nav>
+      <div class="v2-nav-actions">
+        <a class="v2-nav-link" href="https://github.com/fqxxzyw" target="_blank" rel="noopener noreferrer">联系我</a>
+        <a class="v2-nav-link" href="/#download" data-link>下载</a>
+      </div>
+    </div>
+    <div class="v3-auth-actions" aria-label="账号入口">
+      <a class="v3-auth-login" href="/login" data-link id="header-account">登录</a>
+      <a class="v3-auth-register" href="/register" data-link>注册</a>
+    </div>
+    <button class="nav-toggle v2-nav-toggle" type="button" aria-expanded="false" aria-controls="header-nav" aria-label="打开导航菜单" id="nav-toggle"><span></span><span></span></button>
+  </div>
+</header>
+
+<main id="main">
+  <section class="home v2-home" id="home">
+    <section class="v2-hero" data-parallax>
+      <div class="v2-hero-media" aria-hidden="true">
+        <img src="/assets/hero-sky.jpg" fetchpriority="high" width="1279" height="853" alt="">
+      </div>
+      <div class="v2-hero-shade" aria-hidden="true"></div>
+      <div class="v2-hero-copy">
+        <p class="v2-kicker">YUKINO COMPANION · WINDOWS</p>
+        <h1>雪之下雪乃</h1>
+        <p class="v2-hero-sub">想聊就开口。想安静一会儿，她也可以留在桌面上。</p>
+        <div class="v2-hero-actions">
+          <a class="v2-button v2-button-light" href="https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.1/Yukino-Companion-0.4.1-Base-Setup.exe" target="_blank" rel="noopener noreferrer">下载 Windows 版 <span class="v2-button-note" id="hero-version">v0.4.1</span></a>
+          <a class="v2-button v2-button-ghost" href="#characters" data-link>查看形象 <span aria-hidden="true">↓</span></a>
+        </div>
+      </div>
+      <span class="v2-hero-scroll v3-scroll-indicator" aria-hidden="true">⌄</span>
+    </section>
+
+    <section class="v2-showcase" id="overview" aria-labelledby="showcase-title">
+      <div class="v2-wrap">
+        <p class="v2-kicker v2-kicker-dark">THE DESKTOP</p>
+        <h2 id="showcase-title" class="v2-display" data-reveal>打开桌面，就能见到雪乃。</h2>
+        <p class="v2-lede" data-reveal>和她说句话，或给她换身衣服，都在同一个窗口。</p>
+      </div>
+      <figure class="v2-device v2-device-wide v4-showcase-device" data-reveal aria-label="Yukino Companion 桌面界面展示">
+        <div class="v4-app-preview">
+          <div class="v4-app-wall" aria-hidden="true"></div>
+          <aside class="v4-app-rail">
+            <div class="v3-app-brand"><img src="/assets/icon-192.png" width="28" height="28" alt=""><strong>Yukino</strong></div>
+            <span class="v3-new-chat">＋ 开启新对话</span>
+            <span class="v3-contact">雪之下雪乃</span>
+            <small class="v3-guest">游客模式</small>
+          </aside>
+          <div class="v4-app-body">
+            <div class="v4-app-toolbar"><b>雪之下雪乃</b><span>新对话</span><i aria-hidden="true">—　□　×</i></div>
+            <div class="v4-app-compose"><span>与雪之下雪乃对话…</span><b aria-hidden="true">↑</b></div>
+            <div class="v4-app-actor"><img src="/assets/app/winter-dark-hair.png" width="840" height="1260" decoding="async" loading="lazy" alt="冬季制服的雪乃"></div>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="v2-feature v2-feature-light v2-appearance" id="characters" aria-labelledby="characters-title">
+      <div class="v2-wrap v2-feature-copy">
+        <p class="v2-kicker v2-kicker-dark">APPEARANCE</p>
+        <h2 id="characters-title" class="v2-display" data-reveal>雪乃的衣橱</h2>
+      </div>
+      <div class="v2-wrap v2-appearance-stage">
+        <div class="v2-appearance-panel is-active" data-v2-panel="three">
+          <div class="v2-3d-stage" id="wardrobe-preview">
+            <div class="v2-figure-column" data-reveal>
+              <figure class="v2-3d-figure" data-v2-figure data-material="original"><img class="v2-figure-static" data-v2-figure-img src="/assets/wardrobe/v11-original-04.webp" width="1080" height="1620" loading="lazy" alt="3D 人物模型，冬季制服"><video class="v2-figure-spin" data-v2-spin-video playsinline muted preload="none" width="480" height="720" aria-hidden="true"></video><figcaption data-v2-figure-caption>3D 人物 · 冬季制服</figcaption></figure>
+              <span class="sr-only" data-v2-wardrobe-status role="status"></span>
+            </div>
+            <div class="v2-ring-wrap" data-reveal>
+              <div class="v2-ring" data-v2-ring><button class="v2-ring-card" type="button" data-v2-outfit="冬季制服" data-v2-id="04"><img src="/assets/outfits/cutout-04.png" width="480" height="720" alt="冬季制服" loading="lazy"><span>冬季制服</span></button><button class="v2-ring-card" type="button" data-v2-outfit="黑色旗袍" data-v2-id="05"><img src="/assets/outfits/cutout-05.png" width="480" height="720" alt="黑色旗袍" loading="lazy"><span>黑色旗袍</span></button><button class="v2-ring-card" type="button" data-v2-outfit="双马尾" data-v2-id="06"><img src="/assets/outfits/cutout-06.png" width="480" height="720" alt="双马尾" loading="lazy"><span>双马尾</span></button><button class="v2-ring-card" type="button" data-v2-outfit="贝雷帽" data-v2-id="07"><img src="/assets/outfits/cutout-07.png" width="480" height="720" alt="贝雷帽" loading="lazy"><span>贝雷帽</span></button><button class="v2-ring-card" type="button" data-v2-outfit="象牙大衣" data-v2-id="08"><img src="/assets/outfits/cutout-08.png" width="480" height="720" alt="象牙大衣" loading="lazy"><span>象牙大衣</span></button><button class="v2-ring-card" type="button" data-v2-outfit="冰蓝连帽冬装" data-v2-id="09"><img src="/assets/outfits/cutout-09.png" width="480" height="720" alt="冰蓝连帽冬装" loading="lazy"><span>冰蓝连帽冬装</span></button><button class="v2-ring-card" type="button" data-v2-outfit="和服" data-v2-id="01"><img src="/assets/outfits/cutout-01.png" width="480" height="720" alt="和服" loading="lazy"><span>和服</span></button><button class="v2-ring-card" type="button" data-v2-outfit="夏日制服" data-v2-id="02"><img src="/assets/outfits/cutout-02.png" width="480" height="720" alt="夏日制服" loading="lazy"><span>夏日制服</span></button><button class="v2-ring-card" type="button" data-v2-outfit="泳装" data-v2-id="03"><img src="/assets/outfits/cutout-03.png" width="480" height="720" alt="泳装" loading="lazy"><span>泳装</span></button><div class="v2-material-wipe" data-v2-wipe hidden><img class="v2-wipe-original" data-v2-wipe-original fetchpriority="high" alt="" aria-hidden="true"><div class="v2-wipe-layer"><img class="v2-wipe-cel" data-v2-wipe-cel fetchpriority="high" alt="" aria-hidden="true"></div><div class="v2-wipe-line" aria-hidden="true"><span>‹ ›</span></div><input data-v2-wipe-range type="range" min="0" max="100" value="50" aria-label="常规和赛璐璐对比分割位置"></div></div>
+              <div class="v2-ring-caption"><label class="v7-outfit-picker"><select aria-label="选择服装" data-v2-outfit-picker><option value="04">冬季制服</option><option value="05">黑色旗袍</option><option value="06">双马尾</option><option value="07">贝雷帽</option><option value="08">象牙大衣</option><option value="09">冰蓝连帽冬装</option><option value="01">和服</option><option value="02">夏日制服</option><option value="03">泳装</option></select><span aria-hidden="true">⌄</span></label><strong class="sr-only" data-v2-outfit-name aria-live="polite">冬季制服</strong></div>
+              <div class="v2-ring-controls" aria-label="切换衣装"><button type="button" data-v2-outfit-step="-1" aria-label="上一套衣装">‹</button><button type="button" data-v2-rotate aria-pressed="true" aria-label="自动切换服装"></button><button type="button" data-v2-outfit-step="1" aria-label="下一套衣装">›</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-dark v4-live2d" id="live2d" aria-labelledby="live2d-title">
+      <div class="v2-wrap v4-live2d-inner" data-reveal>
+        <div class="yk-live2d-window" data-live2d-preview><img class="yk-live2d-poster" src="/live2d/neutral-native.webp" width="836" height="1120" decoding="async" alt="雪乃的 2D 正面形象"></div>
+        <div><h2 id="live2d-title" class="v2-display">2D 形象</h2></div>
+      </div>
+    </section>
+
+    <!-- ACCESSORY INTERACTION START -->
+    <section class="v2-feature ykh-stage-section" id="interaction" aria-labelledby="ykh-title">
+      <header class="ykh-header" data-reveal>
+        <h2 id="ykh-title" class="v2-display">不止能看</h2>
+        <p>有些反应，点一下才知道。</p>
+      </header>
+      <div class="ykh-stages">
+        <article class="ykh-stage ykh-main" data-ykh-beret aria-labelledby="ykh-beret-label">
+          <h3 id="ykh-beret-label">贝雷帽</h3>
+          <div class="ykh-model-stage">
+            <img class="ykh-rest" src="/assets/character-touch/07-worn.webp" alt="雪乃戴着贝雷帽，正面站立" width="384" height="490" loading="lazy" decoding="async">
+            <canvas data-ykh-canvas width="384" height="490" aria-hidden="true" hidden></canvas>
+            <button class="ykh-grab" data-ykh-grab type="button" aria-label="拖动贝雷帽" aria-describedby="ykh-beret-keys" hidden></button>
+          </div>
+          <span class="ykh-visually-hidden" id="ykh-beret-keys">按 Enter 拿起帽子，用方向键移动，再按 Enter 松手。按 Escape 取消。</span>
+        </article>
+        <article class="ykh-stage ykh-secondary" data-ykh-gaze aria-labelledby="ykh-twin-label">
+          <h3 id="ykh-twin-label">双马尾</h3>
+          <div class="ykh-model-stage ykh-gaze-stage" role="group" tabindex="0" aria-label="视线和头部跟随鼠标或手指，亦可用方向键">
+            <img data-ykh-gaze-img src="/assets/character-touch/06-iris-gaze-cc.webp" alt="双马尾雪乃" width="384" height="490" loading="lazy" decoding="async">
+          </div>
+        </article>
+        <article class="ykh-stage ykh-secondary" data-ykh-mood="02" aria-labelledby="ykh-summer-label">
+          <h3 id="ykh-summer-label">夏日制服</h3>
+          <div class="ykh-model-stage">
+            <img data-ykh-mood-img src="/assets/character-touch/02-idle.webp" alt="夏日制服雪乃，领结可互动" width="384" height="490" loading="lazy" decoding="async">
+            <button class="ykh-touch ykh-bow" data-ykh-touch type="button" aria-label="点一下红色领结"></button>
+          </div>
+        </article>
+      </div>
+    </section>
+    <!-- ACCESSORY INTERACTION END -->
+
+    <section class="v2-scenes" id="scenes" aria-labelledby="scenes-title">
+      <div class="v3-scene-heading">
+        <h2 id="scenes-title" class="v2-display" data-reveal>场景</h2>
+        <details class="v3-scene-menu" data-reveal>
+          <summary>全部场景 <span aria-hidden="true">⌄</span></summary>
+          <nav class="scene-index" aria-label="跳转到场景"><a href="#scene-classroom">教室</a><a href="#scene-bookshop">街角余温</a><a href="#scene-city">晚归灯火</a><a href="#scene-forest">风过竹间</a><a href="#scene-school">春日回廊</a><a href="#scene-wedding">潮声誓约</a><a href="#scene-kasai">海风来信</a><a href="#scene-inage">未说出口</a><a href="#scene-kyoto">朱影寻春</a><a href="#scene-sakura">花影随流</a></nav>
+        </details>
+      </div>
+      <div class="scene-run" data-live-primary>
+        <div class="scene-stage" aria-hidden="true"><canvas></canvas><div class="scene-live" aria-hidden="true"></div></div>
+        <article class="v2-scene v2-scene-classroom" id="scene-classroom" data-scene-id="classroom" data-fallback="/assets/scenes-app/classroom-wide-morning.webp" aria-labelledby="scene-classroom-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/classroom-mobile-morning.webp"><img src="/assets/scenes-app/classroom-wide-morning.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>01 / 10</span>
+            <h3 id="scene-classroom-title">教室</h3>
+            <p>放学后，窗边的教室</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-bookshop v2-scene-right" id="scene-bookshop" data-scene-id="bookshop" data-fallback="/assets/scenes-app/bookshop-wide-night-native.webp" aria-labelledby="scene-bookshop-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/bookshop-mobile-night-native.webp"><img src="/assets/scenes-app/bookshop-wide-night-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>02 / 10</span>
+            <h3 id="scene-bookshop-title">街角余温</h3>
+            <p>街角的书店和天下一品</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-city" id="scene-city" data-scene-id="city" data-fallback="/assets/scenes-app/city-wide-morning.webp" aria-labelledby="scene-city-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/city-mobile-morning.webp"><img src="/assets/scenes-app/city-wide-morning.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>03 / 10</span>
+            <h3 id="scene-city-title">晚归灯火</h3>
+            <p>便利店与回家的街道</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-forest v2-scene-right" id="scene-forest" data-scene-id="forest" data-fallback="/assets/scenes-app/forest-wide-recorded-night-native.webp" aria-labelledby="scene-forest-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/forest-mobile-recorded-night-native.webp"><img src="/assets/scenes-app/forest-wide-recorded-night-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>04 / 10</span>
+            <h3 id="scene-forest-title">风过竹间</h3>
+            <p>沿着木栅走进竹林</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-school" id="scene-school" data-scene-id="school" data-fallback="/assets/scenes-app/school-wide-dawn-native.webp" aria-labelledby="scene-school-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/school-mobile-dawn-native.webp"><img src="/assets/scenes-app/school-wide-dawn-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>05 / 10</span>
+            <h3 id="scene-school-title">春日回廊</h3>
+            <p>从校门往里走</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-wedding v2-scene-right" id="scene-wedding" data-scene-id="wedding" data-fallback="/assets/scenes-app/wedding-wide-night-native.webp" aria-labelledby="scene-wedding-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/wedding-mobile-night-native.webp"><img src="/assets/scenes-app/wedding-wide-night-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>06 / 10</span>
+            <h3 id="scene-wedding-title">潮声誓约</h3>
+            <p>石阶尽头是海边的礼堂</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-kasai" id="scene-kasai" data-scene-id="kasai" data-fallback="/assets/scenes-app/kasai-wide-dawn-native.webp" aria-labelledby="scene-kasai-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/kasai-mobile-dawn-native.webp"><img src="/assets/scenes-app/kasai-wide-dawn-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>07 / 10</span>
+            <h3 id="scene-kasai-title">海风来信</h3>
+            <p>海边的玻璃楼和步道</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-inage v2-scene-right" id="scene-inage" data-scene-id="inage" data-fallback="/assets/scenes-app/inage-wide-recorded-night-native.webp" aria-labelledby="scene-inage-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/inage-mobile-recorded-night-native.webp"><img src="/assets/scenes-app/inage-wide-recorded-night-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>08 / 10</span>
+            <h3 id="scene-inage-title">未说出口</h3>
+            <p>沿步道走到蓝色拱桥下</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-kyoto" id="scene-kyoto" data-scene-id="kyoto" data-fallback="/assets/scenes-app/kyoto-wide-dawn-native.webp" aria-labelledby="scene-kyoto-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/kyoto-mobile-dawn-native.webp"><img src="/assets/scenes-app/kyoto-wide-dawn-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>09 / 10</span>
+            <h3 id="scene-kyoto-title">朱影寻春</h3>
+            <p>朱红鸟居，清水寺</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+        <article class="v2-scene v2-scene-sakura v2-scene-right" id="scene-sakura" data-scene-id="sakura" data-fallback="/assets/scenes-app/sakura-wide-v24-night-native.webp" aria-labelledby="scene-sakura-title">
+          <picture class="scene-capture" aria-hidden="true"><source media="(max-aspect-ratio: 1/1)" srcset="/assets/scenes-app/sakura-mobile-recorded-night-native.webp"><img src="/assets/scenes-app/sakura-wide-v24-night-native.webp" width="1440" height="900" loading="lazy" decoding="async" alt=""></picture>
+          <div class="v2-scene-content">
+            <span>10 / 10</span>
+            <h3 id="scene-sakura-title">花影随流</h3>
+            <p>垂樱底下，一条小溪</p><button type="button" class="scene-interact" data-scene-interact>拖动查看</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-dark" id="conversation" aria-labelledby="conversation-title">
+      <div class="v2-wrap v2-feature-copy v5-stable-intro">
+        <p class="v2-kicker">CONVERSATION</p>
+        <h2 id="conversation-title" class="v2-display">对话与双语</h2>
+        <p class="v2-lede">可以只看中文或日语，也可以把两种放在一起。</p>
+      </div>
+      <div class="v2-wrap v2-split">
+        <div class="v2-chat-demo v4-chat" aria-label="可切换语言的对话演示" data-reveal data-chat-preview data-lang="both">
+          <div class="v2-chat-head"><img src="/assets/icon-192.png" width="34" height="34" alt=""><div><strong>雪之下雪乃</strong><span>对话演示</span></div></div>
+          <div class="v4-chat-languages" role="group" aria-label="对话显示语言">
+            <button type="button" data-chat-lang="zh" aria-pressed="false">中文</button>
+            <button type="button" data-chat-lang="ja" aria-pressed="false" lang="ja">日本語</button>
+            <button type="button" data-chat-lang="both" aria-pressed="true">双语</button>
+          </div>
+          <div class="v2-bubble v2-bubble-user">今天有点累，想先安静地待一会儿。</div>
+          <div class="v2-bubble v2-bubble-ai" data-chat-reply>
+            <p data-chat-line="zh" lang="zh-CN">先不必急着给今天下结论。坐一会儿吧，窗外还亮着。</p>
+            <p data-chat-line="ja" lang="ja">今日のことを、今すぐ結論づける必要はないわ。外はまだ明るいし、少し座っていきましょう。</p>
+          </div>
+          <div class="v2-chat-input"><span>与雪之下雪乃对话…</span><b aria-hidden="true">↑</b></div>
+        </div>
+        <div class="v2-split-notes" data-reveal>
+          <div><span class="v2-note-index">01</span><strong>中文 · 日本語 · 双语</strong><p>听日语时，可以把中文也留在旁边。</p></div>
+          <div><span class="v2-note-index">02</span><strong>本地或云端</strong><p>可以用电脑里装好的模型，也可以连在线服务。</p></div>
+          <div><span class="v2-note-index">03</span><strong>角色设定与记忆</strong><p>想让她记住什么，可以自己写。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-light v2-voice" id="voice" aria-labelledby="voice-title">
+      <div class="v2-wrap v2-feature-copy v2-center v19-voice-heading">
+        <p class="v2-kicker v2-kicker-dark">VOICE</p>
+        <h2 id="voice-title" class="v2-display">语音与朗读</h2>
+        <p class="v2-lede">不想打字，就直接跟她说。</p>
+      </div>
+      <div class="v2-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="v2-wrap v2-voice-stage">
+        <figure class="v2-voice-art v5-read-art"><video id="v2-voice" data-voice-video controls playsinline preload="none" width="720" height="900" poster="/assets/app/reading-winter-poster.png" aria-label="冬季制服雪乃的日语朗读口型"><source src="/assets/app/reading-winter.mp4" type="video/mp4"></video></figure>
+        <div class="v2-voice-copy"><span class="v2-kicker v2-kicker-dark">听一段日语</span><blockquote>「今日のことを、今すぐ結論づける必要はないわ。」</blockquote><button class="v2-voice-play" type="button" data-voice-play aria-pressed="false" hidden>播放朗读</button><button class="v2-voice-play v19-voice-fallback" type="button" data-voice-fallback-play aria-pressed="false" hidden>仅播放语音</button><p class="v19-voice-status" data-voice-status role="status"></p><audio data-voice-fallback src="/assets/audio/yukino-reference.wav" preload="none" aria-hidden="true"></audio></div>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-dark v2-desktop v3-desktop" id="desktop" aria-labelledby="desktop-title">
+      <div class="v2-wrap v2-feature-copy v2-center" data-reveal>
+        <p class="v2-kicker">DESKTOP COMPANION</p>
+        <h2 id="desktop-title" class="v2-display">关上窗口，雪乃还在。</h2>
+      </div>
+      <div class="v2-wrap v3-desktop-demo" data-v2-close-demo data-reveal>
+        <div class="v3-monitor" aria-label="关闭聊天窗口的桌面演示">
+          <div class="v3-wallpaper" aria-hidden="true"></div>
+          <div class="v3-desktop-icons" aria-hidden="true"><span class="v3-desktop-file"><i>▤</i> 此电脑</span><span class="v3-desktop-file"><i>♲</i> 回收站</span></div>
+          <div class="v3-taskbar" aria-hidden="true">
+            <div class="v3-taskbar-center"><i class="v3-win-icon"><b></b><b></b><b></b><b></b></i><span class="v3-searchbar">⌕　搜索</span><img src="/assets/icon-192.png" width="22" height="22" alt=""></div>
+            <span class="v3-tray">中　 ◇　　10:08</span>
+          </div>
+          <div class="v3-app-window" data-v2-close-window>
+            <div class="v3-demo-backdrop" aria-hidden="true"></div>
+            <div class="v3-app-sidebar" aria-hidden="true">
+              <div class="v3-app-brand"><img src="/assets/icon-192.png" width="25" height="25" alt=""><strong>Yukino</strong></div>
+              <span class="v3-new-chat">＋　开启新对话</span><span class="v3-contact">雪之下雪乃</span>
+              <span class="v3-guest">游客模式</span>
+            </div>
+            <div class="v3-app-titlebar"><span>雪之下雪乃</span><span class="v3-app-sub">新对话</span><span class="v3-window-glyph" aria-hidden="true">—　□</span><button type="button" data-v3-window-close aria-label="关闭聊天窗口">×</button></div>
+            <div class="v3-character-glass" aria-hidden="true"></div>
+            <div class="v3-composer" aria-hidden="true"><span>与雪之下雪乃对话…</span><i>↑</i></div>
+          </div>
+          <div class="v4-demo-cursor" aria-hidden="true" data-window-cursor><svg viewBox="0 0 24 29" width="25" height="30" fill="none"><path d="M3 2 L4 24 L10 18 L15 27 L19 25 L14 16 L23 15 Z" fill="#172438" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg><i></i></div>
+          <figure class="v3-persistent-character">
+            <img src="/assets/app/winter-dark-hair.png" width="840" height="1260" alt="穿冬季制服的雪乃，关窗后仍留在原位" decoding="async" loading="lazy">
+          </figure>
+        </div>
+        <div class="v3-demo-actions">
+          <button class="v2-button v2-button-ghost" type="button" data-v2-close aria-pressed="false">关闭窗口</button>
+        </div>
+      </div>
+      <article class="ykx-demo ykx-pet" id="pet-demo" aria-labelledby="ykx-pet-title" data-ykx-pet>
+        <div class="ykx-demo-copy" data-reveal>
+          <span class="ykx-kicker">DESKTOP PET</span>
+          <h3 id="ykx-pet-title">换成 Q 版，陪伴还在。</h3>
+          <p>聊天窗关了也没关系，点点桌面上的她。</p>
+          <div class="ykx-demo-controls"><button type="button" class="ykx-button ykx-primary" data-ykx-pet-close aria-pressed="false">关上聊天窗</button><button type="button" class="ykx-button" data-ykx-pet-wave>和她打招呼</button></div>
+          <p class="ykx-demo-status" data-ykx-pet-status role="status" aria-live="polite"></p>
+        </div>
+        <div class="ykx-desktop ykx-pet-stage">
+          <div class="ykx-taskbar" aria-hidden="true"><span>桌面</span><span>● &nbsp; 16:42</span></div>
+          <div class="ykx-window ykx-chat-window" data-ykx-pet-window>
+            <div class="ykx-window-bar"><span><i></i><i></i><i></i></span><strong>Yukino Companion</strong><button type="button" class="ykx-window-close" data-ykx-pet-close aria-label="关上聊天窗">×</button></div>
+            <div class="ykx-chat-sheet"><p class="ykx-chat-user">先把聊天窗收起来。</p><p>好。我就在这里。</p></div>
+          </div>
+          <button class="ykx-pet-sprite" type="button" data-ykx-pet-wave aria-label="点击桌宠打招呼">
+            <img src="/assets/pet-demo/yukino-q.png" alt="" width="512" height="512" loading="lazy" decoding="async">
+            <canvas width="192" height="208" aria-hidden="true" data-ykx-pet-canvas hidden></canvas>
+          </button>
+        </div>
+      </article>
+    </section>
+
+
+    <section class="v2-feature v2-feature-light" id="models" aria-labelledby="models-title">
+      <div class="v2-wrap v2-feature-copy" data-reveal>
+        <p class="v2-kicker v2-kicker-dark">MODELS &amp; API</p>
+        <h2 id="models-title" class="v2-display">模型与 API</h2>
+        <p class="v2-lede">想离线，就在电脑上跑；想用熟悉的服务，就接在线 API。三项可以分开选。</p>
+      </div>
+      <div class="v2-wrap model-compare">
+        <div class="model-compare-mast" aria-hidden="true">
+          <div class="model-compare-mode is-local">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="13" rx="2"/><path d="M8 21h8m-4-3.5V21"/></svg>
+            <div><strong>离线运行</strong><span>装好后，断网也能用</span></div>
+          </div>
+          <div class="model-compare-mode is-cloud">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 18h10a4.3 4.3 0 0 0 .4-8.6 6 6 0 0 0-11.6.6 4.05 4.05 0 0 0 1.2 8Z"/></svg>
+            <div><strong>在线 API</strong><span>接自己常用的服务</span></div>
+          </div>
+        </div>
+        <div class="model-compare-board">
+          <article class="model-compare-row" aria-labelledby="model-chat-title">
+            <h3 id="model-chat-title"><span aria-hidden="true">01</span> 对话</h3>
+            <dl>
+              <div class="is-local"><dt class="model-sr">离线运行</dt><dd><strong>雪乃本地模型</strong><p>基于 Qwen2.5，也能连接本机的 Ollama 或 LM Studio。</p></dd></div>
+              <div class="is-cloud"><dt class="model-sr">在线 API</dt><dd><strong>用你熟悉的模型</strong><p>OpenAI、DeepSeek、通义千问、Kimi、火山方舟等，也能接自定义兼容接口。</p></dd></div>
+            </dl>
+          </article>
+          <article class="model-compare-row" aria-labelledby="model-translation-title">
+            <h3 id="model-translation-title"><span aria-hidden="true">02</span> 翻译</h3>
+            <dl>
+              <div class="is-local"><dt class="model-sr">离线运行</dt><dd><strong>混元 Hy-MT2</strong><p>下载模型后，可以在电脑上把中文译成日语。</p></dd></div>
+              <div class="is-cloud"><dt class="model-sr">在线 API</dt><dd><strong>用同一个，也能另选</strong><p>翻译可以沿用对话模型，也可以单独选一个兼容的文本模型。</p></dd></div>
+            </dl>
+          </article>
+          <article class="model-compare-row" aria-labelledby="model-voice-title">
+            <h3 id="model-voice-title"><span aria-hidden="true">03</span> 语音</h3>
+            <dl>
+              <div class="is-local"><dt class="model-sr">离线运行</dt><dd><strong>GPT-SoVITS</strong><p>本机合成日语语音，也可以导入自己的音色。</p></dd></div>
+              <div class="is-cloud"><dt class="model-sr">在线 API</dt><dd><strong>阿里云百炼</strong><p>支持语音合成和麦克风实时转写，两项可以分别配置。</p></dd></div>
+            </dl>
+          </article>
+        </div>
+        <p class="model-compare-services"><strong>其他对话服务</strong><span>腾讯混元、智谱 GLM、硅基流动、Google Gemini（兼容）、Azure OpenAI、百度智能云千帆、讯飞星火、MiniMax、阶跃星辰、零一万物、商汤日日新、Mistral AI、Groq、Together AI、OpenRouter、xAI Grok</span></p>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-dark" id="memory" aria-labelledby="memory-title">
+      <div class="v2-wrap v2-feature-copy">
+        <p class="v2-kicker">MEMORY & VISION</p>
+        <h2 id="memory-title" class="v2-display" data-reveal>记忆与视觉</h2>
+        <p class="v2-lede" data-reveal>常用的称呼不用每次重说。需要她一起看看屏幕时，再开权限。</p>
+      </div>
+      <div class="v2-wrap v2-memory-row">
+        <div class="v2-memory-card" data-reveal><span class="v2-note-index">MEMORY</span><strong>个人记忆</strong><p>比如怎么称呼你、最近在看什么书。</p><div class="v2-memory-pills"><span>喜欢的称呼</span><span>最近在看的书</span><span>不要在晚上提醒</span></div></div>
+      </div>
+      <div id="vision" class="v2-wrap v5-vision" data-vision-demo data-reveal>
+        <div class="v5-vision-copy">
+          <p class="v2-kicker">SCREEN CONTEXT</p>
+          <h3>和雪乃一起看屏幕</h3>
+          <p>卡在哪儿，就把那一页给她看。</p>
+        </div>
+        <div class="v5-workspace vision-stage" data-vision-stage role="img" aria-label="视觉演示：打开演讲提纲，在周五分享会的待办里写下「找个好懂的例子」。雪乃回复：「开场写好了？下一段先讲一个例子，听的人比较容易跟上。」">
+          <div class="vision-shortcut" aria-hidden="true">
+            <svg viewBox="0 0 38 43" fill="none"><path d="M8 2h17l7 8v29a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#ebf6ff" stroke="#80abc5"/><path d="M24 3v8h7M12 18h14m-14 6h14m-14 6h10" stroke="#81a5bb" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span>演讲提纲.txt</span>
+          </div>
+          <div class="v5-work-app" aria-hidden="true">
+            <div class="v5-window-bar"><i></i><i></i><i></i><b>演讲提纲.txt</b></div>
+            <div class="v5-document">
+              <strong>周五分享会</strong>
+              <p>✓　写完开场</p>
+              <p class="v5-current-line">○　<span data-vision-typed>找个好懂的例子</span><span class="v5-caret"></span></p>
+              <p>○　试讲一遍</p>
+            </div>
+          </div>
+          <div class="v5-companion-peek" aria-hidden="true">
+            <img src="/assets/pet-demo/yukino-q.png" width="192" height="208" alt="" loading="lazy" decoding="async">
+            <p>开场写好了？下一段先讲一个例子，听的人比较容易跟上。</p>
+          </div>
+          <div class="vision-pointer" aria-hidden="true">
+            <svg viewBox="0 0 22 27" fill="none"><path d="m2 2 1 21 5-6 4 8 4-2-4-8 7-1Z" fill="#f9fdff" stroke="#102136" stroke-linejoin="round" stroke-width="1.5"/></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-light" id="custom" aria-labelledby="custom-title">
+      <div class="v2-wrap v2-feature-copy">
+        <p class="v2-kicker v2-kicker-dark">MAKE IT YOURS</p>
+        <h2 id="custom-title" class="v2-display" data-reveal>不止雪之下雪乃</h2>
+        <p class="v2-lede" data-reveal>想换个角色，可以从名字和说话方式开始。</p>
+      </div>
+      <div class="v2-wrap v2-custom-grid">
+        <article class="v2-custom-card" data-reveal><span class="v2-note-index">01</span><h3>创建角色</h3><p>给角色起个名字，选张头像，再写写她怎么说话。</p><span class="v2-custom-tag">角色编辑器</span></article>
+        <article class="v2-custom-card" data-reveal><span class="v2-note-index">02</span><h3>导入记忆</h3><p>把之前记下的内容带进来，不用从头写。</p><span class="v2-custom-tag">记忆导入</span></article>
+        <article class="v2-custom-card" data-reveal><span class="v2-note-index">03</span><h3>模型与动作</h3><p>有自己的模型和声音，也可以换上。</p><span class="v2-custom-tag">模型动作编辑器</span></article>
+      </div>
+    </section>
+
+    <section class="v2-feature v2-feature-light" id="account" aria-labelledby="account-title">
+      <div class="v2-wrap v2-feature-copy">
+        <p class="v2-kicker v2-kicker-dark">ACCOUNT</p>
+        <h2 id="account-title" class="v2-display" data-reveal>账号与同步</h2>
+        <p class="v2-lede" data-reveal>先用游客模式也行。想在另一台电脑上接着用，再登录。</p>
+      </div>
+      <div class="v2-wrap v2-split v2-account-split">
+        <figure class="v5-account-card" aria-label="App 内置壁纸「晴空 · 01」" data-reveal><img src="/assets/app/yukino-sky-01.webp" width="1536" height="1024" alt="" loading="lazy"><figcaption><img src="/assets/icon-192.png" width="34" height="34" alt=""><span>Yukino Companion</span></figcaption></figure>
+        <div class="v2-account-points" data-reveal>
+          <div><strong>游客</strong><p>不用注册，进度留在这台电脑。</p></div>
+          <div><strong>已登录</strong><p>换台电脑登录，也能找回已解锁的衣服和同步过的进度。</p></div>
+          <div><strong>离线</strong><p>断网时，装在电脑上的功能还能用。</p></div>
+          <a class="v2-text-link" href="/register" data-link>创建账号 <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="v2-download" id="download" aria-labelledby="download-title">
+      <div class="v2-wrap v2-download-inner">
+        <img class="v2-download-icon" src="/assets/icon-192.png" width="86" height="86" alt="">
+        <p class="v2-kicker">DOWNLOAD</p>
+        <h2 id="download-title" class="v2-display" data-reveal>下载 Yukino Companion。</h2>
+        <p class="v2-lede v2-lede-center" id="download-lead">适用于 Windows 10 / 11。</p>
+        <div class="v2-hero-actions v2-download-actions">
+          <a class="v2-button v2-button-light" id="download-button" href="https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.1/Yukino-Companion-0.4.1-Base-Setup.exe" target="_blank" rel="noopener noreferrer">下载 Windows 基础安装包</a>
+          <a class="v2-button v2-button-ghost" href="https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.1" target="_blank" rel="noopener noreferrer" id="release-notes">更新日志 ↗</a>
+        </div>
+        <dl class="v2-download-meta">
+          <div><dt>版本</dt><dd id="download-version">v0.4.1</dd></div>
+          <div><dt>渠道</dt><dd id="download-channel" class="channel-stable">稳定版</dd></div>
+          <div><dt>发布日期</dt><dd id="download-date">2026/11/18</dd></div>
+          <div><dt>文件</dt><dd id="download-file">基础安装包 · 372.2 MiB</dd></div>
+        </dl>
+        <div class="v2-download-foot">
+          <ul id="download-requirements"><li>Windows 10/11 x64</li><li>约 1 GB 可用磁盘空间</li><li>模型和声音可以按需下载</li></ul>
+          <p id="download-status" role="status">下载无需登录。</p>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section class="app-view" id="app-view" hidden aria-live="polite"></section>
+</main>
+
+<footer class="site-footer v2-footer">
+  <div class="v2-wrap v2-footer-inner">
+    <div class="v2-footer-brand"><img src="/assets/icon-192.png" width="26" height="26" alt=""><strong>Yukino Companion</strong><span>Windows 桌面数字角色。</span></div>
+    <nav aria-label="页脚导航">
+      <div><strong>项目</strong><a href="https://github.com/fqxxzyw" target="_blank" rel="noopener noreferrer">作者主页 ↗</a><a href="https://github.com/fqxxzyw/Yukino-Companion" target="_blank" rel="noopener noreferrer">源码仓库 ↗</a><a href="https://github.com/fqxxzyw/Yukino-Companion/releases" target="_blank" rel="noopener noreferrer">Releases ↗</a></div>
+      <div><strong>使用</strong><a href="/help/">帮助文档</a><a href="/community/">社区</a><a href="/#account" data-link>账号与进度</a><a href="https://github.com/fqxxzyw/Yukino-Companion/issues" target="_blank" rel="noopener noreferrer">反馈问题 ↗</a></div>
+      <div><strong>账号</strong><a href="/login" data-link>登录</a><a href="/register" data-link>注册</a><a href="/account" data-link>账号中心</a></div>
+    </nav>
+  </div>
+  <div class="v2-wrap v2-footer-bottom"><span>© 2026 fqxxzyw · Yukino Companion</span></div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<noscript><p class="noscript">登录、注册与下载版本信息需要 JavaScript。桌面软件本身不依赖本页面。</p></noscript>
+<script src="/assets/config.js"></script>
+<script type="module" src="/assets/app.mjs?v=shell-31"></script>
+<script type="module" src="/assets/interaction-showcase.mjs?v=copy-12"></script>
+<script type="module" src="/assets/beret-interaction.mjs?v=demo-23"></script>
+<script type="module" src="/assets/voice-preview.mjs?v=voice-19"></script>
+<script type="module" src="/assets/vision-demo.mjs?v=vision-18"></script>
+<script type="module" src="/assets/overview-drag.mjs?v=18"></script>
+<script type="module" src="/assets/live2d-site.mjs?v=poster-22"></script>
+</body>
+</html>

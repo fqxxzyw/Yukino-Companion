@@ -1,0 +1,62 @@
+.yk-help{--help-ink:#151c2a;--help-muted:#485666;--help-accent:#234e91;--help-line:#d7e0ec;--help-panel:#fff;box-sizing:border-box;background:#f4f6fa;color:var(--help-ink);font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:75vh;overflow:visible;color-scheme:light}
+.yk-help *,.yk-help *::before,.yk-help *::after{box-sizing:border-box}
+.yk-help-wrap{width:min(1168px,calc(100% - 80px));margin-inline:auto;padding:clamp(55px,8vw,110px) 0 88px}
+.yk-help-intro h1{font-size:clamp(38px,6vw,78px);font-weight:720;line-height:1.09;letter-spacing:-.05em;color:var(--help-ink);margin:0 0 .32em}
+.yk-help-crumb{display:flex;align-items:center;gap:10px;margin:0 0 22px;font-size:13px;font-weight:640;color:var(--help-muted)}
+.yk-help-crumb a,.yk-help-doc a{color:var(--help-accent)}
+.yk-help-deck{margin:0;font-size:clamp(15px,2vw,20px);line-height:1.62;color:var(--help-muted)}
+.yk-help-topics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:35px 0 52px}
+.yk-help-topic{position:relative;display:grid;gap:5px;min-height:133px;padding:17px 36px 17px 20px;border:1px solid var(--help-line);border-radius:16px;background:var(--help-panel);text-decoration:none;color:var(--help-muted);line-height:1.48;font-size:14px}
+.yk-help-topic:hover{border-color:#8ba4c7;background:#fafdff}.yk-help-topic strong{display:block;font-size:clamp(17px,2vw,21px);font-weight:690;color:var(--help-ink)}
+.yk-help-index{font:600 12px/1.3 ui-monospace,monospace;letter-spacing:.09em;color:var(--help-accent)}
+.yk-help-arrow{position:absolute;right:17px;top:15px;color:var(--help-accent);font-size:20px}
+.yk-help-layout{display:grid;grid-template-columns:minmax(180px,228px) minmax(0,1fr);gap:clamp(24px,4vw,58px);align-items:start}
+.yk-help-sidebar{position:sticky;top:calc(var(--header-height,60px) + 26px);max-height:calc(100dvh - 112px);overflow:auto}
+.yk-help-sidebar h2{color:var(--help-ink);font-size:17px;margin:0 0 18px}
+.yk-help-sidebar h3{font-size:12px;color:var(--help-muted);margin:15px 0 5px;font-weight:650}
+.yk-help-sidebar ul{list-style:none;padding:0;margin:0}
+.yk-help-sidebar li a{display:block;padding:8px 12px;text-decoration:none;color:var(--help-ink);font-size:14px;border-radius:8px;line-height:1.45;overflow-wrap:anywhere}
+.yk-help-sidebar li a:hover,.yk-help-sidebar li a[aria-current]{color:var(--help-accent);background:#e4ecfa}
+.yk-help-toc-mobile{display:none}
+.yk-help-doc{min-width:0;scroll-margin-top:calc(var(--header-height,60px) + 12px);padding:clamp(22px,5vw,62px);border:1px solid var(--help-line);border-radius:23px;background:var(--help-panel);font-size:16px;line-height:1.78;overflow-wrap:anywhere}
+.yk-help-doc:not([hidden]){display:block}
+.yk-help-doc[hidden]{display:none}
+.yk-help-articles:has(.yk-help-doc:target) .yk-help-doc:not(:target){display:none}
+.yk-help-articles:not(:has(.yk-help-doc:target)) .yk-help-doc:not(:first-child):not([hidden]){display:none}
+.yk-help-doc p,.yk-help-doc li{color:var(--help-muted);margin-top:0}
+.yk-help-doc li{margin:.4em 0}.yk-help-doc ol,.yk-help-doc ul{padding-inline-start:24px}
+.yk-help-doc h2,.yk-help-doc h3,.yk-help-doc h4{color:var(--help-ink);line-height:1.27}
+.yk-help-doc h2{margin:0 0 14px;font-size:clamp(27px,4vw,49px);letter-spacing:-.035em}
+.yk-help-doc h3,.yk-help-doc h4{margin:1.45em 0 .62em}
+.yk-help-doc .help-path{margin:0 0 14px;font-size:12px;font-weight:720;letter-spacing:.075em;color:var(--help-accent)}
+.yk-help-doc .help-updated{font-size:12px;color:var(--help-muted);margin-bottom:20px}
+.yk-help-reference,.yk-help-doc .help-reference{display:grid;grid-template-columns:minmax(88px,1fr) minmax(0,2.7fr);padding:14px 18px;margin:0 0 28px;border:1px solid var(--help-line);border-radius:12px;background:#f4f7fb;line-height:1.45;font-size:14px}
+.yk-help-doc dt,.yk-help-doc dd{min-width:0;padding:6px 3px;margin:0}.yk-help-doc dt{font-weight:700;color:var(--help-ink)}.yk-help-doc dd{color:var(--help-muted)}
+.yk-help-doc pre{color:var(--help-ink);padding:13px;border-radius:10px;background:#eef2f8;overflow:auto;white-space:pre}
+.yk-help-doc pre code{background:transparent;font-size:13px}.yk-help-doc code{background:#eef2f8;padding:0 2px;color:#223456}
+.yk-help-doc blockquote{color:var(--help-muted);margin-inline:0;padding-inline-start:16px;border-inline-start:3px solid #8fa8d0}
+.yk-help-prev-next{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:28px;padding-top:16px;border-top:1px solid var(--help-line);font-size:14px}
+.yk-help-prev-next a:only-child:last-child{margin-inline-start:auto}
+.yk-help-prev-next small{display:block;color:var(--help-muted)}
+.yk-help a:focus-visible,.yk-help summary:focus-visible,.yk-help-doc:focus-visible{outline:2px solid var(--help-accent);outline-offset:3px}
+@media(max-width:850px){
+.yk-help-wrap{width:min(100% - 42px,690px);padding-bottom:58px}.yk-help-layout{grid-template-columns:minmax(0,1fr);gap:16px}
+.yk-help-sidebar{position:static;max-height:none;overflow:visible}.yk-help-toc-desktop{display:none}
+.yk-help-toc-mobile{display:block;background:var(--help-panel);border:1px solid var(--help-line);border-radius:12px}.yk-help-toc-mobile summary{padding:11px 15px;cursor:pointer;font-weight:650}
+.yk-help-toc-mobile nav{padding:0 12px 12px}.yk-help-topics{margin:28px 0}
+}
+@media(max-width:490px){
+.yk-help-wrap{width:calc(100% - 28px)}.yk-help-topics{grid-template-columns:minmax(0,1fr);gap:8px}.yk-help-topic{align-items:center;grid-template-columns:22px minmax(0,1fr);min-height:0;padding:10px 34px 10px 13px}.yk-help-topic .yk-help-index{grid-row:span 2}.yk-help-topic .yk-help-arrow{top:11px}.yk-help-doc{font-size:15px;border-radius:14px}
+}
+/* The guide keeps the product's navy shell; reference articles intentionally read like paper. */
+.yk-help{background:radial-gradient(ellipse 78% 330px at 21% 5%,#213a5c 0,transparent 100%),#0d1524}
+.yk-help-intro h1,.yk-help-sidebar h2{color:#edf4ff}
+.yk-help-deck,.yk-help-crumb,.yk-help-sidebar h3{color:#b8c9e1}
+.yk-help-crumb a{color:#d7e6fc}
+.yk-help-topic{color:#c0d0e6;background:#162439;border-color:#334760}
+.yk-help-topic strong{color:#edf4ff}.yk-help-topic .yk-help-index,.yk-help-topic .yk-help-arrow{color:#a4c6ff}
+.yk-help-topic:hover{background:#20334b;border-color:#7399c7}
+.yk-help-toc-desktop li a{color:#dbe6f4}
+.yk-help-toc-desktop li a:hover,.yk-help-toc-desktop li a[aria-current]{color:#f0f6ff;background:#293f5b}
+.yk-help-toc-mobile h3{color:var(--help-muted)}
+.yk-help-intro a:focus-visible,.yk-help-topic:focus-visible,.yk-help-toc-desktop a:focus-visible{outline-color:#a4c6ff}

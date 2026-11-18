@@ -1,0 +1,42 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "Yukino.moc3",
+    "Textures": [
+      "Yukino.4096/texture_00.png"
+    ],
+    "Physics": "Yukino.physics3.json",
+    "DisplayInfo": "Yukino.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "Calm",
+        "File": "Yukino.calm.exp3.json"
+      },
+      {
+        "Name": "Smile",
+        "File": "Yukino.smile.exp3.json"
+      },
+      {
+        "Name": "Puzzled",
+        "File": "Yukino.puzzled.exp3.json"
+      }
+    ]
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthOpenY"
+      ]
+    }
+  ]
+}

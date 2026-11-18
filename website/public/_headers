@@ -1,0 +1,18 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+
+# Keep only media bytes locally between visits. HTML, JS and auth still revalidate.
+/assets/hero-sky.jpg
+  Cache-Control: private, max-age=3600
+/assets/scenes-app/*
+  Cache-Control: private, max-age=3600
+/assets/scenes-native/*
+  Cache-Control: private, max-age=3600
+/assets/character-touch/*
+  Cache-Control: private, max-age=3600
+/assets/wardrobe/*
+  Cache-Control: private, max-age=3600

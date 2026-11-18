@@ -1,0 +1,16 @@
+{
+  // Use the existing FRONTEND Worker name and merge with its configuration.
+  // Do not use yukino-api. Do not replace routes, secrets, vars, D1 or other bindings.
+  "name": "REPLACE-WITH-EXISTING-FRONTEND-WORKER",
+  "main": "worker/router.mjs",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "keep_vars": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*", "/live2d", "/live2d/*", "/community", "/community/*"]
+  }
+}

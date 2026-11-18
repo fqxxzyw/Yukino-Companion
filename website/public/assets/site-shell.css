@@ -1,0 +1,5 @@
+/* Shared product navigation present on the homepage, community and help. */
+#site-header .v2-nav a { white-space: nowrap; }
+#site-header .v2-nav nav a[aria-current="page"] { color:#fff; background:#bcd2f426; }
+body.v2-subpage { background: radial-gradient(ellipse at 70% 0,#162942 0,transparent 520px), #090f18; }
+.v2-subpage #content { scroll-margin-top: 67px; }

@@ -1,0 +1,2 @@
+# Keep the validated website bytes; do not normalize vendor assets.
+* -text
