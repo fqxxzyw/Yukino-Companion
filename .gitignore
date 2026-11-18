@@ -34,6 +34,10 @@ build/
 
 # Recovered character inputs and review models stay out of public source trees.
 /public/characters/*.glb
+# The qipao export fix is a small, reviewed runtime repair referenced by the
+# catalog; keep this one versioned so a release can reproduce the continuous
+# waist without re-exporting the approved Blender final.
+!/public/characters/05-qipao-v2-fixed.glb
 /resources/character-source/*.glb.gz
 /review-assets/*.glb
 

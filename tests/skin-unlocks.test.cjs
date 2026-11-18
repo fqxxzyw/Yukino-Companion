@@ -107,7 +107,7 @@ test('actual React skin picker renders locks, real local previews, neutral fallb
  assert.equal((html.match(/<button/g)||[]).length,4);assert.equal((html.match(/disabled=""/g)||[]).length,3);assert.equal((html.match(/type="button"/g)||[]).length,4);
  assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感 35 \/ 40/);assert.match(html,/同一天计一次；挂机不计入/);assert.match(html,/aria-pressed="true"/);
  const groupHtml=renderToStaticMarkup(React.createElement(SkinPicker,{models:[{...model('02'),outfitGroup:'yukino-02'}, {...model('02',{id:'yukino-02-alt'}),outfitGroup:'yukino-02'}],relationship:{skinPreviewEnabled:true},onSkinPreviewChange:()=>{}}));
- assert.equal((groupHtml.match(/class="skin-card/g)||[]).length,1);assert.doesNotMatch(groupHtml,/版本（共享解锁条件）/);assert.match(groupHtml,/本地预览已验收服装/);assert.match(groupHtml,/不会改变好感或使用日期/);
+ assert.equal((groupHtml.match(/class="skin-card/g)||[]).length,1);assert.doesNotMatch(groupHtml,/版本（共享解锁条件）/);assert.doesNotMatch(groupHtml,/本地预览已验收服装|默认可用|（V2 过审站姿）/);
 });
 
 // JSX is compiled and its actual event handlers run with a tiny hook scheduler.

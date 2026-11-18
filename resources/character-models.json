@@ -1932,12 +1932,12 @@
       "id": "qipao-v2",
       "characterId": "yukino",
       "label": "黑色旗袍（V2 过审站姿）",
-      "version": "2026-11-17-v2",
+      "version": "2026-11-17-v2-fixed-1",
       "ready": true,
       "status": "approved_standing_export",
-      "url": "./characters/05-qipao-v2.glb",
-      "bytes": 14531144,
-      "sha256": "a0117b7f0e041d0e0fee904d6b72feea242cb411be0c4b362f5742fc756c2e43",
+      "url": "./characters/05-qipao-v2-fixed.glb",
+      "bytes": 14531104,
+      "sha256": "44a864b8de2c356627a9f05d77d31eb09d3c2175483e3aab5e2d1c8cbdd45976",
       "clips": {
         "Idle_Breathe": {
           "loop": true,
@@ -1966,7 +1966,7 @@
         "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
         "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
       ],
-      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "note": "V2 已过审站姿导出。修正版仅移除 Spring_01_skirt 节点在运行时的蒙皮绑定：该裙片在已验收 Blender 工程中渲染蒙皮是关闭的，导出为 skin 后会被骨骼下移并露出腰部横缝；几何、骨骼、贴图与动作均保留。",
       "bundled": true,
       "outfitGroup": "yukino-05",
       "thumbnail": "./characters/thumbnails/05-qipao-v2.jpg",

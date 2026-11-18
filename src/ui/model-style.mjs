@@ -40,7 +40,8 @@ function canOutline(mesh){
 function createCelOutline(mesh){
  mesh.geometry.computeBoundingBox();
  const height=mesh.geometry.boundingBox?.getSize(new THREE.Vector3()).y||1;
- const material=new THREE.MeshBasicMaterial({color:0x17121a,side:THREE.BackSide,toneMapped:false,fog:false,depthWrite:true});
+  const source=[mesh.material].flat().find(Boolean);
+ const material=new THREE.MeshBasicMaterial({color:0x17121a,side:THREE.BackSide,toneMapped:false,fog:false,depthWrite:true,map:source?.alphaTest>0?source.map:null,alphaMap:source?.alphaMap,alphaTest:source?.alphaTest||0,alphaHash:source?.alphaHash===true});
  material.name='Yukino · cel outline';
  // glTF meshes from Tripo keep centimetre-scale geometry under a scaled root;
  // the render loop converts a constant screen width into each mesh's units.

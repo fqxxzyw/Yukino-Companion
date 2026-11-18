@@ -14,3 +14,15 @@ test('exit transition keeps hidden state through model commit, abort resets it',
 test('micro-actions use the delivered manifest rather than a fixed six-name allowlist',async()=>{const {microClipNames}=await helpers();assert.deepEqual(microClipNames({clips:{Idle:{loop:true},NewSafeClip:{loop:false},MissingClip:{loop:false}}},new Map([['Idle',{}],['NewSafeClip',{}]])),['NewSafeClip']);});
 
 test('wardrobe thumbnails are exact real-asset images and legacy preview keeps its school appearance',()=>{const images=new Set();for(const model of catalog.models){assert.ok(model.thumbnail?.startsWith('./characters/thumbnails/'));const data=fs.readFileSync(new URL('../public/'+model.thumbnail.slice(2),importPath()));assert.equal(crypto.createHash('sha256').update(data).digest('hex'),model.thumbnailSha256);images.add(model.thumbnail);}assert.equal(images.size,16);const base=catalog.models.find(item=>item.id==='yukino-07-v1'),preview=catalog.models.find(item=>item.id==='yukino-07-micro13-preview');assert.equal(base.thumbnail,preview.thumbnail);assert.notEqual(base.sha256,preview.sha256);for(const model of catalog.models.filter(item=>item.approvedV2)){assert.match(model.thumbnail,/-v2\.(?:jpg|png)$/);assert.equal(model.retired,undefined);}});
+
+test('qipao skirt remains a static mesh so the approved continuous waist cannot be pulled apart at runtime',()=>{
+ const model=catalog.models.find(item=>item.id==='qipao-v2');
+ assert.equal(model.url,'./characters/05-qipao-v2-fixed.glb');
+ const data=fs.readFileSync(new URL('../public/'+model.url.slice(2),importPath()));
+ const length=data.readUInt32LE(12),json=JSON.parse(data.subarray(20,20+length).toString('utf8'));
+ const node=json.nodes.find(item=>item.name==='Spring_01_skirt');
+ const mesh=json.meshes.find(item=>item.name==='body_00001.001');
+ assert.ok(node&&mesh);
+ assert.equal(node.skin,undefined);
+ for(const primitive of mesh.primitives){assert.equal(primitive.attributes.JOINTS_0,undefined);assert.equal(primitive.attributes.WEIGHTS_0,undefined);}
+});
