@@ -50,7 +50,7 @@ test('corrupt usage is reported without replacing user history', async t => {
   await assert.rejects(new UsageTracker({ file }).load(),/读取失败/); assert.equal(await fs.readFile(file,'utf8'),'not-json');
 });
 test('preferences validate modes, close decisions, language and bounded scale', () => {
-  assert.equal(sanitizePreferences().closeAction,'ask');
+  assert.equal(sanitizePreferences().closeAction,'model');assert.equal(sanitizePreferences().mode,'model');
   assert.equal(sanitizePreferences({ closeAction:'both',mode:'pet',bubbleLanguage:'ja' }).bubbleLanguage,'ja');
   assert.throws(() => sanitizePreferences({ mode:'http://example.org' }));
   assert.throws(() => sanitizePreferences({ closeAction:'none' }));
@@ -100,7 +100,7 @@ async function fixture(t) {
   screen.getPrimaryDisplay = screen.getDisplayNearestPoint = () => ({ workArea }); screen.getCursorScreenPoint = () => ({ x:800,y:800 });
   let requested = 0, quit = 0;
   const manager = new CompanionManager({ electron:{ BrowserWindow:FakeWindow,screen,powerMonitor,ipcMain:{ handle:(k,v)=>handlers.set(k,v),removeHandler:k=>handlers.delete(k) },app:{ isPackaged:false, quit:()=>quit++ } },dataDir:dir,onCloseRequested:()=>requested++,onQuit:()=>quit++ });
-  await manager.initialize(); t.after(async () => { await manager.dispose(); await fs.rm(dir,{ recursive:true,force:true }); });
+  await manager.initialize(); await manager.setPreferences({mode:'none',closeAction:'ask'}); t.after(async () => { await manager.dispose(); await fs.rm(dir,{ recursive:true,force:true }); });
   const main = new FakeWindow(); manager.attachMainWindow(main);
   return { manager,main,screen,workArea,powerMonitor,handlers,requested:()=>requested,quit:()=>quit };
 }
