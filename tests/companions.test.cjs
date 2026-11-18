@@ -50,7 +50,7 @@ test('corrupt usage is reported without replacing user history', async t => {
   await assert.rejects(new UsageTracker({ file }).load(),/读取失败/); assert.equal(await fs.readFile(file,'utf8'),'not-json');
 });
 test('preferences validate modes, close decisions, language and bounded scale', () => {
-  assert.equal(sanitizePreferences().closeAction,'model');assert.equal(sanitizePreferences().mode,'model');
+  assert.equal(sanitizePreferences().closeAction,'model');assert.equal(sanitizePreferences().mode,'none');
   assert.equal(sanitizePreferences({ closeAction:'both',mode:'pet',bubbleLanguage:'ja' }).bubbleLanguage,'ja');
   assert.throws(() => sanitizePreferences({ mode:'http://example.org' }));
   assert.throws(() => sanitizePreferences({ closeAction:'none' }));

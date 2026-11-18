@@ -3,6 +3,7 @@ dist/
 release/
 /release-next/
 /release-final/
+/release-final2/
 .env*
 *.log
 

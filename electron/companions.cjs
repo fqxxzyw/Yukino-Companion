@@ -13,7 +13,7 @@ const {validBody,clampSubject,planDesktopAlignment,planDesktopAlignmentCandidate
 const {animateWindowBounds}=require('./window-bounds-transition.cjs');
 const MODES = new Set(['none', 'model', 'pet', 'both']);
 const CLOSE_ACTIONS = new Set(['ask', 'quit', 'model', 'pet', 'both']);
-const DEFAULTS = Object.freeze({ mode: 'model', petRenderer:'sprite', closeAction: 'model', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,proactive:PROACTIVE_DEFAULTS,...PET_DEFAULTS });
+const DEFAULTS = Object.freeze({ mode: 'none', petRenderer:'sprite', closeAction: 'model', bubbleLanguage: 'zh', position: 'right', scale: 1, alwaysOnTop: true, mouseThrough:false, animation: true, positions: {}, inputPosition:'below', breakReminders:false,breakIntervalMinutes:60,proactive:PROACTIVE_DEFAULTS,...PET_DEFAULTS });
 function daylightLocation(value){
  if(!value||typeof value.latitude!=='number'||typeof value.longitude!=='number'||!Number.isFinite(value.latitude)||!Number.isFinite(value.longitude)||Math.abs(value.latitude)>90||Math.abs(value.longitude)>180)return null;
  return {latitude:value.latitude,longitude:value.longitude};
