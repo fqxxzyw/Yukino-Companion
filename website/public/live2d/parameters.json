@@ -1,0 +1,25 @@
+{
+  "framing": { "centerX": 209, "bottom": 4, "width": 315, "height": 549 },
+  "parameters": [
+    { "id": "ParamEyeLOpen", "label": "左眼开合" },
+    { "id": "ParamEyeROpen", "label": "右眼开合" },
+    { "id": "ParamEyeBallX", "label": "视线左右" },
+    { "id": "ParamEyeBallY", "label": "视线上下" },
+    { "id": "ParamAngleX", "label": "头部左右转动" },
+    { "id": "ParamAngleY", "label": "头部上下转动" },
+    { "id": "ParamAngleZ", "label": "头部倾斜" },
+    { "id": "ParamBreath", "label": "呼吸" },
+    { "id": "ParamMouthOpenY", "label": "嘴部开合" },
+    { "id": "ParamMouthForm", "label": "嘴形" },
+    { "id": "ParamHairFront", "label": "刘海与侧发摆动" },
+    { "id": "ParamHairBack", "label": "后发摆动" },
+    { "id": "ParamBrowLY", "label": "左眉高度" },
+    { "id": "ParamBrowRY", "label": "右眉高度" },
+    { "id": "ParamYukinoSmile", "label": "浅笑嘴形" }
+  ],
+  "expressions": [
+    { "label": "平静 / 复位", "values": {} },
+    { "label": "浅笑", "values": { "ParamYukinoSmile": 1, "ParamEyeLOpen": 0.94, "ParamEyeROpen": 0.94 } },
+    { "label": "疑惑", "values": { "ParamBrowLY": 0.36, "ParamBrowRY": -0.18, "ParamAngleZ": 4 } }
+  ]
+}

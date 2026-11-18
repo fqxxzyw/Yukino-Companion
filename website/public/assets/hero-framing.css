@@ -1,0 +1,20 @@
+/* Same original wallpaper. A tall viewport needs its own photographic crop,
+   not the landscape's right-to-left shade or desktop parallax overscan. */
+@media (max-aspect-ratio: 1/1), (max-width: 760px) and (max-aspect-ratio: 4/3) {
+  .v2-home .v2-hero {
+    justify-content:flex-start;align-items:flex-end;min-height:100svh;
+    padding:clamp(68px,12svh,112px) clamp(18px,5vw,56px) clamp(58px,9svh,112px);
+  }
+  .v2-home .v2-hero-media {inset:0;transform:none!important;will-change:auto;}
+  .v2-home .v2-hero-media img {
+    object-position:8% center;transform:none;filter:none;
+  }
+  .v2-home .v2-hero-shade {
+    background:linear-gradient(0deg,#05070cf5 0%,#05070ce6 17%,#05070cb8 32%,#05070c3d 54%,transparent 68%);
+  }
+  .v2-home .v2-hero-copy {width:min(100%,700px);margin:0;}
+  .v2-home .v2-hero h1 {font-size:clamp(44px,10.2vw,94px);line-height:1.05;}
+  .v2-home .v2-hero-copy :is(.v2-kicker,.v2-hero-sub) {color:#e3ebf8;text-shadow:0 1px 12px #05070c;}
+  .v2-home .v2-hero-sub {margin-top:clamp(10px,2svh,23px);}
+  .v2-home .v2-hero-actions {margin-top:clamp(17px,3svh,29px);}
+}
