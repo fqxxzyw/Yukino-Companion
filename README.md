@@ -402,3 +402,34 @@ npm run build
 ## 权利与第三方声明
 
 本项目的角色、模型、音频、场景及第三方依赖可能分别适用不同的权利和许可。请遵守各资源的原始条款；使用自行导入的模型、录音和图片前，请确认你有权使用。第三方组件说明参见 [桌宠第三方声明](electron/companion-view/THIRD-PARTY-NOTICES.txt)、[翻译模型许可](translation/LICENSE-HY-MT2.txt) 和 [行走动作声明](characters/NOTICE_CMU_WALK.txt)。
+
+## 账号、官网与离线进度
+
+本项目新增了可选的账号系统与官网，不影响原有本地功能：
+
+- 桌面端登录门可以跳过；游客进度继续保存在原有 `state.json`。
+- 登录后使用 `profiles/<用户ID>/state.json`，与游客和其他账号隔离。
+- 账号服务不可达、令牌过期或刷新失败不会阻止本地使用，也不会删除聊天、模型或已确认皮肤。
+- 官网位于 `website/`，账号后端位于 `server/`；默认 API 为 `https://yukino-api.fqxxzyw.workers.dev`。
+
+本地开发：
+
+```powershell
+npm run api:secrets
+npm run api:dev        # 官网 + 本地 API + 测试收件箱 http://127.0.0.1:8787
+$env:YUKINO_API_BASE = "http://127.0.0.1:8787"
+npm run dev:desktop
+```
+
+测试与文档：
+
+```powershell
+npm run api:test
+npm run test:account
+npm run qa:account
+npm run qa:site        # 需要 api:dev 正在运行
+```
+
+- `docs/DEPLOYMENT_HANDOFF.md`：部署交接、路径、命令、Secrets 名称与当前完成情况。
+- `docs/DEPLOY_CLOUDFLARE.md`：手动部署、Gmail OAuth、D1 迁移、验证与回滚。
+- `docs/OFFLINE_AND_PROGRESS.md`、`docs/SECURITY.md`、`docs/API.md`、`docs/TEST_RESULTS.md`。

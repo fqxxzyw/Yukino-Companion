@@ -204,8 +204,17 @@ class CharacterModelStore{
  }
  entry(id){if(typeof id!=='string'||id.length>100)fail('人物模型标识无效');const entry=[...this.models,...this.custom].find(item=>item.id===id&&item.ready);if(!entry)fail('该人物模型尚未登记或准备好');if(!entry.custom&&!entry.runtimeCandidate&&!/^\.\/characters\/[-A-Za-z0-9_]+\.glb$/.test(entry.url))fail('内置模型路径无效');return entry;}
  async catalog(){await this.initialize();return {schemaVersion:1,models:structuredClone([...this.models,...this.custom])};}
- defaultYukinoModel(){return this.models.some(model=>model.id==='yukino-07-v1')?'yukino-07-v1':'summer-uniform';}
- selectedYukinoModel(id){return /^yukino-0[1-7](?:-|$)/.test(id||'')&&!this.models.some(model=>model.id===id)?this.defaultYukinoModel():id;}
+ defaultYukinoModel(){
+  const preferred='summer-uniform-v2';
+  return this.models.some(model=>model.id===preferred)?preferred
+   :this.models.find(model=>model.approvedV2)?.id
+   ||(this.models.some(model=>model.id==='yukino-07-v1')?'yukino-07-v1':'summer-uniform');
+ }
+ selectedYukinoModel(id){
+  const {approvedModelId}=require('./model-replacements.cjs');
+  const requested=approvedModelId(id||'');
+  return requested&&this.models.some(model=>model.id===requested)?requested:this.defaultYukinoModel();
+ }
  verify(entry,data){if(data.length!==entry.bytes||digest(data)!==entry.sha256)fail('人物模型完整性检查失败，请重新选择对应的 GLB 文件');}
  async readCandidate(entry,actions=false){
   const record=actions?entry.actionPack:entry;

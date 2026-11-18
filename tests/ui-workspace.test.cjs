@@ -8,7 +8,7 @@ test('settings routes preserve contextual entries and independently expose advan
  const {SETTINGS_PAGES,settingsPage,filterSettingsPages,settingsFamily}=await import('../src/ui/settings-pages.mjs');
  assert.equal(new Set(SETTINGS_PAGES.map(item=>item.id)).size,SETTINGS_PAGES.length);
  const primary=SETTINGS_PAGES.filter(item=>!item.hiddenInNavigation);
- assert.deepEqual(primary.map(item=>item.id),['general','appearance','characters','conversation','api','translation','memory','speech-input','voice','vision','desktop-companion','advanced']);
+ assert.deepEqual(primary.map(item=>item.id),['general','account','appearance','characters','conversation','api','translation','memory','speech-input','voice','vision','desktop-companion','advanced']);
  assert.deepEqual(settingsFamily('speech-input').map(item=>item.id),['speech-input'],'microphone/ASR has its own primary page');
  assert.deepEqual(settingsFamily('voice-resources').map(item=>item.id),['voice','voice-resources']);
  assert.deepEqual(settingsFamily('characters').map(item=>item.id),['characters','persona']);
@@ -142,7 +142,7 @@ test('settings search, navigation, reset, return and route-focus handlers use th
  const h=await shellHarness();
  const input=()=>h.node(node=>node.type==='input');
  const primary=()=>h.node(node=>node.type==='nav'&&node.props['aria-label']==='设置页面');
- assert.equal(React.Children.count(primary().props.children[0]),12);
+ assert.equal(React.Children.count(primary().props.children[0]),13);
  input().props.onChange({target:{value:'GPU'}});h.render();
  assert.equal(React.Children.count(primary().props.children[0]),1);
  h.node(node=>node.type==='button'&&node.props.children?.[1]?.props?.children==='语音环境与诊断').props.onClick();

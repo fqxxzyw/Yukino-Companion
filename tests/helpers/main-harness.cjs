@@ -15,7 +15,7 @@ const localModule = require('../../electron/local-chat.cjs');
 async function mainHarness({state, reply = {zh:'收到。',ja:'わかりました。'}, translate, localReply='先坐下吧，慢慢说。', runtimeReady=true, voiceMissing=[], voiceInstallBarrier, bundleGate, packaged = false, referenceFixture=true, files = {}, legacyFiles = {}, executable = path.resolve('/virtual-install/Yukino Companion.exe'), directoryChoice = null, asrClass, translationClass, cacheClass, cloudFetch, visualClass} = {}) {
   const filename = path.resolve(__dirname, '../../electron/main.cjs');
   const originalRequire = createRequire(filename);
-  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[],copied=[];
+  const handlers = new Map(), sent = [], requests = [], transport = [], translated = [], cancelled = [], errors = [], windows = [], localRequests = [], localCancelled = [], voiceActions = [], network = [], voiceInstallCalls = [],voiceDownloads=[],copied=[],opened=[];
   const missingVoiceFields=new Set(voiceMissing),installedCorePaths=new Set();let coreInstalled=!voiceMissing.some(field=>['bert','hubert'].includes(field));
   const dataRoot = path.resolve('/virtual-user');
   const {installationResourceLocation}=require('../../electron/resource-directory.cjs');
@@ -126,7 +126,7 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   let permissionCheck;
   const fakeElectron = {
     app,BrowserWindow:MockWindow,screen:{getPrimaryDisplay:()=>({workAreaSize:{width:1920,height:1080}})},ipcMain:{handle:(name,callback)=>handlers.set(name,callback)},clipboard:{writeText:value=>copied.push(value)},
-    safeStorage:{isEncryptionAvailable:()=>true,getSelectedStorageBackend:()=> 'gnome_libsecret',encryptString:value=>Buffer.from('sealed:'+value),decryptString:value=>{const text=value.toString();if(!text.startsWith('sealed:'))throw Error('Invalid sealed test key');return text.slice(7);}},shell:{openExternal:async()=>{}},session:{defaultSession:{setPermissionRequestHandler(){},setPermissionCheckHandler(fn){permissionCheck=fn;}}},
+    safeStorage:{isEncryptionAvailable:()=>true,getSelectedStorageBackend:()=> 'gnome_libsecret',encryptString:value=>Buffer.from('sealed:'+value),decryptString:value=>{const text=value.toString();if(!text.startsWith('sealed:'))throw Error('Invalid sealed test key');return text.slice(7);}},shell:{openExternal:async url=>{opened.push(url);}},session:{defaultSession:{setPermissionRequestHandler(){},setPermissionCheckHandler(fn){permissionCheck=fn;}}},
     dialog:{showErrorBox:(_title,message)=>errors.push(message),showOpenDialog:async()=>{const choice=typeof directoryChoice==='function'?await directoryChoice():directoryChoice;return choice?({canceled:false,filePaths:[choice]}):({canceled:true,filePaths:[]})}},
     net:{fetch:async(url,options={})=>{if(options.method==='POST'&&String(url).endsWith('/chat/completions')){const body=JSON.parse(options.body);requests.push(body);transport.push({url,headers:options.headers,body});const content=typeof reply==='function'?await reply({messages:body.messages,profile:{model:body.model}}):typeof reply==='string'?reply:JSON.stringify(reply);return Response.json({choices:[{message:{content}}]});}network.push({url,options});if(cloudFetch)return cloudFetch(url,options);if(options.method==='GET'&&String(url).includes('/models'))return Response.json({data:[{id:'test-chat-model',name:'Test chat model'}]});throw Error('unexpected network call');}},
   };
@@ -166,6 +166,6 @@ async function mainHarness({state, reply = {zh:'收到。',ja:'わかりまし�
   if(errors.length)throw Error('main initialization failed: '+errors.join('; '));
   if(!handlers.has('community'))throw Error('main did not register startup IPC');
   const window=windows[0],event={sender:window.webContents,senderFrame:window.webContents.mainFrame};
-  return {permissionAllowed:()=>permissionCheck?.(window.webContents,'media','file://',{mediaType:'audio',isMainFrame:true}),handlers,sent,requests,transport,translated,cancelled,storage:storageView,diskStorage:storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,copied,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
+  return {opened,permissionAllowed:()=>permissionCheck?.(window.webContents,'media','file://',{mediaType:'audio',isMainFrame:true}),handlers,sent,requests,transport,translated,cancelled,storage:storageView,diskStorage:storage,window,companions,local,runtime,voice,setup,localRequests,localCancelled,voiceActions,voiceInstallCalls,voiceDownloads,copied,network,defaultModelRoot,invoke:(name,...args)=>handlers.get(name)(event,...args)};
 }
 module.exports={mainHarness};

@@ -1,13 +1,14 @@
 import {SCENES,isCustomSceneId} from '../ui/scene-catalog.mjs';
 import {defaultWallpaperConfig} from '../ui/bundled-wallpapers.mjs';
+import {approvedModelId} from './model-replacements.mjs';
 
 export const DEFAULT_CHARACTER_ID='yukino';
-export const DEFAULT_CHARACTER={id:DEFAULT_CHARACTER_ID,name:'雪之下雪乃',persona:'',personaEnabled:true,personaPromptMode:'detailed',memory:'',useMemory:false,modelId:'yukino-07-v1',voiceId:'',voiceLanguage:'ja',defaultSceneId:'',builtin:true};
+export const DEFAULT_CHARACTER={id:DEFAULT_CHARACTER_ID,name:'雪之下雪乃',persona:'',personaEnabled:true,personaPromptMode:'detailed',memory:'',useMemory:false,modelId:'summer-uniform-v2',voiceId:'',voiceLanguage:'ja',defaultSceneId:'',builtin:true};
 const fields=['persona','personaEnabled','personaPromptMode','memory','useMemory'];
 const normalizeDefaultScene=value=>typeof value==='string'&&(Object.hasOwn(SCENES,value)||isCustomSceneId(value))?value:'';
 export function normalizeCharacters(state={}){
  const existing=Array.isArray(state.characters)?state.characters:[];
- const seen=new Set();const characters=existing.filter(item=>item&&typeof item.id==='string'&&item.id.length<=100&&typeof item.name==='string'&&item.name.trim()&&!seen.has(item.id)&&seen.add(item.id)).slice(0,100).map(item=>({...DEFAULT_CHARACTER,...item,name:item.name.trim().slice(0,60),builtin:item.id===DEFAULT_CHARACTER_ID,modelId:typeof item.modelId==='string'?item.modelId:'',voiceId:typeof item.voiceId==='string'?item.voiceId:'',voiceLanguage:['ja','zh'].includes(item.voiceLanguage)?item.voiceLanguage:'ja',defaultSceneId:normalizeDefaultScene(item.defaultSceneId)}));
+ const seen=new Set();const characters=existing.filter(item=>item&&typeof item.id==='string'&&item.id.length<=100&&typeof item.name==='string'&&item.name.trim()&&!seen.has(item.id)&&seen.add(item.id)).slice(0,100).map(item=>({...DEFAULT_CHARACTER,...item,name:item.name.trim().slice(0,60),builtin:item.id===DEFAULT_CHARACTER_ID,modelId:approvedModelId(typeof item.modelId==='string'?item.modelId:''),skinIds:Array.isArray(item.skinIds)?[...new Set(item.skinIds.filter(id=>typeof id==='string'&&id).map(approvedModelId))]:item.skinIds,voiceId:typeof item.voiceId==='string'?item.voiceId:'',voiceLanguage:['ja','zh'].includes(item.voiceLanguage)?item.voiceLanguage:'ja',defaultSceneId:normalizeDefaultScene(item.defaultSceneId)}));
  if(!characters.some(item=>item.id===DEFAULT_CHARACTER_ID))characters.unshift({...DEFAULT_CHARACTER,...Object.fromEntries(fields.filter(key=>state[key]!==undefined).map(key=>[key,state[key]]))});
  const activeCharacter=characters.some(item=>item.id===state.activeCharacter)?state.activeCharacter:DEFAULT_CHARACTER_ID;
  const current=characters.find(item=>item.id===activeCharacter);
@@ -23,7 +24,7 @@ export function rememberCharacterModel(character,modelId){
 }
 export function characterWardrobe(character,models=[]){
  const ids=new Set([...(Array.isArray(character?.skinIds)?character.skinIds:[]),character?.modelId].filter(Boolean));
- return models.filter(model=>ids.has(model.id)||(character?.id===DEFAULT_CHARACTER_ID&&(model.runtimeCandidate||/^yukino-0[1-7](?:-|$)/.test(model.id))));
+ return models.filter(model=>!model.retired&&(ids.has(model.id)||(character?.id===DEFAULT_CHARACTER_ID&&(model.runtimeCandidate||model.approvedV2||/^yukino-0[1-7](?:-|$)/.test(model.id)))));
 }
 export function patchCharacterState(state,patch){
  const changed=Object.fromEntries(fields.filter(key=>Object.hasOwn(patch,key)).map(key=>[key,patch[key]]));

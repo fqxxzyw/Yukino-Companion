@@ -2,29 +2,53 @@ import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {revealOrigin,presentationConfig} from './avatar-presentation.mjs';
 import {sceneId,scenePreset} from './scene-catalog.mjs';
 import {bundledWallpaper} from './bundled-wallpapers.mjs';
+import {useScenePreview} from './use-scene-preview.mjs';
 import './scene-loading.css';
-const sceneBackground=scene=>scenePreset(scene).background;
-const styleFor=entry=>({background:entry?.url?'var(--bg)':entry?.scene?sceneBackground(entry.scene):'transparent'});
+// A saved composition is the exact frame the user just arranged. Painting it
+// behind the WebGL canvas makes scene switches instant without changing the
+// existing freeze/blur/reveal choreography.
+const baseBackground={backgroundColor:'transparent',backgroundImage:'none',backgroundSize:'auto',backgroundPosition:'center',backgroundRepeat:'no-repeat'};
+const styleFor=(entry,preview='')=>{
+ if(entry?.url)return {...baseBackground,backgroundColor:'var(--bg)'};
+ if(!entry?.scene)return baseBackground;
+ const preset=scenePreset(entry.scene),image=preview||preset.thumbnail;
+ return image
+  ? {...baseBackground,backgroundImage:`url("${image}")`,backgroundSize:'cover'}
+  : {...baseBackground,backgroundImage:preset.background};
+};
 function WallpaperImage({entry,opacity}){return entry?.url?<div className="wallpaper-image-layer" style={{position:'absolute',inset:0,backgroundImage:`url("${entry.url}")`,backgroundSize:'cover',backgroundPosition:'center',opacity}}/>:null;}
-export default function SceneBackdrop({scene,view,importedScenes=[],preview=false,timeOfDay,weather=null,enabled,confined=false,reducedMotion,wallpaper,selectionRevision=0,onCurrentWallpaper,rendererRef,motionEnabled=true}){
+export default function SceneBackdrop({scene,view,importedScenes=[],preview=false,timeOfDay,weather=null,enabled,confined=false,reducedMotion,wallpaper,selectionRevision=0,onCurrentWallpaper,onSunlight,rendererRef,motionEnabled=true,sceneToon=false}){
+ const sceneStyle=sceneToon===true?'toon':'lit';
  const settings=presentationConfig({wallpaper}).wallpaper,ids=settings.items.map(item=>item.id),idKey=ids.join(','),wallpaperMode=!preview&&settings.enabled&&ids.length>0,sceneEnabled=enabled&&!wallpaperMode;
  const [index,setIndex]=useState(0),[current,setCurrent]=useState({key:null,scene:null}),[previous,setPrevious]=useState(null),[sceneStatus,setSceneStatus]=useState(null),[sceneRetry,setSceneRetry]=useState(0),cache=useRef(new Map()),previousRef=useRef(null);
- const latest=useRef(null);latest.current={scene,view,timeOfDay,weather,motionEnabled,sceneEnabled};
+ const targetScene=sceneEnabled?sceneId(scene):'';
+ const currentPreview=useScenePreview(current.scene||''),previousPreview=useScenePreview(previous?.scene||''),targetPreview=useScenePreview(targetScene);
+ const latest=useRef(null);latest.current={scene,view,timeOfDay,weather,motionEnabled,sceneEnabled,sceneStyle};
  const canvasHost=useRef(null),renderer=useRef(null),layer=useRef(null),clipHost=useRef(null),statusOverlay=useRef(null);
  useLayoutEffect(()=>{
   const host=clipHost.current;if(!host||!confined||!sceneEnabled)return;
-  const root=host.closest('.app');let frame,last='';
+  const root=host.closest('.app');let frame,last='',lastPanel=null,lastInstance=null,reframeTimer=null;
   const update=()=>{
    const panel=root?.querySelector('.character-panel'),rect=panel?.getBoundingClientRect(),bounds=host.getBoundingClientRect();
    const visible=rect&&rect.width>0&&rect.height>0;
    const left=visible?rect.left-bounds.left:0,top=visible?rect.top-bounds.top:0,width=visible?rect.width:0,height=visible?rect.height:0;
    const radius=panel?parseFloat(getComputedStyle(panel).borderTopLeftRadius)||0:0;
-   const key=[left,top,width,height,bounds.width,bounds.height,radius].join();
-   if(key!==last){last=key;host.style.clipPath=`inset(${top}px ${bounds.width-left-width}px ${bounds.height-top-height}px ${left}px round ${radius}px)`;}
+   const key=[left,top,width,height,bounds.width,bounds.height,radius].join(),changed=key!==last;
+   // The confined scene is framed for the character panel, not the chat
+   // column. Re-frame after the panel has settled from a drag/dock; doing it
+   // on every animation frame would fight the drag.
+   const instance=renderer.current;
+   if(instance&&(instance!==lastInstance||lastPanel!==panel||changed)){
+    instance.setWorkspaceTarget?.(panel||null);
+    clearTimeout(reframeTimer);
+    reframeTimer=setTimeout(()=>{if(!instance.disposed)instance.reframeForLayout?.()},120);
+   }
+   lastInstance=instance;lastPanel=panel;
+   if(changed){last=key;host.style.clipPath=`inset(${top}px ${bounds.width-left-width}px ${bounds.height-top-height}px ${left}px round ${radius}px)`;}
    if(statusOverlay.current){Object.assign(statusOverlay.current.style,{left:`${left+width/2}px`,top:`${top+52}px`,maxWidth:`${Math.max(0,width-24)}px`,visibility:visible?'':'hidden'});}
    frame=requestAnimationFrame(update);
   };
-  update();return()=>{cancelAnimationFrame(frame);host.style.removeProperty('clip-path');if(statusOverlay.current)statusOverlay.current.removeAttribute('style');};
+  update();return()=>{cancelAnimationFrame(frame);clearTimeout(reframeTimer);host.style.removeProperty('clip-path');if(statusOverlay.current)statusOverlay.current.removeAttribute('style');const instance=renderer.current;if(instance){instance.setWorkspaceTarget?.(null);instance.reframeForLayout?.();}};
  },[confined,sceneEnabled]);
  useEffect(()=>{setIndex(0)},[idKey,selectionRevision]);
  useEffect(()=>{if(!wallpaperMode||!settings.rotation||ids.length<2)return;const timer=setInterval(()=>setIndex(value=>(value+1)%ids.length),settings.intervalSeconds*1000);return()=>clearInterval(timer)},[wallpaperMode,settings.rotation,settings.intervalSeconds,idKey,selectionRevision]);
@@ -36,15 +60,15 @@ export default function SceneBackdrop({scene,view,importedScenes=[],preview=fals
  useEffect(()=>()=>{for(const url of cache.current.values())URL.revokeObjectURL(url);cache.current.clear()},[]);
  useEffect(()=>{onCurrentWallpaper?.(wallpaperMode&&current.key?.startsWith('wallpaper:')?current.key.slice('wallpaper:'.length):null)},[wallpaperMode,current.key,onCurrentWallpaper]);
  useEffect(()=>{
-  let cancelled=false,instance=null;if(!sceneEnabled){setSceneStatus(null);return;}
+  let cancelled=false,instance=null;if(!sceneEnabled){setSceneStatus(null);onSunlight?.(null);return;}
   setSceneStatus({kind:'loading',id:sceneId(latest.current.scene)});
-  const fail=()=>{if(!cancelled&&latest.current.sceneEnabled){canvasHost.current?.setAttribute('data-fallback','true');setSceneStatus({kind:'error',id:sceneId(latest.current.scene)})}};
+  const fail=error=>{if(!cancelled&&latest.current.sceneEnabled){const id=sceneId(latest.current.scene);if(import.meta.env.DEV)console.error('[scene]',id,error);canvasHost.current?.setAttribute('data-fallback','true');setSceneStatus({kind:'error',id,message:import.meta.env.DEV?String(error?.message||error||'').slice(0,180):''})}};
   import('./environment-backdrop.mjs').then(({EnvironmentBackdrop})=>{if(cancelled)return;try{
-   instance=new EnvironmentBackdrop(canvasHost.current,{preview,reducedMotion,onError:fail,onReady:id=>{if(!cancelled&&latest.current.sceneEnabled&&id===sceneId(latest.current.scene)){setCurrent({key:`scene:${id}`,scene:id});setSceneStatus(null)}}});renderer.current=instance;if(rendererRef)rendererRef.current=instance;instance.setAnimationEnabled(latest.current.motionEnabled);instance.update(latest.current.scene,latest.current.timeOfDay,latest.current.weather,latest.current.view);
+   instance=new EnvironmentBackdrop(canvasHost.current,{preview,reducedMotion,renderStyle:latest.current.sceneStyle,onSunlight,onError:fail,onReady:id=>{if(!cancelled&&latest.current.sceneEnabled&&id===sceneId(latest.current.scene)){setCurrent({key:`scene:${id}`,scene:id});setSceneStatus(null)}}});renderer.current=instance;if(rendererRef)rendererRef.current=instance;instance.setAnimationEnabled(latest.current.motionEnabled);instance.setRenderStyle(latest.current.sceneStyle);instance.update(latest.current.scene,latest.current.timeOfDay,latest.current.weather,latest.current.view);
   }catch{instance?.dispose();renderer.current=null;fail()}}).catch(fail);
   return()=>{cancelled=true;instance?.dispose();renderer.current=null;if(rendererRef?.current===instance)rendererRef.current=null};
- },[preview,sceneEnabled,reducedMotion,rendererRef,sceneRetry]);
- useEffect(()=>{if(!sceneEnabled)return;const instance=renderer.current,id=sceneId(scene);if(!instance||instance.loading||instance.environmentScene!==id)setSceneStatus({kind:'loading',id});else setSceneStatus(status=>status?.id!==id?null:status);instance?.update(scene,timeOfDay,weather,view)},[scene,view,sceneEnabled,timeOfDay,weather]);
+ },[preview,sceneEnabled,reducedMotion,rendererRef,sceneRetry,onSunlight]);
+ useEffect(()=>{if(!sceneEnabled)return;const instance=renderer.current,id=sceneId(scene);if(!instance||instance.loading||instance.environmentScene!==id)setSceneStatus({kind:'loading',id});else setSceneStatus(status=>status?.id!==id?null:status);instance?.setRenderStyle(sceneStyle);instance?.update(scene,timeOfDay,weather,view)},[scene,view,sceneEnabled,timeOfDay,weather,sceneStyle]);
  useEffect(()=>{renderer.current?.setAnimationEnabled(motionEnabled)},[motionEnabled]);
  useLayoutEffect(()=>{
   const element=layer.current;if(!element)return;const old=previousRef.current;previousRef.current=current;setPrevious(old);
@@ -55,5 +79,5 @@ export default function SceneBackdrop({scene,view,importedScenes=[],preview=fals
   let live=true;const animation=element.animate([{clipPath:`circle(0% at ${x}% ${y}%)`,filter:'blur(9px)',opacity:.45},{clipPath:`circle(85% at ${x}% ${y}%)`,filter:'blur(3px)',opacity:1,offset:.72},{clipPath:`circle(150% at ${x}% ${y}%)`,filter:'blur(0px)',opacity:1}],{duration:1550,easing:'cubic-bezier(.22,.65,.25,1)',fill:'both'});
   animation.finished.then(()=>{if(live){setPrevious(null);animation.cancel()}}).catch(()=>{});return()=>{live=false;animation.cancel()};
  },[current.key,preview,reducedMotion]);
- return <><div ref={clipHost} className={'scene-ui-backdrop'+(sceneEnabled?' has-scene':'')+(confined&&sceneEnabled?' is-panel-scene':'')} aria-hidden="true"><div style={styleFor(previous)}><WallpaperImage entry={previous} opacity={previous?.scene?1:settings.opacity}/></div><div ref={layer} style={styleFor(current)}><WallpaperImage entry={current} opacity={settings.opacity}/><div className="environment-backdrop-canvas" ref={canvasHost} style={{display:sceneEnabled?'':'none'}}/><div key={sceneId(scene)} className={'scene-loading-veil'+(sceneEnabled&&sceneStatus?.kind==='loading'?' is-loading':'')}/></div></div>{sceneEnabled&&sceneStatus&&<div ref={statusOverlay} className={'scene-load-status '+sceneStatus.kind} role={sceneStatus.kind==='error'?'alert':'status'} aria-live={sceneStatus.kind==='error'?'assertive':'polite'}>{sceneStatus.kind==='loading'?<><span className="scene-load-spinner" aria-hidden="true"/>正在加载「{scenePreset(sceneStatus.id,importedScenes).label}」场景…</>:<>场景加载失败，请检查场景文件或图形加速。<button type="button" onClick={()=>setSceneRetry(value=>value+1)}>重试</button></>}</div>}</>;
+ return <><div ref={clipHost} className={'scene-ui-backdrop'+(sceneEnabled?' has-scene':'')+(confined&&sceneEnabled?' is-panel-scene':'')} aria-hidden="true"><div style={styleFor(previous,previousPreview)}><WallpaperImage entry={previous} opacity={previous?.scene?1:settings.opacity}/></div><div ref={layer} style={styleFor(current.key?current:{scene:targetScene},current.key?currentPreview:targetPreview)}><WallpaperImage entry={current} opacity={settings.opacity}/><div className="environment-backdrop-canvas" ref={canvasHost} style={{display:sceneEnabled?'':'none'}}/><div key={sceneId(scene)} className={'scene-loading-veil'+(sceneEnabled&&sceneStatus?.kind==='loading'?' is-loading':'')}/></div></div>{sceneEnabled&&sceneStatus&&<div ref={statusOverlay} className={'scene-load-status '+sceneStatus.kind} role={sceneStatus.kind==='error'?'alert':'status'} aria-live={sceneStatus.kind==='error'?'assertive':'polite'}>{sceneStatus.kind==='loading'?<><span className="scene-load-spinner" aria-hidden="true"/>正在加载「{scenePreset(sceneStatus.id,importedScenes).label}」场景…</>:<>{import.meta.env.DEV&&sceneStatus.message&&<><span className="scene-load-reason">{sceneStatus.message}</span><br/></>}场景加载失败，请检查场景文件或图形加速。<button type="button" onClick={()=>setSceneRetry(value=>value+1)}>重试</button></>}</div>}</>;
 }

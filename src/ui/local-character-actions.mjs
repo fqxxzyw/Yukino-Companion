@@ -15,7 +15,7 @@ function rotations(values) {
   return vector(values, 4) && Math.abs(Math.hypot(...values) - 1) < .001;
 }
 
-async function bindActionPack(gltf, entry, pack) {
+async function bindActionPack(gltf, entry, pack, standingOnly = false) {
   check(pack.schema === 'yukino.local-actions.v1' && pack.modelSha256 === entry.sha256 &&
     pack.modelId === entry.runtimeCandidate && Array.isArray(pack.standing) && pack.standing.length > 0 &&
     pack.standing.length <= 512 && Array.isArray(pack.clips) && pack.clips.length === CLIP_NAMES.length);
@@ -33,6 +33,18 @@ async function bindActionPack(gltf, entry, pack) {
     const bone = await getNode(pose.node);
     check(bone?.isBone && parser.json.nodes[pose.node].name === pose.name);
     standing.set(pose.node, {bone, pose});
+  }
+
+  // The turntable only needs the approved standing pose. Building and keeping
+  // six action packs' clips for background figures creates a large allocation
+  // spike and GC pauses during the rotation.
+  if (standingOnly) {
+    for (const {bone, pose} of standing.values()) {
+      bone.position.fromArray(pose.position);
+      bone.quaternion.fromArray(pose.quaternion);
+      bone.scale.fromArray(pose.scale);
+    }
+    return [];
   }
 
   const head = await getNode(pack.faceNode);
@@ -88,18 +100,26 @@ async function bindActionPack(gltf, entry, pack) {
   return clips;
 }
 
-export async function loadLocalCharacterActions(gltf, entry, api, signal) {
+export async function loadLocalCharacterActions(gltf, entry, api, signal, {standingOnly = false} = {}) {
   const expected = entry.actionPack;
   if (!expected) return [];
-  check(entry.runtimeCandidate && api?.characterActionData && /^[a-f0-9]{64}$/.test(expected.sha256) &&
+  check(entry.runtimeCandidate && /^[a-f0-9]{64}$/.test(expected.sha256) &&
     Number.isInteger(expected.bytes) && expected.bytes > 0 && expected.bytes <= MAX_ACTION_BYTES);
-  const bytes = new Uint8Array(await api.characterActionData(entry.id));
+  let data;
+  if (api?.characterActionData) data = await api.characterActionData(entry.id);
+  else {
+    check(import.meta.env?.DEV && entry.previewActionUrl);
+    const response = await fetch(entry.previewActionUrl, {signal});
+    check(response.ok);
+    data = await response.arrayBuffer();
+  }
+  const bytes = new Uint8Array(data);
   signal?.throwIfAborted();
   check(bytes.length === expected.bytes);
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   check(Array.from(digest, value => value.toString(16).padStart(2, '0')).join('') === expected.sha256);
   const pack = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
-  const clips = await bindActionPack(gltf, entry, pack);
+  const clips = await bindActionPack(gltf, entry, pack, standingOnly);
   signal?.throwIfAborted();
   gltf.userData.localActionFaceMeshIndex = gltf.parser.json.nodes[pack.faceNode].mesh;
   if (entry.runtimeCandidate === 'beret' && pack.beretIris) gltf.userData.beretIris = pack.beretIris;

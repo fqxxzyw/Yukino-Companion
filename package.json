@@ -49,7 +49,15 @@
     "predev": "npm run prepare:wallpapers",
     "review:blink": "electron scripts/open-blink-review.cjs",
     "qa:blink": "electron scripts/open-blink-review.cjs --capture",
-    "test:release": "node --test tests/release-automation/*.test.cjs"
+    "test:release": "node --test tests/release-automation/*.test.cjs",
+    "api:secrets": "node server/scripts/generate-secrets.mjs --dev",
+    "api:dev": "node server/scripts/generate-secrets.mjs --dev && node server/scripts/dev-server.mjs",
+    "api:dev:reset": "node server/scripts/generate-secrets.mjs --dev && node server/scripts/dev-server.mjs --reset",
+    "api:test": "node --test server/test/*.test.mjs",
+    "secrets:prod": "node server/scripts/generate-secrets.mjs",
+    "test:account": "node --test tests/account-*.test.cjs",
+    "qa:account": "node tests/account-browser.mjs",
+    "qa:site": "node tests/site-browser.mjs"
   },
   "dependencies": {
     "lucide-react": "0.468.0",
@@ -75,6 +83,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "shared/entitlement-public-key.json",
       "motion-studio/scripts/desktop-preload.cjs",
       "src/speech/segmenter.mjs",
       "package.json",
@@ -89,8 +98,20 @@
       "output": "release"
     },
     "win": {
-      "target": "nsis",
-      "artifactName": "Yukino-Companion-${version}-Setup.exe",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "signAndEditExecutable": true,
       "icon": "branding/app-icon.ico"
     },
@@ -108,7 +129,8 @@
         "zh_CN",
         "en_US"
       ],
-      "language": "2052"
+      "language": "2052",
+      "artifactName": "Yukino-Companion-${version}-Base-Setup.exe"
     },
     "extraResources": [
       {
@@ -160,6 +182,9 @@
           "!**/*.part"
         ]
       }
-    ]
+    ],
+    "portable": {
+      "artifactName": "Yukino-Companion-${version}-Portable.exe"
+    }
   }
 }

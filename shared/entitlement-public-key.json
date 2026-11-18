@@ -1,0 +1,14 @@
+{
+  "publicJwk": {
+    "key_ops": [
+      "verify"
+    ],
+    "ext": true,
+    "kty": "EC",
+    "x": "D75e2uq5XpaYdnD4UO8l4AndJ0mkUb9UmUUMw4fpaMU",
+    "y": "1lznjsfvjCEtuqSdkzqg1b2vdGABS0zGCoAZEEQo6gE",
+    "crv": "P-256"
+  },
+  "note": "Production entitlement verification key; private key is held only by the server.",
+  "keyId": "prod-2026-11-17"
+}

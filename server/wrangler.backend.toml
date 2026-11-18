@@ -1,0 +1,26 @@
+# Backend-only deployment to the existing Worker. No assets are uploaded.
+# The normal wrangler.toml remains the full website + API configuration.
+name = "yukino-api"
+main = "src/backend-worker.js"
+compatibility_date = "2026-11-01"
+preview_urls = false
+keep_vars = true
+
+[observability]
+enabled = true
+
+[vars]
+APP_ENV = "production"
+MAIL_PROVIDER = "gmail"
+MAIL_FROM_EMAIL = "fqxxzyw@gmail.com"
+MAIL_FROM_NAME = "Yukino Companion"
+ALLOWED_ORIGINS = "https://yukino-api.fqxxzyw.workers.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yukino-account"
+database_id = "89b0733f-f518-4557-bf69-ff254b80618b"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 * * * *"]

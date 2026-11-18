@@ -1,0 +1,22 @@
+{
+  "exact": {
+    "yukino-07-v1": "summer-uniform-v2",
+    "summer-uniform": "summer-uniform-v2",
+    "yukino-02-v1": "beret-v2",
+    "yukino-03-v1": "swimsuit-v2",
+    "yukino-04-v1": "kimono-v2",
+    "yukino-05-v1": "qipao-v2",
+    "yukino-06-v1": "twin-tail-v2",
+    "twin-tail": "twin-tail-v2",
+    "winter-uniform": "winter-uniform-v2"
+  },
+  "prefixes": {
+    "yukino-01": "swimsuit-v2",
+    "yukino-02": "beret-v2",
+    "yukino-03": "swimsuit-v2",
+    "yukino-04": "kimono-v2",
+    "yukino-05": "qipao-v2",
+    "yukino-06": "twin-tail-v2",
+    "yukino-07": "summer-uniform-v2"
+  }
+}

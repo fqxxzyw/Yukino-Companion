@@ -1,6 +1,7 @@
 // Route IDs remain stable; navigation shows purposes, not every technical page.
 export const SETTINGS_PAGES = [
   {id:'general',label:'常规',icon:'settings',description:'本机资料与陪伴记录。',keywords:'状态 帮助 社区 名称 使用时长'},
+  {id:'account',label:'账号与会话',icon:'user',description:'登录、同步进度、查看设备会话与修改密码。',keywords:'账号 登录 注册 邮箱 会话 设备 密码 游客 同步 好感度 天数 皮肤'},
   {id:'appearance',label:'外观',icon:'palette',description:'调整颜色、背景和动态效果。',keywords:'壁纸 透明度 亮度 减少动态 主题 场景 构图 位置 角度 大小 复位 Blender 导入'},
   {id:'characters',label:'角色管理',tabLabel:'管理与新建',icon:'users',description:'管理现有角色，或用名字和角色设定新建一个角色。',keywords:'人物 名称 新建 创建 提示词 性格'},
   {id:'conversation',label:'聊天与陪伴',icon:'chat',description:'选择聊天来源，调整主动聊天与日常陪伴。',keywords:'提醒 主动 勿扰'},

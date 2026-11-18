@@ -11,7 +11,9 @@ preload=preload.replace("const {contextBridge} = require('electron');","const co
 preload=preload.replace('let state={',"let state={presentation:{scene:'classroom',sceneEnabled:true,spread:true,gaze:false,wallpaper:{enabled:false,items:[]}},");
 preload=preload.replace("setupDismissedVersion:''","setupDismissedVersion:'0.4.0-base.1'");
 preload=preload.replace('activeConversation:null,personaEnabled',"activeConversation:'qa-conversation',personaEnabled");
-preload=preload.replace("{id:'qa-assistant',role:'assistant',content:zh,zh,ja,status:'done',translationStatus:'ready',source:'api'},", "{id:'qa-assistant',role:'assistant',content:'旧回复',zh:'旧回复',status:'done'}, {id:'qa-user-2',role:'user',content:'第二个问题'}, {id:'qa-assistant-2',role:'assistant',content:'最新回复开头。'+('长回复内容。'.repeat(140)),status:'done'},");
+const boardText='这是我刚才在教室黑板上写画的内容，请结合我们的对话看看。';
+const boardImage='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYGQAAAAASUVORK5CYII=';
+preload=preload.replace("{id:'qa-assistant',role:'assistant',content:zh,zh,ja,status:'done',translationStatus:'ready',source:'api'},", ` {id:'qa-assistant',role:'assistant',content:'旧回复',zh:'旧回复',status:'done'}, {id:'qa-user-2',role:'user',content:${JSON.stringify(boardText)},image:${JSON.stringify(boardImage)}}, {id:'qa-assistant-2',role:'assistant',content:'最新回复开头。'+('长回复内容。'.repeat(140)),status:'done'},`);
 preload=preload.replace("const qaCalls={help:[],install:[],cancel:0};", "const qaCalls={help:[],install:[],cancel:0}; let releaseReply,activeReply;");
 preload=preload.replace("send:async request=>{emit('chunk',{id:request.id,text:zh});return{ok:true,bilingual:{zh,ja,translationStatus:'ready',source:request.mode==='local'?'local':'api'}};}","send:async request=>{activeReply=request.id;return await new Promise(resolve=>releaseReply=resolve);},qaReady:()=>Boolean(activeReply),qaChunk:text=>emit('chunk',{id:activeReply,text}),qaFinish:text=>{const finish=releaseReply;activeReply=null;releaseReply=null;finish({ok:true,bilingual:{zh:text,ja,translationStatus:'ready',source:'api'}});}");
 
@@ -39,12 +41,16 @@ try{
  const questions=page.locator('.messages > .message.user');
  const chatScroll=page.locator('.chat-scroll');
  assert.equal(await messages.count(),4);
- assert.equal(await questions.last().innerText(),'第二个问题');
+ assert.equal(await questions.last().innerText(),boardText);
+ const board=questions.last().locator('.blackboard-message-image');
+ assert.equal(await board.getAttribute('src'),boardImage);
+ await page.waitForFunction(()=>document.querySelector('.messages .blackboard-message-image')?.naturalWidth>0);
  assert.match(await messages.nth(1).innerText(),/旧回复/);
  assert.ok(await chatScroll.evaluate(el=>el.scrollTop)>0,'opening the conversation shows the latest turn');
  await page.locator('[data-testid="toggle-spread"]').click();
  await page.waitForFunction(()=>!document.querySelector('.app.scene-city'));
  assert.equal(await messages.count(),4,'all prior messages remain in regular chat');
+ assert.equal(await board.getAttribute('src'),boardImage);
  await page.locator('[data-testid="toggle-spread"]').click();
  await page.waitForSelector('.app.scene-city');
  await page.getByRole('textbox',{name:'消息',exact:true}).fill('新问题');

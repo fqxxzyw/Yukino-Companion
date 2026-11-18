@@ -1,8 +1,8 @@
 import {Vector3} from 'three';
 
 const boneNames = {
-  head:'J_Bip_C_Head', neck:'J_Bip_C_Neck',
-  leftUpperArm:'J_Bip_L_UpperArm', rightUpperArm:'J_Bip_R_UpperArm',
+  head:['J_Bip_C_Head','head'], neck:['J_Bip_C_Neck','neck'],
+  leftUpperArm:['J_Bip_L_UpperArm','upper_arm.L'], rightUpperArm:['J_Bip_R_UpperArm','upper_arm.R'],
 };
 
 export function bindAvatarTouchZones(gltf, entry) {
@@ -10,7 +10,7 @@ export function bindAvatarTouchZones(gltf, entry) {
   if (entry?.characterId !== 'yukino' && !/^yukino-0[1-7]-/.test(entry?.id || '')) return null;
   const {scene} = gltf;
   const humanoid = gltf.userData?.vrm?.humanoid;
-  const bone = key => humanoid?.getRawBoneNode(key) || scene.getObjectByName(boneNames[key]);
+  const bone = key => humanoid?.getRawBoneNode(key) || boneNames[key].map(name => scene.getObjectByName(name)).find(Boolean);
   const head = bone('head'), neck = bone('neck'), left = bone('leftUpperArm'), right = bone('rightUpperArm');
   if (![head,neck,left,right].every(Boolean)) return null;
 

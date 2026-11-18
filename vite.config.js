@@ -1,12 +1,13 @@
 import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 import {randomBytes} from 'node:crypto';
+import {devYukinoModels} from './scripts/dev-yukino-models.mjs';
 
 export default defineConfig(({command}) => {
   const nonce = randomBytes(18).toString('base64');
   return {
     base:'./',
-    plugins:[react(), {
+    plugins:[react(), devYukinoModels(), {
       name:'development-refresh-csp', apply:'serve',
       transformIndexHtml:{order:'pre', handler:html=>html.replace("script-src 'self'", `script-src 'self' 'nonce-${nonce}'`)},
     }],

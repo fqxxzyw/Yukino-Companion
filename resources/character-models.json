@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "2026-10-27-review.1",
+  "version": "2026-11-17-v2",
   "models": [
     {
       "id": "yukino-01-v1",
@@ -15,19 +15,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -35,7 +35,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -63,14 +63,15 @@
       "outfitGroup": "yukino-01",
       "thumbnail": "./characters/thumbnails/yukino-01.png",
       "thumbnailSha256": "b18676a25e3a2b46548ed63d5720028f06757b993fc1451590485c63459ae128",
-      "thumbnailSourceSha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6"
+      "thumbnailSourceSha256": "19f33a092d8964d503832ba4fa8a06213533a0d54001207ceb09cc7d22401bd6",
+      "retired": true
     },
     {
       "id": "yukino-02-v1",
       "characterId": "yukino",
       "label": "蓝色开衫贝雷帽",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "delivered_review_stage",
       "url": "./characters/Yukino02_UVDomainRepair.glb",
       "bytes": 11413596,
@@ -78,19 +79,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -98,7 +99,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -124,14 +125,15 @@
       "outfitGroup": "yukino-02",
       "thumbnail": "./characters/thumbnails/yukino-02.png",
       "thumbnailSha256": "c35b7401f2ba0defe17f04f493645115ac9389cb94d9b59f7b09aa25e381010d",
-      "thumbnailSourceSha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b"
+      "thumbnailSourceSha256": "f5c034e7331ebae979081b46b6aa725a148d59a01d8cf7b1eadede3004df1d8b",
+      "retired": true
     },
     {
       "id": "yukino-03-v1",
       "characterId": "yukino",
       "label": "白色连体泳装蓝蝴蝶结",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "delivered_review_stage",
       "url": "./characters/Yukino03_UVDomainRepair.glb",
       "bytes": 9885224,
@@ -139,19 +141,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -159,7 +161,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -185,14 +187,15 @@
       "outfitGroup": "yukino-03",
       "thumbnail": "./characters/thumbnails/yukino-03.png",
       "thumbnailSha256": "c0c91e8d8765515c8c21f070569269ab2d4fd759fac96419b25aab0e1951c8e4",
-      "thumbnailSourceSha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d"
+      "thumbnailSourceSha256": "85883a14231a7305b9202ccd179f4e3fe1d7a007ff57d7ea41542e04d5f9175d",
+      "retired": true
     },
     {
       "id": "yukino-04-v1",
       "characterId": "yukino",
       "label": "蓝色花纹和服",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "delivered_review_stage",
       "url": "./characters/Yukino04_UVPartsClean_PORTABLE.glb",
       "bytes": 10005444,
@@ -200,19 +203,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -220,7 +223,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -246,14 +249,15 @@
       "outfitGroup": "yukino-04",
       "thumbnail": "./characters/thumbnails/yukino-04.png",
       "thumbnailSha256": "b62ea8608aabd9c16fa85e2458cf3d679a9b304a3037565f4f0e0c3824198473",
-      "thumbnailSourceSha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689"
+      "thumbnailSourceSha256": "9ef2b66ab0bff9c1d93750231b0da31731f98a00c5b8c4bac170fc3c9dbf3689",
+      "retired": true
     },
     {
       "id": "yukino-05-v1",
       "characterId": "yukino",
       "label": "黑色蕾丝裙",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "delivered_review_stage",
       "url": "./characters/Yukino05_UVDomainRepair.glb",
       "bytes": 13369772,
@@ -261,19 +265,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -281,7 +285,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -307,14 +311,15 @@
       "outfitGroup": "yukino-05",
       "thumbnail": "./characters/thumbnails/yukino-05.png",
       "thumbnailSha256": "9e975ea04ada2e3257d3727bd7c2a2655c8f9f09fa55be7ec3d25267a531b066",
-      "thumbnailSourceSha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59"
+      "thumbnailSourceSha256": "e172b3718f4199e10ecd7f5568cd481b041133223a6f3c1c3056d4499e162c59",
+      "retired": true
     },
     {
       "id": "yukino-06-v1",
       "characterId": "yukino",
       "label": "黑白女仆红蝴蝶结",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "delivered_review_stage",
       "url": "./characters/Yukino06_UVPartsClean_PORTABLE.glb",
       "bytes": 11691392,
@@ -322,19 +327,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -342,7 +347,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -368,14 +373,15 @@
       "outfitGroup": "yukino-06",
       "thumbnail": "./characters/thumbnails/yukino-06.png",
       "thumbnailSha256": "93f1c03884d38a602be4994442af82ea9586df080d98987caa22b71007bdfd98",
-      "thumbnailSourceSha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6"
+      "thumbnailSourceSha256": "b2fd939ecbeffab7844909b05f361895aac291e54c16b5cfb1715ee9d8c0a3f6",
+      "retired": true
     },
     {
       "id": "yukino-07-v1",
       "characterId": "yukino",
       "label": "原校服黄背心",
       "version": "2026-10-27-review.1",
-      "ready": true,
+      "ready": false,
       "status": "validated_stage_uploaded",
       "url": "./characters/Yukino07_UVDomainRepair.glb",
       "bytes": 9882096,
@@ -391,19 +397,19 @@
         },
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -411,7 +417,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -441,14 +447,15 @@
       "outfitGroup": "yukino-07",
       "thumbnail": "./characters/thumbnails/yukino-07.png",
       "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
-      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5"
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "retired": true
     },
     {
       "id": "yukino-07-micro13-preview",
       "characterId": "yukino",
       "label": "校服·微动作增强（预览）",
       "version": "2026-10-27-micro13-preview.3",
-      "ready": true,
+      "ready": false,
       "status": "optional_preview_technical_integration_approved_not_user_accepted",
       "url": "./characters/Yukino07_MicroActions13_REVIEW.glb",
       "bytes": 10118656,
@@ -465,22 +472,22 @@
           "matching_endpoint_values": true
         },
         "Idle_Breathe": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Listen_Attentive": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Look_Left": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
         "Look_Right": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -490,7 +497,7 @@
           "matching_endpoint_values": true
         },
         "Think_Downcast": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -507,13 +514,13 @@
           "family": "mild_refusal"
         },
         "Attentive_LeanReturn": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "attentive_forward_lean"
         },
         "WeightShift_Small": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "upper_torso_weight_settle"
@@ -552,14 +559,15 @@
       "bundled": true,
       "thumbnail": "./characters/thumbnails/yukino-07.png",
       "thumbnailSha256": "6d7069d19e280d1dadc827e75c8b59990d824406be563147c04e7b11c07e8227",
-      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5"
+      "thumbnailSourceSha256": "35ee6553bc0023053cd40b830eb9603d8107904531c4014f79433ff3f8013ae5",
+      "retired": true
     },
     {
       "id": "yukino-07-walk14-preview",
       "characterId": "yukino",
       "label": "校服·行走换装（评审）",
       "version": "2026-10-27-walk14-preview.6",
-      "ready": true,
+      "ready": false,
       "status": "runtime_walking_review",
       "url": "./characters/Yukino07_CMUWalk14_V6_REVIEW.glb",
       "bytes": 10175144,
@@ -576,22 +584,22 @@
           "matching_endpoint_values": true
         },
         "Idle_Breathe": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Listen_Attentive": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Look_Left": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
         "Look_Right": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -601,7 +609,7 @@
           "matching_endpoint_values": true
         },
         "Think_Downcast": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -618,13 +626,13 @@
           "family": "mild_refusal"
         },
         "Attentive_LeanReturn": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "attentive_forward_lean"
         },
         "WeightShift_Small": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "upper_torso_weight_settle"
@@ -691,14 +699,15 @@
           1.2666666666666666
         ],
         "review": true
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-07-dialogue19-preview",
       "characterId": "yukino",
       "label": "校服·语音微动作（评审）",
       "version": "dialogue-micro19-v1-review",
-      "ready": true,
+      "ready": false,
       "status": "runtime_walking_review",
       "url": "./characters/Yukino07_DialogueMicro19_REVIEW.glb",
       "bytes": 10420820,
@@ -715,22 +724,22 @@
           "matching_endpoint_values": true
         },
         "Idle_Breathe": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Listen_Attentive": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Look_Left": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
         "Look_Right": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -740,7 +749,7 @@
           "matching_endpoint_values": true
         },
         "Think_Downcast": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -757,13 +766,13 @@
           "family": "mild_refusal"
         },
         "Attentive_LeanReturn": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "attentive_forward_lean"
         },
         "WeightShift_Small": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "upper_torso_weight_settle"
@@ -779,7 +788,7 @@
           "duration": 1.4666666666666666
         },
         "Speak_PhraseCadence": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "label": "讲话短句节奏",
@@ -916,7 +925,8 @@
           1.2666666666666666
         ],
         "review": true
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-01-garment-normal-v1",
@@ -931,19 +941,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -951,7 +961,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -991,7 +1001,8 @@
         "profileId": "01-normal",
         "mode": "normal",
         "assetSha256": "adaf8cd2ef415d923fb30eea2dde9fa91dcc8f9c081e397db18f4765df8720b6"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-02-garment-normal-v1",
@@ -1006,19 +1017,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -1026,7 +1037,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -1063,7 +1074,8 @@
         "profileId": "02-normal",
         "mode": "normal",
         "assetSha256": "5dbedc0a0158d74100b0a3b8b9e85fb53f347efddee38248316423fa013b9581"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-03-garment-normal-v1",
@@ -1078,19 +1090,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -1098,7 +1110,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -1135,7 +1147,8 @@
         "profileId": "03-normal",
         "mode": "normal",
         "assetSha256": "ac6b222823ad8723b05fdaf0696e88a4e8a1dc3f4c7ec3d88ffb021b5a5c3bec"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-04-garment-normal-v1",
@@ -1150,19 +1163,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -1170,7 +1183,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -1207,7 +1220,8 @@
         "profileId": "04-normal",
         "mode": "normal",
         "assetSha256": "87df650f987b800682a57dcf2de36d880e725eb84ff25cc59b8ee6c1dfe810d6"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-05-garment-normal-v1",
@@ -1222,19 +1236,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -1242,7 +1256,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -1281,7 +1295,8 @@
         "profileId": "05-normal",
         "mode": "normal",
         "assetSha256": "e3294e3f3bc8884ce711dbd2158d36ce71f5b27c57b23fe7f4576ba8703bfe62"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-06-garment-normal-v1",
@@ -1296,19 +1311,19 @@
       "clips": {
         "Idle_Breathe": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Listen_Attentive": {
           "loop": true,
-          "duration": 4.0
+          "duration": 4
         },
         "Look_Left": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Look_Right": {
           "loop": false,
-          "duration": 3.0
+          "duration": 3
         },
         "Nod_Subtle": {
           "loop": false,
@@ -1316,7 +1331,7 @@
         },
         "Think_Downcast": {
           "loop": false,
-          "duration": 4.0
+          "duration": 4
         }
       },
       "mouth": {
@@ -1353,7 +1368,8 @@
         "profileId": "06-normal",
         "mode": "normal",
         "assetSha256": "fa9b4374c9c4663f9993b40d395f09f325a85fa70afc576d7f5ec44678c1645f"
-      }
+      },
+      "retired": true
     },
     {
       "id": "yukino-07-garment-normal-v1",
@@ -1377,22 +1393,22 @@
           "matching_endpoint_values": true
         },
         "Idle_Breathe": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Listen_Attentive": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": true,
           "matching_endpoint_values": true
         },
         "Look_Left": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
         "Look_Right": {
-          "duration": 3.0,
+          "duration": 3,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -1402,7 +1418,7 @@
           "matching_endpoint_values": true
         },
         "Think_Downcast": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true
         },
@@ -1419,13 +1435,13 @@
           "family": "mild_refusal"
         },
         "Attentive_LeanReturn": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "attentive_forward_lean"
         },
         "WeightShift_Small": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "family": "upper_torso_weight_settle"
@@ -1441,7 +1457,7 @@
           "duration": 1.4666666666666666
         },
         "Speak_PhraseCadence": {
-          "duration": 4.0,
+          "duration": 4,
           "loop": false,
           "matching_endpoint_values": true,
           "label": "讲话短句节奏",
@@ -1588,7 +1604,612 @@
         "profileId": "07-normal",
         "mode": "normal",
         "assetSha256": "f87dd92a724147192671acbf7869a8dad76e2e62bac7c19ee7b2a17c070cda66"
+      },
+      "retired": true
+    },
+    {
+      "id": "kimono-v2",
+      "characterId": "yukino",
+      "label": "和服（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/01-kimono-v2.glb",
+      "bytes": 32461764,
+      "sha256": "555c3ed9c171e7e45329a7b4bbfb64636a4fae43c6442c72610696e166d26571",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 1.041667,
+          "autonomous": false
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 6.041667,
+          "autonomous": false
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 5,
+          "autonomous": true
+        },
+        "Thoughtful_Glance": {
+          "loop": false,
+          "duration": 6.041667,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "loop": false,
+          "duration": 5,
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 8
+        },
+        "Gentle_Disagreement": {
+          "loop": false,
+          "duration": 5,
+          "autonomous": true
+        },
+        "Greet_Reserved": {
+          "loop": false,
+          "duration": 4.666667,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "YK20_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "kimono-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-04",
+      "thumbnail": "./characters/thumbnails/01-kimono-v2.png",
+      "thumbnailSha256": "b62ea8608aabd9c16fa85e2458cf3d679a9b304a3037565f4f0e0c3824198473",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
+    },
+    {
+      "id": "summer-uniform-v2",
+      "characterId": "yukino",
+      "label": "夏日制服（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/02-summer-v2.glb",
+      "bytes": 15480188,
+      "sha256": "6868caa447cd7034a28a672d336c36868e00646d24a3ea743dba956338b4a105",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 3.041667,
+          "autonomous": false
+        },
+        "Speak_PhraseCadence": {
+          "loop": false,
+          "duration": 3.041667,
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 8
+        }
+      },
+      "mouth": {
+        "canonical_name": "EA_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "summer-uniform-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "summer-uniform",
+      "thumbnail": "./characters/thumbnails/02-summer-v2.png",
+      "thumbnailSha256": "1cf955ef931c6023e80e794dbc9f744e7e5916f531b89f6ada144451c3c278d0",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示",
+      "hairMask": {
+        "applied": false,
+        "status": "V2 已通过站姿工程没有头发遮罩节点组；正面与左右斜侧实机未见穿模，极转身未验证。"
       }
+    },
+    {
+      "id": "swimsuit-v2",
+      "characterId": "yukino",
+      "label": "泳装（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/03-swimsuit-v2.glb",
+      "bytes": 20447768,
+      "sha256": "a2af9054a73a06be232ca823ded8403885a903e5bc4f8209654bd83971995919",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 1.041667,
+          "autonomous": false
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4,
+          "autonomous": false
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 4,
+          "autonomous": true
+        },
+        "Thoughtful_Glance": {
+          "loop": false,
+          "duration": 4,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "loop": false,
+          "duration": 4,
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 8
+        },
+        "Gentle_Disagreement": {
+          "loop": false,
+          "duration": 4,
+          "autonomous": true
+        }
+      },
+      "mouth": {
+        "canonical_name": "SwimNarrow_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "swimsuit-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-03",
+      "thumbnail": "./characters/thumbnails/03-swimsuit-v2.png",
+      "thumbnailSha256": "c0c91e8d8765515c8c21f070569269ab2d4fd759fac96419b25aab0e1951c8e4",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示",
+      "hairMask": {
+        "applied": true,
+        "method": "baked_geometry_nodes",
+        "sourceNodeGroups": [
+          "28 | Swimsuit-specific fixed mask | Hair_After_RestoreKnownRepairs"
+        ],
+        "caveat": "V2 包中没有用户所指的 32/30 号源；本项使用包内实际存在的 28 号遮罩并烘焙进带蒙皮头发网格，需极转身复核。"
+      }
+    },
+    {
+      "id": "winter-uniform-v2",
+      "characterId": "yukino",
+      "label": "冬季制服（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/04-winter-v2.glb",
+      "bytes": 22494736,
+      "sha256": "d369a61e50dbb19dbe8501c445866ecc8cc8c0cb2c8790cef2907176f8e564ea",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 2.5,
+          "autonomous": false
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 4,
+          "autonomous": false
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 5.041667,
+          "autonomous": true
+        },
+        "Thoughtful_Glance": {
+          "loop": false,
+          "duration": 5.333333,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "loop": false,
+          "duration": 5.541667,
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 8
+        },
+        "Gentle_Disagreement": {
+          "loop": false,
+          "duration": 5.333333,
+          "autonomous": true
+        },
+        "Greet_Reserved": {
+          "loop": false,
+          "duration": 5.5,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "EA_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "winter-uniform-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "winter-uniform",
+      "thumbnail": "./characters/thumbnails/04-winter-v2.jpg",
+      "thumbnailSha256": "ba9cf13749ddc061a104f8f2447e6aa24364c9ba0c107be9e9be257ab331dbde",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示",
+      "hairMask": {
+        "applied": true,
+        "method": "baked_geometry_nodes",
+        "sourceNodeGroups": [
+          "24 | Soft coat guide for genuine front locks.001",
+          "23 | Fixed continuous body-space rear-to-front volume | 02_Material_Toon_Candidate"
+        ],
+        "caveat": "V2 包中没有用户所指的 31/29 号源；本项使用包内实际存在的 23/24 号遮罩并烘焙进带蒙皮头发网格。"
+      }
+    },
+    {
+      "id": "qipao-v2",
+      "characterId": "yukino",
+      "label": "黑色旗袍（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/05-qipao-v2.glb",
+      "bytes": 14531144,
+      "sha256": "a0117b7f0e041d0e0fee904d6b72feea242cb411be0c4b362f5742fc756c2e43",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 1.2,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "YK_Qipao_NativeRoundSmallO",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "black-qipao-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-05",
+      "thumbnail": "./characters/thumbnails/05-qipao-v2.jpg",
+      "thumbnailSha256": "ebea4019ba4ae09edf01b8fa6b8ae7daa3444e0a62b1e93593558240e1628cd3",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
+    },
+    {
+      "id": "twin-tail-v2",
+      "characterId": "yukino",
+      "label": "双马尾（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/06-twin-tail-v2.glb",
+      "bytes": 13596644,
+      "sha256": "9a4c3cd9131286a20de1cfe8540d3f6a7210a29525279a0a16302e6f322306ed",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 2.5,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "YK_Mouth_SmallO",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "twin-tail-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "twin-tail",
+      "thumbnail": "./characters/thumbnails/06-twin-tail-v2.png",
+      "thumbnailSha256": "6b658cddf3115b7926a3732bcfdfe4b86ae80cf616d930406156aaa07416934e",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
+    },
+    {
+      "id": "beret-v2",
+      "characterId": "yukino",
+      "label": "贝雷帽（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/07-beret-v2.glb",
+      "bytes": 19561760,
+      "sha256": "e03da6dfd5d563865382e9366fdfcaf03c84bbc610ee3d07418672366a60e19d",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 2.433333,
+          "autonomous": false
+        },
+        "Listen_Attentive": {
+          "loop": true,
+          "duration": 3.233333,
+          "autonomous": false
+        },
+        "Nod_Subtle": {
+          "loop": false,
+          "duration": 3.233333,
+          "autonomous": true
+        },
+        "Thoughtful_Glance": {
+          "loop": false,
+          "duration": 3.233333,
+          "autonomous": true
+        },
+        "Speak_PhraseCadence": {
+          "loop": false,
+          "duration": 3.233333,
+          "autonomous": false,
+          "speechEligible": true,
+          "minRepeatGapSeconds": 8
+        },
+        "Gentle_Disagreement": {
+          "loop": false,
+          "duration": 3.233333,
+          "autonomous": true
+        }
+      },
+      "mouth": {
+        "canonical_name": "EA_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "beret-v2",
+      "approvedV2": true,
+      "approvedBeret": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-02",
+      "thumbnail": "./characters/thumbnails/07-beret-v2.png",
+      "thumbnailSha256": "c35b7401f2ba0defe17f04f493645115ac9389cb94d9b59f7b09aa25e381010d",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
+    },
+    {
+      "id": "ivory-coat-v2",
+      "characterId": "yukino",
+      "label": "象牙大衣（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/08-ivory-v2.glb",
+      "bytes": 14325692,
+      "sha256": "2fa8662d92cc507ebc69a50efbe9808a80979f4746e51e20ef8a1538e45ac647",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 3.041667,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "YK07_Ivory_aa",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "ivory-coat-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-08",
+      "thumbnail": "./characters/thumbnails/08-ivory-v2.jpg",
+      "thumbnailSha256": "7e48fb2d5ce51bf6fd602203cc1fe5eec20ca06f80790027a1ef24dc9210fb61",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
+    },
+    {
+      "id": "ice-hooded-winter-v2",
+      "characterId": "yukino",
+      "label": "冰蓝连帽冬装（V2 过审站姿）",
+      "version": "2026-11-17-v2",
+      "ready": true,
+      "status": "approved_standing_export",
+      "url": "./characters/09-ice-v2.glb",
+      "bytes": 14163048,
+      "sha256": "94e35a542494a30accddb3801c387af9cd9b0d30ec8128fb1a78102ea0323d69",
+      "clips": {
+        "Idle_Breathe": {
+          "loop": true,
+          "duration": 1.041667,
+          "autonomous": false
+        }
+      },
+      "mouth": {
+        "canonical_name": "YK07C_Ice_Speech_A",
+        "recommended_dialogue_range": [
+          0,
+          0.3
+        ],
+        "default_zero_closed": true,
+        "synchronize_all_meshes_with_same_morph_name": false,
+        "aliases_not_additive": {},
+        "audio_driven": false,
+        "combined_targets_not_automatically_validated": true
+      },
+      "blink": false,
+      "hairPhysics": false,
+      "defaultClip": "Idle_Breathe",
+      "faceChannel": "ice-hooded-winter-v2",
+      "approvedV2": true,
+      "limits": [
+        "外观与站姿来自 V2 已过审工程；运行材质为主色贴图桥接，A 版描边与脸部阴影尚未合并。",
+        "该工程可导出的动作少于七套；缺少的对话动作不会以旧动作冒充。"
+      ],
+      "note": "V2 已过审站姿直接导出；保留原始骨骼、蒙皮、形态键与贴图。",
+      "bundled": true,
+      "outfitGroup": "yukino-09",
+      "thumbnail": "./characters/thumbnails/09-ice-v2.jpg",
+      "thumbnailSha256": "fca0c6e6afd6e6d8b61f5223e72cb2663cc182f98c3d6cd29a9f4bf3d41d59a3",
+      "headGestures": [
+        "tilt",
+        "look-left",
+        "look-right"
+      ],
+      "headGestureSource": "Yukino07_GarmentNormal_20261027.glb · Look_Left / Look_Right / Question_Tilt（仅头颈轨道）",
+      "standingPose": "V2 已通过垂臂站姿；所有动作缺失骨骼以该站姿补齐，首帧待机求值后显示"
     }
   ]
 }

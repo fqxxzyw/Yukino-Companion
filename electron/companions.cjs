@@ -441,6 +441,13 @@ class CompanionManager {
       this.onUse({touch:{id:payload.id,zone:payload.zone,gesture:payload.gesture,modelId:this.character.modelId,voice:!this.speechBusy&&!this.chatBusy},characterId:this.character.id});
       return true;
     }
+    if(action==='beret-penalty'){
+      if(isMenu||kind!=='model'||!win.isVisible()||win.handoffSuppressed||this.drag?.kind==='model'||this.character.id!=='yukino'||this.preferences.mouseThrough||this.preferences.interactionPaused||this.preferences.quietMode||this.pauses.size)return false;
+      if(!this.modelFrame?.ready||this.modelFrame.win!==win||this.modelFrame.id!==this.character.modelId||payload?.modelId!==this.character.modelId)return false;
+      if(typeof payload?.id!=='string'||!/^beret-[a-zA-Z0-9_-]{1,80}$/.test(payload.id))return false;
+      this.onUse({beretPenalty:{id:payload.id,modelId:this.character.modelId},characterId:this.character.id});
+      return true;
+    }
     if(action==='model-character'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型配置');return {...this.character};}
     if(action==='model-catalog'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型目录');return this.onModelCatalog();}
     if(action==='model-view'){

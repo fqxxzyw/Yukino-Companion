@@ -1,0 +1,13 @@
+{
+  "name": "Yukino Companion",
+  "short_name": "Yukino",
+  "description": "Windows 桌面数字角色",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#f4f8fd",
+  "theme_color": "#f4f8fd",
+  "icons": [
+    {"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/assets/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}
+  ]
+}

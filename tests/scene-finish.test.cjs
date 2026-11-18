@@ -69,14 +69,17 @@ test('material refinement owns its environment once and restores the latest nati
 test('day sky remains weather aware and its texture is disposed on scene exit',async()=>{
  const f=await fixture('inage');
  f.api.setClimate({timeOfDay:14,weather:null});
- const daySky=f.scene.background,clear=daySky.image.data.slice();
- assert.equal(daySky.name,'weather:day-sky-clouds');
+ const clearTexture=f.scene.background,clear=clearTexture.image.data.slice();
+ assert.equal(clearTexture.name,'weather:day-sky-clouds');
  f.api.setClimate({timeOfDay:14,weather:{cloud:.85,rain:.65}});
- assert.equal(f.scene.background,daySky);assert.notDeepEqual(daySky.image.data,clear);
- f.api.setClimate({timeOfDay:23,weather:null});assert.notEqual(f.scene.background,daySky);
- f.api.setClimate({timeOfDay:14,weather:null});assert.equal(f.scene.background,daySky);
- assert.deepEqual(daySky.image.data,clear,'returning to clear day restores the same sky');
- let disposed=0;daySky.addEventListener('dispose',()=>disposed++);
+ const rainTexture=f.scene.background;
+ assert.notEqual(rainTexture,clearTexture,'background identity must change so three re-converts the sky');
+ assert.equal(rainTexture.name,'weather:day-sky-clouds');assert.notDeepEqual(rainTexture.image.data,clear);
+ f.api.setClimate({timeOfDay:23,weather:null});assert.notEqual(f.scene.background,rainTexture);
+ f.api.setClimate({timeOfDay:14,weather:null});
+ const returned=f.scene.background;assert.notEqual(returned,rainTexture);
+ assert.deepEqual(returned.image.data,clear,'returning to clear day restores the same painted sky');
+ let disposed=0;returned.addEventListener('dispose',()=>disposed++);
  f.api.dispose();f.api.dispose();assert.equal(disposed,1);assert.equal(f.scene.background,f.background);f.external.dispose();
 });
 
@@ -184,4 +187,42 @@ test('site orientation rotates the real sun and the water optics input together'
  assert.ok(opticsDirection.distanceTo(expected)<1e-8);
  assert.ok(f.sun.position.clone().sub(f.sun.target.position).normalize().distanceTo(opticsDirection)<1e-8);
  f.api.dispose();f.external.dispose();
+});
+
+test('outdoor key is the only directional shadow caster and the sun crosses sides',async()=>{
+ const T=await import('three'),{finishScene}=await import('../src/scenes/scene-finish.mjs');
+ const scene=new T.Scene(),root=new T.Group(),geometry=new T.BoxGeometry(8,.2,8),material=new T.MeshStandardMaterial();
+ root.add(new T.Mesh(geometry,material));
+ const primary=new T.DirectionalLight('#ffffff',1);primary.castShadow=false;root.add(primary,primary.target);
+ const authoredKey=new T.DirectionalLight('#fff2df',3);authoredKey.castShadow=true;root.add(authoredKey,authoredKey.target);
+ const hemi=new T.HemisphereLight('#ddeeff','#777766',1);root.add(hemi);
+ scene.add(root);
+ const renderer={toneMappingExposure:1,shadowMap:{}},api=finishScene({root,lightingPresets:['day','night'],setLighting(){return 'day';},dispose(){}},{scene,renderer,id:'school'});
+ api.setClimate({timeOfDay:9,weather:null});
+ assert.equal(authoredKey.castShadow,true);assert.equal(primary.castShadow,false,'fill directionals never steal the shadow map');
+ const morning=authoredKey.position.clone().sub(authoredKey.target.position).normalize();
+ assert.ok(morning.x<-.2,'morning sun comes from the left');
+ assert.ok(api.sunState.direction[0]<-.2);assert.ok(api.sunState.intensity>1);
+ api.setClimate({timeOfDay:18,weather:null});
+ const evening=authoredKey.position.clone().sub(authoredKey.target.position).normalize();
+ assert.ok(evening.x>.5,'evening sun comes from the right');
+ assert.ok(api.sunState.direction[0]>.5);
+ api.setClimate({timeOfDay:23,weather:null});
+ assert.equal(api.sunState.intensity,0,'night keeps no daytime sun');
+ assert.equal(authoredKey.castShadow,true,'the map stays assigned for the next morning');
+ api.dispose();geometry.dispose();material.dispose();
+});
+
+test('character receives the scene sun direction and weather-attenuated intensity',async()=>{
+ const T=await import('three'),{GlbAvatarRenderer}=await import('../src/ui/model-runtime.mjs');
+ const scene=new T.Scene(),key=new T.DirectionalLight(),ambient=new T.HemisphereLight(),fill=new T.DirectionalLight(),rim=new T.DirectionalLight();
+ scene.add(key,key.target,ambient,fill,rim);
+ const r=Object.create(GlbAvatarRenderer.prototype);
+ Object.assign(r,{scene,key,ambient,fill,rim,portraitFill:null,groundShadow:null,environmentId:'school',timeOfDay:14,sceneWeather:null,sceneSunlight:null,renderStyle:'lit',container:{dataset:{}}});
+ r.setEnvironment({id:'school',timeOfDay:14,weather:null,sunlight:{direction:[-.5,.65,.57],color:'#fff2df',intensity:2.5,fillScale:.58}});
+ const expected=new T.Vector3(-.5,.65,.57).normalize();
+ assert.ok(key.position.clone().normalize().distanceTo(expected)<1e-8,'same world direction, not a copied screen vector');
+ assert.ok(Math.abs(key.intensity-2.8)<1e-8,'character calibrates the shared beam independently');
+ assert.equal(key.color.getHexString(),'fff2df');
+ assert.equal(r.container.dataset.sunDirection,'-0.500,0.650,0.570');
 });

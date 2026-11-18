@@ -6,22 +6,41 @@ import {applySceneView,classroomBoardTarget,dioramaFrame,galleryKey,setCameraFra
 import {DEFAULT_SCENE_VIEW,sceneViewConfig} from './scene-view.mjs';
 import {SceneOverview} from './scene-overview.mjs';
 import {sceneDaylight,sceneLightingPreset,applyWindowNight} from './scene-daylight.mjs';
+import {scenePreviewImage} from './scene-preview-store.mjs';
 const clockHour=()=>{const d=new Date();return d.getHours()+d.getMinutes()/60};
 const transitionBlur='blur(8px)';
+const thumbnailImages=new Map();
+const sceneThumbnailImage=id=>{
+ const url=scenePreset(id)?.thumbnail;
+ if(!url||typeof Image!=='function')return null;
+ let image=thumbnailImages.get(url);
+ if(!image){image=new Image();image.decoding='async';image.src=url;thumbnailImages.set(url,image);}
+ return image;
+};
+const drawCover=(ctx,image,width,height)=>{
+ if(!image?.naturalWidth||!image.naturalHeight)return false;
+ const scale=Math.max(width/image.naturalWidth,height/image.naturalHeight);
+ const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
+ ctx.drawImage(image,(width-w)/2,(height-h)/2,w,h);
+ return true;
+};
 const paintOpportunity=()=>new Promise(resolve=>{let done=false;const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve()}};const timer=setTimeout(finish,100);requestAnimationFrame(()=>requestAnimationFrame(finish))});
 const rendererState=gl=>({exposure:gl.toneMappingExposure,toneMapping:gl.toneMapping,shadowType:gl.shadowMap.type,shadows:gl.shadowMap.enabled});
 function restoreRenderer(gl,state){gl.toneMappingExposure=state.exposure;gl.toneMapping=state.toneMapping;gl.shadowMap.type=state.shadowType;gl.shadowMap.enabled=state.shadows;gl.shadowMap.needsUpdate=true;}
 export class EnvironmentBackdrop {
- constructor(host,{interactive=false,preview=false,reducedMotion=false,onError,onReady,onBeforeSwap,loadFactory=loadSceneFactory,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas)}={}){
-  Object.assign(this,{host,interactive,preview,reducedMotion,onError,onReady,onBeforeSwap,loadFactory});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;
+ constructor(host,{interactive=false,preview=false,reducedMotion=false,onError,onReady,onBeforeSwap,onSunlight,loadFactory=loadSceneFactory,rendererFactory=options=>new THREE.WebGLRenderer(options),controlsFactory=(camera,canvas)=>new OrbitControls(camera,canvas),renderStyle='lit'}={}){
+  Object.assign(this,{host,interactive,preview,reducedMotion,onError,onReady,onBeforeSwap,onSunlight,loadFactory});this.disposed=false;this.epoch=0;this.queue=Promise.resolve();this.time=0;this.last=0;this.motion=true;this.renderStyle=renderStyle==='toon'?'toon':'lit';this.sunState=null;this.sunlightKey='';
   this.sceneView=DEFAULT_SCENE_VIEW;
   this.camera=new THREE.PerspectiveCamera(34,1,.05,1500);this.target=new THREE.Vector3();
   this.overview=new SceneOverview(this.camera,this.target,{reducedMotion});
   // Preserve native detail on the common 150% Windows display scale. Rendering
   // at 1.15 and stretching the canvas softened windows, foliage and railings.
-  this.gl=rendererFactory({alpha:true,antialias:true,powerPreference:'low-power'});this.gl.setPixelRatio(Math.min(globalThis.devicePixelRatio||1,interactive?1.75:1.5));
+  // The composition editor needs a synchronous canvas read on pointer-up. A
+  // preview-only preserve flag is cheap; the live backdrop keeps the default.
+  this.gl=rendererFactory({alpha:true,antialias:true,powerPreference:'low-power',preserveDrawingBuffer:preview===true});this.gl.setPixelRatio(Math.min(globalThis.devicePixelRatio||1,interactive?1.75:1.5));
   this.gl.outputColorSpace=THREE.SRGBColorSpace;this.gl.toneMapping=THREE.NeutralToneMapping;this.gl.toneMappingExposure=1;
   this.gl.shadowMap.enabled=true;this.gl.shadowMap.type=THREE.PCFSoftShadowMap;this.gl.shadowMap.autoUpdate=false;
+  this.host.dataset.renderStyle=this.renderStyle;
   try {
   host.append(this.gl.domElement);this.gl.domElement.setAttribute('aria-label','提供的三维场景');
   if(interactive){this.controls=controlsFactory(this.camera,this.gl.domElement);this.controls.enableDamping=!reducedMotion;this.controls.dampingFactor=.085;this.controls.enablePan=false;this.controls.minPolarAngle=.08;this.controls.maxPolarAngle=Math.PI*.48;this.controls.enableZoom=true;}
@@ -86,7 +105,7 @@ export class EnvironmentBackdrop {
    this.applyClimate();this.requestRender();return Promise.resolve(true)
   }
   // Freeze synchronously BEFORE import/construction. React never has to race a new GPU frame.
-  if(!this.loading)this.freezeFrame();
+  if(!this.loading)this.freezeFrame(id);
   const epoch=++this.epoch;this.loading=true;this.loadingScene=id;this.host.dataset.loading='true';
   this.queue=this.queue.catch(()=>{}).then(async()=>{
    if(this.disposed||epoch!==this.epoch)return false;
@@ -102,7 +121,7 @@ export class EnvironmentBackdrop {
     nextScene=new THREE.Scene();next=await create({scene:nextScene,renderer:this.gl});
     if(this.disposed||epoch!==this.epoch)return false;
     if(!next?.root)throw Error('场景没有提供三维根节点');nextScene.add(next.root);
-    this.configureShadows(next.root);nextScene.updateMatrixWorld(true);
+    this.configureShadows(next.root,id);nextScene.updateMatrixWorld(true);
     this.lightScene(next,nextScene,id);
     const bounds=next.bounds?.isBox3?next.bounds.clone():new THREE.Box3().setFromObject(next.framingRoot||next.root);
     if(bounds.isEmpty()||![...bounds.min.toArray(),...bounds.max.toArray()].every(Number.isFinite))throw Error('场景边界无效');
@@ -141,7 +160,7 @@ export class EnvironmentBackdrop {
    }
   });return this.queue;
  }
- freezeFrame(){
+ freezeFrame(nextId=null){
   if(!this.current||this.contextUnavailable)return;
   this.render();
   const canvas=this.gl.domElement,old=this.frozen,incoming=this.revealSnapshot;
@@ -150,10 +169,51 @@ export class EnvironmentBackdrop {
   const ctx=frozen.getContext('2d');
   if(old&&incoming){ctx.drawImage(old,0,0,frozen.width,frozen.height);const clip=getComputedStyle(incoming).clipPath;const circle=/circle\(([\d.]+)% at ([\d.]+)% ([\d.]+)%\)/.exec(clip);ctx.save();if(circle){ctx.beginPath();ctx.arc(frozen.width*Number(circle[2])/100,frozen.height*Number(circle[3])/100,Math.hypot(frozen.width,frozen.height)/Math.SQRT2*Number(circle[1])/100,0,Math.PI*2);ctx.clip();}ctx.drawImage(incoming,0,0,frozen.width,frozen.height);ctx.restore();}
   else ctx.drawImage(canvas,0,0);
+  frozen.dataset.source='canvas';
   this.clearFrozen();this.frozen=frozen;this.host.append(frozen);this.host.dataset.frozen='true';
+  // Phase two of the fake switch: the current frame is already blurred. After
+  // a short beat, cross-fade the destination scene's saved thumbnail (or its
+  // static scene preview) over the blurred frame while the real 3D scene loads
+  // and compiles in the background.
+  if(nextId&&!(old&&incoming))this.fakeSwitch(nextId,frozen);
   canvas.style.visibility='hidden';
  }
- clearFrozen(){this.revealAnimation?.cancel();this.revealAnimation=null;this.revealSnapshot?.remove();this.revealSnapshot=null;this.frozen?.remove();this.frozen=null;delete this.host.dataset.frozen;delete this.host.dataset.revealing;this.gl.domElement.style.visibility='';}
+ fakeSwitch(nextId,frozen){
+  const image=scenePreviewImage(nextId)||sceneThumbnailImage(nextId);
+  if(!image)return;
+  const fake=document.createElement('canvas');fake.width=frozen.width;fake.height=frozen.height;
+  Object.assign(fake.style,{position:'absolute',inset:'0',width:'100%',height:'100%',zIndex:'3',pointerEvents:'none',filter:transitionBlur,opacity:'0',transition:this.reducedMotion?'none':'opacity .36s ease'});
+  fake.dataset.source='thumbnail';fake.dataset.drawn='false';
+  this.host.append(fake);this.fakeFrame=fake;
+  const draw=()=>{
+   if(this.disposed||this.frozen!==frozen||this.fakeFrame!==fake)return;
+   const ctx=fake.getContext('2d');
+   if(!ctx||!drawCover(ctx,image,fake.width,fake.height))return;
+   fake.dataset.drawn='true';
+   fake.style.opacity='1';
+  };
+  this.fakeTimer=setTimeout(()=>{
+   if(image.complete&&image.naturalWidth)draw();
+   else Promise.resolve(image.decode?.()).then(draw).catch(()=>{});
+  },this.reducedMotion?0:140);
+ }
+ // Downscale the current rendered frame to a compact JPEG for the scene menu
+ // and for the instant image under the next switch's blur. Called synchronously
+ // from the composition editor after a drag/zoom has settled.
+ snapshot({width=640,quality=.74}={}){
+  if(this.disposed||this.contextUnavailable||!this.current||!this.scene)return '';
+  this.render();
+  const source=this.gl.domElement;
+  if(!source.width||!source.height)return '';
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(2,Math.round(width));
+  canvas.height=Math.max(2,Math.round(canvas.width*Math.min(4,Math.max(.25,source.height/source.width))));
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return '';
+  try{ctx.drawImage(source,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',quality);}
+  catch{return '';}
+ }
+ clearFrozen(){this.revealAnimation?.cancel();this.revealAnimation=null;this.revealSnapshot?.remove();this.revealSnapshot=null;clearTimeout(this.fakeTimer);this.fakeTimer=null;this.fakeFrame?.remove();this.fakeFrame=null;this.frozen?.remove();this.frozen=null;delete this.host.dataset.frozen;delete this.host.dataset.revealing;this.gl.domElement.style.visibility='';}
  revealFrame(){
   const canvas=this.gl.domElement;if(!this.frozen||this.reducedMotion){this.clearFrozen();return;}
   // Clip a 2D snapshot rather than relying on the compositor to clip an active
@@ -207,7 +267,17 @@ export class EnvironmentBackdrop {
   });
  }
  aspect(){return Math.max(.1,(this.host.clientWidth||1)/Math.max(1,this.host.clientHeight||1))}
- workspaceShift(){return this.interactive?0:sceneWorkspaceShift(this.host.getBoundingClientRect?.(),this.compositionTarget?.getBoundingClientRect?.())}
+ workspaceShift(){return this.interactive?0:sceneWorkspaceShift(this.host.getBoundingClientRect?.(),(this.workspaceTarget||this.compositionTarget)?.getBoundingClientRect?.())}
+ setWorkspaceTarget(element){
+  const next=element||null;if(this.workspaceTarget===next)return;this.workspaceTarget=next;
+  if(this.host?.dataset)this.host.dataset.workspaceTarget=next?'panel':'chat';
+  this.requestRender();
+ }
+ reframeForLayout(){
+  if(this.disposed)return;this.resize(true);
+  if(this.host?.dataset)this.host.dataset.workspaceShift=this.workspaceShift().toFixed(3);
+  this.requestRender();
+ }
  updateClassroomComposition(dt){
   if(this.interactive||this.environmentScene!=='classroom'||!this.appRoot?.classList?.contains('scene-spread')||!this.homeFrame||this.overview.active)return false;
   const main=this.appRoot.querySelector('.main'),panel=main?.querySelector('.character-panel'),board=this.current?.root?.getObjectByName('classroom:board'),host=this.host.getBoundingClientRect?.();
@@ -227,7 +297,26 @@ export class EnvironmentBackdrop {
   setCameraFrameShift(this.camera,this.homeFrame.shiftY,next);this.camera.updateProjectionMatrix();
   return Math.abs(desired-next)>.0001;
  }
- configureShadows(root){root.traverse(node=>{if(node.isLight&&node.shadow){node.shadow.mapSize.set(node.castShadow?2048:512,node.castShadow?2048:512);node.shadow.autoUpdate=false;node.shadow.needsUpdate=true}})}
+ configureShadows(root,id){
+  const outdoor=scenePreset(id).kind!=='indoor';
+  let main=null,brightest=null;
+  if(outdoor)root.traverse(node=>{
+   if(!node.isDirectionalLight)return;
+   if(!brightest||node.intensity>brightest.intensity)brightest=node;
+   if(node.castShadow&&(!main||node.intensity>main.intensity))main=node;
+  });
+  main||=brightest;
+  root.traverse(node=>{
+   if(!node.isLight||!node.shadow)return;
+   // Outdoors one directional beam owns the shadow map. Practical lamps and
+   // fill directionals keep lighting but cannot allocate competing shadows.
+   if(outdoor)node.castShadow=node===main;
+   const size=node.castShadow?2048:512;
+   node.shadow.mapSize.set(size,size);
+   node.shadow.autoUpdate=false;
+   node.shadow.needsUpdate=true;
+  });
+ }
  applyClimate(){
   if(!this.current)return;const daylight=sceneDaylight(this.timeOfDay),preset=sceneLightingPreset(this.timeOfDay,this.current.lightingPresets),key=preset+':'+daylight.night;
   if(key!==this.lightingKey){
@@ -236,7 +325,18 @@ export class EnvironmentBackdrop {
   }
   if(this.current.setClimate)this.current.setClimate({timeOfDay:this.timeOfDay,weather:this.weather});
   else this.current.setWeather?.(this.weather);
+  this.publishSunlight(this.current.sunState);
   this.current.setMotion?.({enabled:this.motion&&!this.reducedMotion});this.current.setMotionEnabled?.(this.motion&&!this.reducedMotion);
+ }
+ // The scene computes one sun snapshot per climate change. Publish it to the
+ // character renderer so both use the same world direction, colour and weather
+ // attenuation; each renderer still calibrates its own exposure/materials.
+ publishSunlight(state){
+  const key=state?[state.id,state.direction?.map(v=>v.toFixed(3)).join(','),state.color,state.intensity?.toFixed(3),state.directScale?.toFixed(3),state.fillScale?.toFixed(3),state.night?1:0].join('|'):'';
+  if(key===this.sunlightKey)return;
+  this.sunlightKey=key;this.sunState=state||null;
+  if(this.host?.dataset){this.host.dataset.sunDirection=state?state.direction.map(v=>v.toFixed(3)).join(','):'';this.host.dataset.sunIntensity=state?Number(state.intensity).toFixed(3):'';}
+  this.onSunlight?.(state?{...state,direction:state.direction.slice()}:null);
  }
  cameraFraming(scene,bounds,aspect,view,detailView){
   const preset=scene.cameraPresets?.overview||{};
@@ -307,7 +407,106 @@ export class EnvironmentBackdrop {
   }catch(error){this.onError?.(error);return}
    if(this.overview.active||this.motion&&!this.reducedMotion||this.controls||composing||this.compositionPointer!=null||now<(this.compositionFollowUntil||0))this.requestRender();
  }
- render(){if(this.disposed||this.contextUnavailable||!this.scene||!this.resize())return;this.current.render?this.current.render(this.gl,this.scene,this.camera):this.gl.render(this.scene,this.camera)}
+ setRenderStyle(value){const next=value==='toon'?'toon':'lit';if(next===this.renderStyle)return this.renderStyle;this.renderStyle=next;this.host.dataset.renderStyle=next;this.requestRender();return this.renderStyle}
+ ensureToon(){
+  if(this.toonScene)return;
+  this.toonScene=new THREE.Scene();this.toonCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  this.toonMaterial=new THREE.ShaderMaterial({
+   name:'weather:cel-shading',toneMapped:false,transparent:true,depthTest:false,depthWrite:false,
+   uniforms:{tColor:{value:null},tDepth:{value:null},uTexel:{value:new THREE.Vector2(1,1)},uHasDepth:{value:0},uNear:{value:.05},uFar:{value:1500}},
+   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+   fragmentShader:/* glsl */`
+    varying vec2 vUv;
+    uniform sampler2D tColor;
+    uniform sampler2D tDepth;
+    uniform vec2 uTexel;
+    uniform float uHasDepth;
+    uniform float uNear;
+    uniform float uFar;
+    float luma(vec3 value){return dot(value,vec3(.299,.587,.114));}
+    vec3 display(vec3 value){return pow(max(value,0.0),vec3(1.0/2.2));}
+    float linearDepth(float depth){
+     float z=depth*2.0-1.0;
+     return (2.0*uNear*uFar)/(uFar+uNear-z*(uFar-uNear));
+    }
+    void main(){
+     vec4 center=texture2D(tColor,vUv);
+     vec3 srgb=display(center.rgb);
+     float light=luma(srgb);
+     // Six soft cels and a 22% original-gradient mix keep the authored greens,
+     // pinks and water colours instead of flattening the whole scene.
+     float levels=6.0;
+     float quantized=floor(light*levels+0.5)/levels;
+     quantized=mix(quantized,light,0.22);
+     vec3 cel=srgb*(quantized/max(light,0.0001));
+     float lum=luma(cel);
+     // Makoto Shinkai-inspired grade: brighter, gently saturated, cool shadows
+     // and warm highlights. The lift is additive so foliage does not turn grey.
+     cel=mix(vec3(lum),cel,1.12);
+     cel=pow(clamp(cel,0.0,1.0),vec3(0.96));
+     cel=mix(cel,cel*vec3(0.97,0.99,1.04),(1.0-lum)*0.16);
+     cel=mix(cel,cel*vec3(1.03,1.01,0.99),smoothstep(0.60,1.0,lum)*0.14);
+     float shadow=(1.0-smoothstep(0.0,0.24,lum))*0.12;
+     cel=mix(cel,cel+vec3(0.040,0.050,0.070),shadow);
+     float sky=0.0;
+     if(uHasDepth>0.5){
+      float distance=linearDepth(texture2D(tDepth,vUv).x);
+      float farSky=uFar*0.82;
+      sky=smoothstep(farSky,uFar*0.96,distance);
+      // The sky gets its own coarse ladder, so blue gradients and cloud tops
+      // read as painted bands instead of a photographic gradient.
+      float skyBand=floor(light*4.0+0.5)/4.0;
+      vec3 skyCel=srgb*(skyBand/max(light,0.0001));
+      skyCel=mix(vec3(luma(skyCel)),skyCel,1.28);
+      skyCel=pow(clamp(skyCel,0.0,1.0),vec3(0.93));
+      cel=mix(cel,skyCel,sky*0.52);
+      float dl=linearDepth(texture2D(tDepth,vUv-vec2(uTexel.x,0.0)).x);
+      float dr=linearDepth(texture2D(tDepth,vUv+vec2(uTexel.x,0.0)).x);
+      float du=linearDepth(texture2D(tDepth,vUv-vec2(0.0,uTexel.y)).x);
+      float dd=linearDepth(texture2D(tDepth,vUv+vec2(0.0,uTexel.y)).x);
+      // Only trace silhouettes against the sky. Interior foliage and water
+      // edges are intentionally left clean; outlining every leaf turned dense
+      // scenes into a black mass.
+      float skyNeighbour=max(max(step(uFar*0.96,dl),step(uFar*0.96,dr)),max(step(uFar*0.96,du),step(uFar*0.96,dd)));
+      float second=abs(dl+dr-2.0*distance)+abs(du+dd-2.0*distance);
+      float edge=(1.0-sky)*skyNeighbour*smoothstep(0.40,2.20,second);
+      cel=mix(cel,vec3(0.110,0.120,0.170),clamp(edge*0.40,0.0,0.40));
+     }
+     // Deepen the blue in the sky without losing the bright Shinkai key.
+     vec3 skyTint=cel*vec3(0.96,1.01,1.07)+vec3(0.008,0.012,0.016);
+     cel=mix(cel,clamp(skyTint,0.0,1.0),sky*0.50);
+     gl_FragColor=vec4(pow(max(cel,0.0),vec3(2.2)),center.a);
+     #include <colorspace_fragment>
+    }`,
+  });
+  this.toonQuad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.toonMaterial);
+  this.toonQuad.frustumCulled=false;this.toonScene.add(this.toonQuad);
+ }
+ ensureToonTarget(width,height){
+  if(this.toonTarget&&this.toonTarget.width===width&&this.toonTarget.height===height)return;
+  this.toonTarget?.dispose();
+  const depth=new THREE.DepthTexture(width,height);
+  depth.type=THREE.UnsignedIntType;depth.minFilter=depth.magFilter=THREE.NearestFilter;
+  this.toonTarget=new THREE.WebGLRenderTarget(width,height,{depthTexture:depth,depthBuffer:true,stencilBuffer:false});
+  this.toonTarget.texture.minFilter=this.toonTarget.texture.magFilter=THREE.LinearFilter;
+ }
+ render(){
+  if(this.disposed||this.contextUnavailable||!this.scene||!this.resize())return;
+  if(this.renderStyle!=='toon'){this.current.render?this.current.render(this.gl,this.scene,this.camera):this.gl.render(this.scene,this.camera);return;}
+  this.ensureToon();
+  const size=this.gl.getDrawingBufferSize(this.bufferSize||=new THREE.Vector2());
+  const width=Math.max(1,Math.floor(size.x)),height=Math.max(1,Math.floor(size.y));
+  this.ensureToonTarget(width,height);
+  const prior=this.gl.getRenderTarget();
+  this.gl.setRenderTarget(this.toonTarget);this.gl.clear();
+  this.current.render?this.current.render(this.gl,this.scene,this.camera):this.gl.render(this.scene,this.camera);
+  this.gl.setRenderTarget(prior);
+  const uniforms=this.toonMaterial.uniforms;
+  uniforms.tColor.value=this.toonTarget.texture;uniforms.tDepth.value=this.toonTarget.depthTexture;
+  uniforms.uHasDepth.value=this.toonTarget.depthTexture?1:0;uniforms.uTexel.value.set(1/width,1/height);
+  uniforms.uNear.value=this.camera.near;uniforms.uFar.value=this.camera.far;
+  this.gl.render(this.toonScene,this.toonCamera);
+ }
  showOverview(){if(!this.current)return;this.overview.reset({position:this.camera.position,target:this.controls?.target||this.target,shiftY:this.homeFrame?.shiftY||0,shiftX:this.homeFrame?.shiftX||0},this.overviewFrame);this.overview.show();if(this.controls)this.controls.enabled=false;this.requestRender()}
  releaseOverview(){this.release()}
  showPhoto(){if(!this.interactive||!this.current?.cameraPresets?.photo)return false;this.detailView=true;this.resize(true);this.requestRender();return true}
@@ -315,7 +514,7 @@ export class EnvironmentBackdrop {
  setAnimationEnabled(enabled){this.motion=enabled!==false;this.applyClimate();this.requestRender();return this.motion}
  disposeSceneTextures(scene){const textures=new Set([scene?.background,scene?.environment].filter(t=>t?.isTexture));for(const t of textures)t.dispose()}
  dispose(){
-  if(this.disposed)return;this.disposed=true;this.epoch++;clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
+  if(this.disposed)return;this.disposed=true;this.epoch++;this.publishSunlight(null);clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
   if(!this.interactive&&!this.preview){document.removeEventListener('pointerdown',this.compositionDown,true);window.removeEventListener('pointermove',this.compositionMove,true);window.removeEventListener('pointerup',this.compositionUp,true);window.removeEventListener('pointercancel',this.compositionUp,true);window.removeEventListener('blur',this.compositionBlur);}
   document.removeEventListener('visibilitychange',this.visibility);
   if(this.pointerSurface){
@@ -324,7 +523,7 @@ export class EnvironmentBackdrop {
   }
   this.gl.domElement.removeEventListener('webglcontextlost',this.lost);this.gl.domElement.removeEventListener('webglcontextrestored',this.restored);
   // A pending compile still owns its GPU resources; release the renderer after it settles.
-  const finish=()=>{this.clearFrozen();this.current?.dispose?.();this.disposeSceneTextures(this.scene);this.gl.dispose();this.gl.domElement.remove()};
+  const finish=()=>{this.clearFrozen();this.current?.dispose?.();this.disposeSceneTextures(this.scene);this.toonTarget?.dispose();this.toonQuad?.geometry.dispose();this.toonMaterial?.dispose();this.gl.dispose();this.gl.domElement.remove()};
   this.queue.then(finish,finish);
  }
 }

@@ -7,7 +7,20 @@ const faceChannels = {
   'summer-uniform': {blink: 'EA_blink', mouth: 'EA_aa'},
   swimsuit: {blink: 'EA_blink', mouth: 'SwimNarrow_aa'},
   'twin-tail': {blink: 'EA_blink', mouth: 'YK_Talk_AA'},
-  'winter-uniform': {blink: 'EA_blink'},
+  'winter-uniform': {blink: 'EA_blink', mouth: 'EA_aa'},
+  'ivory-coat': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK07_Ivory_aa'},
+  'ice-hooded-winter': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK07C_Ice_Speech_A'},
+  // Approved V2 GLBs keep the authored face morphs but are read as ordinary
+  // built-in GLBs, so their catalog entry names the channel explicitly.
+  'kimono-v2': {blink: 'YK20_blink', mouth: 'YK20_aa'},
+  'summer-uniform-v2': {blink: 'EA_blink', mouth: 'EA_aa'},
+  'swimsuit-v2': {blink: 'EA_blink', mouth: 'SwimNarrow_aa'},
+  'winter-uniform-v2': {blink: 'EA_blink', mouth: 'EA_aa'},
+  'black-qipao-v2': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK_Qipao_NativeRoundSmallO'},
+  'twin-tail-v2': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK_Mouth_SmallO'},
+  'beret-v2': {blink: 'EA_blink', mouth: 'EA_aa'},
+  'ivory-coat-v2': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK07_Ivory_aa'},
+  'ice-hooded-winter-v2': {blink: 'YK48B | tiny lid-only rest close', mouth: 'YK07C_Ice_Speech_A'},
 };
 
 // Calibrated against the kimono at eye height. Positive model X lowers the chin.
@@ -48,7 +61,7 @@ function bindGaze(gltf, candidate) {
   scene.updateMatrixWorld(true);
   let neck = vrm?.humanoid?.getRawBoneNode('neck');
   scene.traverse(node => {
-    if (!neck && node.isBone && node.name === 'neck') neck = node;
+    if (!neck && node.isBone && (node.name === 'neck' || node.name === 'J_Bip_C_Neck')) neck = node;
   });
   const orientation = scene.getWorldQuaternion(new Quaternion());
   const head = neck?.parent ? gazeJoint(neck, orientation) : null;
@@ -57,9 +70,9 @@ function bindGaze(gltf, candidate) {
     restore() { head?.restore(); },
     apply(gaze, headBlend, {hat=false}={}) {
       const clamp = (value, bound) => MathUtils.clamp(Number.isFinite(value) ? value : 0, -bound, bound);
-      const yaw=clamp(gaze.headYaw,12)*.7;
+      const yaw=clamp(gaze.headYaw,hat?22:12)*(hat?.85:.7);
       const pitch = hat
-        ? -clamp(gaze.headPitch, 20)
+        ? -clamp(gaze.headPitch, 24)
         : (neutralPitchDegrees[candidate] ?? 0) - clamp(gaze.headPitch, 7) * .72;
       head?.apply(yaw, pitch, headBlend);
     },

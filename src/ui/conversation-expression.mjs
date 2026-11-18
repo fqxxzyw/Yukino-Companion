@@ -8,6 +8,15 @@ const brows={
  swimsuit:['EA_brow_happy','EA_brow_surprised','Anime_Question_Brow'],
  'twin-tail':['EA_brow_happy','EA_brow_surprised','EA_brow_relaxed'],
  'winter-uniform':['AnimeV2_SoftJoy_Brow','AnimeV2_Surprise_Brow','AnimeV2_Thinking_Brow'],
+ 'kimono-v2':['YK20_brow_happy','YK20_brow_surprised','YK20_brow_relaxed'],
+ 'summer-uniform-v2':['EA_brow_happy','EA_brow_surprised','EA_brow_relaxed'],
+ 'swimsuit-v2':['EA_brow_happy','EA_brow_surprised','Anime_Question_Brow'],
+ 'winter-uniform-v2':['AnimeV2_SoftJoy_Brow','AnimeV2_Surprise_Brow','AnimeV2_Thinking_Brow'],
+ 'black-qipao-v2':['HeartRain_NaturalCornerSmile_REVIEW','YK_Approved_Surprise_SmallO_Brow','YK47 | independent mild question brow'],
+ 'twin-tail-v2':['HeartRain_NaturalCornerSmile_REVIEW','YK_Approved_Surprise_SmallO_Brow','YK47 | independent mild question brow'],
+ 'beret-v2':['EA_brow_happy','EA_brow_surprised','EA_brow_relaxed'],
+ 'ivory-coat-v2':['HeartRain_NaturalCornerSmile_REVIEW','YK_Approved_Surprise_SmallO_Brow','YK52 | subtle inner brow lift'],
+ 'ice-hooded-winter-v2':['HeartRain_NaturalCornerSmile_REVIEW','YK_Approved_Surprise_SmallO_Brow','YK52 | subtle inner brow lift'],
 };
 
 export function conversationExpression(text){

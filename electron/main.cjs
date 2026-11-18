@@ -1,4 +1,7 @@
 const {canUseSkin}=require('./skin-policy.cjs');
+const {createAccountStore}=require('./account-store.cjs');
+const {AccountClient}=require('./account-client.cjs');
+const {openOfficialSite}=require('./official-links.cjs');
 const electron = require('electron');
 const {app, BrowserWindow, ipcMain, safeStorage, shell, session, dialog, net, clipboard, nativeImage, screen, protocol} = electron;
 const {mainWindowSize}=require('./main-window-size.cjs');
@@ -67,7 +70,7 @@ const translationManifest = require('../translation/model-manifest.json');
 const outputInstruction = local => local ? '请用简体中文自然回答。不要自行附加其他语言翻译。' : BILINGUAL_INSTRUCTION;
 // "不翻译" bypasses local/API translation entirely and never asks for a second language.
 const PLAIN_INSTRUCTION = '请直接、自然地回答，只使用当前角色惯用的语言，不要自行附加其他语言的翻译或双语格式。';
-let win, controller, proactiveGeneration, speech, speechCache, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks,aquaEnvironment,cloudSpeech;
+let win, controller, proactiveGeneration, speech, speechCache, voiceStart, voiceResources, voiceBundle, translation, companions, localChat, runtime, setup, resourcePacks,aquaEnvironment,cloudSpeech,accountStore;
 let touchGeneration;
 let saveQueue = Promise.resolve(), shuttingDown = false, shutdownComplete = false;
 const flushResolvers=new Map();
@@ -76,22 +79,27 @@ function flushRenderer() {
   return new Promise(resolve => { const id=require('node:crypto').randomUUID(); const timer=setTimeout(()=>{flushResolvers.delete(id);resolve(false);},5000); flushResolvers.set(id,ok=>{clearTimeout(timer);flushResolvers.delete(id);resolve(ok===true);}); send('flush-state',{id}); });
 }
 const installationOptions = () => ({packaged:app.isPackaged,executable:process.env.YUKINO_PORTABLE_LAUNCHER||process.execPath,sourceRoot:path.join(__dirname,'..'),userData:app.getPath('userData')});
-const location = name => installationResourceLocation(installationOptions(), name);
+const baseLocation = name => installationResourceLocation(installationOptions(), name);
+const location = name => accountStore?.stateLocation(name, baseLocation(name)) ?? baseLocation(name);
 const resourceRoot = () => app.isPackaged ? process.resourcesPath : path.join(__dirname, '../build');
 const send = (channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); };
-async function read(name, fallback) {
-  try { return JSON.parse(await fs.readFile(location(name), 'utf8')); }
+async function readAt(target, fallback) {
+  try { return JSON.parse(await fs.readFile(target, 'utf8')); }
   catch (error) { if (error.code === 'ENOENT') return fallback; throw Error('本地数据读取失败，请保留数据并检查文件。'); }
 }
+async function read(name, fallback) { return readAt(location(name), fallback); }
 function write(name, value) {
-  const encoded = JSON.stringify(value);
+  // Resolve the profile target now. A pending write started for the guest must
+  // never land in an account profile after a switch, or vice versa.
+  const target = location(name), encoded = JSON.stringify(value);
   const job = saveQueue.then(async () => {
-    await writeAtomicJson(fs, location(name), encoded);
+    await writeAtomicJson(fs, target, encoded);
   });
   saveQueue = job.catch(() => {}); return job;
 }
 function updateJson(name,update){
-  const job=saveQueue.then(async()=>{const next=await update(await read(name,{}));await writeAtomicJson(fs,location(name),JSON.stringify(next));return next;});
+  const target=location(name);
+  const job=saveQueue.then(async()=>{const next=await update(await readAt(target,{}));await writeAtomicJson(fs,target,JSON.stringify(next));return next;});
   saveQueue=job.catch(()=>{});return job;
 }
 function assertSecureStorage(){if(!safeStorage.isEncryptionAvailable()||(process.platform==='linux'&&safeStorage.getSelectedStorageBackend()==='basic_text'))throw Error('系统安全存储不可用，未保存凭据。');}
@@ -141,6 +149,20 @@ else {
     if(app.isPackaged&&process.env.YUKINO_PORTABLE_LAUNCHER)require('./portable-entry.cjs').seedPortableAssets();
     live2dAssets.initialize();
     app.setAppUserModelId?.('io.github.fqxxzyw.yukino');
+    accountStore=createAccountStore({
+      userData:app.getPath('userData'),
+      safeStorage,
+      client:new AccountClient({fetcher:(url,options)=>net.fetch(url,options)}),
+      emit:(event,payload)=>{
+        send(event,payload);
+        if(event==='account-profile'){
+          try{stopVoiceInput('profile-changed',false);controller?.abort();companionChatRequests.cancel('本地档案已切换。');localChat?.cancel();translation?.cancelRequests();companionVisual?.stop();companionVisual?.close?.();}catch{}
+          void read('state.json',{}).then(updateCompanionCharacter).catch(()=>{});
+        }
+      },
+    });
+    await accountStore.initialize();
+    accountStore.startHeartbeat();
     await migrateKeys();
     const legacyDataRoot=app.getPath('userData');
     const installDirectory=installationScope(installationOptions());
@@ -302,8 +324,46 @@ else {
         const next=yukino?{...yukino,modelId:modelStore().selectedYukinoModel(yukino.modelId)}:{id:'yukino',name:'雪之下雪乃',modelId:fallback};
         state={...state,characters:yukino?characters.map(item=>item===yukino?next:item):[next,...characters]};
       }
-      return {state,keyIds:Object.keys(await read('keys.json',{})),character:characterInfo()};
+      return {state,keyIds:Object.keys(await read('keys.json',{})),character:characterInfo(),profileId:accountStore?.activeProfile||'guest'};
     });
+    function accountArgs(value){if(!value||typeof value!=='object'||Array.isArray(value))throw Error('账号参数无效。');return value}
+    function accountString(value,max=512){if(typeof value!=='string'||value.length>max)throw Error('账号参数无效。');return value}
+    function accountResult(name,action,kind='state'){
+      handle(name,async(...args)=>{
+        try{
+          const value=await action(...args);
+          return kind==='state'?{ok:true,state:value}:{ok:true,data:value};
+        }catch(error){
+          return {ok:false,error:{code:String(error?.code||'account_error'),message:String(error?.message||error||'账号操作没有完成。'),retryAfter:Number(error?.retryAfter||0)}};
+        }
+      });
+    }
+    async function flushBeforeAccountSwitch(){try{await flushRenderer();}catch{}}
+    accountResult('account-state',()=>accountStore.snapshot());
+    accountResult('account-skip',()=>accountStore.completeOnboarding());
+    accountResult('account-switch-guest',async()=>{await flushBeforeAccountSwitch();return accountStore.switchGuest();});
+    accountResult('account-login',async value=>{const input=accountArgs(value);const email=accountString(input.email,254),password=accountString(input.password,512);await flushBeforeAccountSwitch();return accountStore.login({email,password,remember:input.remember!==false});});
+    accountResult('account-register-request',async value=>{const input=accountArgs(value);return accountStore.registerRequest({email:accountString(input.email,254)});},'data');
+    accountResult('account-register',async value=>{const input=accountArgs(value);await flushBeforeAccountSwitch();return accountStore.register({email:accountString(input.email,254),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64),password:accountString(input.password,512)});});
+    accountResult('account-logout',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:false});});
+    accountResult('account-logout-all',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:true});});
+    accountResult('account-sessions',()=>accountStore.listSessions(),'data');
+    accountResult('account-revoke-session',value=>{const input=accountArgs(value);return accountStore.revokeSession(accountString(input.id,64));},'data');
+    accountResult('account-change-password',value=>{const input=accountArgs(value);return accountStore.changePassword({currentPassword:accountString(input.currentPassword,512),newPassword:accountString(input.newPassword,512)});});
+    accountResult('account-forgot-request',async value=>{const input=accountArgs(value);return accountStore.forgotRequest({email:accountString(input.email,254)});},'data');
+    accountResult('account-forgot-verify',async value=>{const input=accountArgs(value);return accountStore.forgotVerify({email:accountString(input.email,254),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64)});},'data');
+    accountResult('account-reset-password',async value=>{const input=accountArgs(value);return accountStore.resetPassword({resetToken:accountString(input.resetToken,256),newPassword:accountString(input.newPassword,512)});},'data');
+    accountResult('account-checkin',()=>accountStore.checkIn());
+    accountResult('account-sync',()=>accountStore.syncPending());
+    accountResult('account-refresh',()=>accountStore.refreshProgress());
+    accountResult('account-event',value=>{const input=accountArgs(value);if(!['message','pet-interaction','manual-voice'].includes(input.type))throw Error('未知的互动类型。');return accountStore.enqueueEvent(input.type);});
+    accountResult('account-open-web',value=>{
+      const input=accountArgs(value),allowed=new Set(['/','/login','/register','/forgot','/account']);
+      if(!allowed.has(input.path))throw Error('账号网页路径无效。');
+      const base=process.env.YUKINO_WEB_BASE||accountStore.client.baseUrl;
+      const url=new URL(input.path,base);if(url.protocol!=='https:'&&!['http://127.0.0.1:8787','http://localhost:8787'].includes(url.origin))throw Error('账号网页地址不安全。');
+      return shell.openExternal(url.toString());
+    },'data');
     handle('save', async state => {
       if (!state || !Array.isArray(state.conversations) || !Array.isArray(state.profiles) || JSON.stringify(state).length > 10000000) throw Error('无效或过大的设置');
       if(state.profiles.some(profile=>['key','apiKey','secretKey','secret','token','password'].some(field=>Object.hasOwn(profile,field))))throw Error('API 凭据必须通过系统安全存储保存。');
@@ -777,7 +837,7 @@ else {
     handle('window',action=>{if(action==='minimize')win.minimize();if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();if(action==='close')win.close();});
     handle('motion-editor-open',id=>motionEditor.open(id));
     handle('motion-editor-theme',theme=>motionEditor.updateTheme(theme));
-    handle('community',()=>shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/'));
+    handle('community',()=>openOfficialSite(shell));
     handle('help',topic=>{if(topic!==undefined&&!['downloads','integrity','api','first-run'].includes(topic))throw Error('未知帮助主题');return shell.openExternal('https://fqxxzyw.github.io/Yukino-Companion/#help');});
     win.on('closed',()=>{touchGeneration?.abort();voiceStart.cancel();companionChatRequests.cancel();companionVisual?.close();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();});
     win.webContents.on('did-start-navigation',details=>{if(details.isMainFrame===true&&details.isSameDocument===false){touchGeneration?.abort();speechClockReady=false;voiceStart.cancel();companionChatRequests.cancel();companionVisual?.stop();companions?.setSpeechBusy?.(false);companions?.resetSpeechClock?.();companions?.setMouthLevel?.(0);companions?.setChatBusy?.(false);vision?.cancel();controller?.abort();localChat?.cancel();speech?.stop?.();translation?.cancel();}});
@@ -798,5 +858,5 @@ app.on('before-quit',event=>{
   touchGeneration?.abort();
   voiceStart?.cancel();companionChatRequests.cancel();companionVisual?.close();vision?.cancel();controller?.abort();setup?.cancel();aquaEnvironment?.cancel();localChat?.dispose();speech?.dispose();translation?.dispose();voiceResources?.cancel();
   if(companions)companions.quitting=true;
-  flushRenderer().then(()=>Promise.allSettled([companions?.dispose(),speechCache?.configure({enabled:false}),saveQueue])).finally(()=>{shutdownComplete=true;app.quit();});
+  flushRenderer().then(()=>Promise.allSettled([companions?.dispose(),speechCache?.configure({enabled:false}),saveQueue,accountStore?.dispose()])).finally(()=>{shutdownComplete=true;app.quit();});
 });

@@ -103,7 +103,7 @@ async function localYukinoOutfits(root, builtins) {
     else models[index] = entry;
   }
   return manifest.retireOriginals === true && models.some(model => model.runtimeCandidate === 'summer-uniform')
-    ? models.filter(model => model.runtimeCandidate || !/^yukino-0[1-7](?:-|$)/.test(model.id))
+    ? models.filter(model => model.runtimeCandidate || model.approvedV2 || !/^yukino-0[1-7](?:-|$)/.test(model.id))
     : models;
 }
 

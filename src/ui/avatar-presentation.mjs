@@ -3,9 +3,9 @@ import {defaultWallpaperConfig} from './bundled-wallpapers.mjs';
 import {sceneId,scenePreset} from './scene-catalog.mjs';
 import {sceneViewsConfig} from './scene-view.mjs';
 export {SCENES} from './scene-catalog.mjs';
-export const PRESENTATION_DEFAULTS=Object.freeze({scene:'classroom',sceneEnabled:false,spread:false,gaze:true,wardrobeOpen:false,timeOfDay:'noon',followTime:true,fixedHour:14,renderStyle:'lit',avatarRenderer:'3d'});
+export const PRESENTATION_DEFAULTS=Object.freeze({scene:'classroom',sceneEnabled:false,sceneToon:false,spread:false,gaze:true,wardrobeOpen:false,timeOfDay:'noon',followTime:true,fixedHour:14,renderStyle:'lit',avatarRenderer:'3d'});
 export function avatarRendererFor(presentation,characterId){return characterId==='yukino'&&presentation?.avatarRenderer==='live2d'?'live2d':'3d';}
-export function presentationConfig(value={}){const raw=value.wallpaper||defaultWallpaperConfig(),seen=new Set(),items=(Array.isArray(raw.items)?raw.items:[]).filter(item=>item&&typeof item.id==='string'&&/^[a-f0-9]{64}$/.test(item.id)&&!seen.has(item.id)&&seen.add(item.id)).slice(0,20).map(item=>({id:item.id,name:typeof item.name==='string'?item.name.slice(0,120):'壁纸'}));const wallpaper={items,enabled:raw.enabled===true,rotation:raw.rotation===true,opacity:typeof raw.opacity==='number'&&Number.isFinite(raw.opacity)?Math.max(0,Math.min(1,raw.opacity)):1,intervalSeconds:Math.min(3600,Math.max(10,Number(raw.intervalSeconds)||300))};return {followTime:value.followTime!==false,fixedHour:fixedSceneHour(value.fixedHour),wallpaper,scene:sceneId(value.scene),sceneViews:sceneViewsConfig(value.sceneViews),sceneEnabled:typeof value.sceneEnabled==='boolean'?value.sceneEnabled:value.spread===true,spread:value.spread===true,gaze:value.gaze!==false,wardrobeOpen:value.wardrobeOpen===true,timeOfDay:['morning','noon','evening'].includes(value.timeOfDay)?value.timeOfDay:'noon',renderStyle:['natural','toon'].includes(value.renderStyle)?value.renderStyle:'lit'};}
+export function presentationConfig(value={}){const raw=value.wallpaper||defaultWallpaperConfig(),seen=new Set(),items=(Array.isArray(raw.items)?raw.items:[]).filter(item=>item&&typeof item.id==='string'&&/^[a-f0-9]{64}$/.test(item.id)&&!seen.has(item.id)&&seen.add(item.id)).slice(0,20).map(item=>({id:item.id,name:typeof item.name==='string'?item.name.slice(0,120):'壁纸'}));const wallpaper={items,enabled:raw.enabled===true,rotation:raw.rotation===true,opacity:typeof raw.opacity==='number'&&Number.isFinite(raw.opacity)?Math.max(0,Math.min(1,raw.opacity)):1,intervalSeconds:Math.min(3600,Math.max(10,Number(raw.intervalSeconds)||300))};return {followTime:value.followTime!==false,fixedHour:fixedSceneHour(value.fixedHour),wallpaper,scene:sceneId(value.scene),sceneViews:sceneViewsConfig(value.sceneViews),sceneEnabled:typeof value.sceneEnabled==='boolean'?value.sceneEnabled:value.spread===true,sceneToon:value.sceneToon===true||(value.sceneToon===undefined&&value.renderStyle==='toon'),spread:value.spread===true,gaze:value.gaze!==false,wardrobeOpen:value.wardrobeOpen===true,timeOfDay:['morning','noon','evening'].includes(value.timeOfDay)?value.timeOfDay:'noon',renderStyle:['natural','toon'].includes(value.renderStyle)?value.renderStyle:'lit'};}
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 export function gazeTarget(x,y,width,height,inside=true){
  if(!inside||!(width>0&&height>0)||![x,y].every(Number.isFinite))return {eyeX:0,eyeY:0,headYaw:0,headPitch:0};
@@ -31,7 +31,18 @@ export class AvatarPresentationController{
    // instead of rejecting the newly selected outfit and leaving it unloaded.
    if(prior)await prior.catch(()=>{});signal.throwIfAborted();
    if(id===this.outfit)return false;
-   const previous=this.outfit;let prepared=null,committed=false;
+   const previous=this.outfit;
+   if(!reducedMotion&&typeof this.renderer.changeOutfitWithTurntable==='function'){
+    try{
+     await this.renderer.changeOutfitWithTurntable(id,{signal});signal.throwIfAborted();
+     this.outfit=id;await this.greet({outfitId:id,signal});return true;
+    }catch(error){
+     this.renderer.resetTransition?.();
+     if(!signal.aborted&&previous&&this.renderer.restoreOutfit)await this.renderer.restoreOutfit(previous).catch(()=>{});
+     throw error;
+    }
+   }
+   let prepared=null,committed=false;
    try{
     prepared=await this.renderer.prepareOutfit(id,{signal});signal.throwIfAborted();
     if(!reducedMotion)await this.renderer.exit({direction:'left',signal});signal.throwIfAborted();

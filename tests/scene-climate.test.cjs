@@ -134,9 +134,9 @@ test('avatar settings toggles liveWeather without dropping unknown or concurrent
  const {transformWithOxc}=await import('vite'),jsx=require('react/jsx-runtime'),presentation=await import('../src/ui/avatar-presentation.mjs'),wallpapers=await import('../src/ui/bundled-wallpapers.mjs');
  const source=await fs.readFile(path.join(root,'src/ui/AvatarPresentationSettings.jsx'),'utf8');let {code}=await transformWithOxc(source,'AvatarPresentationSettings.jsx');
  code=code.replace(/^import .*;\s*$/gm,'').replace('export default function','return function');
- let latest,ref={current:null};const SunlightLocationSettings=()=>null,Select=()=>null;
+ let latest,ref={current:null};const SunlightLocationSettings=()=>null,Select=()=>null,SceneCompositionSettings=()=>null,RenderStylePicker=()=>null;
  const catalogue=await import('../src/ui/scene-catalog.mjs');
- const deps={React:{},useRef:()=>ref,useState:initial=>[initial,()=>{}],...presentation,...wallpapers,...catalogue,Select,SunlightLocationSettings,_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
+ const deps={React:{},useRef:()=>ref,useState:initial=>[initial,()=>{}],...presentation,...wallpapers,...catalogue,Select,SunlightLocationSettings,SceneCompositionSettings,RenderStylePicker,_jsx:jsx.jsx,_jsxs:jsx.jsxs,_Fragment:jsx.Fragment};
  const component=new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;\n${code}`)(deps),walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
  const custom={keep:true},value={scene:'beach',custom,liveWeather:false},props={value,onChange:next=>latest=next};
  let tree=component(props),climate=walk(tree).find(node=>node.type===SunlightLocationSettings);assert.equal(climate.props.enabled,false);climate.props.onChange(true);assert.equal(latest.liveWeather,true);assert.equal(latest.custom,custom);

@@ -86,7 +86,7 @@ test('fixed built-in models retain their pinned import and read contract',async 
  const wrong=path.join(f.root,'Wrong.glb');await fs.writeFile(wrong,Buffer.alloc(f.data.length));await assert.rejects(f.store.importBuiltin(entry.id,wrong),/完整性/);assert.deepEqual(Buffer.from(await f.store.read(entry.id)),f.data);
 });
 test('all released ready character assets pass the same structural inspector without fake rig repair',async()=>{
- const catalog=require('../resources/character-models.json');for(const entry of catalog.models.filter(model=>model.ready)){const data=await fs.readFile(path.join(__dirname,'../public',entry.url.slice(2))),inspection=inspectGlb(data);assert.equal(inspection.usableSkin,true,entry.id);assert.equal(inspection.bones,55,entry.id);assert.deepEqual(inspection.allowedModes,['rigged']);}
+ const catalog=require('../resources/character-models.json');for(const entry of catalog.models.filter(model=>model.ready)){const data=await fs.readFile(path.join(__dirname,'../public',entry.url.slice(2))),inspection=inspectGlb(data);assert.equal(inspection.usableSkin,true,entry.id);assert.ok(inspection.bones>=55,entry.id);assert.deepEqual(inspection.allowedModes,['rigged']);}
 });
 test('main model IPC and preload expose only picker/registered-id paths to renderers',async()=>{
  const {mainHarness}=require('./helpers/main-harness.cjs'),app=await mainHarness({state:{profiles:[],conversations:[]}});

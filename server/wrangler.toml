@@ -1,0 +1,37 @@
+# Yukino account API + website (Cloudflare Workers + D1 + Static Assets).
+# Before deploying: read docs/DEPLOY_CLOUDFLARE.md. Replace the D1 id and set
+# every secret with `wrangler secret put` — never commit real values.
+name = "yukino-api"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+preview_urls = false
+
+[assets]
+directory = "../website"
+binding = "ASSETS"
+# Always route APIs through the Worker, even if a matching asset is added.
+# Static responses receive security headers from website/_headers; Worker
+# responses add their own headers, including the HTML deep-link fallback.
+run_worker_first = ["/api", "/api/*"]
+not_found_handling = "none"
+
+[observability]
+enabled = true
+
+[vars]
+APP_ENV = "production"
+MAIL_PROVIDER = "gmail"
+MAIL_FROM_EMAIL = "fqxxzyw@gmail.com"
+MAIL_FROM_NAME = "Yukino Companion"
+# Add the production origin(s), comma separated. workers.dev plus a future
+# custom domain; never use "*".
+ALLOWED_ORIGINS = "https://yukino-api.fqxxzyw.workers.dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yukino-account"
+database_id = "89b0733f-f518-4557-bf69-ff254b80618b"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 * * * *"]

@@ -44,7 +44,7 @@ async function hookHarness(t,component,api={}){
  for(const name of ['react/jsx-runtime','react-dom/client','lucide-react'])code=code.replaceAll(JSON.stringify(name),JSON.stringify(pathToFileURL(require.resolve(name)).href));
  code=code.replace(/(["'])(\.{1,2}\/[^"']+)\1/g,(all,_quote,specifier)=>{
   let file;if(specifier.endsWith('model-runtime.mjs'))file=runtimeFile;
-  else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|CloudVoiceClone\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
+  else if(/(?:use-reduced-motion\.mjs|use-local-daylight\.mjs|PetAvatar\.jsx|CompactDock\.jsx|SkinPicker\.jsx|Select\.jsx|SceneThumbnail\.jsx|RenderStylePicker\.jsx|CloudVoiceClone\.jsx|character-models\.json)$/.test(specifier))file=dummyFile;
   else file=path.resolve(root,path.dirname(component),specifier);
   return JSON.stringify(pathToFileURL(file).href);
  });

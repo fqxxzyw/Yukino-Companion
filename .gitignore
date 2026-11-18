@@ -42,3 +42,12 @@ build/
 
 # Official website icons are fetched and recorded as build artifacts.
 /public/provider-logos/
+
+# Local account API development data and secrets
+server/.dev.vars
+server/.data/
+server/.local-mailbox/
+server/.secrets.production.txt
+server/.gmail-refresh-token.txt
+server/.wrangler/
+website/.wrangler/
