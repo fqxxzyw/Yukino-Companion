@@ -3,7 +3,7 @@
 .user-avatar{position:relative}
 .account-user-dot{position:absolute;right:2px;bottom:2px;margin:0;border:1.5px solid var(--surface)}
 
-.account-gate-backdrop{z-index:32;padding:min(4vh,34px)}
+.account-gate-backdrop{z-index:140;padding:min(4vh,34px)}
 .account-gate{width:min(940px,96vw);max-height:92vh;overflow:auto;display:grid;grid-template-columns:minmax(260px,.82fr) minmax(0,1.18fr);background:var(--surface);border:1px solid color-mix(in srgb,var(--line) 70%,#fff);border-radius:28px;box-shadow:0 34px 100px #142a4438;animation:account-gate-in .26s ease both}
 @keyframes account-gate-in{from{opacity:0;transform:translateY(10px) scale(.992)}to{opacity:1;transform:none}}
 .account-gate-aside{position:relative;min-height:540px;overflow:hidden;border-radius:27px 0 0 27px;background:#1b2a3a}
