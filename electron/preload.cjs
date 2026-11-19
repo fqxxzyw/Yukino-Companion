@@ -45,7 +45,7 @@ window.addEventListener('DOMContentLoaded', () => {
   attach();
 });
 contextBridge.exposeInMainWorld('desktop', {
-  appUpdateCheck:()=>invoke('app-update-check'),appUpdateDownload:()=>invoke('app-update-download'),appUpdateOpen:()=>invoke('app-update-open'),onAppUpdateProgress:fn=>subscribe('app-update-progress',fn),
+  appUpdateCheck:()=>invoke('app-update-check'),appUpdateDownload:()=>invoke('app-update-download'),appUpdateInstall:()=>invoke('app-update-install'),appUpdateOpen:()=>invoke('app-update-open'),onAppUpdateProgress:fn=>subscribe('app-update-progress',fn),
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
   wallpaperPick:()=>invoke('wallpaper-pick'), wallpaperRead:id=>invoke('wallpaper-read',id),
   sceneList:()=>invoke('scene-list'), sceneImport:()=>invoke('scene-import'), sceneRead:id=>invoke('scene-read',id), sceneRemove:id=>invoke('scene-remove',id),

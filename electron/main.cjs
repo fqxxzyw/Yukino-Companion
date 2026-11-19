@@ -310,6 +310,7 @@ else {
     appUpdater=require('./app-update.cjs').createUpdater({app,dialog,shell,send});
     handle('app-update-check',()=>appUpdater.check());
     handle('app-update-download',()=>appUpdater.download());
+    handle('app-update-install',()=>appUpdater.install());
     handle('app-update-open',()=>appUpdater.open());
     handle('flush-complete', (id,ok)=>{flushResolvers.get(id)?.(ok);});
     handle('copy-text', value=>{if(typeof value!=='string'||value.length>200000)throw Error('复制内容无效');clipboard.writeText(value);return true;});

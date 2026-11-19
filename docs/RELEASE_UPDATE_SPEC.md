@@ -36,17 +36,21 @@ The current build targets are NSIS and portable. The NSIS asset name is
 `Yukino-Companion-${version}-Base-Setup.exe` so the existing update reader can
 find it.
 
-## Future background update flow
+## Installed update flow (0.4.3+)
 
-The intended flow is:
+Installed NSIS builds use `electron-updater` with the GitHub provider:
 
-1. On startup and every six hours, the installed app checks `latest.yml`.
-2. It downloads only changed installer blocks through the `.blockmap` and
-   verifies the SHA-512 in `latest.yml`.
-3. When download completes it shows "更新已下载，重启完成更新".
-4. The user clicks restart; the app quits and runs the verified installer.
-5. Portable builds show a manual "前往 GitHub" route because NSIS updater
-   state is not available.
+1. On startup and every six hours the app checks the published `latest.yml`.
+2. It asks electron-updater to download the update. When the previous NSIS
+   installer is still in the updater cache, only the changed blockmap ranges
+   are downloaded. The reconstructed installer is verified against the SHA-512
+   in `latest.yml`; a missing cache or a failed differential attempt falls back
+   to the full installer.
+3. When the download completes the account-safe app UI shows "重启并安装".
+4. The user clicks restart; the app quits and runs the verified NSIS installer.
+5. Portable builds keep the manual full-installer save dialog and a "前往
+   GitHub" route because they cannot install an NSIS update in place.
 
-This flow is a specification for the remaining updater integration. The
-current 0.4.2 build still uses the existing manual installer download path.
+The first update installed by the legacy 0.4.1 updater is still full. From
+0.4.3 onward, the NSIS installer records itself in the updater cache so later
+updates can use the blockmap.
