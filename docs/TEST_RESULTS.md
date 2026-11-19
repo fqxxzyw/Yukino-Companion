@@ -15,6 +15,7 @@
 | 生产 D1 迁移 | PASS：`yukino-account` 已应用 0003/0004；迁移列表显示无待应用项，昵称唯一索引和云端表/索引均已核实 |
 | 线上部署验证（2026-11-19） | PASS：最终 Worker 版本 `040637b8`；官网 `/`、`/community/`、`/help/`、`/login/`、`/register/`、`/forgot/`、`/reset/` 可打开；`/register/` 含昵称字段和四位规则提示；账号中心 CSS 200；health 200；未登录记忆接口和 `PATCH /me` 返回 401；未知 API 返回 JSON 404；移动端无横向溢出；无 JS 异常 |
 | 官网视觉与交互回归 | PASS：恢复原首页壁纸；形象/服装区在场景之前；场景改为白色版面，5 个主场景从早晨→正午→傍晚一次过渡后停住；全部 10 个场景缩略图可切换；教室场景为 360° 旋转 WebP；衣橱点击联动、360° 人物旋转、原始/赛璐璐切换、关闭窗口后人物留在原位均可用 |
+| `node --test tests/app-update.test.cjs` | 5 passed / 0 failed：Legacy 全量回退、原生 electron-updater 差分参数、重启安装、全量回退上报 |
 | `npx vite build` | 成功（仅有既有的大 chunk 警告） |
 | 桌面 AccountStore 连接本地 API 的手工端到端 | 注册、事件同步、ECDSA 快照验签、游客/账号切换、在线退出均成功 |
 | `npm start` Electron 冒烟 | 主进程启动，`account.json` 初始化到开发 userData；无账号初始化异常。应用更新检查因本机网络超时，属于非账号路径 |
@@ -64,6 +65,12 @@ node --test --test-force-exit tests/*.test.cjs
 - 3 个 CharacterPanel 拖拽测试在虚拟 DOM 中报 `element.closest is not a function`。
 - `tests/account-client.test.cjs` 在并发全量运行中出现过文件级失败；已修复超时用例的测试服务器生命周期（不再留下延迟写响应），单独运行 3 项通过。建议下次全量回归再确认一次。
 - `tests/account-cloud-skins.test.cjs` 的 V1 云皮肤用例原先直接读取目录中的 `ready`；V2 目录把 V1 标为退役后该断言失效。测试改为在用例内把同一模型视为已就绪资产，只验证“云端已确认 + 离线缓存”的规则，不改变目录或运行时行为。
+
+## 0.4.3 更新验证
+
+- 打包后的 0.4.3 主进程通过检查器把 `autoUpdater.currentVersion` 临时设为 0.4.2，再走真实 `appUpdateCheck()`，返回 `v0.4.3 / downloadable / native / differential`，证明 GitHub Release、`latest.yml` 和 electron-updater provider 可以连通。
+- 使用隔离的本地更新缓存放入 0.4.2 安装器和 blockmap 后，electron-updater 已进入差分路径：读取旧块图、下载新的 `current.blockmap` 并开始从旧安装器复制/下载区块。本机代理网络在重建到约 55 MB 时长时间停滞，因此没有完成整包重建和 SHA-512 最终校验；这不是代码路径未启动。
+- 0.4.3 的安装器/便携版、`latest.yml`、blockmap、SHA256SUMS 已上传并核对。
 
 ## 未验证
 
