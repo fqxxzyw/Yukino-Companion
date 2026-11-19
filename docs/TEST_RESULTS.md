@@ -1,6 +1,6 @@
 # 本地测试结果（2026-11-19）
 
-环境：Windows 11，Node 24.18，Electron 45，Vite 8；本地 API 使用 Node `node:sqlite`，未连接生产 D1、未发送真实邮件。
+环境：Windows 11，Node 24.18，Electron 45，Vite 8；本地 API 测试使用 Node `node:sqlite`，未发送真实邮件。另对生产 `yukino-api` 做了只读部署验证，未创建测试账号。
 
 ## 通过
 
@@ -11,7 +11,9 @@
 | `npm run qa:account` | PASS：登录门、跳过、离线错误、自动登录、账号中心、会话列表、云端记忆面板（开关、恢复、上传、查看云端对话） |
 | `npm run qa:site` | PASS：真实下载链接、注册+自动登录、重置密码、登录、深链接、移动端导航 |
 | `npx wrangler deploy --dry-run` | PASS：读取 542 个静态文件，Total Upload 114.94 KiB / gzip 27.41 KiB；绑定 D1 `yukino-account`、ASSETS、环境变量；未上传密钥 |
-| 生产 D1 备份 + 迁移彩排 | PASS：导出生产库（2 users / 5 sessions / 2 progress）到 `.local-dev/db-backups/`；在副本上执行 0003/0004 后行数不变，昵称列/索引和 3 张云端记忆表存在。**未对生产库执行 apply** |
+| 生产 D1 备份 + 迁移彩排 | PASS：导出生产库到 `.local-dev/db-backups/`；在副本上执行 0003/0004 后行数不变，昵称列/索引和 3 张云端记忆表存在 |
+| 生产 D1 迁移 | PASS：`yukino-account` 已应用 0003/0004；迁移列表显示无待应用项，昵称唯一索引和云端表/索引均已核实 |
+| 线上部署验证（2026-11-19） | PASS：Worker 版本 `306ae6d9`；官网 `/`、`/community/`、`/help/`、`/login/`、`/register/`、`/forgot/`、`/reset/` 可打开；`/register/` 含昵称字段和四位规则提示；账号中心 CSS 200；health 200；未登录记忆接口和 `PATCH /me` 返回 401；未知 API 返回 JSON 404；移动端无横向溢出；无 JS 异常 |
 | 官网视觉与交互回归 | PASS：恢复原首页壁纸；形象/服装区在场景之前；场景改为白色版面，5 个主场景从早晨→正午→傍晚一次过渡后停住；全部 10 个场景缩略图可切换；教室场景为 360° 旋转 WebP；衣橱点击联动、360° 人物旋转、原始/赛璐璐切换、关闭窗口后人物留在原位均可用 |
 | `npx vite build` | 成功（仅有既有的大 chunk 警告） |
 | 桌面 AccountStore 连接本地 API 的手工端到端 | 注册、事件同步、ECDSA 快照验签、游客/账号切换、在线退出均成功 |
@@ -27,6 +29,7 @@
 
 关键截图（账号中心为 2026-11-19 重新生成）：
 
+- 线上注册页与移动端首页：`build/account-review/live-register-20261119.png`、`live-mobile-home-20261119.png`
 - 新版账号中心：`build/account-review/account-center-new-1440.png`、`account-center-new-390.png`、`site-account-1440.png`
 - 桌面账号中心与响应式：`build/account-review/desktop-account-center.png`、`desktop-account-820.png`、`desktop-account-390.png`、`desktop-account-outfits.png`、`desktop-account-security.png`
 - 首页原壁纸：`build/account-review/final2-hero.png`、`final2-mobile-hero2.png`
@@ -64,12 +67,12 @@ node --test --test-force-exit tests/*.test.cjs
 
 ## 未验证
 
-- 本轮只完成了部署 dry-run；**尚未把密码/昵称/云端记忆改动部署到线上 Worker `yukino-api`**，也**未执行生产 D1 迁移 0003/0004**。线上仍是上一版后端和官网。
+- 生产环境的完整注册/登录未执行：没有发送真实验证码，也没有创建测试账号；只验证了昵称必填、密码规则和假验证码被拒绝。
 - 云端记忆面板只在浏览器中使用确定性桌面桥验证，未通过真实 Electron IPC 连接生产 API；两台设备之间的实际上传/恢复、生产 D1 写入和网络中断后的重试未验证。
-- 生产 D1 的 0003 昵称列/唯一索引和 0004 云端记忆表尚未执行，因此线上注册昵称、昵称编辑和云端记忆接口尚不可用。
+- 线上已有 4 个账号，昵称列均为空；老账号补填昵称的线上流程未实际执行。
 - 官网仍使用仓库内的程序化场景截图与真实界面截图；没有执行 GitHub push 或 Release 发布。
 - 真实 Gmail 收件箱送达、OAuth Testing 7 天过期、退信/垃圾邮件归类。
-- Cloudflare 生产 Worker、生产 D1 迁移、Static Assets 真实路由、Workers CPU/内存限额。
+- Cloudflare Workers CPU/内存限额、长时间运行和并发稳定性；生产 Static Assets 已做页面/CSS 只读检查，但未做完整资源遍历。
 - Windows 正式安装包运行、Electron `safeStorage` 在安装版可用/不可用两条路径。
 - 中国大陆 Wi-Fi/移动网络。
 - 真实密码管理器、移动端浏览器、真实用户邮件客户端。

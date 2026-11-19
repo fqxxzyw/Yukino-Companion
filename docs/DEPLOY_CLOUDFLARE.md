@@ -4,8 +4,8 @@
 
 以下是当日检查结果，之后可能发生变化；继续操作前应重新检查远端状态：
 
-- 现有 D1 `yukino-account`（`89b0733f-f518-4557-bf69-ff254b80618b`）已应用 `0001_init.sql` 和 `0002_session_persistent.sql`，并已核实 `sessions.persistent` 字段存在。**`0003_nickname.sql`、`0004_cloud_memory.sql` 已于 2026-11-19 备份但尚未应用**；迁移列表确认只剩这两项。禁止重复创建或删除重建该数据库。
-- 现有 Worker `yukino-api` 已承载官网前端和账号后端，当前线上版本 `a9c4b20a-037f-4eaa-a0d7-3c83b1e68fb5` 接收 100% 流量；该版本早于密码/昵称/云端记忆改动。新一轮代码已完成 `wrangler deploy --dry-run`，但因生产迁移尚未获确认而**没有部署**。
+- 现有 D1 `yukino-account`（`89b0733f-f518-4557-bf69-ff254b80618b`）已应用 `0001_init.sql`、`0002_session_persistent.sql`、`0003_nickname.sql`、`0004_cloud_memory.sql`。2026-11-19 已核实昵称列/唯一索引、3 张云端记忆表和索引存在，迁移列表显示无待应用项。禁止重复创建或删除重建该数据库。
+- 现有 Worker `yukino-api` 已承载官网前端和账号后端，当前线上版本 `306ae6d9-c986-4364-ba8f-6b807e1608db` 接收 100% 流量，包含密码/昵称/账号中心和云端记忆改动。部署前版本为 `a9c4b20a-037f-4eaa-a0d7-3c83b1e68fb5`。
 - 线上只读检查：`/api/v1/health` 返回 200、数据库为 `ok`、邮件配置为 `configured`；未知 API 返回 JSON 404；生产权益公钥及 key ID 与本地文件匹配。七项 Secret 名称、`DB` 绑定和 `scheduled` handler 已核验；远端 cron 配置为 `17 * * * *`，尚未观察到实际定时执行结果。
 - Gmail OAuth 本人授权已完成，使用 refresh token 换取访问令牌成功。Worker 已配置 `GMAIL_CLIENT_ID`、`GMAIL_CLIENT_SECRET` 和 `GMAIL_REFRESH_TOKEN` 三项 Secret；本次向本人发送的两封注册/找回密码模板测试邮件已获 Gmail API 接受，本人已确认收件。此测试不代表线上账号流程已部署或验证。测试模式的授权可能在七天后到期。
 - 已配置 `ACCESS_TOKEN_SECRET`、`OTP_SECRET`、`SNAPSHOT_PRIVATE_JWK`、`SNAPSHOT_KEY_ID`；签名公钥和 key ID 已写入 `shared/entitlement-public-key.json`，本机密钥匹配验证通过。生产密钥临时文件和 refresh token 临时文件已删除。现有 Release 安装包不包含新公钥，后续重新打包、发布和验证仍需用户授权。
@@ -13,13 +13,13 @@
 - 用户已明确同意为免费额度降低密码迭代次数，后端使用 PBKDF2-SHA256 10,000 次，仅为 OWASP 建议的 600,000 次的 1/60；数据库哈希泄露后的离线猜测风险显著更高。隔离 Preview 的 GraphQL Analytics 中，关联 10,000 次单次派生的 CPU 样本为 2.239、2.429 ms，双次为 6.085、4.452 ms；20,000 次双次样本为 7.175、9.109 ms。冷认证请求 CPU 样本接近免费额度，并发与长期可靠性仍未验证，不能宣布生产兼容。
 - 先前 100,000 次派生测试的关联 CPU 样本单次为 33.146、22.465 ms、双次约 64.038 ms，均高于免费计划 10 ms。这些 Analytics 数据按同一 Worker、时间窗口、`isPreview` 与每点 1 请求关联；preview slug 为 `unknown`，不是通过请求 ID 的直接归因。[Cloudflare 官方限制说明](https://developers.cloudflare.com/workers/platform/limits/)称偶发超限有弹性，但持续超限会终止，HTTP 200 不能保证长期可用。
 - Cloudflare 拒绝 600,000 次派生；现有远端用户数为 0。若其他环境已有 600,000 次哈希，Cloudflare 不能直接验证，需要可信旧环境迁移或邮箱重置，不能自动降级。测试未绑定 D1 或 Secrets，也未切换生产流量；不得擅自开通付费服务。
-- 测试 Preview 已清理。先前占位版本 `bf022ec9-3143-4c4d-8770-2d621055e246` 等仍保留；后续操作前应重新查询。版本回滚不会撤销已应用的 D1 迁移，且可能恢复旧版本的 Secrets 配置，回滚前应核查。
+- 测试 Preview 已清理。先前占位版本 `bf022ec9-3143-4c4d-8770-2d621055e246`、旧官网版本 `a9c4b20a-037f-4eaa-a0d7-3c83b1e68fb5` 等仍保留；后续操作前应重新查询。版本回滚不会撤销已应用的 D1 迁移，且可能恢复旧版本的 Secrets 配置，回滚前应核查。
 - 本地验证：API 测试 48 项、account 测试 16 项，以及 `qa:site` 和 `qa:account` 通过；云端记忆面板已在 `qa:account` 中用确定性桌面桥验证开关、恢复、上传和查看，并通过 Vite 构建和 AccountStore 路由测试。这些结果不代表全部生产功能已验证。
-- 此前授权范围是使用现有 Cloudflare 免费资源和已完成的部署；不要重复创建数据库或 Worker。新的生产 D1 迁移和部署仍需按下方“待用户确认的下一步”逐项确认。
+- 此前授权范围是使用现有 Cloudflare 免费资源和已完成的部署；不要重复创建数据库或 Worker。
 
-### 待用户确认的下一步
+### 2026-11-19 已完成部署
 
-生产库 `yukino-account` 的 `0003_nickname.sql`、`0004_cloud_memory.sql` 已在生产备份副本上彩排通过，但没有对生产库执行。只有在用户明确确认“对生产 D1 `yukino-account` 应用 0003/0004”后，才执行：
+用户确认上传本地后端修改后，生产 D1 `yukino-account` 已应用 `0003_nickname.sql`、`0004_cloud_memory.sql`；随后将合并官网与账号后端的版本部署到 `yukino-api`。执行命令：
 
 ```powershell
 Set-Location E:\JAVA\yukino-companion
@@ -27,13 +27,15 @@ npx wrangler d1 migrations apply yukino-account --remote --config server/wrangle
 npx wrangler deploy --config .local-dev/api-site-deploy/wrangler.jsonc --keep-vars
 ```
 
-部署后会重新检查 `/api/v1/health`、官网 `/`、注册昵称、登录和云端记忆接口；真实 Gmail 收件与双设备同步仍需人工验证。
+部署后已验证：`/api/v1/health` 为 200 且数据库 ok；`/assets/account-center.css` 为 200；`/register/` 含昵称字段和四位规则提示；`/api/v1/memory/settings` 与 `PATCH /api/v1/me` 未登录返回 401；未知 API 返回 JSON 404；移动端首页无横向溢出；页面无 JS 异常。新密码规则在线上校验为 `invalid_password`，带昵称的注册请求在假验证码处返回 `invalid_challenge`，未创建账号。
+
+真实 Gmail 收件、完整注册/登录、双设备云端记忆同步仍需人工验证。
 
 ---
 
 ## 操作说明
 
-> 当前状态见上方快照；继续操作前重新检查远端状态。后端已经上线，官网仍在修改；生产账号流程、CPU、并发及 Gmail 真实收件仍需验证。
+> 当前状态见上方快照；继续操作前重新检查远端状态。官网与账号后端已上线；生产账号流程、CPU、并发及 Gmail 真实收件仍需验证。
 > 不要把密码、OAuth 授权码、refresh token 粘贴到聊天、截图、Issue 或 Git。
 
 ## 0. 先确认目标和版本
@@ -43,7 +45,7 @@ npx wrangler deploy --config .local-dev/api-site-deploy/wrangler.jsonc --keep-va
 - 发件邮箱：`fqxxzyw@gmail.com`（只作为发件人；注册用户可用自己的任意邮箱）
 - 仓库：<https://github.com/fqxxzyw/Yukino-Companion>
 - 本地配置：`E:\JAVA\yukino-companion\server\wrangler.toml`
-- 迁移：`E:\JAVA\yukino-companion\server\migrations\0001_init.sql`、`0002_session_persistent.sql`；待应用 `0003_nickname.sql`、`0004_cloud_memory.sql`
+- 迁移：`E:\JAVA\yukino-companion\server\migrations\0001_init.sql`、`0002_session_persistent.sql`、`0003_nickname.sql`、`0004_cloud_memory.sql`（均已应用）
 
 **不要新建一个同名或相似 Worker 覆盖其他服务。** 先执行：
 
@@ -78,7 +80,7 @@ npx wrangler d1 migrations apply yukino-account --local
 
 ### 1.3 远端迁移（先确认状态并备份）
 
-`0001`、`0002` 已执行。2026-11-19 已生成备份 `.local-dev/db-backups/yukino-account-before-0003-0004-20261119.sql`，迁移列表只显示 `0003_nickname.sql` 和 `0004_cloud_memory.sql` 待应用；执行 `apply` 前仍需用户明确确认生产库 `yukino-account` 及这两项迁移。两文件只新增列/表和索引，不删除现有用户、会话、进度或皮肤数据。破坏性迁移仍须另行获得用户确认，不要重复执行已完成的迁移。
+`0001`、`0002`、`0003`、`0004` 均已执行。2026-11-19 已在应用 0003/0004 前生成备份 `.local-dev/db-backups/yukino-account-before-0003-0004-20261119.sql`，并在备份副本上彩排通过；两文件只新增列/表和索引，不删除现有用户、会话、进度或皮肤数据。破坏性迁移仍须另行获得用户确认，不要重复执行已完成的迁移。
 
 ```powershell
 Set-Location E:\JAVA\yukino-companion\server
