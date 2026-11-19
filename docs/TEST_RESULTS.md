@@ -10,10 +10,10 @@
 | `npm run test:account` | 16 passed / 0 failed（新增云端记忆路由与角色 ID 校验） |
 | `npm run qa:account` | PASS：登录门、跳过、离线错误、自动登录、账号中心、会话列表、云端记忆面板（开关、恢复、上传、查看云端对话） |
 | `npm run qa:site` | PASS：真实下载链接、注册+自动登录、重置密码、登录、深链接、移动端导航 |
-| `npx wrangler deploy --dry-run` | PASS：读取 542 个静态文件，Total Upload 114.94 KiB / gzip 27.41 KiB；绑定 D1 `yukino-account`、ASSETS、环境变量；未上传密钥 |
+| `npx wrangler deploy --dry-run` | PASS：读取 542 个静态文件，Total Upload 118.46 KiB / gzip 28.30 KiB；绑定 D1 `yukino-account`、ASSETS、环境变量；未上传密钥 |
 | 生产 D1 备份 + 迁移彩排 | PASS：导出生产库到 `.local-dev/db-backups/`；在副本上执行 0003/0004 后行数不变，昵称列/索引和 3 张云端记忆表存在 |
 | 生产 D1 迁移 | PASS：`yukino-account` 已应用 0003/0004；迁移列表显示无待应用项，昵称唯一索引和云端表/索引均已核实 |
-| 线上部署验证（2026-11-19） | PASS：Worker 版本 `306ae6d9`；官网 `/`、`/community/`、`/help/`、`/login/`、`/register/`、`/forgot/`、`/reset/` 可打开；`/register/` 含昵称字段和四位规则提示；账号中心 CSS 200；health 200；未登录记忆接口和 `PATCH /me` 返回 401；未知 API 返回 JSON 404；移动端无横向溢出；无 JS 异常 |
+| 线上部署验证（2026-11-19） | PASS：最终 Worker 版本 `040637b8`；官网 `/`、`/community/`、`/help/`、`/login/`、`/register/`、`/forgot/`、`/reset/` 可打开；`/register/` 含昵称字段和四位规则提示；账号中心 CSS 200；health 200；未登录记忆接口和 `PATCH /me` 返回 401；未知 API 返回 JSON 404；移动端无横向溢出；无 JS 异常 |
 | 官网视觉与交互回归 | PASS：恢复原首页壁纸；形象/服装区在场景之前；场景改为白色版面，5 个主场景从早晨→正午→傍晚一次过渡后停住；全部 10 个场景缩略图可切换；教室场景为 360° 旋转 WebP；衣橱点击联动、360° 人物旋转、原始/赛璐璐切换、关闭窗口后人物留在原位均可用 |
 | `npx vite build` | 成功（仅有既有的大 chunk 警告） |
 | 桌面 AccountStore 连接本地 API 的手工端到端 | 注册、事件同步、ECDSA 快照验签、游客/账号切换、在线退出均成功 |
