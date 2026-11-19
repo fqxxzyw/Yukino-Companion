@@ -29,7 +29,7 @@ npx wrangler deploy --config .local-dev/api-site-deploy/wrangler.jsonc --keep-va
 
 部署后已验证：`/api/v1/health` 为 200 且数据库 ok；`/assets/account-center.css` 为 200；`/register/` 含昵称字段和四位规则提示；`/api/v1/memory/settings` 与 `PATCH /api/v1/me` 未登录返回 401；未知 API 返回 JSON 404；移动端首页无横向溢出；页面无 JS 异常。新密码规则在线上校验为 `invalid_password`，带昵称的注册请求在假验证码处返回 `invalid_challenge`，未创建账号。
 
-真实 Gmail 收件、完整注册/登录、双设备云端记忆同步仍需人工验证。
+真实 Gmail 收件、完整注册/登录、双设备云端记忆同步仍需人工验证。0.4.1 桌面端注册表单不发送昵称，新后端会拒绝旧客户端的**新注册**；已有账号登录不受影响。0.4.2 桌面端已包含昵称输入并已发布，可从该版本注册。
 
 ---
 

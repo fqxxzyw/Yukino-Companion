@@ -9,7 +9,7 @@
 | `npm run api:test` | 48 passed / 0 failed（含密码规则、昵称唯一、云端记忆/聊天、额度边界幂等） |
 | `npm run test:account` | 16 passed / 0 failed（新增云端记忆路由与角色 ID 校验） |
 | `npm run qa:account` | PASS：登录门、跳过、离线错误、自动登录、账号中心、会话列表、云端记忆面板（开关、恢复、上传、查看云端对话） |
-| `npm run qa:site` | PASS：真实下载链接、注册+自动登录、重置密码、登录、深链接、移动端导航 |
+| `npm run qa:site` | PASS：真实下载链接（0.4.2 已发布）、注册+自动登录、重置密码、登录、深链接、移动端导航 |
 | `npx wrangler deploy --dry-run` | PASS：读取 542 个静态文件，Total Upload 118.46 KiB / gzip 28.30 KiB；绑定 D1 `yukino-account`、ASSETS、环境变量；未上传密钥 |
 | 生产 D1 备份 + 迁移彩排 | PASS：导出生产库到 `.local-dev/db-backups/`；在副本上执行 0003/0004 后行数不变，昵称列/索引和 3 张云端记忆表存在 |
 | 生产 D1 迁移 | PASS：`yukino-account` 已应用 0003/0004；迁移列表显示无待应用项，昵称唯一索引和云端表/索引均已核实 |
@@ -69,8 +69,9 @@ node --test --test-force-exit tests/*.test.cjs
 
 - 生产环境的完整注册/登录未执行：没有发送真实验证码，也没有创建测试账号；只验证了昵称必填、密码规则和假验证码被拒绝。
 - 云端记忆面板只在浏览器中使用确定性桌面桥验证，未通过真实 Electron IPC 连接生产 API；两台设备之间的实际上传/恢复、生产 D1 写入和网络中断后的重试未验证。
-- 线上已有 4 个账号，昵称列均为空；老账号补填昵称的线上流程未实际执行。
-- 官网仍使用仓库内的程序化场景截图与真实界面截图；没有执行 GitHub push 或 Release 发布。
+- 检查时线上有 4 个账号，昵称列均为空；老账号补填昵称的线上流程未实际执行。
+- 0.4.1 桌面端注册表单不发送昵称，新后端会拒绝旧客户端的新注册；已有账号登录不受影响。0.4.2 已包含昵称输入并已发布。
+- 官网仍使用仓库内的程序化场景截图与真实界面截图。
 - 真实 Gmail 收件箱送达、OAuth Testing 7 天过期、退信/垃圾邮件归类。
 - Cloudflare Workers CPU/内存限额、长时间运行和并发稳定性；生产 Static Assets 已做页面/CSS 只读检查，但未做完整资源遍历。
 - Windows 正式安装包运行、Electron `safeStorage` 在安装版可用/不可用两条路径。
