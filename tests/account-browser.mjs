@@ -111,6 +111,9 @@ try {
   await page.setViewportSize({width: 390, height: 844});
   await page.locator('.settings-body').evaluate(el => { el.scrollTop = 0; });
   await page.screenshot({path: 'build/account-review/desktop-account-390.png'});
+  await page.locator('.settings-body').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await page.screenshot({path: 'build/account-review/desktop-account-390-bottom.png'});
+  await page.setViewportSize({width: 1440, height: 920});
   await page.locator('.settings-body').evaluate(el => { el.scrollTop = 620; });
   await page.screenshot({path: 'build/account-review/desktop-account-outfits.png'});
   await page.locator('.settings-body').evaluate(el => { el.scrollTop = el.scrollHeight; });
