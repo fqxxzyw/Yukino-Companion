@@ -20,15 +20,18 @@ test('only explicit actual-use events count; repeated use on a date counts once'
  assert.equal(recordUsedDate(state,{type:'message',now:at(2026,10,28)}).totalDays,2);
 });
 
-test('7 non-consecutive used dates unlock swimsuits; elapsed time alone and duplicate clock rollback cannot',async()=>{
- const {recordUsedDate,getSkinStatus}=await load();let state;
- for(let n=0;n<6;n++)state=recordUsedDate(state,{type:'message',now:at(2026,10,1+n*2)}).state;
- assert.equal(getSkinStatus(model('03'),{usedDates:state}).unlocked,false);
- assert.equal(recordUsedDate(state,{type:'boot',now:at(2027,1,1)}).totalDays,6);
- const duplicate=recordUsedDate(state,{type:'message',now:at(2026,10,1)});assert.equal(duplicate.added,false);assert.equal(duplicate.totalDays,6);
- const rollback=recordUsedDate(state,{type:'message',now:at(2026,10,2)});assert.equal(rollback.reason,'clock-rollback');assert.equal(rollback.totalDays,6);
- const seventh=recordUsedDate(state,{type:'pet-interaction',now:at(2026,10,27)});assert.equal(seventh.totalDays,7);
- assert.equal(getSkinStatus(model('03'),{usedDates:seventh.state}).unlocked,true);
+test('day 2 and day 3 used dates unlock the configured login-day outfits',async()=>{
+ const {recordUsedDate,getSkinStatus}=await load(),swim={id:'swimsuit-v2',ready:true},twin={id:'twin-tail-v2',ready:true};let state;
+ state=recordUsedDate(state,{type:'message',now:at(2026,10,1)}).state;
+ assert.equal(getSkinStatus(swim,{usedDates:state}).unlocked,false);
+ assert.equal(recordUsedDate(state,{type:'boot',now:at(2027,1,1)}).totalDays,1);
+ const duplicate=recordUsedDate(state,{type:'message',now:at(2026,10,1)});assert.equal(duplicate.added,false);assert.equal(duplicate.totalDays,1);
+ const rollback=recordUsedDate(state,{type:'message',now:at(2026,9,30)});assert.equal(rollback.reason,'clock-rollback');assert.equal(rollback.totalDays,1);
+ const second=recordUsedDate(state,{type:'pet-interaction',now:at(2026,10,2)});assert.equal(second.totalDays,2);
+ assert.equal(getSkinStatus(swim,{usedDates:second.state}).unlocked,true);
+ assert.equal(getSkinStatus(twin,{usedDates:second.state}).unlocked,false);
+ const third=recordUsedDate(second.state,{type:'manual-voice',now:at(2026,10,3)});assert.equal(third.totalDays,3);
+ assert.equal(getSkinStatus(twin,{usedDates:third.state}).unlocked,true);
 });
 
 test('date keys follow the actual local timezone including local midnight, not UTC or fixed 24h blocks',async()=>{
@@ -46,16 +49,16 @@ test('bounded date storage retains lifetime count and archive watermark prevents
  assert.equal(usedDateStatus(saved,at(2010,1,1)).clockRollback,true);
 });
 
-test('school and micro-motion school variants are available at initial affection; daily outfits use explicit thresholds',async()=>{
- const {AFFINITY_THRESHOLDS,getSkinStatus}=await load();assert.deepEqual(AFFINITY_THRESHOLDS,{'02':40,'04':50,'05':60,'06':70});
- for(const id of ['yukino-07-v1','yukino-07-micro-preview-v1'])assert.equal(getSkinStatus({id,ready:true}).unlocked,true);
- for(const [number,threshold]of Object.entries(AFFINITY_THRESHOLDS)){
-  assert.equal(getSkinStatus(model(number),{}).unlocked,false);
-  assert.equal(getSkinStatus(model(number),{relationship:{affection:threshold-.1}}).unlocked,false);
-  const unlocked=getSkinStatus(model(number),{relationship:{affection:threshold}});assert.equal(unlocked.unlocked,true);assert.equal(unlocked.progress,1);
+test('only the two default uniforms are open at initial progress; affection outfits use shared thresholds',async()=>{
+ const {AFFINITY_THRESHOLDS,getSkinStatus}=await load();assert.deepEqual(AFFINITY_THRESHOLDS,{'beret-v2':45,'kimono-v2':55,'qipao-v2':65,'ivory-coat-v2':75,'ice-hooded-winter-v2':85});
+ for(const id of ['summer-uniform-v2','winter-uniform-v2'])assert.equal(getSkinStatus({id,ready:true}).unlocked,true);
+ for(const id of ['swimsuit-v2','twin-tail-v2','beret-v2','kimono-v2','qipao-v2','ivory-coat-v2','ice-hooded-winter-v2'])assert.equal(getSkinStatus({id,ready:true},{}).unlocked,false);
+ for(const [id,threshold]of Object.entries(AFFINITY_THRESHOLDS)){
+  assert.equal(getSkinStatus({id,ready:true},{relationship:{affection:threshold-.1}}).unlocked,false);
+  const unlocked=getSkinStatus({id,ready:true},{relationship:{affection:threshold}});assert.equal(unlocked.unlocked,true);assert.equal(unlocked.progress,1);
  }
  assert.equal(getSkinStatus({id:'imported-local-model',ready:true}).unlocked,true);
- assert.equal(getSkinStatus({id:'yukino-08-new',ready:true}).unlocked,false,'new official skins require an explicit unlock rule');
+ assert.equal(getSkinStatus({id:'yukino-99-new',ready:true}).unlocked,false,'new official outfits require an explicit unlock rule');
 });
 
 test('HOLD and missing assets stay disabled regardless of earned usage or affection',async()=>{
@@ -105,7 +108,7 @@ test('actual React skin picker renders locks, real local previews, neutral fallb
  const file=path.join(directory,'SkinPicker.mjs');await fs.writeFile(file,code);const {default:SkinPicker}=await import(pathToFileURL(file).href);
  const html=renderToStaticMarkup(React.createElement(SkinPicker,{models:[model('07'),model('02',{thumbnail:'./characters/actual-preview.png'}),model('03',{thumbnail:'https://remote.invalid/not-auto-loaded.png'}),model('01',{status:'HOLD'})],selectedId:'yukino-07-v1'}));
  assert.equal((html.match(/<button/g)||[]).length,4);assert.equal((html.match(/disabled=""/g)||[]).length,3);assert.equal((html.match(/type="button"/g)||[]).length,4);
- assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感 35 \/ 40/);assert.match(html,/同一天计一次；挂机不计入/);assert.match(html,/aria-pressed="true"/);
+ assert.match(html,/actual-preview\.png/);assert.doesNotMatch(html,/remote\.invalid/);assert.match(html,/skin-outline/);assert.match(html,/is-locked/);assert.match(html,/好感度 35 \/ 45/);assert.match(html,/同一天计一次；挂机不计入/);assert.match(html,/aria-pressed="true"/);
  const groupHtml=renderToStaticMarkup(React.createElement(SkinPicker,{models:[{...model('02'),outfitGroup:'yukino-02'}, {...model('02',{id:'yukino-02-alt'}),outfitGroup:'yukino-02'}],relationship:{skinPreviewEnabled:true},onSkinPreviewChange:()=>{}}));
  assert.equal((groupHtml.match(/class="skin-card/g)||[]).length,1);assert.doesNotMatch(groupHtml,/版本（共享解锁条件）/);assert.doesNotMatch(groupHtml,/本地预览已验收服装|默认可用|（V2 过审站姿）/);
 });

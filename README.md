@@ -20,18 +20,18 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 ## 下载与安装
 
-1. 打开 [Yukino Companion 0.4.1 发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.1)，下载 [Yukino-Companion-0.4.1-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.1/Yukino-Companion-0.4.1-Base-Setup.exe)；也可以选择 [Yukino-Companion-0.4.1-Portable.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.1/Yukino-Companion-0.4.1-Portable.exe) 免安装运行。请先阅读发行页中的已知问题和验收范围；其他版本可在 [Releases 下载页](https://github.com/fqxxzyw/Yukino-Companion/releases)查看。
+1. 打开 [Yukino Companion 0.4.2 发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.2)，下载 [Yukino-Companion-0.4.2-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.2/Yukino-Companion-0.4.2-Base-Setup.exe)；也可以选择 [Yukino-Companion-0.4.2-Portable.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.2/Yukino-Companion-0.4.2-Portable.exe) 免安装运行。请先阅读发行页中的已知问题和验收范围；其他版本可在 [Releases 下载页](https://github.com/fqxxzyw/Yukino-Companion/releases)查看。
 2. 运行安装器，按提示选择安装位置。安装文件和数据建议放在有足够空闲空间的磁盘；请勿选择包含其他重要文件的非空目录。安装程序及其附件的大小、校验值以对应发行页为准。
 3. 启动 Yukino Companion。首次配置可按需选择本地对话、日语翻译、语音合成和桌宠语音，也可以先跳过，使用 API 文字聊天。
 4. 选择本地功能时，确认资源目录、预计下载量和运行环境，再开始准备。资源文件会按清单下载并校验；下载量、所需空间及耗时取决于所选功能、已有文件与网络条件。
 
-本次安装器的 SHA-256 为 `b492b29b68964eab06d8ca2558ee4fbda0205cbea39f5fc8817fa19165fce3ca`，大小为 `390277944` 字节。在下载目录打开 PowerShell，可用以下命令计算并与该值比较：
+本次安装器的 SHA-256 为 `d3db84cc9279b2d4556a4dc37d2b070716081205c89541f8725ad3b8648d7c90`，大小为 `390251402` 字节。在下载目录打开 PowerShell，可用以下命令计算并与该值比较：
 
 ```powershell
-Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.1-Base-Setup.exe' -Algorithm SHA256
+Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.2-Base-Setup.exe' -Algorithm SHA256
 ```
 
-基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.1/Yukino-Companion-0.4.1-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
+基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.2/Yukino-Companion-0.4.2-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
 
 程序面向 **Windows 10 或更新版本的 x64 系统**。本地推理可选择 CPU；若有受支持的 NVIDIA 显卡，可在资源向导选择可用的 CUDA 环境。CUDA 配置会准备基础环境并从官方 PyTorch 与 llama.cpp 来源安装相应依赖，需要网络、足够磁盘空间和 NVIDIA 驱动。自动模式会检查实际环境；显卡型号、驱动、可用显存和依赖都影响能否使用 GPU。没有 NVIDIA CUDA 时不要把检测到显卡等同于 CUDA 已就绪。
 
@@ -409,7 +409,8 @@ npm run build
 
 - 桌面端登录门可以跳过；游客进度继续保存在原有 `state.json`。
 - 登录后使用 `profiles/<用户ID>/state.json`，与游客和其他账号隔离。
-- 账号服务不可达、令牌过期或刷新失败不会阻止本地使用，也不会删除聊天、模型或已确认皮肤。
+- 账号服务不可达、令牌过期或刷新失败不会阻止本地使用，也不会删除聊天、模型或已确认服装资格。
+- 默认开放夏日、冬季两套校服；泳装在第 2 个确认登录日、双马尾在第 3 个确认登录日解锁，其余服装按好感度解锁。规则集中在 [`shared/outfit-rules.json`](shared/outfit-rules.json)，说明见 [服装解锁规则](docs/OUTFIT_UNLOCKS.md)。
 - 官网位于 `website/`，账号后端位于 `server/`；默认 API 为 `https://yukino-api.fqxxzyw.workers.dev`。
 
 本地开发：

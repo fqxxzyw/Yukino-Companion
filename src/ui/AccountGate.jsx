@@ -1,9 +1,9 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {ArrowRight,Eye,EyeOff,LoaderCircle,Mail} from 'lucide-react';
 import {accountErrorMessage,accountResultError} from './account-status.mjs';
+import {normalizeNickname,nicknameProblem,passwordProblem} from './password-policy.mjs';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD=15;
 
 function PasswordField({id,label,value,onChange,autoComplete,disabled,placeholder}) {
   const [visible,setVisible]=useState(false);
@@ -19,6 +19,7 @@ function PasswordField({id,label,value,onChange,autoComplete,disabled,placeholde
 export default function AccountGate({api,onDone,initialStatus=''}) {
   const [mode,setMode]=useState('login');
   const [email,setEmail]=useState('');
+  const [nickname,setNickname]=useState('');
   const [password,setPassword]=useState('');
   const [confirm,setConfirm]=useState('');
   const [code,setCode]=useState('');
@@ -33,9 +34,9 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
   useEffect(()=>{const timer=requestAnimationFrame(()=>emailRef.current?.focus());return()=>cancelAnimationFrame(timer);},[]);
   useEffect(()=>{if(mode!=='forgot'){setChallengeId('');setResetToken('');setCode('');setCountdown(0);}},[mode]);
   useEffect(()=>{if(countdown<=0)return;const timer=setTimeout(()=>setCountdown(value=>Math.max(0,value-1)),1000);return()=>clearTimeout(timer);},[countdown]);
-  function switchMode(next){setError('');setNotice('');setMode(next);setPassword('');setConfirm('');}
+  function switchMode(next){setError('');setNotice('');setMode(next);setPassword('');setConfirm('');setNickname('');}
   function validateIdentity(){if(!EMAIL.test(email.trim())){setError('请输入有效邮箱地址。');return false}return true}
-  function validatePassword(){const length=Array.from(password).length;if(length<MIN_PASSWORD){setError(`密码至少需要 ${MIN_PASSWORD} 个字符。`);return false}if(length>128){setError('密码最多 128 个字符。');return false}return true}
+  function validatePassword(){const problem=passwordProblem(password);if(problem){setError(problem);return false}return true}
   async function call(action,label){
     setBusy(label);setError('');setNotice('');
     try{return await action()}
@@ -62,11 +63,14 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
   async function register(event){
     event.preventDefault();
     if(!validateIdentity())return;
+    const displayName=normalizeNickname(nickname);
+    const nameProblem=nicknameProblem(displayName);
+    if(nameProblem){setError(nameProblem);return}
     if(!challengeId){setError('请先发送验证码。');return}
     if(!/^\d{6}$/.test(code.trim())){setError('请输入 6 位验证码。');return}
     if(!validatePassword())return;
     if(password!==confirm){setError('两次输入的密码不一致。');return}
-    const result=await call(()=>api.accountRegister({email:email.trim().toLowerCase(),code:code.trim(),challengeId,password}),'register');
+    const result=await call(()=>api.accountRegister({email:email.trim().toLowerCase(),nickname:displayName,code:code.trim(),challengeId,password}),'register');
     if(!result?.ok){setError(accountResultError(result));return}
     onDone(result.state);
   }
@@ -122,10 +126,11 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
         </form>:null}
         {mode==='register'?<form className="account-form" onSubmit={register} noValidate>
           <label className="field account-field" htmlFor="account-register-email"><span>邮箱</span><input ref={emailRef} id="account-register-email" type="email" inputMode="email" autoComplete="email" value={email} disabled={disabled} placeholder="you@example.com" onChange={event=>setEmail(event.target.value)}/></label>
+          <label className="field account-field" htmlFor="account-register-nickname"><span>昵称</span><input id="account-register-nickname" value={nickname} disabled={disabled} placeholder="例如：雪乃" maxLength={32} onChange={event=>setNickname(event.target.value)}/><small>支持中文、英文、数字和常见符号；昵称不可重复。</small></label>
           <label className="field account-field" htmlFor="account-code"><span>邮箱验证码</span><div className="account-code-row"><input ref={codeRef} id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} disabled={disabled} placeholder="6 位数字" onChange={event=>setCode(event.target.value.replace(/\D/g,'').slice(0,6))}/><button type="button" className="secondary" disabled={disabled||countdown>0} onClick={()=>sendCode('register')}>{busy==='code'?'发送中…':countdown>0?`${countdown} 秒后重发`:'发送验证码'}</button></div><small>验证码 10 分钟有效。重发会使旧验证码失效。</small></label>
-          <PasswordField id="account-register-password" label="密码" value={password} onChange={setPassword} autoComplete="new-password" disabled={disabled} placeholder="至少 15 个字符"/>
+          <PasswordField id="account-register-password" label="密码" value={password} onChange={setPassword} autoComplete="new-password" disabled={disabled} placeholder="例如 Abc123!"/>
           <PasswordField id="account-register-confirm" label="确认密码" value={confirm} onChange={setConfirm} autoComplete="new-password" disabled={disabled} placeholder="再输入一次"/>
-          <p className="account-hint">支持空格与 Unicode，最长 128 个字符。云端不保存聊天、记忆、语音或模型文件。</p>
+          <p className="account-hint">至少 6 位，包含大写、小写、数字和符号。云端不保存聊天、记忆、语音或模型文件。</p>
           <button className="primary account-submit" type="submit" disabled={disabled}>{busy==='register'?<><LoaderCircle size={15} className="spin"/>正在创建…</>:<>注册并登录<ArrowRight size={15}/></>}</button>
           <div className="account-links"><button type="button" className="text-link" onClick={()=>switchMode('login')}>已有账号，去登录</button></div>
         </form>:null}
@@ -133,7 +138,7 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
           <label className="field account-field" htmlFor="account-forgot-email"><span>邮箱</span><input ref={emailRef} id="account-forgot-email" type="email" inputMode="email" autoComplete="email" value={email} disabled={disabled} placeholder="you@example.com" onChange={event=>setEmail(event.target.value)}/></label>
           <div className="account-code-row"><button type="button" className="secondary" disabled={disabled||countdown>0} onClick={()=>sendCode('forgot')}>{busy==='code'?'发送中…':countdown>0?`${countdown} 秒后重发`:'发送验证码'}</button><Mail size={15}/></div>
           <label className="field account-field" htmlFor="account-forgot-code"><span>验证码</span><input id="account-forgot-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} disabled={disabled} placeholder="6 位数字" onChange={event=>setCode(event.target.value.replace(/\D/g,'').slice(0,6))}/></label>
-          <PasswordField id="account-forgot-password" label="新密码" value={password} onChange={setPassword} autoComplete="new-password" disabled={disabled} placeholder="至少 15 个字符"/>
+          <PasswordField id="account-forgot-password" label="新密码" value={password} onChange={setPassword} autoComplete="new-password" disabled={disabled} placeholder="例如 Abc123!"/>
           <PasswordField id="account-forgot-confirm" label="确认新密码" value={confirm} onChange={setConfirm} autoComplete="new-password" disabled={disabled} placeholder="再输入一次"/>
           <button className="primary account-submit" type="submit" disabled={disabled}>{busy==='reset'||busy==='verify'?<><LoaderCircle size={15} className="spin"/>正在重置…</>:<>重置密码<ArrowRight size={15}/></>}</button>
           <div className="account-links"><button type="button" className="text-link" onClick={()=>switchMode('login')}>返回登录</button></div>

@@ -5,6 +5,8 @@ Base URL（生产）：`https://yukino-api.fqxxzyw.workers.dev`
 
 所有接口使用 JSON；请求体上限 64 KiB。桌面端发送 `X-Client: desktop`，网页端发送 `X-Client: web`（或 body `client`）。网页端 refresh token 在 HttpOnly Cookie，桌面端在响应 JSON 中返回并由主进程安全保存。
 
+密码规则：至少 6 个字符，并同时包含大写字母、小写字母、数字和符号；不要求 15 位。登录只校验已有密码哈希，不把新规则套用到旧账号。昵称用于展示，注册必填，邮箱仍是登录和验证码渠道。
+
 ## 约定
 
 ### 错误格式
@@ -134,7 +136,9 @@ Base URL（生产）：`https://yukino-api.fqxxzyw.workers.dev`
 ```
 
 - 成功 201：创建账号、初始进度、会话；`autoLogin:true`；桌面端返回 `refreshToken`；网页端设置 Cookie。
-- 密码 15–128 字符，允许空格/Unicode。
+- 密码至少 6 个字符，同时包含大写、小写、数字和符号；技术上限制 512 字符，允许 Unicode 和空格。
+- 昵称必填，最多 32 个字符；服务端按 NFKC、空白和大小写折叠去重，数据库有唯一索引。重复时返回 `409 nickname_unavailable`，文案为“昵称不可用，请换一个。”。
+- 旧账号没有昵称时仍可登录，可在账号中心补填。
 - 并发/重复注册同一邮箱：唯一约束，最多一个成功；其他返回 400/409。
 - 限流：注册 IP 10/小时。
 
@@ -149,7 +153,7 @@ Base URL（生产）：`https://yukino-api.fqxxzyw.workers.dev`
 ```json
 {
   "ok": true,
-  "user": {"id":"...","email":"us***@example.com","emailHint":"user@example.com","createdAt":179...},
+  "user": {"id":"...","email":"us***@example.com","emailHint":"user@example.com","nickname":"雪乃","createdAt":179...},
   "accessToken": "...",
   "expiresIn": 900,
   "refreshToken": "仅桌面端",
@@ -239,6 +243,58 @@ Bearer。撤销该用户全部会话。桌面端清除当前账号本机 refresh
 - 一次性；成功后撤销旧会话、安全版本递增、发送通知。
 - **不会**自动登录；返回 `{"ok":true,"loginRequired":true}`。
 - 旧 resetToken/其他 reset challenge 失效。
+
+## 云端长期记忆（可选）
+
+默认关闭。只保存文字，不保存语音、图片、附件或完整 `state.json`。D1 中为明文 UTF-8，不宣称端到端加密。
+
+### `GET /api/v1/memory/settings`
+
+返回 `{settings:{syncMemory:boolean,syncChat:boolean,updatedAt:number}}`。
+
+### `PUT /api/v1/memory/settings`
+
+```json
+{"syncMemory":true,"syncChat":false}
+```
+
+### `GET /api/v1/memory`
+
+分页列出当前账号的文字记忆摘要（每角色一条），最多 50 条；`before` 为上一页 `nextBefore`。
+
+### `GET /api/v1/memory/:characterId`
+
+返回 `{characterId,memory:{text,version,updatedAt,deleted}}`。只允许当前登录用户读取。
+
+### `PUT /api/v1/memory/:characterId`
+
+```json
+{"text":"喜欢蓝色，正在学习 NLP。","baseVersion":1}
+```
+
+`baseVersion` 与云端当前版本不一致时返回 `409 memory_conflict`，并在 `error.remote` 返回云端版本，不静默覆盖。未开启 `syncMemory` 返回 `403 memory_sync_disabled`。
+
+### `DELETE /api/v1/memory/:characterId`
+
+软删除云端文字记忆，本地记忆不受影响。
+
+### `GET /api/v1/memory/:characterId/chat?conversationId=&before=`
+
+分页读取云端纯文字对话，最多 50 条。
+
+### `POST /api/v1/memory/:characterId/chat`
+
+```json
+{"conversationId":"...","messages":[{"id":"...","role":"user","text":"你好","createdAt":179...}]}
+```
+
+一次最多 50 条，单条最多 4000 字符；只接受 `user` / `assistant` 的文字。需要先开启 `syncChat`。按 `(user_id,id)` 幂等去重。每个账号最多 2000 条，超限返回 `413 chat_quota_exceeded`，不删除本地数据。
+
+### `DELETE /api/v1/memory/:characterId/chat`
+
+软删除当前角色的云端文字对话；可带 `conversationId` 只删除一个会话。
+
+所有记忆接口必须携带 Bearer access token；服务端只使用会话里的 `user.id`，不接受客户端传入的 owner id。字符角色数据按 `user_id + character_id` 隔离。
 
 ## 进度与皮肤
 

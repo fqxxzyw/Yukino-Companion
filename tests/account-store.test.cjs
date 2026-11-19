@@ -246,7 +246,7 @@ test('signed entitlement snapshots are verified, tampering is rejected, and clou
     assert.equal((await store.verifyEntitlement(envelope, '22222222-2222-4222-8222-222222222222')).ok, false);
     await store.login({email: 'a@example.com', password: 'correct horse battery staple'});
     await store.applyProgress(progressData({entitlement: envelope}));
-    assert.deepEqual(store.snapshot().cloudSkins, ['yukino-02-v1', 'yukino-07-v1']);
+    assert.deepEqual([...store.snapshot().cloudSkins].sort(), ['beret-v2', 'summer-uniform-v2', 'winter-uniform-v2']);
     assert.equal(store.snapshot().entitlementUnverified, false);
     void privateJwk;
   } finally { await cleanup(); }
@@ -286,6 +286,49 @@ test('corrupt account metadata is moved aside, never deleted, and the app still 
     const files = await fs.readdir(path.join(dir, 'account'));
     assert.ok(files.some((file) => /account\.json\.corrupt-/.test(file)));
   } finally { await store.dispose(); await fs.rm(dir, {recursive: true, force: true}); }
+});
+
+test('cloud memory methods use authenticated routes and reject unsafe character ids before any request', async () => {
+  const client = fakeClient();
+  const {store, cleanup} = await tempStore({client});
+  try {
+    await store.login({email: 'a@example.com', password: 'correct horse battery staple'});
+    const calls = [];
+    client.request = async (route, options = {}) => {
+      calls.push({route, method: options.method || 'GET', body: options.body, token: options.token});
+      if (route === '/api/v1/memory/yukino' && options.method === 'PUT') return {memory: {id: 'yukino', text: options.body.text, version: 3}};
+      if (route.startsWith('/api/v1/memory/yukino/chat') && options.method === 'POST') return {accepted: options.body.messages.length};
+      return {ok: true};
+    };
+    await store.memorySettings();
+    await store.setMemorySettings({syncMemory: true, syncChat: false});
+    await store.cloudMemories();
+    await store.cloudMemory('yukino');
+    await store.saveCloudMemory({characterId: 'yukino', text: 'remember this', baseVersion: 2});
+    await store.deleteCloudMemory('yukino');
+    await store.cloudChat({characterId: 'yukino', conversationId: 'chat-1', before: 99});
+    await store.pushCloudChat({characterId: 'yukino', conversationId: 'chat-1', messages: [{id: 'm1', role: 'user', text: 'hi', createdAt: 1}]});
+    await store.deleteCloudChat({characterId: 'yukino', conversationId: 'chat-1'});
+    assert.deepEqual(calls.map((call) => `${call.method} ${call.route}`), [
+      'GET /api/v1/memory/settings',
+      'PUT /api/v1/memory/settings',
+      'GET /api/v1/memory?limit=50',
+      'GET /api/v1/memory/yukino',
+      'PUT /api/v1/memory/yukino',
+      'DELETE /api/v1/memory/yukino',
+      'GET /api/v1/memory/yukino/chat?limit=30&conversationId=chat-1&before=99',
+      'POST /api/v1/memory/yukino/chat',
+      'DELETE /api/v1/memory/yukino/chat',
+    ]);
+    assert.deepEqual(calls[1].body, {syncMemory: true, syncChat: false});
+    assert.deepEqual(calls[4].body, {text: 'remember this', baseVersion: 2});
+    assert.equal(calls[7].body.conversationId, 'chat-1');
+    assert.ok(calls.every((call) => call.token), 'every memory call must carry the access token');
+    const before = calls.length;
+    await assert.rejects(() => store.saveCloudMemory({characterId: '../escape', text: 'x'}), (error) => error.code === 'invalid_character');
+    await assert.rejects(() => store.cloudMemory('bad id'), (error) => error.code === 'invalid_character');
+    assert.equal(calls.length, before, 'invalid ids must be rejected locally without calling the server');
+  } finally { await cleanup(); }
 });
 
 test('an explicit local apiBase survives initialization when no config file exists', async () => {

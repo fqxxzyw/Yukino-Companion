@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createTestApp, cookieHeader} from './helpers.mjs';
 
 const EMAIL = 'yukino@example.com';
-const PASSWORD = 'correct horse battery staple 123';
+const PASSWORD = 'Correct-Horse-Battery-123!';
 
 test('registration sends a bound code, consumes it once and auto-creates a session', async () => {
   const app = await createTestApp();
@@ -14,13 +14,13 @@ test('registration sends a bound code, consumes it once and auto-creates a sessi
   assert.match(code, /^\d{6}$/);
 
   const wrong = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code: code === '000000' ? '111111' : '000000', challengeId: requested.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: code === '000000' ? '111111' : '000000', challengeId: requested.data.challengeId, client: 'desktop'},
   });
   assert.equal(wrong.status, 400);
   assert.equal(wrong.data.error.code, 'invalid_code');
 
   const created = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
   });
   assert.equal(created.status, 201);
   assert.equal(created.data.autoLogin, true);
@@ -34,7 +34,7 @@ test('registration sends a bound code, consumes it once and auto-creates a sessi
 
   // The consumed challenge cannot be replayed.
   const replay = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
   });
   assert.ok([400, 409].includes(replay.status));
 });
@@ -47,7 +47,7 @@ test('duplicate registration and concurrent registration cannot create two accou
   assert.equal(secondRequest.status, 200);
   const secondCode = app.lastCode();
   const duplicate = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: 'another long password 456', code: secondCode, challengeId: secondRequest.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Another-Long-Password-456!', code: secondCode, challengeId: secondRequest.data.challengeId, client: 'desktop'},
   });
   assert.ok([400, 409].includes(duplicate.status));
   const count = await app.db.prepare('SELECT COUNT(*) AS total FROM users').first();
@@ -60,7 +60,7 @@ test('duplicate registration and concurrent registration cannot create two accou
     return {requested, code};
   }));
   const results = await Promise.all(requests.map(({requested, code}) => parallelApp.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: 'race@example.com', password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: 'race@example.com', nickname: '并发测试', password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'desktop'},
   })));
   assert.equal(results.filter((result) => result.status === 201).length, 1);
   assert.ok(results.filter((result) => result.status !== 201).every((result) => [400, 409].includes(result.status)));
@@ -71,11 +71,11 @@ test('login is generic for wrong email/password and succeeds with correct creden
   const app = await createTestApp();
   await app.register(EMAIL, PASSWORD);
   const missing = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: 'nobody@example.com', password: PASSWORD}});
-  const wrong = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'wrong password long enough'}});
+  const wrong = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'wrong password long enough'}});
   assert.equal(missing.status, 401);
   assert.equal(wrong.status, 401);
   assert.equal(missing.data.error.message, wrong.data.error.message);
-  const ok = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: PASSWORD, client: 'desktop'}});
+  const ok = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, client: 'desktop'}});
   assert.equal(ok.status, 200);
   assert.ok(ok.data.refreshToken);
 });
@@ -105,7 +105,7 @@ test('web session uses HttpOnly cookie and never returns the refresh token in JS
   const requested = await app.call('/api/v1/auth/register/request-code', {method: 'POST', body: {email: EMAIL, client: 'web'}});
   const code = app.lastCode();
   const created = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'web'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code, challengeId: requested.data.challengeId, client: 'web'},
     headers: {origin: 'http://127.0.0.1:8787'},
   });
   assert.equal(created.status, 201);
@@ -124,12 +124,12 @@ test('web session uses HttpOnly cookie and never returns the refresh token in JS
 test('password change revokes other sessions and immediately invalidates old access tokens', async () => {
   const app = await createTestApp();
   const user = await app.register(EMAIL, PASSWORD);
-  const second = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: PASSWORD, client: 'desktop'}});
+  const second = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, client: 'desktop'}});
   assert.equal(second.status, 200);
 
   const changed = await app.call('/api/v1/auth/password/change', {
     method: 'POST', token: user.accessToken,
-    body: {currentPassword: PASSWORD, newPassword: 'a brand new passphrase 987'},
+    body: {currentPassword: PASSWORD, newPassword: 'A-Brand-New-Passphrase-987!'},
   });
   assert.equal(changed.status, 200);
   assert.ok(changed.data.accessToken);
@@ -141,9 +141,9 @@ test('password change revokes other sessions and immediately invalidates old acc
   assert.equal(secondAccess.status, 401);
   const newAccess = await app.call('/api/v1/me', {token: changed.data.accessToken});
   assert.equal(newAccess.status, 200);
-  const oldLogin = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: PASSWORD}});
+  const oldLogin = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD}});
   assert.equal(oldLogin.status, 401);
-  const newLogin = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'a brand new passphrase 987'}});
+  const newLogin = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'A-Brand-New-Passphrase-987!'}});
   assert.equal(newLogin.status, 200);
   assert.ok(app.mailbox.some((message) => /密码已修改/.test(message.subject)));
 });
@@ -168,10 +168,10 @@ test('a stale login cannot create a refresh session after a password reset', asy
     }
     return statement;
   };
-  const staleLogin = app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: PASSWORD, client: 'desktop'}});
+  const staleLogin = app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, client: 'desktop'}});
   await reached;
   const reset = await app.call('/api/v1/auth/password/reset', {
-    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'reset password winner 123'},
+    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Reset-Password-Winner-123!'},
   });
   assert.equal(reset.status, 200);
   release();
@@ -179,7 +179,7 @@ test('a stale login cannot create a refresh session after a password reset', asy
   app.db.prepare = originalPrepare;
   const active = await app.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE revoked_at IS NULL').first();
   assert.equal(active.n, 0);
-  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'reset password winner 123'}})).status, 200);
+  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Reset-Password-Winner-123!'}})).status, 200);
 });
 
 test('a stale password change cannot overwrite a completed reset or create a session', async () => {
@@ -202,11 +202,11 @@ test('a stale password change cannot overwrite a completed reset or create a ses
     return originalBatch(statements);
   };
   const staleChange = app.call('/api/v1/auth/password/change', {
-    method: 'POST', token: original.accessToken, body: {currentPassword: PASSWORD, newPassword: 'stale password loser 123'},
+    method: 'POST', token: original.accessToken, body: {currentPassword: PASSWORD, newPassword: 'Stale-Password-Loser-123!'},
   });
   await reached;
   const reset = await app.call('/api/v1/auth/password/reset', {
-    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'reset password winner 123'},
+    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Reset-Password-Winner-123!'},
   });
   assert.equal(reset.status, 200);
   release();
@@ -215,8 +215,8 @@ test('a stale password change cannot overwrite a completed reset or create a ses
   const active = await app.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE revoked_at IS NULL').first();
   assert.equal(active.n, 0);
   assert.equal(app.mailbox.filter((message) => /密码已修改/.test(message.subject)).length, 0);
-  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'stale password loser 123'}})).status, 401);
-  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'reset password winner 123'}})).status, 200);
+  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Stale-Password-Loser-123!'}})).status, 401);
+  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Reset-Password-Winner-123!'}})).status, 200);
 });
 
 test('forgot-password uses a separate purpose, one-time reset token and revokes sessions', async () => {
@@ -242,17 +242,17 @@ test('forgot-password uses a separate purpose, one-time reset token and revokes 
   assert.ok(verified.data.resetToken);
 
   const reset = await app.call('/api/v1/auth/password/reset', {
-    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'reset passphrase 456'},
+    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Reset-Passphrase-456!'},
   });
   assert.equal(reset.status, 200);
   assert.equal(reset.data.loginRequired, true);
   const replay = await app.call('/api/v1/auth/password/reset', {
-    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'reset passphrase 789'},
+    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Reset-Passphrase-789!'},
   });
   assert.equal(replay.status, 400);
   const oldAccess = await app.call('/api/v1/me', {token: user.accessToken});
   assert.equal(oldAccess.status, 401);
-  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'reset passphrase 456'}});
+  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Reset-Passphrase-456!'}});
   assert.equal(login.status, 200);
   assert.ok(app.mailbox.some((message) => /密码已重置/.test(message.subject)));
 });
@@ -284,7 +284,7 @@ test('concurrent uses of a reset token change the password only once', async () 
     return batch;
   };
 
-  const passwords = ['first replacement phrase 123', 'second replacement phrase 456'];
+  const passwords = ['First-Replacement-123!', 'Second-Replacement-456!'];
   const results = await Promise.all(passwords.map((newPassword) => app.call('/api/v1/auth/password/reset', {
     method: 'POST', body: {resetToken: verified.data.resetToken, newPassword},
   })));
@@ -296,11 +296,11 @@ test('concurrent uses of a reset token change the password only once', async () 
 
   const winner = passwords[results.findIndex((result) => result.status === 200)];
   const loser = passwords[results.findIndex((result) => result.status === 400)];
-  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: winner, client: 'desktop'}});
+  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: winner, client: 'desktop'}});
   assert.equal(login.status, 200);
-  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: loser}})).status, 401);
+  assert.equal((await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: loser}})).status, 401);
   const replay = await app.call('/api/v1/auth/password/reset', {
-    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'third replacement phrase 789'},
+    method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Third-Replacement-789!'},
   });
   assert.equal(replay.status, 400);
   assert.equal((await app.call('/api/v1/me', {token: login.data.accessToken})).status, 200);
@@ -322,7 +322,7 @@ test('reset request hides whether an account exists and cannot reset an unknown 
   });
   if (verified.status === 200) {
     const reset = await app.call('/api/v1/auth/password/reset', {
-      method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'unused passphrase 123'},
+      method: 'POST', body: {resetToken: verified.data.resetToken, newPassword: 'Unused-Passphrase-123!'},
     });
     assert.equal(reset.status, 400);
   }
@@ -347,7 +347,7 @@ test('remember-me off creates a browser-session cookie and keeps the flag across
   await app.register(EMAIL, PASSWORD);
   const login = await app.call('/api/v1/auth/login', {
     method: 'POST', headers: {origin: 'http://127.0.0.1:8787'},
-    body: {email: EMAIL, password: PASSWORD, remember: false, client: 'web'},
+    body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, remember: false, client: 'web'},
   });
   assert.equal(login.status, 200);
   assert.equal(login.data.persistent, false);

@@ -72,16 +72,17 @@ export async function createTestApp({env: overrides = {}} = {}) {
     }
     return '';
   }
-  async function register(email = 'user@example.com', password = 'correct horse battery staple', {client = 'desktop'} = {}) {
+  let registerCount = 0;
+  async function register(email = 'user@example.com', password = 'Correct-Horse-Battery-123!', {client = 'desktop', nickname = `测试昵称${++registerCount}`} = {}) {
     const requested = await call('/api/v1/auth/register/request-code', {method: 'POST', body: {email, client}});
     if (requested.status !== 200) throw new Error(`request-code ${requested.status} ${JSON.stringify(requested.data)}`);
     const code = lastCode();
     const result = await call('/api/v1/auth/register', {
       method: 'POST',
-      body: {email, password, code, challengeId: requested.data.challengeId, client},
+      body: {email, nickname, password, code, challengeId: requested.data.challengeId, client},
     });
     if (result.status !== 201) throw new Error(`register ${result.status} ${JSON.stringify(result.data)}`);
-    return {email, password, ...result.data, setCookie: result.headers.get('set-cookie') || ''};
+    return {email, nickname, password, ...result.data, setCookie: result.headers.get('set-cookie') || ''};
   }
   return {
     env, db, api, mailbox, call, register, lastCode,

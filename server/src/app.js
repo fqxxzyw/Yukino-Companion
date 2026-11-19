@@ -12,11 +12,13 @@ import {
   resetPassword,
   revokeOwnSession,
   sessions,
+  updateNickname,
   verifyReset,
 } from './auth.js';
 import {createMailer} from './mail.js';
 import {checkIn, getProgress, submitEvents, skins} from './progress.js';
 import {downloadRoute} from './downloads.js';
+import {deleteChat, deleteMemory, getChat, getMemory, getSettings, listMemories, postChat, putMemory, putSettings} from './memory.js';
 import {publicJwkFromEnv} from './entitlement.js';
 import {ApiError, clientIp, errorResponse, fail, json, originOf, readJson} from './util.js';
 
@@ -141,9 +143,33 @@ export function createApi({env, db, fetchImpl = globalThis.fetch, mailer, now = 
       return resetPassword({...context, body: await readJson(request, MAX_BODY)});
     }
     if (path === '/api/v1/me' && method === 'GET') return me(context);
+    if (path === '/api/v1/me' && method === 'PATCH') {
+      return updateNickname({...context, body: await readJson(request, MAX_BODY)});
+    }
     if (path === '/api/v1/sessions' && method === 'GET') return sessions(context);
     const sessionMatch = /^\/api\/v1\/sessions\/([0-9a-f-]{36})$/i.exec(path);
     if (sessionMatch && method === 'DELETE') return revokeOwnSession({...context, sessionId: sessionMatch[1]});
+    if (path === '/api/v1/memory' && method === 'GET') return listMemories({...context, url: new URL(request.url)});
+    if (path === '/api/v1/memory/settings' && method === 'GET') return getSettings(context);
+    if (path === '/api/v1/memory/settings' && method === 'PUT') {
+      return putSettings({...context, body: await readJson(request, MAX_BODY)});
+    }
+    const memoryMatch = /^\/api\/v1\/memory\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+    if (memoryMatch && method === 'GET') return getMemory({...context, character: memoryMatch[1]});
+    if (memoryMatch && method === 'PUT') {
+      return putMemory({...context, character: memoryMatch[1], body: await readJson(request, MAX_BODY)});
+    }
+    if (memoryMatch && method === 'DELETE') {
+      return deleteMemory({...context, character: memoryMatch[1]});
+    }
+    const chatMatch = /^\/api\/v1\/memory\/([A-Za-z0-9_-]{1,64})\/chat$/.exec(path);
+    if (chatMatch && method === 'GET') return getChat({...context, character: chatMatch[1], url: new URL(request.url)});
+    if (chatMatch && method === 'POST') {
+      return postChat({...context, character: chatMatch[1], body: await readJson(request, MAX_BODY)});
+    }
+    if (chatMatch && method === 'DELETE') {
+      return deleteChat({...context, character: chatMatch[1], body: await readJson(request, MAX_BODY).catch(() => ({}))});
+    }
     if (path === '/api/v1/progress' && method === 'GET') return getProgress(context);
     if (path === '/api/v1/progress/check-in' && method === 'POST') return checkIn(context);
     if (path === '/api/v1/progress/events' && method === 'POST') {

@@ -10,7 +10,7 @@ test('a verified cloud skin remains usable offline without changing local progre
   const model02 = {...models.find((item) => item.id === 'yukino-02-v1'), ready: true, hold: false, status: 'ready'};
   const model03 = models.find((item) => item.id === 'yukino-03-v1');
   const state = {
-    relationship: {affection: 35, cloudUnlocked: ['yukino-02-v1']},
+    relationship: {affection: 35, cloudUnlocked: ['beret-v2']},
     usedDates: {version: 1, dates: []},
   };
   assert.equal(getSkinStatus(model02, state).unlocked, true);
@@ -20,5 +20,5 @@ test('a verified cloud skin remains usable offline without changing local progre
   assert.equal(canUseSkin(model03, state), false);
   // A guest or malformed state must not inherit another profile's cloud skins.
   assert.equal(getSkinStatus(model02, {relationship: {affection: 35}, usedDates: {version: 1, dates: []}}).unlocked, false);
-  assert.equal(getSkinStatus(model02, {relationship: {affection: 35, cloudUnlocked: ['yukino-02-v1']}, usedDates: {}}).preview, false);
+  assert.equal(getSkinStatus(model02, {relationship: {affection: 35, cloudUnlocked: ['beret-v2']}, usedDates: {}}).preview, false);
 });

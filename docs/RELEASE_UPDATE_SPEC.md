@@ -49,4 +49,4 @@ The intended flow is:
    state is not available.
 
 This flow is a specification for the remaining updater integration. The
-current 0.4.1 build still uses the existing manual installer download path.
+current 0.4.2 build still uses the existing manual installer download path.

@@ -1,8 +1,11 @@
 // Local progression only. Dates are awarded by explicit use events, never by
 // uptime, installation age, opening the app, or replaying a usage timer.
+// Outfit identity and thresholds come from shared/outfit-rules.json. A signed-in
+// account is governed only by the server-confirmed list, not by local counters.
+import {OUTFIT_RULES,canonicalOutfitIds,outfitCondition,outfitRuleById} from '../../shared/outfit-rules.mjs';
 export const MAX_USED_DATES=3650;
-export const SWIMSUIT_USED_DAYS=7;
-export const AFFINITY_THRESHOLDS=Object.freeze({'02':40,'04':50,'05':60,'06':70});
+export const SWIMSUIT_USED_DAYS=outfitRuleById('swimsuit-v2')?.target||2;
+export const AFFINITY_THRESHOLDS=Object.freeze(Object.fromEntries(OUTFIT_RULES.outfits.filter(outfit=>outfit.kind==='affection').map(outfit=>[outfit.id,outfit.target])));
 export const USE_EVENT_TYPES=Object.freeze(['message','pet-interaction','manual-voice','checkin']);
 const useEvents=new Set(USE_EVENT_TYPES);
 const ISO_DATE=/^\d{4}-\d{2}-\d{2}$/;
@@ -48,38 +51,40 @@ export function recordUsedDate(value,{type,now=Date.now()}={}){
  return {state:next,added:true,reason:'recorded',date,totalDays:next.lifetimeCount};
 }
 export function skinRule(model){
- const id=typeof model==='string'?model:model?.id||'';
- const number=/^yukino-(0[1-7])(?:-|$)/.exec(id)?.[1];
- if(number==='01'||number==='03')return {kind:'used-days',target:SWIMSUIT_USED_DAYS};
- if(Object.hasOwn(AFFINITY_THRESHOLDS,number||''))return {kind:'affinity',target:AFFINITY_THRESHOLDS[number]};
- if(!number&&id.startsWith('yukino-'))return {kind:'unconfigured',target:0};
- return {kind:'base',target:0}; // School variants and explicitly imported models.
+ const id=typeof model==='string'?model:model?.id||'',configured=outfitRuleById(id);
+ if(configured)return {kind:configured.kind,target:configured.target,outfitId:configured.id,label:configured.label};
+ if(id.startsWith('yukino-'))return {kind:'unconfigured',target:0};
+ return {kind:'base',target:0}; // Explicitly imported local models stay independent.
 }
 export function getSkinStatus(model,{relationship,usedDates}={}){
- const rule=skinRule(model),raw=relationship?.affection;
- const affection=Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):35;
- const totalDays=normalizeUsedDates(usedDates).lifetimeCount;
- const current=rule.kind==='affinity'?affection:rule.kind==='used-days'?totalDays:0;
+ const rule=skinRule(model),cloudAuthoritative=relationship?.cloudAuthoritative===true;
+ const raw=cloudAuthoritative?relationship?.cloudAffection:relationship?.affection;
+ const affection=Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):(cloudAuthoritative?0:35);
+ const totalDays=cloudAuthoritative
+  ?(Number.isFinite(relationship?.cloudLoginDays)?Math.max(0,Math.floor(relationship.cloudLoginDays)):0)
+  :normalizeUsedDates(usedDates).lifetimeCount;
+ const current=rule.kind==='affection'?affection:rule.kind==='login-days'?totalDays:0;
  const preview=relationship?.skinPreviewEnabled===true;
- const cloudUnlocked=Array.isArray(relationship?.cloudUnlocked)&&relationship.cloudUnlocked.includes(model?.id);
- const eligible=cloudUnlocked||preview||rule.kind==='base'||(rule.kind!=='unconfigured'&&current>=rule.target);
+ const owned=new Set(canonicalOutfitIds(relationship?.cloudUnlocked));
+ const cloudUnlocked=owned.has(model?.id)||Boolean(rule.outfitId&&owned.has(rule.outfitId));
+ // A signed-in account never falls back to local counters. The cached,
+// server-confirmed list is the only source of earned outfit rights offline.
+ const eligible=cloudUnlocked||preview||rule.kind==='base'||(!cloudAuthoritative&&rule.kind!=='unconfigured'&&current>=rule.target);
  const hold=model?.hold===true||/hold/i.test(String(model?.status||''));
  const available=model?.ready===true&&!hold;
- const requirement=rule.kind==='affinity'?`好感 ${Math.floor(affection)} / ${rule.target}`:rule.kind==='used-days'?`已使用 ${Math.min(totalDays,rule.target)} / ${rule.target} 个不同日期`:rule.kind==='unconfigured'?'解锁条件尚未配置':'默认可用';
- const reason=hold?'模型仍待确认，暂不可选':!available?'模型资源尚未准备好':cloudUnlocked?'账号已确认':preview&&rule.kind!=='base'?'本地预览':eligible?(rule.kind==='base'?'默认可用':'已解锁'):requirement;
- return {id:model?.id||'',rule,affection,totalDays,current,target:rule.target,eligible,available,hold,preview,cloudUnlocked,unlocked:eligible&&available,progress:rule.kind==='base'?1:rule.kind==='unconfigured'?0:Math.min(1,Math.max(0,current/rule.target)),requirement,reason};
+ const requirement=outfitCondition(rule,{current,account:cloudAuthoritative});
+ const reason=hold?'模型仍待确认，暂不可选':!available?'模型资源尚未准备好':cloudUnlocked?'账号已确认':preview&&rule.kind!=='base'?'本地预览':eligible?(rule.kind==='base'?'默认开放':'已解锁'):requirement;
+ return {id:model?.id||'',rule,affection,totalDays,current,target:rule.target,eligible,available,hold,preview,cloudUnlocked,cloudAuthoritative,unlocked:eligible&&available,progress:rule.kind==='base'?1:rule.kind==='unconfigured'?0:Math.min(1,Math.max(0,current/rule.target)),requirement,reason};
 }
 // Deterministic user-command routing only. Model/assistant text cannot grant an
 // unlock or issue an automatic skin command, and all seven base outfits must pass.
 export function conversationSkin(text,models,progress,{role='user',enabled=true}={}){
  if(!enabled||role!=='user'||typeof text!=='string'||!/(?:换上|换成|切换到|切换成|穿上)/.test(text))return null;
- const local=models.filter(item=>item.runtimeCandidate);
- const retired=local.length>0&&!models.some(item=>/^yukino-0[1-7]-v1$/.test(item.id)&&!item.runtimeCandidate);
- const base=retired?local:Array.from({length:7},(_,i)=>models.find(item=>item.id===`yukino-${String(i+1).padStart(2,'0')}-v1`));
+ const defaults=OUTFIT_RULES.outfits.filter(outfit=>outfit.kind==='base'),base=defaults.map(rule=>models.find(item=>item.id===rule.id));
  if(base.some(item=>!item||!getSkinStatus(item,progress).unlocked))return null;
  const requested=[...models].filter(item=>!item.retired&&item.label&&text.includes(item.label)).sort((a,b)=>b.label.length-a.label.length)[0];
  if(requested&&getSkinStatus(requested,progress).unlocked)return requested.id;
- if(/(?:换上|换成|切换到|切换成|穿上)\s*(?:原版)?校服/.test(text))return models.find(item=>item.id==='summer-uniform-v2'&&item.ready)?.id||(retired?local.find(item=>item.runtimeCandidate==='summer-uniform')?.id||null:'yukino-07-v1');
+ if(/(?:换上|换成|切换到|切换成|穿上)\s*(?:原版)?校服/.test(text))return models.find(item=>item.id==='summer-uniform-v2'&&item.ready)?.id||null;
  return null;
 }
 // Preserve explicit legacy per-day records without inventing dates from total

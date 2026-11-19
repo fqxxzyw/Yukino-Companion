@@ -1,4 +1,6 @@
-const SKIN_NAMES = {
+import {outfitRuleById} from '../../shared/outfit-rules.mjs';
+
+const LEGACY_NAMES = {
   'yukino-01-v1': '白色两件泳装',
   'yukino-02-v1': '蓝色开衫贝雷帽',
   'yukino-03-v1': '白色连体泳装 · 蓝蝴蝶结',
@@ -9,12 +11,12 @@ const SKIN_NAMES = {
 };
 
 export function skinName(id) {
-  return SKIN_NAMES[id] || String(id || '').replace(/-v1$/, '');
+  return outfitRuleById(id)?.label || LEGACY_NAMES[id] || String(id || '').replace(/-v1$/, '');
 }
 
 export function accountModeLabel(account) {
   if (!account || account.mode === 'guest') return '游客模式';
-  return account.profile?.email || '已登录账号';
+  return account.profile?.nickname || account.profile?.email || '已登录账号';
 }
 
 export function accountStatus(account) {

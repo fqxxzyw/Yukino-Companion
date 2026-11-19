@@ -10,7 +10,11 @@ import {createApi} from '../src/app.js';
 
 const serverRoot = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = path.dirname(serverRoot);
-const websiteRoot = path.join(repoRoot, 'website');
+// Optional override keeps the local API server usable with the merged website
+// layout (website/public) without copying production files into the repo.
+const websiteRoot = process.env.YUKINO_SITE_ROOT
+  ? path.resolve(process.env.YUKINO_SITE_ROOT)
+  : path.join(repoRoot, 'website');
 const dataDir = path.join(serverRoot, '.data');
 const mailboxDir = path.join(serverRoot, '.local-mailbox');
 const messages = [];

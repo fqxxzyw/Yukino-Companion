@@ -1,4 +1,4 @@
-# 本地测试结果（2026-11-18）
+# 本地测试结果（2026-11-19）
 
 环境：Windows 11，Node 24.18，Electron 45，Vite 8；本地 API 使用 Node `node:sqlite`，未连接生产 D1、未发送真实邮件。
 
@@ -6,17 +6,29 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `npm run api:test` | 41 passed / 0 failed |
-| `npm run test:account` | 15 passed / 0 failed |
-| `npm run qa:account` | PASS：登录门、跳过、离线错误、自动登录、账号中心、会话列表 |
+| `npm run api:test` | 48 passed / 0 failed（含密码规则、昵称唯一、云端记忆/聊天、额度边界幂等） |
+| `npm run test:account` | 16 passed / 0 failed（新增云端记忆路由与角色 ID 校验） |
+| `npm run qa:account` | PASS：登录门、跳过、离线错误、自动登录、账号中心、会话列表、云端记忆面板（开关、恢复、上传、查看云端对话） |
 | `npm run qa:site` | PASS：真实下载链接、注册+自动登录、重置密码、登录、深链接、移动端导航 |
+| `npx wrangler deploy --dry-run` | PASS：读取 542 个静态文件，Total Upload 114.94 KiB / gzip 27.41 KiB；绑定 D1 `yukino-account`、ASSETS、环境变量；未上传密钥 |
+| 生产 D1 备份 + 迁移彩排 | PASS：导出生产库（2 users / 5 sessions / 2 progress）到 `.local-dev/db-backups/`；在副本上执行 0003/0004 后行数不变，昵称列/索引和 3 张云端记忆表存在。**未对生产库执行 apply** |
 | 官网视觉与交互回归 | PASS：恢复原首页壁纸；形象/服装区在场景之前；场景改为白色版面，5 个主场景从早晨→正午→傍晚一次过渡后停住；全部 10 个场景缩略图可切换；教室场景为 360° 旋转 WebP；衣橱点击联动、360° 人物旋转、原始/赛璐璐切换、关闭窗口后人物留在原位均可用 |
 | `npx vite build` | 成功（仅有既有的大 chunk 警告） |
 | 桌面 AccountStore 连接本地 API 的手工端到端 | 注册、事件同步、ECDSA 快照验签、游客/账号切换、在线退出均成功 |
 | `npm start` Electron 冒烟 | 主进程启动，`account.json` 初始化到开发 userData；无账号初始化异常。应用更新检查因本机网络超时，属于非账号路径 |
 
-关键截图（均为本地 2026-11-18 重新生成）：
+本轮账号与云端记忆相关验证：
 
+- 密码规则前后端一致：最少 6 位，必须同时包含大写、小写、数字和符号；旧密码哈希仍可登录，登录成功后不会降级已有更强哈希。
+- 注册必须填写昵称；NFKC、大小写和首尾/连续空格折叠后唯一；重复返回 `409 nickname_unavailable`，页面提示“昵称不可用，请换一个。”；老账号可在账号中心补填昵称。
+- 官网账号中心已重做为头像/昵称/邮箱/状态、进度、皮肤、安全、昵称编辑、设备和退出分区；桌面端账号中心同步显示昵称；1440 与 390 宽度均无横向溢出。
+- 云端长期记忆为默认关闭的账号功能：只同步文字，版本冲突返回 `409 memory_conflict` 并带云端版本，聊天按 `(user_id,id)` 幂等；服务端测试覆盖未开启拒绝、版本冲突、账号隔离、软删除、聊天幂等和上限。
+- 桌面端新增“云端长期记忆”面板（开关、上传/恢复/查看/删除当前角色记忆、最近纯文字对话），已通过 `qa:account` 在真实 React 页面中使用确定性桌面桥完成开关、恢复、上传和查看云端对话；另通过 Vite 构建和 AccountStore 路由测试。**尚未使用真实 Electron IPC 连接生产 API 完成双设备端到端同步**。
+
+关键截图（账号中心为 2026-11-19 重新生成）：
+
+- 新版账号中心：`build/account-review/account-center-new-1440.png`、`account-center-new-390.png`、`site-account-1440.png`
+- 桌面账号中心与响应式：`build/account-review/desktop-account-center.png`、`desktop-account-820.png`、`desktop-account-390.png`、`desktop-account-outfits.png`、`desktop-account-security.png`
 - 首页原壁纸：`build/account-review/final2-hero.png`、`final2-mobile-hero2.png`
 - 形象与衣橱（已移到场景之前）：`final2-characters.png`
 - 场景早晨 / 正午 / 傍晚：`final2-scene-start.png`、`final2-scene-noon.png`、`final2-scene-evening.png`
@@ -52,8 +64,10 @@ node --test --test-force-exit tests/*.test.cjs
 
 ## 未验证
 
-- 官网仍使用仓库内的程序化场景截图与真实界面截图；没有执行生产部署、GitHub push 或 Release 发布。
-
+- 本轮只完成了部署 dry-run；**尚未把密码/昵称/云端记忆改动部署到线上 Worker `yukino-api`**，也**未执行生产 D1 迁移 0003/0004**。线上仍是上一版后端和官网。
+- 云端记忆面板只在浏览器中使用确定性桌面桥验证，未通过真实 Electron IPC 连接生产 API；两台设备之间的实际上传/恢复、生产 D1 写入和网络中断后的重试未验证。
+- 生产 D1 的 0003 昵称列/唯一索引和 0004 云端记忆表尚未执行，因此线上注册昵称、昵称编辑和云端记忆接口尚不可用。
+- 官网仍使用仓库内的程序化场景截图与真实界面截图；没有执行 GitHub push 或 Release 发布。
 - 真实 Gmail 收件箱送达、OAuth Testing 7 天过期、退信/垃圾邮件归类。
 - Cloudflare 生产 Worker、生产 D1 迁移、Static Assets 真实路由、Workers CPU/内存限额。
 - Windows 正式安装包运行、Electron `safeStorage` 在安装版可用/不可用两条路径。

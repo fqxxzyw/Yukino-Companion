@@ -5,8 +5,8 @@ import {chromium} from 'playwright-core';
 
 const BASE = process.env.YUKINO_LOCAL_SITE || 'http://127.0.0.1:8787';
 const email = `site-${Date.now()}@example.com`;
-const password = 'correct horse battery staple 123';
-const nextPassword = 'a new website passphrase 456';
+const password = 'Site-Test-Password-123!';
+const nextPassword = 'New-Site-Passphrase-456!';
 
 async function mailbox() {
   const response = await fetch(`${BASE}/dev/mailbox.json`);
@@ -39,6 +39,7 @@ try {
   // Register through the real website; code comes from the loopback mailbox.
   await page.goto(`${BASE}/register`, {waitUntil: 'domcontentloaded'});
   await page.fill('#register-email', email);
+  await page.fill('#register-nickname', `站点测试${Date.now()}`);
   await page.click('#register-send-code');
   await page.locator('.form-notice').waitFor({state: 'visible'});
   const registerCode = await codeFor(email, '注册验证码');

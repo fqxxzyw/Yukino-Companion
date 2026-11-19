@@ -7,8 +7,12 @@
 // downgrades a stronger hash. A runtime rejecting a stored hash's iteration
 // count cannot verify it; such accounts need a trusted migration or reset.
 import {base64url, fromBase64url, randomBytes, timingSafeEqual} from './util.js';
+import {PASSWORD_LIMITS, passwordPolicyError} from '../../shared/password-policy.mjs';
 
-export const PASSWORD_LIMITS = Object.freeze({min: 15, max: 128});
+// The composition rule and its visible message are shared with the desktop UI.
+// The upper bound is a technical guard against abusive bodies, not a password
+// composition rule. Existing accounts are still verified against their hash.
+export {PASSWORD_LIMITS, passwordPolicyError};
 export const CURRENT_PARAMS = Object.freeze({
   algorithm: 'pbkdf2-sha256',
   version: 1,
@@ -61,13 +65,4 @@ let dummyHash;
 export async function burnPasswordCheck(password) {
   if (!dummyHash) dummyHash = await hashPassword('yukino-dummy-password-never-valid');
   await verifyPassword(typeof password === 'string' ? password : 'invalid', dummyHash);
-}
-
-export function passwordPolicyError(password) {
-  if (typeof password !== 'string') return '密码格式不正确。';
-  const length = Array.from(password).length;
-  if (length < PASSWORD_LIMITS.min) return `密码至少需要 ${PASSWORD_LIMITS.min} 个字符。`;
-  if (length > PASSWORD_LIMITS.max) return `密码最多 ${PASSWORD_LIMITS.max} 个字符。`;
-  if (!password.trim()) return '密码不能只包含空格。';
-  return '';
 }

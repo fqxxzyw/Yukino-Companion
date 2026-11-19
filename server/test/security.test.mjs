@@ -4,27 +4,31 @@ import {createTestApp} from './helpers.mjs';
 import {CURRENT_PARAMS, hashPassword, verifyPassword} from '../src/password.js';
 
 const EMAIL = 'secure@example.com';
-const PASSWORD = 'correct horse battery staple 123';
+const PASSWORD = 'Correct-Horse-Battery-123!';
 
-test('password policy accepts 15–128 Unicode/spaces and rejects weak lengths', async () => {
+test('password policy requires six characters and all four character classes', async () => {
   const app = await createTestApp();
   const requested = await app.call('/api/v1/auth/register/request-code', {method: 'POST', body: {email: EMAIL}});
-  const code = app.lastCode();
-  const weak = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: 'too short', code, challengeId: requested.data.challengeId, client: 'desktop'},
-  });
-  assert.equal(weak.status, 400);
-  assert.equal(weak.data.error.code, 'invalid_password');
-  const unicode = '雪之下雪乃 与 你 的 十五个字符密码';
-  assert.equal(Array.from(unicode).length >= 15, true);
-  const created = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: unicode, code, challengeId: requested.data.challengeId, client: 'desktop'},
-  });
+  const challengeId = requested.data.challengeId;
+  const base = {email: EMAIL, nickname: '安全测试昵称', code: app.lastCode(), challengeId, client: 'desktop'};
+  for (const password of ['Ab1!', 'abc123!', 'ABC123!', 'Abcdef!', 'Abc1234']) {
+    const weak = await app.call('/api/v1/auth/register', {method: 'POST', body: {...base, password}});
+    assert.equal(weak.status, 400);
+    assert.equal(weak.data.error.code, 'invalid_password');
+  }
+  const created = await app.call('/api/v1/auth/register', {method: 'POST', body: {...base, password: 'Abc123!'}});
   assert.equal(created.status, 201);
-  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: unicode}});
+  assert.equal(created.data.user.nickname, '安全测试昵称');
+  const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'Abc123!'}});
   assert.equal(login.status, 200);
-  const tooLong = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: 'x'.repeat(129)}});
-  assert.equal(tooLong.status, 401);
+  const tooLong = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'x'.repeat(513)}});
+  assert.equal(tooLong.status, 400);
+  // Existing accounts are verified against their stored hash; login never
+  // applies the new composition rule to an old password.
+  const legacyHash = await hashPassword('legacy old password');
+  await app.db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').bind(legacyHash, EMAIL).run();
+  const legacyLogin = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'legacy old password'}});
+  assert.equal(legacyLogin.status, 200);
 });
 
 test('PBKDF2 encoded values carry algorithm/parameters and reject tampering', async () => {
@@ -44,14 +48,14 @@ test('a stronger existing password hash verifies without being downgraded on log
   const app = await createTestApp();
   const requested = await app.call('/api/v1/auth/register/request-code', {method: 'POST', body: {email: EMAIL}});
   const created = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code: app.lastCode(), challengeId: requested.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: app.lastCode(), challengeId: requested.data.challengeId, client: 'desktop'},
   });
   assert.equal(created.status, 201);
   for (const iterations of [100000, 600000]) {
     const legacyHash = await hashPassword(PASSWORD, {iterations});
     await app.db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').bind(legacyHash, EMAIL).run();
     assert.deepEqual(await verifyPassword(PASSWORD, legacyHash), {ok: true, needsRehash: false});
-    const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, password: PASSWORD}});
+    const login = await app.call('/api/v1/auth/login', {method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD}});
     assert.equal(login.status, 200);
     const user = await app.db.prepare('SELECT password_hash FROM users WHERE email = ?').bind(EMAIL).first();
     assert.equal(user.password_hash, legacyHash);
@@ -73,18 +77,18 @@ test('verification code resend, expiry, attempt limits and purpose isolation', a
   const secondCode = app.lastCode();
   assert.notEqual(firstCode, secondCode);
   const oldCode = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code: firstCode, challengeId: first.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: firstCode, challengeId: first.data.challengeId, client: 'desktop'},
   });
   assert.equal(oldCode.status, 400, 'resend invalidates the older challenge');
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const wrong = await app.call('/api/v1/auth/register', {
-      method: 'POST', body: {email: EMAIL, password: PASSWORD, code: '000000', challengeId: second.data.challengeId, client: 'desktop'},
+      method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: '000000', challengeId: second.data.challengeId, client: 'desktop'},
     });
     assert.equal(wrong.status, 400);
   }
   const locked = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code: secondCode, challengeId: second.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: secondCode, challengeId: second.data.challengeId, client: 'desktop'},
   });
   assert.equal(locked.status, 429);
 
@@ -92,7 +96,7 @@ test('verification code resend, expiry, attempt limits and purpose isolation', a
   const third = await app.call('/api/v1/auth/register/request-code', {method: 'POST', body: {email: EMAIL}});
   app.advance(11 * 60 * 1000);
   const expired = await app.call('/api/v1/auth/register', {
-    method: 'POST', body: {email: EMAIL, password: PASSWORD, code: app.lastCode(), challengeId: third.data.challengeId, client: 'desktop'},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: PASSWORD, code: app.lastCode(), challengeId: third.data.challengeId, client: 'desktop'},
   });
   assert.equal(expired.status, 400);
   assert.equal(expired.data.error.code, 'challenge_expired');
@@ -142,7 +146,7 @@ test('auth responses are no-store and carry anti-framing/nosniff headers', async
 test('large request bodies are rejected before JSON parsing', async () => {
   const app = await createTestApp();
   const response = await app.call('/api/v1/auth/login', {
-    method: 'POST', body: {email: EMAIL, password: 'x'.repeat(100000)},
+    method: 'POST', body: {email: EMAIL, nickname: '雪乃测试', password: 'x'.repeat(100000)},
   });
   assert.equal(response.status, 413);
 });

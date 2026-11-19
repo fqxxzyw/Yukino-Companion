@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
@@ -84,6 +84,7 @@
       "dist/**/*",
       "electron/**/*",
       "shared/entitlement-public-key.json",
+      "shared/outfit-rules.json",
       "motion-studio/scripts/desktop-preload.cjs",
       "src/speech/segmenter.mjs",
       "package.json",

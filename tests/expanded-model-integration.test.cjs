@@ -325,7 +325,7 @@ test('real model selection function persists current progress before publishing 
  const {getSkinStatus}=await import('../src/companion/skin-unlocks.mjs'),{rememberCharacterModel}=await import('../src/companion/characters.mjs'),{canUseSkin}=require('../electron/skin-policy.cjs');
  const source=await fs.readFile(path.join(root,'src/main.jsx'),'utf8'),start=source.indexOf('async function updateModel('),end=source.indexOf('\nasync function addCharacter(',start);
  assert.ok(start>=0&&end>start);const functionSource=source.slice(start,end);
- let state={activeCharacter:'a',characters:[{id:'a',modelId:'yukino-07-v1'}],relationship:{affection:40},conversations:[]},persisted={...state,relationship:{affection:35}},resolveSave,errors=[];
+ let state={activeCharacter:'a',characters:[{id:'a',modelId:'yukino-07-v1'}],relationship:{affection:50},conversations:[]},persisted={...state,relationship:{affection:50}},resolveSave,errors=[];
  const entry={id:'yukino-02-v1',ready:true},sref={current:state},epoch={current:0},events=[];
  const api={save:next=>{events.push('save-start');return new Promise(resolve=>{resolveSave=()=>{persisted=structuredClone(next);events.push('save-complete');resolve()}})}};
  const setS=update=>{state=typeof update==='function'?update(state):update;sref.current=state;events.push('publish');assert.equal(canUseSkin(entry,persisted),true,'model data gate sees persisted unlocked progress before selection')};

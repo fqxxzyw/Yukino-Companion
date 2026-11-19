@@ -63,26 +63,28 @@
 - 客户端只提交 `{eventId, type}`；**不能**提交加分数值、用户 ID、登录天数或皮肤 ID。
 - `progress_events(user_id, event_id)` 唯一；重复事件返回 `duplicate`，不会重复加分。
 - `reward_ledger(user_id, event_id, event_type)` 唯一；D1 batch 内完成“插入流水 → 条件更新进度 → 标记 applied”，避免“先查再加”的竞态。
-- 事件类型、每日上限、最终数值都由服务器决定，规则版本写入流水和皮肤记录。
+- 事件类型、每日上限、最终数值都由服务器决定，规则版本写入流水和服装记录。
 
-## 6. 皮肤
+## 6. 服装
 
-云端皮肤规则：
+云端服装规则（唯一配置：`shared/outfit-rules.json`）：
 
-| 皮肤 | 条件 |
+| 服装 | 条件 |
 | --- | --- |
-| `yukino-01-v1` | 云端累计登录 7 天 |
-| `yukino-02-v1` | 好感度 40 |
-| `yukino-03-v1` | 云端累计登录 7 天 |
-| `yukino-04-v1` | 好感度 50 |
-| `yukino-05-v1` | 好感度 60 |
-| `yukino-06-v1` | 好感度 70 |
-| `yukino-07-v1` | 默认可用 |
+| `summer-uniform-v2` | 默认开放 |
+| `winter-uniform-v2` | 默认开放 |
+| `swimsuit-v2` | 云端累计登录 2 天 |
+| `twin-tail-v2` | 云端累计登录 3 天 |
+| `beret-v2` | 好感度 45 |
+| `kimono-v2` | 好感度 55 |
+| `qipao-v2` | 好感度 65 |
+| `ivory-coat-v2` | 好感度 75 |
+| `ice-hooded-winter-v2` | 好感度 85 |
 
 - `skin_unlocks` 以 `(user_id, skin_id)` 为主键，永久保留；不会因为短期 token 过期或断网删除。
 - 服务端在进度响应中附带 ECDSA P-256 签名快照：`{v, uid, affection, loginDays, skinIds, rulesVersion, issuedAt}`。
-- 桌面端只保存公钥（`shared/entitlement-public-key.json`）；本地开发从 loopback 端点读取临时公钥。签名不匹配、keyId 不匹配或用户不匹配时忽略快照，保留上一次已验证的皮肤列表。
-- 本地已有的好评度/使用日期规则继续用于游客档案；账号档案的云端皮肤通过 `relationship.cloudUnlocked` 合并到服装选择，主进程 `canUseSkin` 同样检查此列表。
+- 桌面端只保存公钥（`shared/entitlement-public-key.json`）；本地开发从 loopback 端点读取临时公钥。签名不匹配、keyId 不匹配或用户不匹配时忽略快照，保留上一次已验证的服装列表。
+- 本地已有的好评度/使用日期规则继续用于游客档案；账号档案的云端服装通过 `relationship.cloudUnlocked` 合并到服装选择，主进程 `canUseSkin` 同样检查此列表。
 - “无限期离线可用”和“离线设备即时撤销”不能同时保证：服务端撤销立即作用于云端权限，离线副本只能在恢复联网后得知。客户端签名校验不是 DRM，不承诺绝对防破解。
 
 ## 7. 待同步队列
@@ -91,7 +93,7 @@
 - 每账号独立文件，最大 40 条；同一类型在同一上海自然日只生成一个事件（避免消息刷屏）。
 - 启动/心跳/手动同步时按 10 条一批提交；服务端返回 `accepted/duplicate/capped/rejected` 后，客户端才从队列移除。
 - 网络失败保留队列；结果不会无限重试（已结算事件立即移除）。
-- 离线分数不解锁新的云端永久皮肤；已确认皮肤继续可用。
+- 离线分数不解锁新的云端永久服装；已确认服装继续可用。
 - 账号切换后只会读取当前账号的队列，A 的待提交事件不会上传给 B。
 
 ## 8. 退出与切换

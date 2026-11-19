@@ -1,0 +1,90 @@
+{
+  "version": "2026-11-19.1",
+  "outfits": [
+    {
+      "id": "summer-uniform-v2",
+      "label": "夏日制服",
+      "kind": "base",
+      "target": 0,
+      "order": 10
+    },
+    {
+      "id": "winter-uniform-v2",
+      "label": "冬季制服",
+      "kind": "base",
+      "target": 0,
+      "order": 20
+    },
+    {
+      "id": "swimsuit-v2",
+      "label": "泳装",
+      "kind": "login-days",
+      "target": 2,
+      "order": 30
+    },
+    {
+      "id": "twin-tail-v2",
+      "label": "双马尾",
+      "kind": "login-days",
+      "target": 3,
+      "order": 40
+    },
+    {
+      "id": "beret-v2",
+      "label": "贝雷帽",
+      "kind": "affection",
+      "target": 45,
+      "order": 50
+    },
+    {
+      "id": "kimono-v2",
+      "label": "和服",
+      "kind": "affection",
+      "target": 55,
+      "order": 60
+    },
+    {
+      "id": "qipao-v2",
+      "label": "黑色旗袍",
+      "kind": "affection",
+      "target": 65,
+      "order": 70
+    },
+    {
+      "id": "ivory-coat-v2",
+      "label": "象牙大衣",
+      "kind": "affection",
+      "target": 75,
+      "order": 80
+    },
+    {
+      "id": "ice-hooded-winter-v2",
+      "label": "冰蓝连帽冬装",
+      "kind": "affection",
+      "target": 85,
+      "order": 90
+    }
+  ],
+  "legacyAliases": {
+    "yukino-01-v1": [
+      "swimsuit-v2"
+    ],
+    "yukino-02-v1": [
+      "beret-v2"
+    ],
+    "yukino-03-v1": [
+      "swimsuit-v2"
+    ],
+    "yukino-04-v1": [
+      "kimono-v2"
+    ],
+    "yukino-05-v1": [
+      "qipao-v2"
+    ],
+    "yukino-06-v1": [],
+    "yukino-07-v1": [
+      "summer-uniform-v2",
+      "winter-uniform-v2"
+    ]
+  }
+}

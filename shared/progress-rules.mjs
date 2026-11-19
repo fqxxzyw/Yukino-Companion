@@ -1,8 +1,11 @@
 // Server-authoritative progression rules. Both the Worker and the desktop
 // account client read this module; the desktop never sends reward amounts.
-// Keep this list in sync with src/companion/skin-unlocks.mjs (local guest rules).
+// Outfit unlock rules live in shared/outfit-rules.json so the account page,
+// renderer, main process and Worker all read one list.
+import {OUTFIT_RULES, canonicalOutfitIds} from './outfit-rules.mjs';
+
 export const PROGRESS_RULES = Object.freeze({
-  version: '2026-11-17.1',
+  version: '2026-11-19.1',
   timeZone: 'Asia/Shanghai',
   affection: Object.freeze({initial: 35, min: 35, max: 100}),
   dailyCheckIn: Object.freeze({affection: 2}),
@@ -12,16 +15,15 @@ export const PROGRESS_RULES = Object.freeze({
     'pet-interaction': Object.freeze({affection: 1, dailyCap: 6}),
     'manual-voice': Object.freeze({affection: 1, dailyCap: 3}),
   }),
-  // Permanent login-day and affection unlocks. `base` skins need no cloud check.
-  skins: Object.freeze([
-    Object.freeze({id: 'yukino-01-v1', kind: 'login-days', target: 7}),
-    Object.freeze({id: 'yukino-02-v1', kind: 'affection', target: 40}),
-    Object.freeze({id: 'yukino-03-v1', kind: 'login-days', target: 7}),
-    Object.freeze({id: 'yukino-04-v1', kind: 'affection', target: 50}),
-    Object.freeze({id: 'yukino-05-v1', kind: 'affection', target: 60}),
-    Object.freeze({id: 'yukino-06-v1', kind: 'affection', target: 70}),
-    Object.freeze({id: 'yukino-07-v1', kind: 'base', target: 0}),
-  ]),
+  // Permanent login-day and affection unlocks. `base` outfits need no cloud
+  // check. The catalog is generated from the shared outfit configuration.
+  skins: Object.freeze(OUTFIT_RULES.outfits.map((outfit) => Object.freeze({
+    id: outfit.id,
+    label: outfit.label,
+    kind: outfit.kind,
+    target: outfit.target,
+    order: outfit.order,
+  }))),
 });
 
 export const EVENT_TYPES = Object.freeze(Object.keys(PROGRESS_RULES.events));
@@ -59,13 +61,17 @@ export function eligibleSkins({affection = PROGRESS_RULES.affection.initial, log
 }
 
 export function skinCatalog({affection = PROGRESS_RULES.affection.initial, loginDays = 0, unlocked = []} = {}) {
-  const owned = new Set(unlocked);
+  // Existing rows may use the retired V1 ids. They are permanently preserved
+  // in the database and map to the matching approved V2 outfit here; no row is
+  // ever deleted or silently revoked.
+  const owned = new Set(canonicalOutfitIds(unlocked));
   return PROGRESS_RULES.skins.map((skin) => {
     const current = skin.kind === 'affection' ? clampAffection(affection)
       : skin.kind === 'login-days' ? loginDays : 0;
     const eligible = skin.kind === 'base' || current >= skin.target;
     return {
       id: skin.id,
+      label: skin.label,
       kind: skin.kind,
       target: skin.target,
       current,

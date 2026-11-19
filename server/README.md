@@ -11,7 +11,7 @@ server/
     app.js          路由、CORS、Origin、安全头
     auth.js         注册/登录/刷新/退出/改密/找回
     session.js      短期 JWT、refresh 轮换、会话撤销
-    password.js     PBKDF2-SHA256 600k
+    password.js     PBKDF2-SHA256（10,000 次，Cloudflare Free CPU 折衷）
     progress.js     签到、事件、奖励流水、皮肤
     entitlement.js  ECDSA P-256 快照签名
     mail.js         MailProvider：Gmail / 本地测试 / 未配置
@@ -21,6 +21,8 @@ server/
   migrations/
     0001_init.sql
     0002_session_persistent.sql
+    0003_nickname.sql
+    0004_cloud_memory.sql
   dev/
     node-d1.mjs     Node 24 node:sqlite → D1 适配器（仅本地/测试）
   scripts/
@@ -74,7 +76,7 @@ npx wrangler d1 migrations apply yukino-account --local
 
 ## 安全提醒
 
-- PBKDF2 600,000 次迭代没有为免费套餐降低；Workers 免费版 CPU 预算可能不足，是上线阻塞项。
+- PBKDF2 使用 10,000 次迭代以适配 Cloudflare Free CPU 预算；这低于 OWASP 建议，弱化离线猜测防护，属于已知安全边界。
 - `SNAPSHOT_PRIVATE_JWK` 只放 Workers Secrets；公钥写入 `shared/entitlement-public-key.json`。
 - 不要在日志、Issue、截图或聊天中输出 OTP、refresh token、OAuth secret。
 - 生产 `ALLOWED_ORIGINS` 不能是 `*`。

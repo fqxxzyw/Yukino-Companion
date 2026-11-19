@@ -14,7 +14,7 @@ import {
   timingSafeEqual,
   userAgent,
 } from './util.js';
-import {maskEmail, normalizeEmail, requirePassword} from './validation.js';
+import {maskEmail, normalizeEmail, normalizeNickname, requirePassword} from './validation.js';
 
 export const OTP_TTL_MS = 10 * 60 * 1000;
 export const OTP_RESEND_MS = 60 * 1000;
@@ -223,10 +223,21 @@ export async function requestCode({request, env, db, mailer, body, purpose, now 
   });
 }
 
+function userView(user) {
+  return {
+    id: user.id,
+    email: maskEmail(user.email),
+    emailHint: user.email,
+    nickname: typeof user.nickname === 'string' ? user.nickname : '',
+    createdAt: Number(user.created_at || 0),
+    passwordChangedAt: Number(user.password_changed_at || 0),
+  };
+}
+
 function sessionResponse({user, session, env, request, now, client}) {
   return signAccessToken({userId: user.id, sessionId: session.sessionId, securityVersion: user.security_version}, env, now).then((accessToken) => ({
     ok: true,
-    user: {id: user.id, email: maskEmail(user.email), emailHint: user.email, createdAt: Number(user.created_at || 0)},
+    user: userView(user),
     accessToken,
     expiresIn: 900,
     refreshToken: client === 'desktop' ? session.refreshToken : undefined,
@@ -251,6 +262,7 @@ function clearCookie(response, request, env) {
 export async function register({request, env, db, mailer, body, now = Date.now()}) {
   const email = normalizeEmail(body.email);
   const password = requirePassword(body.password);
+  const {nickname, key: nicknameKey} = normalizeNickname(body.nickname);
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   const challengeId = typeof body.challengeId === 'string' ? body.challengeId : '';
   if (!/^\d{6}$/.test(code) || !/^[0-9a-f-]{36}$/i.test(challengeId)) fail(400, 'invalid_code', '验证码不正确或已过期。');
@@ -260,11 +272,15 @@ export async function register({request, env, db, mailer, body, now = Date.now()
   await verifyChallengeCode({db, env, challenge, code, now});
   const existing = await first(db, 'SELECT id FROM users WHERE email = ?', email);
   if (existing) fail(409, 'email_unavailable', '该邮箱无法完成注册。如已有账号，请直接登录或找回密码。');
+  const nicknameExisting = await first(db, 'SELECT id FROM users WHERE nickname_key = ?', nicknameKey);
+  if (nicknameExisting) fail(409, 'nickname_unavailable', '昵称不可用，请换一个。');
 
   const passwordHash = await hashPassword(password);
   const user = {
     id: crypto.randomUUID(),
     email,
+    nickname,
+    nickname_key: nicknameKey,
     password_hash: passwordHash,
     verified_at: now,
     status: 'active',
@@ -285,8 +301,8 @@ export async function register({request, env, db, mailer, body, now = Date.now()
 
   try {
     await db.batch([
-      db.prepare(`INSERT INTO users(id, email, password_hash, verified_at, status, security_version, created_at, updated_at, password_changed_at)
-        VALUES(?,?,?,?,?,?,?,?,?)`).bind(user.id, user.email, user.password_hash, now, 'active', 1, now, now, now),
+      db.prepare(`INSERT INTO users(id, email, password_hash, nickname, nickname_key, verified_at, status, security_version, created_at, updated_at, password_changed_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(user.id, user.email, user.password_hash, user.nickname, user.nickname_key, now, 'active', 1, now, now, now),
       db.prepare('UPDATE email_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL').bind(now, challenge.id),
       db.prepare('INSERT INTO user_progress(user_id, affection, version, rules_version, updated_at) VALUES(?,?,?,?,?)')
         .bind(user.id, initial, 1, version, now),
@@ -297,8 +313,13 @@ export async function register({request, env, db, mailer, body, now = Date.now()
           client === 'desktop' ? '桌面端' : '网页端', 1),
     ]);
   } catch (error) {
-    // A concurrent registration for the same email hits the UNIQUE constraint.
-    if (/unique|constraint/i.test(String(error?.message || ''))) {
+    // A concurrent registration can hit either unique key. Keep the nickname
+    // response distinct so the page never says the email is already registered.
+    const message = String(error?.message || '');
+    if (/nickname/i.test(message)) fail(409, 'nickname_unavailable', '昵称不可用，请换一个。');
+    if (/unique|constraint/i.test(message)) {
+      const clash = await first(db, 'SELECT id FROM users WHERE nickname_key = ?', nicknameKey).catch(() => null);
+      if (clash) fail(409, 'nickname_unavailable', '昵称不可用，请换一个。');
       fail(409, 'email_unavailable', '该邮箱无法完成注册。如已有账号，请直接登录或找回密码。');
     }
     throw error;
@@ -385,9 +406,27 @@ export async function logoutAll({request, env, db, now = Date.now()}) {
 export async function me({request, env, db, now = Date.now()}) {
   const {user, session} = await authenticate(request, env, db, now);
   return json({
-    user: {id: user.id, email: maskEmail(user.email), emailHint: user.email, createdAt: Number(user.created_at || 0), passwordChangedAt: Number(user.password_changed_at || 0)},
+    user: userView(user),
     session: {id: session.id, client: session.client},
   });
+}
+
+export async function updateNickname({request, env, db, body, now = Date.now()}) {
+  const {user} = await authenticate(request, env, db, now);
+  await rate(db, `nickname-change:${user.id}`, 10, HOUR, now);
+  const {nickname, key} = normalizeNickname(body.nickname);
+  const duplicate = await first(db, 'SELECT id FROM users WHERE nickname_key = ? AND id <> ?', key, user.id);
+  if (duplicate) fail(409, 'nickname_unavailable', '昵称不可用，请换一个。');
+  try {
+    const result = await run(db, `UPDATE users SET nickname = ?, nickname_key = ?, updated_at = ?
+      WHERE id = ? AND status = 'active'`, nickname, key, now, user.id);
+    if (Number(result?.changes || 0) !== 1) fail(400, 'account_unavailable', '账号当前不可用，请联系支持。');
+  } catch (error) {
+    if (/unique|constraint/i.test(String(error?.message || ''))) fail(409, 'nickname_unavailable', '昵称不可用，请换一个。');
+    throw error;
+  }
+  await audit(db, user.id, 'nickname-changed', '', now);
+  return json({ok: true, user: userView({...user, nickname})});
 }
 
 export async function sessions({request, env, db, now = Date.now()}) {

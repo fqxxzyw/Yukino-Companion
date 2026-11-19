@@ -5,13 +5,14 @@ const DEFAULT_BASE = 'https://yukino-api.fqxxzyw.workers.dev';
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
 
 class AccountError extends Error {
-  constructor(message, {code = 'account_error', status = 0, retryAfter = 0, network = false} = {}) {
+  constructor(message, {code = 'account_error', status = 0, retryAfter = 0, network = false, data = null} = {}) {
     super(message);
     this.name = 'AccountError';
     this.code = code;
     this.status = status;
     this.retryAfter = retryAfter;
     this.network = network;
+    this.data = data;
   }
 }
 
@@ -72,6 +73,7 @@ class AccountClient {
         code: detail.code || `http_${response.status}`,
         status: response.status,
         retryAfter: Number(detail.retryAfter || 0),
+        data: detail.remote ? {remote: detail.remote} : null,
       });
     }
     return data || {};

@@ -6,6 +6,7 @@ const fs = require('node:fs/promises');
 const {createHash, randomUUID, webcrypto} = require('node:crypto');
 const {writeAtomicJson} = require('./atomic-json.cjs');
 const {AccountClient, AccountError, DEFAULT_BASE, LOOPBACK} = require('./account-client.cjs');
+const {canonicalOutfitIds} = require('./skin-policy.cjs');
 
 const EVENT_TYPES = new Set(['message', 'pet-interaction', 'manual-voice']);
 const MAX_QUEUE = 40;
@@ -47,6 +48,7 @@ function publicSnapshotProfile(profile) {
     id: profile.id,
     email: profile.emailMasked || '',
     emailHint: profile.emailHint || '',
+    nickname: profile.nickname || '',
     createdAt: Number(profile.createdAt || 0),
     remember: profile.remember !== false,
   };
@@ -270,7 +272,7 @@ class AccountStore {
       apiBase: this.client.baseUrl,
       profile: publicSnapshotProfile(profile),
       progress: profile?.progress || null,
-      cloudSkins: Array.isArray(profile?.cloudSkins) ? [...profile.cloudSkins] : [],
+      cloudSkins: [...canonicalOutfitIds(profile?.cloudSkins)].slice(0, CLOUD_SKIN_LIMIT),
       entitlementUnverified: Boolean(profile?.entitlementUnverified),
       lastSyncAt: Number(profile?.lastSyncAt || 0),
       lastError: this.lastError,
@@ -320,6 +322,7 @@ class AccountStore {
       id: userId,
       emailMasked: user.email || existing.emailMasked || '',
       emailHint: user.emailHint || user.email || existing.emailHint || '',
+      nickname: user.nickname || existing.nickname || '',
       createdAt: Number(user.createdAt || existing.createdAt || this.now()),
       remember: remember !== false,
       pendingCount: Number(existing.pendingCount || 0),
@@ -350,9 +353,9 @@ class AccountStore {
     return this.client.request('/api/v1/auth/register/request-code', {method: 'POST', body: {email, client: 'desktop'}});
   }
 
-  async register({email, code, challengeId, password} = {}) {
+  async register({email, nickname, code, challengeId, password} = {}) {
     const data = await this.client.request('/api/v1/auth/register', {
-      method: 'POST', body: {email, code, challengeId, password, client: 'desktop'},
+      method: 'POST', body: {email, nickname, code, challengeId, password, client: 'desktop'},
     });
     await this.applySession(data, {remember: true});
     await this.writeJson(this.metaFile, this.meta);
@@ -481,22 +484,27 @@ class AccountStore {
       rulesVersion: data.rulesVersion || '',
       confirmedAt: this.now(),
     };
+    // Never remove a previously server-confirmed outfit. New rules add
+    // entitlements; they do not silently revoke permanent rights. The signed
+    // snapshot is preferred, while an authenticated progress response is a
+    // valid fallback when this build has no verification key configured.
+    const confirmed = new Set(canonicalOutfitIds(profile.cloudSkins));
+    let entitlementVerified = false;
     if (data.entitlement) {
       const verified = await this.verifyEntitlement(data.entitlement, userId);
       if (verified.ok) {
-        const snapshot = verified.snapshot;
-        const skins = Array.isArray(snapshot.skinIds)
-          ? snapshot.skinIds.filter((id) => typeof id === 'string' && /^yukino-0[1-7]-v1$/.test(id)).slice(0, CLOUD_SKIN_LIMIT)
-          : [];
-        profile.cloudSkins = skins;
-        profile.entitlementUnverified = false;
+        entitlementVerified = true;
+        for (const id of canonicalOutfitIds(verified.snapshot.skinIds)) confirmed.add(id);
         profile.entitlementVerifiedAt = this.now();
-      } else {
-        profile.entitlementUnverified = true;
       }
-    } else {
-      profile.entitlementUnverified = true;
     }
+    if (!entitlementVerified) {
+      for (const skin of Array.isArray(data.skins) ? data.skins : []) {
+        if (skin?.unlocked === true) for (const id of canonicalOutfitIds([skin.id])) confirmed.add(id);
+      }
+    }
+    profile.cloudSkins = [...confirmed].slice(0, CLOUD_SKIN_LIMIT);
+    profile.entitlementUnverified = !entitlementVerified;
     profile.lastSyncAt = this.now();
     profile.lastSyncError = '';
     profile.pendingCount = await this.queueSize(userId);
@@ -689,6 +697,59 @@ class AccountStore {
     this.heartbeatScheduled = 0;
     if (this.syncTimer) clearTimeout(this.syncTimer);
     this.syncTimer = null;
+  }
+
+  async memorySettings() {
+    return this.requestWithAuth('/api/v1/memory/settings');
+  }
+
+  async setMemorySettings({syncMemory = false, syncChat = false} = {}) {
+    return this.requestWithAuth('/api/v1/memory/settings', {
+      method: 'PUT', body: {syncMemory: syncMemory === true, syncChat: syncChat === true},
+    });
+  }
+
+  async cloudMemories() {
+    return this.requestWithAuth('/api/v1/memory?limit=50');
+  }
+
+  async cloudMemory(characterId) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}`);
+  }
+
+  async saveCloudMemory({characterId, text, baseVersion = 0} = {}) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}`, {
+      method: 'PUT', body: {text: String(text ?? ''), baseVersion: Number(baseVersion) || 0},
+    });
+  }
+
+  async deleteCloudMemory(characterId) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}`, {method: 'DELETE', body: {}});
+  }
+
+  async cloudChat({characterId, conversationId = '', before = 0} = {}) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    const query = new URLSearchParams({limit: '30'});
+    if (conversationId) query.set('conversationId', conversationId);
+    if (before) query.set('before', String(before));
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}/chat?${query}`);
+  }
+
+  async pushCloudChat({characterId, conversationId, messages} = {}) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}/chat`, {
+      method: 'POST', body: {conversationId, messages: Array.isArray(messages) ? messages : []},
+    });
+  }
+
+  async deleteCloudChat({characterId, conversationId = ''} = {}) {
+    if (typeof characterId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(characterId)) throw new AccountError('角色编号无效。', {code: 'invalid_character'});
+    return this.requestWithAuth(`/api/v1/memory/${encodeURIComponent(characterId)}/chat`, {
+      method: 'DELETE', body: {conversationId},
+    });
   }
 
   async sessions() {

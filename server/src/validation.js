@@ -1,5 +1,6 @@
 import {fail} from './util.js';
 import {passwordPolicyError} from './password.js';
+import {nicknamePolicyError, normalizeNickname as normalizeNicknameText} from '../../shared/password-policy.mjs';
 
 const EMAIL_MAX = 254;
 // Deliberately conservative ASCII mailbox validation. No provider-specific dot
@@ -13,6 +14,17 @@ export function normalizeEmail(value) {
     fail(400, 'invalid_email', '请输入有效邮箱地址。');
   }
   return email;
+}
+
+
+// The visible rule and the stored key are shared with the desktop UI. The key
+// is folded separately so SQLite can enforce one name across case, whitespace
+// and NFKC-equivalent spellings without a locale-dependent collation.
+export function normalizeNickname(value, field = '昵称') {
+  const message = nicknamePolicyError(value, field);
+  if (message) fail(400, 'invalid_nickname', message);
+  const nickname = normalizeNicknameText(value);
+  return {nickname, key: nickname.toUpperCase().toLowerCase()};
 }
 
 export function requirePassword(value, field = '密码') {

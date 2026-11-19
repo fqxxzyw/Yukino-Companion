@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createTestApp} from './helpers.mjs';
 
 const email = 'session-race@example.com';
-const password = 'correct horse battery staple 123';
+const password = 'Correct-Horse-Battery-123!';
 
 function isRotation(statements) {
   return statements.some((statement) => /UPDATE sessions SET revoked_at = \?, replaced_by = \?/i.test(statement.sql));

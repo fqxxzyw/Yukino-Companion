@@ -4,7 +4,7 @@ import {createTestApp} from './helpers.mjs';
 import {verifySnapshot} from '../src/entitlement.js';
 
 const EMAIL = 'progress@example.com';
-const PASSWORD = 'correct horse battery staple 123';
+const PASSWORD = 'Correct-Horse-Battery-123!';
 
 test('check-in counts once per Asia/Shanghai business day and awards server-side progress', async () => {
   const app = await createTestApp();
@@ -99,8 +99,10 @@ test('permanent skins unlock by server login days and affection, and the snapsho
   }
   const progress = await app.call('/api/v1/progress', {token: accessToken});
   assert.equal(progress.data.loginDays, 7);
-  assert.ok(progress.data.skins.find((skin) => skin.id === 'yukino-01-v1').unlocked);
-  assert.ok(progress.data.skins.find((skin) => skin.id === 'yukino-03-v1').unlocked);
+  assert.ok(progress.data.skins.find((skin) => skin.id === 'summer-uniform-v2').unlocked);
+  assert.ok(progress.data.skins.find((skin) => skin.id === 'winter-uniform-v2').unlocked);
+  assert.ok(progress.data.skins.find((skin) => skin.id === 'swimsuit-v2').unlocked);
+  assert.ok(progress.data.skins.find((skin) => skin.id === 'twin-tail-v2').unlocked);
   assert.equal(progress.data.entitlement.alg, 'ES256');
   const valid = await verifySnapshot(progress.data.entitlement, JSON.parse(app.env.SNAPSHOT_PUBLIC_JWK));
   assert.equal(valid, true);
@@ -111,7 +113,41 @@ test('permanent skins unlock by server login days and affection, and the snapsho
 
   const skins = await app.call('/api/v1/skins', {token: accessToken});
   assert.equal(skins.status, 200);
-  assert.ok(skins.data.skins.find((skin) => skin.id === 'yukino-02-v1').unlocked);
+  assert.ok(skins.data.skins.find((skin) => skin.id === 'beret-v2').unlocked);
+});
+
+test('day 2 and day 3 logins unlock their outfits, and legacy confirmed rows keep mapped V2 rights', async () => {
+  const app = await createTestApp();
+  app.setNow(Date.parse('2026-11-17T15:59:00.000Z')); // 23:59 in Shanghai
+  const user = await app.register(EMAIL, PASSWORD);
+  const day = 24 * 60 * 60 * 1000;
+  const first = await app.call('/api/v1/progress/check-in', {method: 'POST', token: user.accessToken});
+  assert.equal(first.data.loginDays, 1);
+  assert.equal(first.data.skins.find((skin) => skin.id === 'swimsuit-v2').unlocked, false);
+  assert.equal(first.data.skins.find((skin) => skin.id === 'twin-tail-v2').unlocked, false);
+
+  app.advance(2 * 60 * 1000); // 00:01 on the next Shanghai day
+  const second = await app.call('/api/v1/progress/check-in', {method: 'POST', token: user.accessToken});
+  assert.equal(second.data.loginDays, 2);
+  assert.equal(second.data.skins.find((skin) => skin.id === 'swimsuit-v2').unlocked, true);
+  assert.equal(second.data.skins.find((skin) => skin.id === 'twin-tail-v2').unlocked, false);
+
+  app.advance(day);
+  const refreshed = await app.call('/api/v1/auth/refresh', {method: 'POST', body: {refreshToken: user.refreshToken, client: 'desktop'}});
+  assert.equal(refreshed.status, 200);
+  const third = await app.call('/api/v1/progress/check-in', {method: 'POST', token: refreshed.data.accessToken});
+  assert.equal(third.data.loginDays, 3);
+  assert.equal(third.data.skins.find((skin) => skin.id === 'twin-tail-v2').unlocked, true);
+
+  // Simulate a row written by the previous V1 catalogue. It must stay in the
+  // database and grant the matching V2 outfit, without being deleted.
+  await app.db.prepare(`INSERT INTO skin_unlocks(user_id, skin_id, reason, rules_version, unlocked_at)
+    VALUES(?,?,?,?,?)`).bind(user.user.id, 'yukino-04-v1', 'server-confirmed', '2026-11-17.1', app.now()).run();
+  const progress = await app.call('/api/v1/progress', {token: refreshed.data.accessToken});
+  assert.equal(progress.data.skins.find((skin) => skin.id === 'kimono-v2').unlocked, true);
+  const persisted = await app.db.prepare('SELECT skin_id FROM skin_unlocks WHERE user_id = ? AND skin_id = ?').bind(user.user.id, 'yukino-04-v1').first();
+  assert.equal(persisted.skin_id, 'yukino-04-v1');
+  assert.ok(progress.data.entitlement.snapshot.skinIds.includes('kimono-v2'));
 });
 
 test('health exposes no secrets and production refuses the local mailer', async () => {

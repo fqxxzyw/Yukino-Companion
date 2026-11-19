@@ -334,7 +334,7 @@ else {
           const value=await action(...args);
           return kind==='state'?{ok:true,state:value}:{ok:true,data:value};
         }catch(error){
-          return {ok:false,error:{code:String(error?.code||'account_error'),message:String(error?.message||error||'账号操作没有完成。'),retryAfter:Number(error?.retryAfter||0)}};
+          return {ok:false,error:{code:String(error?.code||'account_error'),message:String(error?.message||error||'账号操作没有完成。'),retryAfter:Number(error?.retryAfter||0),...(error?.data?{data:error.data}:{})}};
         }
       });
     }
@@ -344,12 +344,21 @@ else {
     accountResult('account-switch-guest',async()=>{await flushBeforeAccountSwitch();return accountStore.switchGuest();});
     accountResult('account-login',async value=>{const input=accountArgs(value);const email=accountString(input.email,254),password=accountString(input.password,512);await flushBeforeAccountSwitch();return accountStore.login({email,password,remember:input.remember!==false});});
     accountResult('account-register-request',async value=>{const input=accountArgs(value);return accountStore.registerRequest({email:accountString(input.email,254)});},'data');
-    accountResult('account-register',async value=>{const input=accountArgs(value);await flushBeforeAccountSwitch();return accountStore.register({email:accountString(input.email,254),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64),password:accountString(input.password,512)});});
+    accountResult('account-register',async value=>{const input=accountArgs(value);await flushBeforeAccountSwitch();return accountStore.register({email:accountString(input.email,254),nickname:accountString(input.nickname,64),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64),password:accountString(input.password,512)});});
     accountResult('account-logout',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:false});});
     accountResult('account-logout-all',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:true});});
     accountResult('account-sessions',()=>accountStore.listSessions(),'data');
     accountResult('account-revoke-session',value=>{const input=accountArgs(value);return accountStore.revokeSession(accountString(input.id,64));},'data');
     accountResult('account-change-password',value=>{const input=accountArgs(value);return accountStore.changePassword({currentPassword:accountString(input.currentPassword,512),newPassword:accountString(input.newPassword,512)});});
+    accountResult('account-memory-settings',()=>accountStore.memorySettings(),'data');
+    accountResult('account-set-memory-settings',value=>{const input=accountArgs(value);return accountStore.setMemorySettings({syncMemory:input.syncMemory===true,syncChat:input.syncChat===true});},'data');
+    accountResult('account-memory-list',()=>accountStore.cloudMemories(),'data');
+    accountResult('account-memory-get',value=>{const input=accountArgs(value);return accountStore.cloudMemory(accountString(input.id,64));},'data');
+    accountResult('account-memory-save',value=>{const input=accountArgs(value);return accountStore.saveCloudMemory({characterId:accountString(input.id,64),text:accountString(input.text,12000),baseVersion:Number(input.baseVersion)||0});},'data');
+    accountResult('account-memory-delete',value=>{const input=accountArgs(value);return accountStore.deleteCloudMemory(accountString(input.id,64));},'data');
+    accountResult('account-cloud-chat',value=>{const input=accountArgs(value);return accountStore.cloudChat({characterId:accountString(input.id,64),conversationId:accountString(input.conversationId||'',80),before:Number(input.before)||0});},'data');
+    accountResult('account-push-cloud-chat',value=>{const input=accountArgs(value);return accountStore.pushCloudChat({characterId:accountString(input.id,64),conversationId:accountString(input.conversationId,80),messages:Array.isArray(input.messages)?input.messages:[]});},'data');
+    accountResult('account-delete-cloud-chat',value=>{const input=accountArgs(value);return accountStore.deleteCloudChat({characterId:accountString(input.id,64),conversationId:accountString(input.conversationId||'',80)});},'data');
     accountResult('account-forgot-request',async value=>{const input=accountArgs(value);return accountStore.forgotRequest({email:accountString(input.email,254)});},'data');
     accountResult('account-forgot-verify',async value=>{const input=accountArgs(value);return accountStore.forgotVerify({email:accountString(input.email,254),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64)});},'data');
     accountResult('account-reset-password',async value=>{const input=accountArgs(value);return accountStore.resetPassword({resetToken:accountString(input.resetToken,256),newPassword:accountString(input.newPassword,512)});},'data');
