@@ -89,7 +89,7 @@ npx wrangler d1 migrations list yukino-account --remote
 npx wrangler d1 migrations apply yukino-account --remote
 ```
 
-预期：备份文件生成；迁移列表显示 `0001_init`、`0002_session_persistent` 已应用，`0003_nickname`、`0004_cloud_memory` 待应用；确认后 `apply` 成功。
+预期：备份文件生成；迁移列表显示 `0001_init`、`0002_session_persistent`、`0003_nickname`、`0004_cloud_memory` 均已应用，没有待应用项。
 排错：`--remote` 需要正确账号与 D1 权限；迁移失败时不要重复执行 `ALTER TABLE`，先查看 `npx wrangler d1 migrations list yukino-account --remote`。
 
 ## 2. 生成并写入 Secrets
