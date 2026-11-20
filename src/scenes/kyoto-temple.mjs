@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {Diorama} from './diorama-kit.mjs';
+import {plantFerns} from './landscape-planting.mjs';
 import {architectureFinish} from './architecture-textures.mjs';
 
 // A composed miniature: Kiyomizu west gate and its separate three-storey pagoda,
@@ -161,15 +162,25 @@ export function createScene({scene,renderer}){
  const ferns=[];
  for(let i=0;i<70;i++){
   const t=b.rng(),p=walk.getPointAt(t),d=walk.getTangentAt(t),n=new T.Vector3(-d.z,0,d.x).normalize(),q=p.clone().addScaledVector(n,(i%2?1:-1)*(2.3+b.rng()*1.1));const base=hillHeight(q.x,q.z);
-  for(let j=0;j<9;j++){const a=j*2.4;for(let k=1;k<=5;k++)ferns.push({x:q.x+Math.cos(a)*k*.045,y:base+.03+Math.sin(k/6*Math.PI)*.25,z:q.z+Math.sin(a)*k*.045,rx:Math.PI*.35,ry:a,rz:a,size:.055+k*.006,hue:.22});}
+  ferns.push({x:q.x,y:base+.01,z:q.z,angle:b.rng()*6.28,scale:.70+b.rng()*.95,tone:b.rng()});
  }
- b.leaves(ferns,{narrow:true,color:'#526b39',name:'foliage:torii-forest-ferns'});
+ plantFerns(b,ferns,'foliage:torii-forest-ferns');
+ // A low split-stone retaining wall gives the planted terrace a legible
+ // cut edge. Corner blocks turn back along the side, leaving stair access.
+ for(const [x0,x1] of [[-13.55,-10.85],[3.45,6.2],[10.65,13.55]]){
+  const blocks=Math.ceil((x1-x0)/.91);
+  for(let j=0;j<blocks;j++){
+   const xx=x0+(j+.5)*(x1-x0)/blocks;
+   b.box([xx,.25,12.35],[(x1-x0)/blocks-.03,.40,.42],stone);
+   b.box([xx,.48,12.35],[(x1-x0)/blocks+.018,.095,.48],paving);
+  }
+ }
  const litter=b.mat('leaf:fallen-camphor','#766242',{side:T.DoubleSide});const leafGeo=b.own(new T.BufferGeometry());
  leafGeo.setAttribute('position',new T.Float32BufferAttribute([0,-.065,0,-.027,-.012,0,-.018,.041,0,0,.065,0,.025,.003,0,0,0,.008],3));leafGeo.setAttribute('uv',new T.Float32BufferAttribute([.5,0,0,.4,.18,.8,.5,1,1,.5,.5,.5],2));leafGeo.setIndex([0,1,5,1,2,5,2,3,5,3,4,5,4,0,5]);leafGeo.computeVertexNormals();
  for(let i=0;i<240;i++){const t=b.rng(),p=walk.getPointAt(t),d=walk.getTangentAt(t),n=new T.Vector3(-d.z,0,d.x).normalize(),q=p.clone().addScaledVector(n,(b.rng()-.5)*3.55);const leaf=b.mesh(leafGeo,litter,[q.x,q.y+.039,q.z]);leaf.rotation.set(-Math.PI/2,0,b.rng()*Math.PI*2);leaf.castShadow=false;}
  // Main chat view: look across both halves of this composite scene. The
  // former eye at the torii entrance hid Kiyomizu's west gate on the left.
- const companion={position:[.8,5.4,23],target:[1.5,4.2,0],fov:60};
+ const companion={position:[.9,4.15,21.4],target:[1.1,4.35,-.7],fov:56};
  const api=b.finish({w:28,d:27,photo:{position:[18,10,30],target:[-1,4.7,-1],fov:44},companion,overview:[.75,.7,1.4],background:'#94aaa5'});
  api.lightResponse={ambient:.72,environment:.66};
  return api;

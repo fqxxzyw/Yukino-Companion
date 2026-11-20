@@ -20,7 +20,7 @@ export default function SceneGallery({scene,view,importedScenes=[],timeOfDay,wea
   }).catch(fail);
   return()=>{cancelled=true;instance?.dispose();renderer.current=null};
  },[reducedMotion]);
- useEffect(()=>{try{renderer.current?.setRenderStyle(sceneStyle);renderer.current?.update(scene,timeOfDay,weather,view)}catch(error){latest.current.onError?.(error)}},[scene,view,timeOfDay,weather,sceneStyle]);
+ useEffect(()=>{try{renderer.current?.setRenderStyle(sceneStyle,sceneId(scene));renderer.current?.update(scene,timeOfDay,weather,view)}catch(error){latest.current.onError?.(error)}},[scene,view,timeOfDay,weather,sceneStyle]);
  useEffect(()=>{renderer.current?.setAnimationEnabled(motionEnabled)},[motionEnabled]);
  function key(event){
   if(event.defaultPrevented)return;

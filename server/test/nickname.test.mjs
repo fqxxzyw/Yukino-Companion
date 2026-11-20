@@ -10,19 +10,20 @@ async function request(app, email) {
   return {challengeId: response.data.challengeId, code: app.lastCode()};
 }
 
-test('registration requires a nickname and rejects duplicates across case, spaces and NFKC', async () => {
+test('registration assigns an omitted nickname and rejects duplicates across case, spaces and NFKC', async () => {
   const app = await createTestApp();
   const first = await request(app, 'first@example.com');
   const missing = await app.call('/api/v1/auth/register', {
     method: 'POST',
     body: {email: 'first@example.com', password: PASSWORD, code: first.code, challengeId: first.challengeId, client: 'desktop'},
   });
-  assert.equal(missing.status, 400);
-  assert.equal(missing.data.error.code, 'invalid_nickname');
+  assert.equal(missing.status, 201);
+  assert.match(missing.data.user.nickname, /^旅人·[a-f0-9]{16}$/);
+  const named = await request(app, 'named@example.com');
 
   const created = await app.call('/api/v1/auth/register', {
     method: 'POST',
-    body: {email: 'first@example.com', nickname: '雪乃', password: PASSWORD, code: first.code, challengeId: first.challengeId, client: 'desktop'},
+    body: {email: 'named@example.com', nickname: '雪乃', password: PASSWORD, code: named.code, challengeId: named.challengeId, client: 'desktop'},
   });
   assert.equal(created.status, 201);
   assert.equal(created.data.user.nickname, '雪乃');
@@ -56,8 +57,11 @@ test('an existing account without a nickname can set one from the account center
   const app = await createTestApp();
   const user = await app.register('legacy@example.com', PASSWORD, {nickname: '临时昵称'});
   await app.db.prepare('UPDATE users SET nickname = NULL, nickname_key = NULL WHERE email = ?').bind(user.email).run();
+  const {readFile} = await import('node:fs/promises');
+  const upgrade = await readFile(new URL('../migrations/0005_character_profiles.sql', import.meta.url), 'utf8');
+  for (const sql of upgrade.slice(0, upgrade.indexOf('CREATE TABLE')).split(';').filter(sql=>sql.trim())) await app.db.prepare(sql).run();
   const before = await app.call('/api/v1/me', {token: user.accessToken});
-  assert.equal(before.data.user.nickname, '');
+  assert.match(before.data.user.nickname, /^旅人·[a-f0-9]{16}$/);
 
   const updated = await app.call('/api/v1/me', {
     method: 'PATCH', token: user.accessToken, body: {nickname: '  新的 昵称  '},

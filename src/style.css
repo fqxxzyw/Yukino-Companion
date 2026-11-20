@@ -784,6 +784,17 @@ progress{appearance:none;-webkit-appearance:none;width:100%;height:6px;border:0;
 .app-update-popover div { display: flex; gap: 8px; flex-wrap: wrap; }
 .app-update-popover button { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--text); padding: 7px 10px; cursor: pointer; }
 
+.app-update-notes { max-height:min(28vh,176px); overflow:auto; overscroll-behavior:contain; margin:12px 0; padding:10px 12px; border-radius:8px; background:var(--surface-soft); overflow-wrap:anywhere; }
+.app-update-notes h4 { margin:0 0 6px; font-size:12px; }
+.app-update-notes ul { margin:0; padding-left:16px; }
+.app-update-notes li { line-height:1.6; }
+.app-update-transfer { display:grid; grid-template-columns:1fr auto; gap:6px; margin:12px 0; font-variant-numeric:tabular-nums; }
+.app-update-transfer progress,.app-update-transfer small { grid-column:1/-1; width:100%; }
+.app-update-transfer progress { height:6px; accent-color:var(--accent-text); }
+.app-update-transfer small { color:var(--secondary); }
+.app-update-popover button.update-primary { background:var(--accent-text); color:var(--on-accent); }
+.app-update-popover p[role=alert] { color:var(--danger); overflow-wrap:anywhere; }
+
 /* Match the four titlebar control surfaces; leave the native window buttons alone. */
 .titlebar{--title-control-height:36px;--title-control-width:clamp(88px,8.4vw,132px)}
 .titlebar>:is(.chat-source-switch,.model-pill),.titlebar>.scene-quick-menu>.scene-menu-trigger,.titlebar>.app-update>.app-update-trigger{width:var(--title-control-width);height:var(--title-control-height);max-width:none;flex:none}

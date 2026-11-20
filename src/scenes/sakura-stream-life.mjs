@@ -42,15 +42,21 @@ function petalGeometry({flower=false,lowDetail=false}={}){
 // transparent gaps. The close blossoms remain cupped geometry; neither layer
 // needs an opaque sphere or a filled crown core.
 function blossomSprayTexture(){
- const size=256,data=new Uint8Array(size*size*4),random=randomSeed(90127),flowers=220;
+ const size=256,data=new Uint8Array(size*size*4),random=randomSeed(90127),flowers=185;
+ // Mipmap filtering blends edge colours with fully transparent texels.
+ // Keep the unseen RGB rose-coloured so distant flower sprays retain pink rims.
+ for(let i=0;i<data.length;i+=4){data[i]=249;data[i+1]=217;data[i+2]=227;}
  for(let flower=0;flower<flowers;flower++){
-  const a=random()*TAU,r=Math.sqrt(random()),lobe=flower%4,clusterAngle=lobe*TAU/4+.27,cx=size*.5+Math.cos(clusterAngle)*34+Math.cos(a)*r*76,cy=size*.5+Math.sin(clusterAngle)*35+Math.sin(a)*r*80,radius=3.8+random()*2.5,turn=random()*TAU;
+  const a=random()*TAU,r=Math.sqrt(random()),lobe=flower%4,clusterAngle=lobe*TAU/4+.27,cx=size*.5+Math.cos(clusterAngle)*32+Math.cos(a)*r*65,cy=size*.5+Math.sin(clusterAngle)*29+Math.sin(a)*r*74,radius=5.2+random()*3.7,turn=random()*TAU;
   for(let y=Math.floor(cy-radius-1);y<=Math.ceil(cy+radius+1);y++)for(let x=Math.floor(cx-radius-1);x<=Math.ceil(cx+radius+1);x++){
    if(x<0||y<0||x>=size||y>=size)continue;
    const dx=x+.5-cx,dy=y+.5-cy,angle=Math.atan2(dy,dx)-turn,distance=Math.hypot(dx,dy),lobe=Math.cos(angle*5),boundary=radius*(.78+.22*lobe-.055*Math.exp(-((Math.sin(angle*5)/.16)**2))*Math.max(0,lobe));
    const alpha=clamp(boundary-distance+.6,0,1);if(!alpha)continue;const t=clamp(distance/radius,0,1),i=(y*size+x)*4;
    if(alpha*255<data[i+3])continue;
-   const centre=1-clamp(distance/(radius*.23),0,1);data[i]=Math.round(255-centre*55);data[i+1]=Math.round(143+100*Math.pow(t,.36)-centre*18);data[i+2]=Math.round(174+70*Math.pow(t,.34)-centre*33);data[i+3]=Math.round(alpha*255);
+   const centre=1-clamp(distance/(radius*.23),0,1),crownLight=clamp(.33+.54*cy/size+.18*Math.sin(cx*.05),0,1);
+   data[i]=Math.round(228+crownLight*27-centre*22);
+   data[i+1]=Math.round(149+crownLight*67+35*Math.sqrt(t)-centre*18);
+   data[i+2]=Math.round(182+crownLight*45+18*Math.sqrt(t)-centre*13);data[i+3]=Math.round(alpha*255);
   }
  }
  const texture=new T.DataTexture(data,size,size);texture.name='sakura:transparent-individual-five-petal-sprays';texture.colorSpace=T.SRGBColorSpace;texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;texture.userData={flowers,petals:5,transparentGaps:true};return texture;
@@ -98,7 +104,7 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
  const bloom=material('paper:sakura-delicate-five-petal',{color:'#ffffff',vertexColors:true,side:T.DoubleSide,roughness:.94,metalness:0});
  const loose=material('paper:sakura-water-and-falling-petal',{color:'#fff4f4',vertexColors:true,side:T.DoubleSide,roughness:.9,metalness:0});
  const flowerGeometry=own(petalGeometry({flower:true})),farFlowerGeometry=own(petalGeometry({flower:true,lowDetail:true})),singleGeometry=own(petalGeometry());
- const sprayTexture=blossomSprayTexture();textures.add(sprayTexture);const sprayMaterial=material('paper:sakura-transparent-blossom-sprays',{color:'#ffffff',map:sprayTexture,alphaTest:.3,alphaToCoverage:true,side:T.DoubleSide,roughness:.95,metalness:0}),sprayGeometry=own(new T.PlaneGeometry(1,1));let sprayCount=0;
+ const sprayTexture=blossomSprayTexture();textures.add(sprayTexture);const sprayMaterial=material('paper:sakura-transparent-blossom-sprays',{color:'#ffffff',map:sprayTexture,alphaTest:.22,alphaToCoverage:true,side:T.DoubleSide,roughness:.95,metalness:0}),sprayGeometry=own(new T.PlaneGeometry(1,1));let sprayCount=0;
  const mesh=(g,m,parent,name)=>{const o=new T.Mesh(g,m);o.name=name;o.userData.keep=true;o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;};
  const scratch=new T.Object3D(),tone=new T.Color();let blossomCount=0;
 
@@ -116,29 +122,29 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
   for(let branch=0;branch<count;branch++){
    const towardsWater=spec.x<streamCenter(spec.z)?0:Math.PI;
    const angle=branch===0?towardsWater+.04:branch*2.39996+index*.7;
-   const reach=spread*(branch===0?1.19:.62+rng()*.4),start=trunk.curve.getPointAt(.36+branch/(count-1)*.43);
+   const reach=spread*(branch===0?1.19:.62+rng()*.4),start=trunk.curve.getPointAt(branch===count-1?.995:.36+branch/(count-1)*.43);
    const end=new T.Vector3(Math.cos(angle)*reach,h*(.65+rng()*.16),Math.sin(angle)*reach);
    const branchPoints=[new T.Vector3(),new T.Vector3(Math.cos(angle)*reach*.25,h*.65-start.y,Math.sin(angle)*reach*.32),new T.Vector3(Math.cos(angle)*reach*.72,h*.82-start.y,Math.sin(angle)*reach*.75),end.clone().sub(start)];
    const arm=taperedBranch(branchPoints,(.077+rng()*.023)*(h/8),.01,18),group=new T.Group();group.name=`sakura:tree-${index}:bough-${branch}`;group.position.copy(start);treeRoot.add(group);
    const woody=[arm.geometry],flowers=[],sprays=[],phase=rng()*TAU,twigCount=weeping?14:10;
-   const spray=(point,width,height)=>{sprays.push({point,width,height,rotation:[(cardRandom()-.5)*.7,cardRandom()*TAU,(cardRandom()-.5)*.55]});};
+   const spray=(point,width,height)=>{sprays.push({point,width,height,rotation:[-.30+(cardRandom()-.5)*.65,cardRandom()*TAU,(cardRandom()-.5)*.55]});};
    const flowerCluster=(stem,n,radius=.07)=>{for(let f=0;f<n;f++){const a=f*2.399+rng()*.9,offset=.016+rng()*radius,p=stem.clone().add(new T.Vector3(Math.cos(a)*offset,(rng()-.5)*radius,Math.sin(a)*offset));flowers.push({p,size:(weeping?.026:.024)+rng()*.014,rotation:[(rng()-.5)*2.4,rng()*TAU,rng()*TAU]});}};
-   for(let cluster=0;cluster<22;cluster++)flowerCluster(arm.curve.getPointAt(.18+cluster/22*.82),weeping?6:5,.095);
-   for(let cluster=0;cluster<10;cluster++)spray(arm.curve.getPointAt(.15+(cluster+cardRandom()*.7)*.08),.48+cardRandom()*.24,.35+cardRandom()*.24);
+   for(let cluster=0;cluster<10;cluster++)flowerCluster(arm.curve.getPointAt(.42+cluster/10*.57),weeping?12:9,.12);
+   for(let cluster=0;cluster<6;cluster++)spray(arm.curve.getPointAt(.44+(cluster+cardRandom()*.65)*.086),.75+cardRandom()*.30,.53+cardRandom()*.24);
    for(let twig=0;twig<twigCount;twig++){
-    const u=.23+(twig+.35)/twigCount*.75,base=arm.curve.getPointAt(u),hang=weeping?h*(.22+rng()*.32):h*(.1+rng()*.16),out=.25+rng()*.9,strandAngle=angle+(rng()-.5)*1.4;
+    const u=.35+(twig+.35)/twigCount*.62,base=arm.curve.getPointAt(u),hang=weeping?h*(.22+rng()*.32):h*(.1+rng()*.16),out=.25+rng()*.9,strandAngle=angle+(rng()-.5)*1.4;
     const tip=base.clone().add(new T.Vector3(Math.cos(strandAngle)*out,-hang,Math.sin(strandAngle)*out)),tipX=spec.x+start.x+tip.x,tipZ=spec.z+start.z+tip.z,clearance=(insideWater(tipX,tipZ)?STREAM_LEVEL:groundHeight(tipX,tipZ))+.45;
     tip.y=Math.max(clearance-treeRoot.position.y-start.y,tip.y);
     const side=new T.Vector3(-Math.sin(strandAngle),0,Math.cos(strandAngle)),bow=.1+rng()*.3;
     const strand=taperedBranch([base,base.clone().add(new T.Vector3(Math.cos(strandAngle)*.35,.12,Math.sin(strandAngle)*.35)),base.clone().lerp(tip,.43).addScaledVector(side,bow),base.clone().lerp(tip,.76).addScaledVector(side,-bow*.35),tip],.011+rng()*.003,.0022,12);woody.push(strand.geometry);
-    const gap=.24+rng()*.42,sprayBands=weeping?6+Math.floor(rng()*3):4;
+    const gap=.24+rng()*.42,sprayBands=weeping?3+Math.floor(rng()*2):3;
     for(let cluster=0;cluster<sprayBands;cluster++){
      const t=.08+(cluster+.25+cardRandom()*.55)/sprayBands*.86;if(Math.abs(t-gap)<.07)continue;const taper=.68+.32*Math.sin(t*Math.PI);
-     const fullness=t<.6?1.15:1;spray(strand.curve.getPointAt(t),(.32+cardRandom()*.24)*taper*fullness,(.44+cardRandom()*.32)*taper*fullness);
+     const fullness=t<.6?1.12:.82;spray(strand.curve.getPointAt(t),(.55+cardRandom()*.33)*taper*fullness,(.63+cardRandom()*.35)*taper*fullness);
     }
-    const clusters=weeping?23:17;
+    const clusters=weeping?11:8;
     for(let cluster=0;cluster<clusters;cluster++){
-     const t=.06+(cluster+.15+rng()*.7)/clusters*.91,stem=strand.curve.getPointAt(t);if(Math.abs(t-gap)<.06&&rng()>.28)continue;flowerCluster(stem,3+Math.floor(rng()*3),.055+rng()*.033);
+     const t=.06+(cluster+.15+rng()*.7)/clusters*.91,stem=strand.curve.getPointAt(t);if(Math.abs(t-gap)<.06&&rng()>.28)continue;flowerCluster(stem,7+Math.floor(rng()*4),.075+rng()*.03);
      if(cluster%5===1)emitters.push({group,point:stem.clone(),tree:index});
     }
     // Small lateral forks break the parallel-string silhouette; flowers remain
@@ -150,12 +156,12 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
     }
    }
    const wood=mergeGeometries(woody,false);for(const g of woody)g.dispose();mesh(own(wood),bark,group,`sakura:tree-${index}:wood-${branch}`);
-   const flowersMesh=new T.InstancedMesh(index===0?flowerGeometry:farFlowerGeometry,bloom,flowers.length);flowersMesh.name=`sakura:tree-${index}:flowers-${branch}`;flowersMesh.castShadow=true;flowersMesh.receiveShadow=true;flowersMesh.userData.windOwner=group.name;
+   const flowersMesh=new T.InstancedMesh(index===0?flowerGeometry:farFlowerGeometry,bloom,flowers.length);flowersMesh.name=`sakura:tree-${index}:flowers-${branch}`;flowersMesh.castShadow=false;flowersMesh.receiveShadow=true;flowersMesh.userData.windOwner=group.name;
    flowers.forEach((flower,i)=>{scratch.position.copy(flower.p);scratch.rotation.set(...flower.rotation);scratch.scale.setScalar(flower.size);scratch.updateMatrix();flowersMesh.setMatrixAt(i,scratch.matrix);tone.set(weeping?'#fff1f1':'#fffdf5').lerp(new T.Color('#eeb5cb'),rng()*(weeping?.32:.06));flowersMesh.setColorAt(i,tone);});
    flowersMesh.computeBoundingSphere();group.add(flowersMesh);instances.add(flowersMesh);blossomCount+=flowers.length;
    const sprayMesh=new T.InstancedMesh(sprayGeometry,sprayMaterial,sprays.length);sprayMesh.name=`sakura:tree-${index}:flower-sprays-${branch}`;sprayMesh.userData.windOwner=group.name;sprayMesh.castShadow=true;sprayMesh.receiveShadow=true;
    sprays.forEach((entry,i)=>{scratch.position.copy(entry.point);scratch.rotation.set(...entry.rotation);scratch.scale.set(entry.width,entry.height,1);scratch.updateMatrix();sprayMesh.setMatrixAt(i,scratch.matrix);tone.set(weeping?'#fff1f3':'#fffdfa');sprayMesh.setColorAt(i,tone);});sprayMesh.computeBoundingSphere();group.add(sprayMesh);instances.add(sprayMesh);sprayCount+=sprays.length;
-   boughs.push({group,phase,amplitude:(weeping?.013:.009)*(1+branch/count)});
+   boughs.push({group,flowersMesh,phase,amplitude:(weeping?.013:.009)*(1+branch/count)});
   }
   trees.push({index,x:spec.x,z:spec.z,height:h,spread,weeping,rootY:treeRoot.position.y,boughs:count});
  }
@@ -229,7 +235,20 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
   while(emissionCredit>=1){const candidate=states.filter(state=>state.kind!=='falling'&&!state.recycle&&state.age>18).sort((a,b)=>b.age-a.age)[0];if(!candidate){emissionCredit=Math.min(1,emissionCredit);break;}candidate.recycle=true;emissionCredit--; }
   drawPetals();
  }
- return {update,setMotion({enabled:value}={}){const next=value!==false;if(next!==enabled){enabled=next;lastHost=null;}metadata.motionEnabled=enabled;},setWind(value){targetWind=Number.isFinite(value)?clamp(value,0,1.5):.45;},metadata,
+ const flowerCenter=new T.Vector3(),viewPosition=new T.Vector3();
+ function setView(camera,frameHeight){
+  camera.getWorldPosition(viewPosition);
+  const focalPixels=frameHeight/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2)));
+  for(const {flowersMesh} of boughs){
+   flowersMesh.updateWorldMatrix(true,false);
+   flowerCenter.copy(flowersMesh.boundingSphere.center).applyMatrix4(flowersMesh.matrixWorld);
+   const petalPixels=.022*focalPixels/Math.max(.1,viewPosition.distanceTo(flowerCenter));
+   // At a few pixels per petal the notched flower reads clearly. Further
+   // away the connected spray supplies the same coloured mass and motion.
+   flowersMesh.visible=petalPixels>(flowersMesh.visible?2.7:3.1);
+  }
+ }
+ return {update,setView,setMotion({enabled:value}={}){const next=value!==false;if(next!==enabled){enabled=next;lastHost=null;}metadata.motionEnabled=enabled;},setWind(value){targetWind=Number.isFinite(value)?clamp(value,0,1.5):.45;},metadata,
   dispose(){if(disposed)return;disposed=true;root.removeFromParent();for(const instance of instances)instance.dispose();for(const g of geometries)g.dispose();for(const m of materials)m.dispose();for(const texture of textures)texture.dispose();},
  };
 }

@@ -105,6 +105,10 @@ export class EnvironmentBackdrop {
    this.applyClimate();this.requestRender();return Promise.resolve(true)
   }
   // Freeze synchronously BEFORE import/construction. React never has to race a new GPU frame.
+  this.pendingImport?.abort();
+  const controller=new AbortController();
+  this.pendingImport=controller;
+  this.clearStyleFade();
   if(!this.loading)this.freezeFrame(id);
   const epoch=++this.epoch;this.loading=true;this.loadingScene=id;this.host.dataset.loading='true';
   this.queue=this.queue.catch(()=>{}).then(async()=>{
@@ -114,11 +118,15 @@ export class EnvironmentBackdrop {
    const previous={current:this.current,scene:this.scene,bounds:this.bounds,environmentScene:this.environmentScene,lightingKey:this.lightingKey,sceneView:this.sceneView,detailView:this.detailView,camera:this.camera.clone(),target:this.target.clone()};
    try{
     await paintOpportunity();
-    const create=await this.loadFactory(id);if(this.disposed||epoch!==this.epoch)return false;
+    if(controller.signal.aborted)return false;
+    const superseded=new Promise(resolve=>controller.signal.addEventListener('abort',()=>resolve(null),{once:true}));
+    const create=await Promise.race([this.loadFactory(id),superseded]);
+    if(!create||this.disposed||epoch!==this.epoch)return false;
     this.preparing=true;
     // A factory without its own tone mapper must not inherit the previous scene's mapper.
     this.gl.toneMapping=THREE.NeutralToneMapping;
-    nextScene=new THREE.Scene();next=await create({scene:nextScene,renderer:this.gl});
+    nextScene=new THREE.Scene();
+    next=await create({scene:nextScene,renderer:this.gl});
     if(this.disposed||epoch!==this.epoch)return false;
     if(!next?.root)throw Error('场景没有提供三维根节点');nextScene.add(next.root);
     this.configureShadows(next.root,id);nextScene.updateMatrixWorld(true);
@@ -136,9 +144,10 @@ export class EnvironmentBackdrop {
     if(this.disposed||epoch!==this.epoch)return false;
     // compileAsync does not upload all textures or draw shadows. Gate on an actual offscreen frame.
     const size=this.gl.getDrawingBufferSize(new THREE.Vector2());
-    target=new THREE.WebGLRenderTarget(Math.max(1,size.x),Math.max(1,size.y));
+    const warmScale=Math.min(1,256/Math.max(size.x,size.y,1));
+    target=new THREE.WebGLRenderTarget(Math.max(1,Math.round(size.x*warmScale)),Math.max(1,Math.round(size.y*warmScale)));
     const priorTarget=this.gl.getRenderTarget();
-    try{this.gl.setRenderTarget(target);this.gl.shadowMap.needsUpdate=true;this.gl.render(nextScene,warmCamera);const pixel=new Uint8Array(4);this.gl.readRenderTargetPixels(target,0,0,1,1,pixel);}
+    try{this.gl.setRenderTarget(target);this.gl.shadowMap.needsUpdate=true;this.gl.render(nextScene,warmCamera);const pixel=new Uint8Array(4);if(this.gl.readRenderTargetPixelsAsync)await this.gl.readRenderTargetPixelsAsync(target,0,0,1,1,pixel);else this.gl.readRenderTargetPixels(target,0,0,1,1,pixel);}
     finally{this.gl.setRenderTarget(priorTarget);target.dispose();target=null;}
     if(this.disposed||epoch!==this.epoch)return false;
     this.current=next;this.scene=nextScene;this.bounds=bounds;this.environmentScene=id;this.lightingKey=null;this.sceneView=this.requestedView;this.detailView=false;
@@ -156,7 +165,7 @@ export class EnvironmentBackdrop {
     target?.dispose();
     if(!committed){next?.dispose?.();this.disposeSceneTextures(nextScene);restoreRenderer(this.gl,prior);}
     this.preparing=false;
-    if(epoch===this.epoch){this.loading=false;delete this.host.dataset.loading;if(!committed)this.clearFrozen();this.requestRender()}
+    if(epoch===this.epoch){this.pendingImport=null;this.loading=false;delete this.host.dataset.loading;if(!committed)this.clearFrozen();this.requestRender()}
    }
   });return this.queue;
  }
@@ -238,7 +247,7 @@ export class EnvironmentBackdrop {
   const nativeNight=factory.lightingPresets?.includes('night');scene.backgroundIntensity=daylight.night&&!nativeNight ? .22 : 1;
   if(daylight.night&&!nativeNight)factory.root.traverse(node=>{if(node.isDirectionalLight)node.intensity*=.18;else if(node.isHemisphereLight||node.isAmbientLight)node.intensity*=scenePreset(id).kind==='indoor'?.45:.28;});
   // Warm exactly the material/environment variant that the real frame will use.
-  factory.setClimate?.({timeOfDay:this.timeOfDay,weather:this.weather});
+  factory.setClimate?.({timeOfDay:this.timeOfDay,weather:this.weather,renderStyle:this.renderStyle});
   return {daylight,preset};
  }
  // Daylight mood and volumetric proxies are strengthened here rather than in the
@@ -323,7 +332,7 @@ export class EnvironmentBackdrop {
    this.lightScene(this.current,this.scene,this.environmentScene);
    this.lightingKey=key;this.gl.shadowMap.needsUpdate=true;this.host.dataset.lighting=preset;this.host.dataset.daylight=daylight.night?'night':daylight.twilight?'twilight':'day';
   }
-  if(this.current.setClimate)this.current.setClimate({timeOfDay:this.timeOfDay,weather:this.weather});
+  if(this.current.setClimate)this.current.setClimate({timeOfDay:this.timeOfDay,weather:this.weather,renderStyle:this.renderStyle});
   else this.current.setWeather?.(this.weather);
   this.publishSunlight(this.current.sunState);
   this.current.setMotion?.({enabled:this.motion&&!this.reducedMotion});this.current.setMotionEnabled?.(this.motion&&!this.reducedMotion);
@@ -394,7 +403,9 @@ export class EnvironmentBackdrop {
  requestRender(){if(!this.frame&&!this.disposed&&!this.contextUnavailable&&!document.hidden)this.frame=requestAnimationFrame(this.tick)}
  tick(now){
   this.frame=0;if(this.disposed||this.contextUnavailable||document.hidden)return;
-  if(this.preparing){this.last=0;this.requestRender();return;}
+  // The frozen frame covers the live surface during a switch; the commit
+  // or rollback requests the next draw.
+  if(this.preparing||this.loading&&this.frozen){this.last=0;return;}
   const dt=Math.min(.08,Math.max(0,(now-(this.last||now))/1000));
   // Cap passive animation at 25 fps instead of forcing two 60 fps WebGL views.
   if(this.last&&now-this.last<(this.interactive?30:40)){this.requestRender();return}this.last=now;
@@ -407,13 +418,49 @@ export class EnvironmentBackdrop {
   }catch(error){this.onError?.(error);return}
    if(this.overview.active||this.motion&&!this.reducedMotion||this.controls||composing||this.compositionPointer!=null||now<(this.compositionFollowUntil||0))this.requestRender();
  }
- setRenderStyle(value){const next=value==='toon'?'toon':'lit';if(next===this.renderStyle)return this.renderStyle;this.renderStyle=next;this.host.dataset.renderStyle=next;this.requestRender();return this.renderStyle}
+ clearStyleFade(){
+  this.styleAnimation?.cancel();this.styleAnimation=null;
+  this.styleFrame?.remove();this.styleFrame=null;
+ }
+ setRenderStyle(value,destination=this.environmentScene){
+  const next=value==='toon'?'toon':'lit';
+  if(next===this.renderStyle)return this.renderStyle;
+  const canvas=this.gl.domElement;
+  const animate=this.current&&destination===this.environmentScene&&!this.loading&&!this.frozen&&!this.contextUnavailable&&!this.reducedMotion&&!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches&&typeof canvas.animate==='function';
+  let frame;
+  if(animate){
+   // Capture the displayed style once. A quick reversal starts at the
+   // currently visible blend, while the destination continues to render live.
+   this.render();
+   frame=document.createElement('canvas');frame.width=canvas.width;frame.height=canvas.height;
+   const ctx=frame.getContext('2d');
+   if(ctx){
+    ctx.drawImage(canvas,0,0);
+    if(this.styleFrame){
+     ctx.globalAlpha=Number(getComputedStyle(this.styleFrame).opacity);
+     ctx.drawImage(this.styleFrame,0,0,frame.width,frame.height);
+    }
+   }else frame=null;
+  }
+  this.clearStyleFade();
+  this.renderStyle=next;this.host.dataset.renderStyle=next;this.applyClimate();
+  if(frame){
+   this.render();
+   frame.className='scene-style-fade';frame.setAttribute('aria-hidden','true');
+   Object.assign(frame.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});
+   this.host.append(frame);this.styleFrame=frame;
+   const animation=frame.animate([{opacity:1},{opacity:0}],{duration:240,easing:'ease-in-out',fill:'both'});
+   this.styleAnimation=animation;
+   animation.finished.then(()=>{if(this.styleAnimation===animation)this.clearStyleFade()}).catch(()=>{});
+  }
+  this.requestRender();return this.renderStyle;
+ }
  ensureToon(){
   if(this.toonScene)return;
   this.toonScene=new THREE.Scene();this.toonCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
   this.toonMaterial=new THREE.ShaderMaterial({
    name:'weather:cel-shading',toneMapped:false,transparent:true,depthTest:false,depthWrite:false,
-   uniforms:{tColor:{value:null},tDepth:{value:null},uTexel:{value:new THREE.Vector2(1,1)},uHasDepth:{value:0},uNear:{value:.05},uFar:{value:1500}},
+   uniforms:{tColor:{value:null},tDepth:{value:null},uTexel:{value:new THREE.Vector2(1,1)},uHasDepth:{value:0},uNear:{value:.05},uFar:{value:1500},uExposure:{value:1}},
    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
    fragmentShader:/* glsl */`
     varying vec2 vUv;
@@ -423,6 +470,7 @@ export class EnvironmentBackdrop {
     uniform float uHasDepth;
     uniform float uNear;
     uniform float uFar;
+    uniform float uExposure;
     float luma(vec3 value){return dot(value,vec3(.299,.587,.114));}
     vec3 display(vec3 value){return pow(max(value,0.0),vec3(1.0/2.2));}
     float linearDepth(float depth){
@@ -431,50 +479,35 @@ export class EnvironmentBackdrop {
     }
     void main(){
      vec4 center=texture2D(tColor,vUv);
-     vec3 srgb=display(center.rgb);
-     float light=luma(srgb);
-     // Six soft cels and a 22% original-gradient mix keep the authored greens,
-     // pinks and water colours instead of flattening the whole scene.
-     float levels=6.0;
-     float quantized=floor(light*levels+0.5)/levels;
-     quantized=mix(quantized,light,0.22);
-     vec3 cel=srgb*(quantized/max(light,0.0001));
-     float lum=luma(cel);
-     // Makoto Shinkai-inspired grade: brighter, gently saturated, cool shadows
-     // and warm highlights. The lift is additive so foliage does not turn grey.
-     cel=mix(vec3(lum),cel,1.12);
-     cel=pow(clamp(cel,0.0,1.0),vec3(0.96));
-     cel=mix(cel,cel*vec3(0.97,0.99,1.04),(1.0-lum)*0.16);
-     cel=mix(cel,cel*vec3(1.03,1.01,0.99),smoothstep(0.60,1.0,lum)*0.14);
-     float shadow=(1.0-smoothstep(0.0,0.24,lum))*0.12;
-     cel=mix(cel,cel+vec3(0.040,0.050,0.070),shadow);
-     float sky=0.0;
-     if(uHasDepth>0.5){
-      float distance=linearDepth(texture2D(tDepth,vUv).x);
-      float farSky=uFar*0.82;
-      sky=smoothstep(farSky,uFar*0.96,distance);
-      // The sky gets its own coarse ladder, so blue gradients and cloud tops
-      // read as painted bands instead of a photographic gradient.
-      float skyBand=floor(light*4.0+0.5)/4.0;
-      vec3 skyCel=srgb*(skyBand/max(light,0.0001));
-      skyCel=mix(vec3(luma(skyCel)),skyCel,1.28);
-      skyCel=pow(clamp(skyCel,0.0,1.0),vec3(0.93));
-      cel=mix(cel,skyCel,sky*0.52);
+     // Work in scene-linear HDR until the highlight shoulder. White plaster,
+     // the illuminated cloud and the edge of a roof retain different values.
+     vec3 radiance = max(center.rgb * uExposure, 0.0);
+     float peak = max(radiance.r,max(radiance.g,radiance.b));
+     if (peak > .72) radiance *= (.72 + .28 * (1.0-exp(-3.57*(peak-.72))))/peak;
+     vec3 srgb = display(radiance);
+     float light = luma(srgb);
+     float distance = linearDepth(texture2D(tDepth,vUv).x);
+     float sky = smoothstep(uFar*.82,uFar*.96,distance) * uHasDepth;
+     // A soft transition between cels retains window reflections, leaf veins
+     // and penumbrae. Cloud bands already follow the shape of each tower.
+     float value = light * 7.0;
+     float band = (floor(value)+smoothstep(.26,.74,fract(value)))/7.0;
+     float pigment = mix(light,band,.46*(1.0-sky));
+     vec3 cel = srgb*(pigment/max(light,.0001));
+     cel = mix(vec3(pigment),cel,1.06);
+     if (uHasDepth > .5) {
       float dl=linearDepth(texture2D(tDepth,vUv-vec2(uTexel.x,0.0)).x);
       float dr=linearDepth(texture2D(tDepth,vUv+vec2(uTexel.x,0.0)).x);
       float du=linearDepth(texture2D(tDepth,vUv-vec2(0.0,uTexel.y)).x);
       float dd=linearDepth(texture2D(tDepth,vUv+vec2(0.0,uTexel.y)).x);
-      // Only trace silhouettes against the sky. Interior foliage and water
-      // edges are intentionally left clean; outlining every leaf turned dense
-      // scenes into a black mass.
-      float skyNeighbour=max(max(step(uFar*0.96,dl),step(uFar*0.96,dr)),max(step(uFar*0.96,du),step(uFar*0.96,dd)));
-      float second=abs(dl+dr-2.0*distance)+abs(du+dd-2.0*distance);
-      float edge=(1.0-sky)*skyNeighbour*smoothstep(0.40,2.20,second);
-      cel=mix(cel,vec3(0.110,0.120,0.170),clamp(edge*0.40,0.0,0.40));
+      // Ink only the near side of a depth step. Opposing depth differences
+      // cancel on a sloping wall, which avoids drawing contours across it.
+      float stepX = min(max(dl,dr)-distance, dl+dr-2.0*distance);
+      float stepY = min(max(du,dd)-distance, du+dd-2.0*distance);
+      float stepSize = max(stepX,stepY)/max(distance,.1);
+      float edge = smoothstep(.018,.15,stepSize)*(1.0-sky);
+      cel *= mix(vec3(1.0),vec3(.78,.81,.88),edge);
      }
-     // Deepen the blue in the sky without losing the bright Shinkai key.
-     vec3 skyTint=cel*vec3(0.96,1.01,1.07)+vec3(0.008,0.012,0.016);
-     cel=mix(cel,clamp(skyTint,0.0,1.0),sky*0.50);
      gl_FragColor=vec4(pow(max(cel,0.0),vec3(2.2)),center.a);
      #include <colorspace_fragment>
     }`,
@@ -487,7 +520,7 @@ export class EnvironmentBackdrop {
   this.toonTarget?.dispose();
   const depth=new THREE.DepthTexture(width,height);
   depth.type=THREE.UnsignedIntType;depth.minFilter=depth.magFilter=THREE.NearestFilter;
-  this.toonTarget=new THREE.WebGLRenderTarget(width,height,{depthTexture:depth,depthBuffer:true,stencilBuffer:false});
+  this.toonTarget=new THREE.WebGLRenderTarget(width,height,{type:this.gl.extensions.has('EXT_color_buffer_float')?THREE.HalfFloatType:THREE.UnsignedByteType,depthTexture:depth,depthBuffer:true,stencilBuffer:false});
   this.toonTarget.texture.minFilter=this.toonTarget.texture.magFilter=THREE.LinearFilter;
  }
  render(){
@@ -504,6 +537,7 @@ export class EnvironmentBackdrop {
   const uniforms=this.toonMaterial.uniforms;
   uniforms.tColor.value=this.toonTarget.texture;uniforms.tDepth.value=this.toonTarget.depthTexture;
   uniforms.uHasDepth.value=this.toonTarget.depthTexture?1:0;uniforms.uTexel.value.set(1/width,1/height);
+  uniforms.uExposure.value=this.gl.toneMappingExposure;
   uniforms.uNear.value=this.camera.near;uniforms.uFar.value=this.camera.far;
   this.gl.render(this.toonScene,this.toonCamera);
  }
@@ -514,7 +548,7 @@ export class EnvironmentBackdrop {
  setAnimationEnabled(enabled){this.motion=enabled!==false;this.applyClimate();this.requestRender();return this.motion}
  disposeSceneTextures(scene){const textures=new Set([scene?.background,scene?.environment].filter(t=>t?.isTexture));for(const t of textures)t.dispose()}
  dispose(){
-  if(this.disposed)return;this.disposed=true;this.epoch++;this.publishSunlight(null);clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
+  if(this.disposed)return;this.disposed=true;this.clearStyleFade();this.pendingImport?.abort();this.epoch++;this.publishSunlight(null);clearTimeout(this.timeTimer);cancelAnimationFrame(this.frame);this.resizeObserver.disconnect();this.layoutObserver?.disconnect();this.controls?.dispose();
   if(!this.interactive&&!this.preview){document.removeEventListener('pointerdown',this.compositionDown,true);window.removeEventListener('pointermove',this.compositionMove,true);window.removeEventListener('pointerup',this.compositionUp,true);window.removeEventListener('pointercancel',this.compositionUp,true);window.removeEventListener('blur',this.compositionBlur);}
   document.removeEventListener('visibilitychange',this.visibility);
   if(this.pointerSurface){

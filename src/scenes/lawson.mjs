@@ -6,13 +6,13 @@ export function createScene({scene,renderer}){
  const b=new Diorama(scene,renderer,'Lawson_Neighbourhood');
  const finish=(material,roughness,metalness=0,envMapIntensity=.35)=>{material.userData.surfaceFinish={roughness,metalness,envMapIntensity};return material;};
  const keep=(mesh,name)=>{mesh.name='lawson:'+name;mesh.userData.keep=true;return mesh;};
- const concrete=b.mat('wall:mineral-render','#c5c8c4'),road=b.mat('asphalt:road','#50565a'),paving=b.mat('paving:sidewalk','#aeafa5');
+ const concrete=b.mat('wall:mineral-render','#d3c5ac'),road=b.mat('asphalt:road','#596672'),paving=b.mat('paving:sidewalk','#c2b89d');
  const dark=finish(b.mat('metal:roof-edge','#414b4f',{metalness:.04,roughness:.67}),.67,.04,.28),silver=finish(b.mat('metal:aluminium-frame','#a8b2b0',{metalness:.7,roughness:.42}),.42,.7,.48),white=b.mat('paint:road-markings','#dad9c9');
  const blue=b.mat('paint:lawson-blue','#1c5c9e'),pink=b.mat('paint:lawson-red-stripe','#b05a65');
  finish(concrete,.91,0,.24);finish(blue,.6,.02,.3);finish(pink,.65,.01,.28);
- const inside=b.mat('interior:wall','#8e9485'),tile=b.mat('interior:floor','#9b9f90'),shelf=finish(b.mat('interior:steel-shelf','#8d958d',{metalness:.03,roughness:.76}),.76,.03,.22);
- const recess=b.mat('interior:recess','#323e3d'),ceiling=b.mat('interior:ceiling','#aeb3a6');
- const glass=finish(b.mat('glass:shop-window','#68818b',{transparent:true,opacity:.15,roughness:.21,depthWrite:false}),.21,0,.27);
+ const inside=b.mat('interior:wall','#bbad84'),tile=b.mat('interior:floor','#c2b899'),shelf=finish(b.mat('interior:steel-shelf','#8d958d',{metalness:.03,roughness:.76}),.76,.03,.22);
+ const recess=b.mat('interior:recess','#323e3d'),ceiling=b.mat('interior:ceiling','#dbceb0');
+ const glass=finish(b.mat('glass:shop-window','#77aaa9',{transparent:true,opacity:.15,roughness:.21,depthWrite:false}),.21,0,.27);
  b.box([0,.28,-2],[13,.12,6.2],tile);
  b.box([0,2.1,-5.05],[13,3.7,.18],concrete);b.box([-6.5,2.1,-2],[.18,3.7,6.3],concrete);b.box([6.5,2.1,-2],[.18,3.7,6.3],concrete);
  b.box([0,2.02,-4.945],[12.62,3.28,.025],inside);b.box([0,3.84,-1.92],[12.64,.035,6.1],ceiling);
@@ -20,7 +20,7 @@ export function createScene({scene,renderer}){
  for(let x=-6;x<=6;x+=1.5)b.box([x,2.0,-4.91],[.025,3.3,.02],recess);
  // Recognizable luminous white fascia with blue band and fine rose stripe.
  b.box([0,3.45,1.48],[13,.8,.2],silver);
- b.sign('LAWSON',12.8,.72,[0,3.45,1.59],{emissive:true,draw(c,w,h){c.fillStyle='#f1f1e8';c.fillRect(0,0,w,h);c.fillStyle='#245bb1';c.fillRect(0,h*.42,w,h*.16);c.fillStyle='#c15a71';c.fillRect(0,h*.8,w,h*.055);c.fillStyle='#f1f1e8';c.fillRect(w*.32,0,w*.36,h);c.fillStyle='#245bb1';c.font='bold 50px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText('LAWSON',w*.5,h*.43,w*.34);}});
+ b.sign('LAWSON',12.8,.72,[0,3.45,1.59],{emissive:true,draw(c,w,h){c.fillStyle='#f1f1e8';c.fillRect(0,0,w,h);c.fillStyle='#245bb1';c.fillRect(0,h*.42,w,h*.16);c.fillStyle='#c15a71';c.fillRect(0,h*.8,w,h*.055);c.fillStyle='#f1f1e8';c.fillRect(w*.32,0,w*.36,h);c.fillStyle='#245bb1';c.font='bold 77px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText('LAWSON',w*.5,h*.43,w*.34);}});
  for(const x of [-6.3,-4.7,-3.1,3.1,4.7,6.3])b.box([x,3.45,1.605],[.014,.73,.018],dark);
  for(const y of [3.055,3.845])b.box([0,y,1.607],[13,.025,.035],silver);
  for(const x of [-6.485,6.485])b.box([x,3.45,1.6],[.045,.8,.07],dark);

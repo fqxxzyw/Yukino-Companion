@@ -62,7 +62,12 @@ export function architectureFinish(b,material,kind,{scale=2.4,amount=1}={}){
       diffuseColor.rgb*=mix(vec3(1.),concreteTint*concreteVariation,${amount.toFixed(3)});
       patinaHeight+=(concreteLuma-.4)*.005;`:
      kind==='grass'?`float turfMask=${material.name==='soil:stream-bank'?'smoothstep(.55,1.7,vPatinaWorld.y)':'1.0'};
-      diffuseColor.rgb=mix(diffuseColor.rgb,photographed*.95,${amount.toFixed(3)}*turfMask);patinaHeight+=(dot(photographed,vec3(.333))-.25)*.008*turfMask;`:
+      // Use the photo for soil pores and cut fibres. Its baked brown
+      // illumination should not wash a spring meadow into yellow-grey clay.
+      float turfLuma=dot(photographed,vec3(.2126,.7152,.0722));
+      float turfValue=clamp(.64+1.57*sqrt(max(0.,turfLuma)),.74,1.37);
+      vec3 coolTurf=diffuseColor.rgb*vec3(.78,1.11,.95)*turfValue;
+      diffuseColor.rgb=mix(diffuseColor.rgb,coolTurf,${amount.toFixed(3)}*turfMask);patinaHeight+=(dot(photographed,vec3(.333))-.25)*.008*turfMask;`:
      `diffuseColor.rgb=mix(diffuseColor.rgb,photographed,${amount.toFixed(3)});patinaHeight+=(dot(photographed,vec3(.333))-.4)*.005;`}
     roughnessFactor=mix(roughnessFactor,clamp(photographedRough,.62,.99),.65);`:
     `diffuseColor.rgb*=.86+.2*age+.08*grain;`}

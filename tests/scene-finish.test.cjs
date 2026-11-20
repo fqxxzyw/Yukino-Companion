@@ -30,7 +30,7 @@ test('real climate changes surface wetness and solar direction continuously with
  assert.equal(f.sun.intensity,intensity,'repeated weather cannot compound light multipliers');
  f.api.setClimate({timeOfDay:14,weather:null});
  assert.equal(f.material.userData.surfaceUniforms.uSurfaceRain.value,0);
- assert.equal(f.scene.fog,null);assert.equal(f.scene.background.name,'weather:day-sky-clouds');assert.equal(f.background.getHexString(),'abcabc','native background remains available for reset');
+ assert.equal(f.scene.fog,null);assert.ok(f.scene.getObjectByName('weather:procedural-cumulus').visible);assert.equal(f.background.getHexString(),'abcabc','native background remains available for reset');
  f.api.dispose();f.external.dispose();
 });
 
@@ -47,7 +47,7 @@ test('interior floors stay dry and unknown weather clears the wetness input',asy
 test('overcast-to-night restores native Color backgrounds before the supplied factory mutates them',async()=>{
  const f=await fixture('classroom');
  f.api.setClimate({timeOfDay:14,weather:{cloud:1,rain:.8}});
- assert.ok(f.scene.background.isTexture);
+ assert.ok(f.scene.getObjectByName('weather:procedural-cumulus').visible);
  assert.equal(f.api.setLighting('night'),'night');
  f.api.setClimate({timeOfDay:23,weather:null});
  assert.equal(f.scene.background,f.background);assert.equal(f.scene.background.getHexString(),'152333');
@@ -66,21 +66,22 @@ test('material refinement owns its environment once and restores the latest nati
  assert.deepEqual(f.sun.position.toArray(),position.toArray());f.external.dispose();
 });
 
-test('day sky remains weather aware and its texture is disposed on scene exit',async()=>{
- const f=await fixture('inage');
+test('cloud volumes react to sun and weather and release their shared geometry',async()=>{
+ const f=await fixture('inage'),sky=f.scene.getObjectByName('weather:procedural-cumulus');
  f.api.setClimate({timeOfDay:14,weather:null});
- const clearTexture=f.scene.background,clear=clearTexture.image.data.slice();
- assert.equal(clearTexture.name,'weather:day-sky-clouds');
- f.api.setClimate({timeOfDay:14,weather:{cloud:.85,rain:.65}});
- const rainTexture=f.scene.background;
- assert.notEqual(rainTexture,clearTexture,'background identity must change so three re-converts the sky');
- assert.equal(rainTexture.name,'weather:day-sky-clouds');assert.notDeepEqual(rainTexture.image.data,clear);
- f.api.setClimate({timeOfDay:23,weather:null});assert.notEqual(f.scene.background,rainTexture);
- f.api.setClimate({timeOfDay:14,weather:null});
- const returned=f.scene.background;assert.notEqual(returned,rainTexture);
- assert.deepEqual(returned.image.data,clear,'returning to clear day restores the same painted sky');
- let disposed=0;returned.addEventListener('dispose',()=>disposed++);
- f.api.dispose();f.api.dispose();assert.equal(disposed,1);assert.equal(f.scene.background,f.background);f.external.dispose();
+ const banks=sky.children.filter(child=>child.name.startsWith('weather:cumulus-bank-'));
+ assert.ok(sky.visible && banks.length>2);
+ assert.ok(banks.every(bank=>bank.geometry===banks[0].geometry && !bank.material.map));
+ const u=banks[0].material.uniforms,earlySun=u.sunlight.value.clone();
+ assert.equal(u.cover.value,0);assert.ok(f.scene.background.isColor);
+ f.api.setClimate({timeOfDay:18,weather:{cloud:.85,rain:.65},renderStyle:'toon'});
+ assert.ok(u.cover.value>.8);assert.notDeepEqual(u.sunlight.value,earlySun);assert.equal(u.cel.value,1);
+ f.api.update(.1,1);assert.ok(u.drift.value>0);
+ f.api.setClimate({timeOfDay:23,weather:null});assert.equal(sky.visible,false);
+ f.api.setClimate({timeOfDay:14,weather:null});assert.equal(sky.visible,true);assert.equal(u.cover.value,0);
+ let disposed=0;banks[0].geometry.addEventListener('dispose',()=>disposed++);
+ f.api.dispose();f.api.dispose();assert.equal(disposed,1);assert.equal(sky.parent,null);
+ assert.equal(f.scene.background,f.background);f.external.dispose();
 });
 
 test('toon upgrade retains wind hooks, source animation colours and texture ownership',async()=>{

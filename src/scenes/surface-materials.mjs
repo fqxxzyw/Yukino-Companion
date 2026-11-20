@@ -51,6 +51,7 @@ varying vec3 vSurfaceWorld;
 uniform float uSurfaceRain;
 uniform float uSurfaceSnow;
 uniform float uSurfaceExposure;
+uniform float uPaintedDay;
 float surfaceHash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
 float surfaceNoise(vec3 p){
  vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
@@ -68,7 +69,7 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
  const [roughness,metalness,variation,relief,frequency]=profiles[profile]||profiles.paint;
  const priorCompile=material.onBeforeCompile,priorKey=material.customProgramCacheKey.bind(material);
  const cache=priorKey();
- const uniforms={uSurfaceRain:{value:0},uSurfaceSnow:{value:0},uSurfaceExposure:{value:exposed?1:0}};
+ const uniforms={uPaintedDay:{value:0},uSurfaceRain:{value:0},uSurfaceSnow:{value:0},uSurfaceExposure:{value:exposed?1:0}};
  material.roughness=roughness;material.metalness=metalness;material.dithering=true;
  const authored=material.userData.surfaceFinish;
  if(authored){
@@ -147,6 +148,12 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
    ${profile==='redPanel'?`float course=surfaceP.y/.42;float edge=min(fract(course),1.0-fract(course));surfaceJoint=1.0-smoothstep(.014,.014+max(fwidth(course),.012),edge);`:''}
    diffuseColor.rgb*=1.0+(surfaceMacro-.5)*${variation.toFixed(3)}+(surfaceDetail-.5)*${(variation*.55).toFixed(3)};
    ${profile==='moss'?`float mossPatch=smoothstep(.36,.67,surfaceFilteredNoise(surfaceP*vec3(1.3,2.0,1.3)));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.12,.18,.052),mossPatch*.65);`:''}
+   ${['asphalt','paving','stone','plaster','soil','forestPath'].includes(profile)?`
+    // Dust collects in broad irregular patches. Their blue-green minerals
+    // unify the street, stone and earth with the open sky in daylight.
+    float wash=smoothstep(.22,.76,surfaceMacro*.72+surfaceDetail*.28)*surfaceUp;
+    diffuseColor.rgb*=mix(vec3(1.),mix(vec3(.83,.99,1.07),vec3(1.08,1.035,.94),wash),.67*uPaintedDay);
+   `:''}
    diffuseColor.rgb*=1.0-surfaceJoint*.22;
    diffuseColor.rgb*=1.0-surfaceWet*${profile==='metal'||profile==='glass'?'0.02':'0.24'};
    // Keep the pigment's luminance but restore colour separation lost in pale
@@ -165,8 +172,40 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
    ${profile==='glass'?`float surfaceFresnel=pow(1.0-clamp(dot(normal,normalize(vViewPosition)),0.0,1.0),5.0);
     diffuseColor.a=clamp(diffuseColor.a+(1.0-diffuseColor.a)*surfaceFresnel*.7,.06,.88);`:''}
   `);
+  // Colour the incident light rather than quantizing the final pigment.
+  // This preserves small lettering, coloured glass and emission at night.
+  shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+   if (uPaintedDay > 0.0) {
+    vec3 albedo = max(diffuseColor.rgb, vec3(.008));
+    float direct = dot(reflectedLight.directDiffuse / albedo, vec3(.2126,.7152,.0722));
+    float turn = smoothstep(.11, .52, direct);
+    reflectedLight.indirectDiffuse *= mix(vec3(1.0),vec3(.85,1.02,1.28),uPaintedDay*(1.0-turn));
+    reflectedLight.directDiffuse *= mix(vec3(1.0),vec3(1.11,1.025,.93)*(.94+.11*turn),uPaintedDay);
+    ${/^paper:sakura-|^paper:fallen-sakura/.test(material.name)?`
+     // Paper-thin petals scatter a little skylight even under the bough.
+     reflectedLight.indirectDiffuse += albedo * vec3(.25,.16,.18) * uPaintedDay;
+    `:''}
+    ${profile==='leaf'||profile==='bamboo'?`
+     // Group individual leaves into shadow masses and sunlit shoots at the
+     // scale of a branch. Pigment variation follows the moving world surface.
+     float cluster = smoothstep(.35,.69,surfaceMacro);
+     reflectedLight.directDiffuse *= mix(vec3(1.0),mix(vec3(.79,1.02,.92),vec3(1.24,1.09,.79),cluster),uPaintedDay);
+     reflectedLight.indirectDiffuse += albedo * vec3(.025,.060,.052) * uPaintedDay;
+    `:''}
+   }`);
+  if(profile==='leaf'||profile==='bamboo'){
+   // Atmospheric perspective separates distant crowns from the foreground
+   // boughs. Use the scene's weather colour and actual camera-space depth.
+   shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+    #ifdef USE_FOG
+     float ridgeHaze = smoothstep(34.0,145.0,length(vViewPosition))*.56*uPaintedDay;
+     outgoingLight = mix(outgoingLight,fogColor*.80,ridgeHaze);
+    #endif
+    #include <opaque_fragment>`);
+  }
+
  };
- material.customProgramCacheKey=()=>`${cache}|architectural-surface-v3:${profile}:${scale}:${leafUv}`;
+ material.customProgramCacheKey=()=>`${cache}|architectural-surface-v4:${profile}:${scale}:${leafUv}:${/^paper:sakura-|^paper:fallen-sakura/.test(material.name)}`;
  material.needsUpdate=true;
  return uniforms;
 }
@@ -199,7 +238,7 @@ export function upgradeSurfaces(root,id){
   const indoors=id==='classroom'||id==='bookshop';
   const outside=!indoors||/outside|road|asphalt|curb|exterior/.test(names);
   const exposed=original.userData.weatherExposure??(outside&&!/interior|lobby|porch|ceiling|soffit|base:/.test(original.name));
-  const leafUv=profile==='leaf'&&original.userData.botanicalKind!=='grass'&&objects.every(o=>o.geometry?.attributes.uv);
+  const leafUv=profile==='leaf'&&!original.userData.botanicalKind&&objects.every(o=>o.geometry?.attributes.uv);
   uniforms.push(finishMaterial(material,profile,{exposed,leafUv}));
  }
  return {
@@ -207,6 +246,7 @@ export function upgradeSurfaces(root,id){
    for(const [source,target]of converted){target.color.copy(source.color);target.emissive.copy(source.emissive);target.emissiveIntensity=source.emissiveIntensity;target.opacity=source.opacity;}
    for(const material of glass){const authored=material.userData.surfaceFinish;material.metalness=0;material.roughness=Number.isFinite(authored?.roughness)?THREE.MathUtils.clamp(authored.roughness,.06,1):.12;material.envMapIntensity=Number.isFinite(authored?.envMapIntensity)?THREE.MathUtils.clamp(authored.envMapIntensity,0,2):.85;}
   },
+  setPaintedDay(amount){for(const u of uniforms)u.uPaintedDay.value=amount;},
   setWeather(weather){for(const u of uniforms){u.uSurfaceRain.value=THREE.MathUtils.clamp(weather?.rain||0,0,1);u.uSurfaceSnow.value=THREE.MathUtils.clamp(weather?.snow||0,0,1);}},
   dispose(){for(const material of owned)material.dispose();owned.clear();},
   count:uniforms.length,

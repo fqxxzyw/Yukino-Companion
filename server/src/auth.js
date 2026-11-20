@@ -262,7 +262,8 @@ function clearCookie(response, request, env) {
 export async function register({request, env, db, mailer, body, now = Date.now()}) {
   const email = normalizeEmail(body.email);
   const password = requirePassword(body.password);
-  const {nickname, key: nicknameKey} = normalizeNickname(body.nickname);
+  const suggested = body.nickname == null || (typeof body.nickname === 'string' && !body.nickname.trim());
+  const {nickname, key: nicknameKey} = normalizeNickname(suggested ? '旅人·' + crypto.randomUUID().replaceAll('-', '').slice(0, 16) : body.nickname);
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   const challengeId = typeof body.challengeId === 'string' ? body.challengeId : '';
   if (!/^\d{6}$/.test(code) || !/^[0-9a-f-]{36}$/i.test(challengeId)) fail(400, 'invalid_code', '验证码不正确或已过期。');

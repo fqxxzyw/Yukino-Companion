@@ -102,7 +102,11 @@ if (process.versions.electron) {
       const forbidden=new Set(['window','globalThis','requestAnimationFrame','setAnimationLoop','eval','WebGLRenderer','OrbitControls']);
       function visit(node){if(!node||typeof node!=='object')return;if(node.type==='Identifier')assert.ok(!forbidden.has(node.name),id+' standalone identifier '+node.name);for(const value of Object.values(node)){if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')visit(value);}}
       visit(ast);
-      for(const node of ast.body.filter(node=>node.type==='ImportDeclaration'))assert.match(node.source.value,/^three(?:\/addons\/.*)?$/,id+' non-shared library import');
+      const helpers={classroom:['./classroom-clock.mjs','./classroom-surfaces.mjs'],bookshop:['./shop-interior-surfaces.mjs']};
+      for(const node of ast.body.filter(node=>node.type==='ImportDeclaration')){
+        const name=node.source.value;
+        assert.ok(/^three(?:\/addons\/.*)?$/.test(name)||helpers[id]?.includes(name),id+' unexpected library import '+name);
+      }
     }
     const server=await createServer({root,configFile:false,server:{host:'127.0.0.1',port:0},plugins:[{
       name:'focused-scene-extraction-tests',

@@ -404,6 +404,7 @@ class AccountStore {
         const data = await this.client.request('/api/v1/auth/refresh', {
           method: 'POST', body: {refreshToken, remember: this.meta.profiles[userId]?.remember !== false, client: 'desktop'},
         });
+        if (data.user?.id===userId && data.user.nickname) this.meta.profiles[userId].nickname=data.user.nickname;
         this.saveAccess(userId, data.accessToken, data.expiresIn);
         await this.saveRefreshToken(userId, data.refreshToken, this.meta.profiles[userId]?.remember !== false);
         this.status = 'authenticated-online';
@@ -697,6 +698,27 @@ class AccountStore {
     this.heartbeatScheduled = 0;
     if (this.syncTimer) clearTimeout(this.syncTimer);
     this.syncTimer = null;
+  }
+
+  async profileRequest(profileId, path, options = {}) {
+    const check = token => {
+      if (this.activeProfile !== profileId || profileId === 'guest' || this.accessFor(profileId) !== token) throw new AccountError('账号已切换，请重新打开设置。');
+      return this.client.request(path, {...options, token});
+    };
+    try { return await check(await this.ensureAccess()); }
+    catch (error) {
+      if (error.status !== 401 || this.activeProfile !== profileId) throw error;
+      return check(await this.refreshAccess());
+    }
+  }
+
+  async updateNickname({profileId,nickname}) {
+    const data=await this.profileRequest(profileId, '/api/v1/me', {method:'PATCH',body:{nickname}});
+    if(data.user?.id!==profileId || !data.user.nickname) throw new AccountError('账号资料无效。');
+    this.meta.profiles[profileId].nickname=data.user.nickname;
+    await this.writeJson(this.metaFile,this.meta);
+    this.emitState();
+    return this.snapshot();
   }
 
   async memorySettings() {

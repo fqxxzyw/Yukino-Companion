@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {createScene as createBookshop} from './bookshop.mjs';
 import {Diorama} from './diorama-kit.mjs';
+import {ceramicFinish,entranceLanterns,ramenNoren} from './shop-interior-surfaces.mjs';
 import {sakuraTree} from './sakura-tree.mjs';
 import {addStreetContext} from './street-context.mjs';
 
@@ -12,36 +13,35 @@ function shopTextures(b){
   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;draw(canvas.getContext('2d'),width,height);
   const texture=new T.CanvasTexture(canvas);texture.name=name;texture.colorSpace=color?T.SRGBColorSpace:T.NoColorSpace;texture.anisotropy=4;texture.wrapS=texture.wrapT=T.RepeatWrapping;b.textures.add(texture);return texture;
  }
- const tile=canvasTexture('shop:ceramic-tile-and-recessed-mortar',1024,1024,(c,W,H)=>{
-  c.fillStyle='#777c77';c.fillRect(0,0,W,H);
-  for(let row=0;row<42;row++)for(let col=0;col<27;col++){
-   const xx=col*W/27,yy=row*H/42,v=176+Math.floor(random()*20);c.fillStyle=`rgb(${v+11},${v+9},${v+1})`;c.fillRect(xx+1.15,yy+1.1,W/27-2.3,H/42-2.2);
-   c.fillStyle='rgba(246,243,226,.23)';c.fillRect(xx+1.2,yy+1.2,W/27-2.4,.8);c.fillStyle='rgba(73,76,67,.15)';c.fillRect(xx+1.3,yy+H/42-2.1,W/27-2.6,1);
-  }
-  for(let i=0;i<11000;i++){const v=120+random()*90;c.fillStyle=`rgba(${v},${v},${v-7},.035)`;c.fillRect(random()*W,random()*H,.8+random()*2,.8+random()*2);}
- });
  const grain=canvasTexture('shop:aged-timber-longitudinal-grain',512,1024,(c,W,H)=>{
-  c.fillStyle='#c7aa7e';c.fillRect(0,0,W,H);
+  c.fillStyle='#c8ae8d';c.fillRect(0,0,W,H);
+  for(let band=0;band<58;band++){
+   const base=band*W/58,turn=2.5+random()*7;
+   c.strokeStyle=band%3?'rgba(96,68,40,.14)':'rgba(253,226,180,.24)';c.lineWidth=1+random()*2;c.beginPath();
+   for(let yy=0;yy<=H;yy+=8){const xx=base+turn*Math.sin(yy/H*5+band*.09)+2*Math.sin(yy/H*13+band*.07);if(yy)c.lineTo(xx,yy);else c.moveTo(xx,yy);}
+   c.stroke();
+  }
   for(let i=0;i<260;i++){const xx=random()*W;c.strokeStyle=`rgba(${random()>.4?'73,48,25':'247,220,173'},${.025+random()*.13})`;c.lineWidth=.4+random()*1.3;c.beginPath();c.moveTo(xx,0);for(let yy=0;yy<=H;yy+=30)c.lineTo(xx+Math.sin(yy*.009+i)*(.5+random()*4),yy);c.stroke();}
   for(let i=0;i<9;i++){const xx=random()*W,yy=random()*H;c.strokeStyle='rgba(77,48,27,.12)';c.lineWidth=1;for(let ring=0;ring<4;ring++){c.beginPath();c.ellipse(xx,yy,3+ring*2,10+ring*5,.03,0,Math.PI*2);c.stroke();}}
  });
  const plaster=canvasTexture('shop:lime-plaster-grain',512,512,(c,W,H)=>{
   c.fillStyle='#cec4b0';c.fillRect(0,0,W,H);for(let i=0;i<24000;i++){const v=120+random()*120;c.fillStyle=`rgba(${v},${v-2},${v-7},.08)`;c.fillRect(random()*W,random()*H,.5+random()*2,.5+random()*2);}
  });
- return {tile,grain,plaster};
+ return {grain,plaster};
 }
 
 export function createScene({scene,renderer}){
- const original=createBookshop({scene,renderer}),b=new Diorama(scene,renderer,'Bookshop_and_Tenkaippin');
+ const original=createBookshop({scene,renderer,ramenNeighbor:true}),b=new Diorama(scene,renderer,'Bookshop_and_Tenkaippin');
  const x=7.25,z=1.8,w=7.3,d=5.1,front=z+d/2;
  // The supplied bookshop already owns its ground block. A second plinth made
  // the combined street read as a floating display slab in the chat backdrop.
  const textures=shopTextures(b);
- const wall=b.mat('wall:ramen-tile','#ffffff',{map:textures.tile,bumpMap:textures.tile,bumpScale:.006,roughness:.78}),wood=b.mat('wood:ramen-lattice','#92734e',{map:textures.grain,roughness:.83}),trim=b.mat('wood:ramen-joinery','#a88b63',{map:textures.grain,roughness:.8});
- const dark=b.mat('paint:ramen-awning','#303a36',{metalness:.04,roughness:.82}),paper=b.mat('interior:shoji-paper','#c9c2ac',{roughness:.97}),floor=b.mat('interior:ramen-floor','#aaa18a'),steel=b.mat('metal:stool-frame','#8d9592',{metalness:.85,roughness:.3}),red=b.mat('interior:vinyl-stool-seat','#97392f',{roughness:.64}),counter=b.mat('interior:wood-counter','#c3a16d',{map:textures.grain,roughness:.7});
- const glass=b.mat('glass:ramen-upper','#607775',{transparent:true,opacity:.45,roughness:.2,depthWrite:false});
+ const wall=b.mat('ceramic:ramen-glazed-wall','#ffffff',{roughness:.72}),wood=b.mat('wood:ramen-lattice','#92734e',{map:textures.grain,roughness:.83}),trim=b.mat('wood:ramen-joinery','#a88b63',{map:textures.grain,roughness:.8});
+ const dark=b.mat('paint:ramen-awning','#303a36',{metalness:.04,roughness:.82}),paper=b.mat('interior:shoji-paper','#c9c2ac',{roughness:.97}),floor=b.mat('interior:ramen-floor','#f3efde'),steel=b.mat('metal:stool-frame','#8d9592',{metalness:.85,roughness:.3}),red=b.mat('interior:vinyl-stool-seat','#97392f',{roughness:.64}),counter=b.mat('interior:wood-counter','#e8d5b8',{map:textures.grain,roughness:.7});
+ const glass=b.mat('glass:ramen-upper','#bad6d3',{transparent:true,opacity:.18,roughness:.095,depthWrite:false});
  const interior=b.mat('interior:plaster','#c5b99e',{map:textures.plaster,roughness:.96}),shadow=b.mat('interior:ramen-upper-room','#383d35',{roughness:.95}),curtain=b.mat('interior:ramen-linen-curtain','#a89e83',{map:textures.plaster,roughness:1});
- for(const [material,roughness,metalness,environment]of [[wall,.84,0,.3],[wood,.83,0,.28],[trim,.8,0,.3],[dark,.84,.02,.3],[paper,.97,0,.2],[steel,.36,.82,.65],[red,.76,0,.3],[counter,.77,0,.35],[glass,.22,0,.45],[interior,.96,0,.2],[shadow,.96,0,.2],[curtain,1,0,.18]])material.userData.surfaceFinish={roughness,metalness,envMapIntensity:environment};
+ ceramicFinish(b,wall);ceramicFinish(b,floor,true);
+ for(const [material,roughness,metalness,environment]of [[wall,.78,0,.85],[floor,.88,0,.58],[wood,.63,0,.55],[trim,.6,0,.56],[dark,.84,.02,.3],[paper,.97,0,.2],[steel,.32,.92,.95],[red,.58,0,.5],[counter,.47,0,.75],[glass,.095,0,1.12],[interior,.96,0,.2],[shadow,.96,0,.2],[curtain,1,0,.18]])material.userData.surfaceFinish={roughness,metalness,envMapIntensity:environment};
  b.box([x,.18,z],[w+.2,.25,d+.4],floor);
  b.box([x,3.45,z-d/2],[w,6.5,.2],wall);for(const side of [-1,1])b.box([x+side*w/2,3.45,z],[.2,6.5,d],wall);
  b.box([x,3.17,z],[w,.16,d],wall);b.box([x,6.62,z],[w+.25,.17,d+.25],dark);
@@ -75,7 +75,7 @@ export function createScene({scene,renderer}){
  // Right-hand door is partly slid open; glimpse counter and red stools.
  for(let k=0;k<5;k++)b.box([x+3.05+k*.1,1.48,front+.15],[.035,2.35,.09],wood);
  for(let k=0;k<7;k++)b.box([x+3.24,.45+k*.34,front+.15],[.45,.035,.09],wood);
- for(let i=0;i<4;i++){const xx=x+1.75+i*.37;b.box([xx,2.48,front+.19],[.35,.55,.03],paper);b.sign('中華そば'[i],.27,.3,[xx,2.49,front+.22],{bg:'#c9b692',fg:'#813a2a',size:240});}
+ ramenNoren(b,x+2.3,2.72,front+.24,trim);
  // Sloping metal awning with fascia, supports and continuous fluorescent strip.
  const awning=b.box([x,2.99,front+.48],[w+.8,.1,1.35],dark);awning.rotation.x=.08;
  for(const xx of [x-3.2,x,x+3.2])b.beam([xx,2.6,front],[xx,2.95,front+1.08],.045,dark);
@@ -99,20 +99,23 @@ export function createScene({scene,renderer}){
  const hood=b.box([x-3.85,3.47,front-.12],[.65,.7,.72],dark);hood.rotation.x=-.1;
  b.box([x-3.85,4.3,front-.12],[.4,1.05,.4],dark);
  for(const xx of [x-2.1,x-.9]){b.box([xx,6.98,z],[1.02,.6,.55],wall);for(let k=0;k<10;k++)b.box([xx-.42+k*.09,6.98,z+.29],[.025,.45,.025],dark);}
- const profile=[];for(let i=0;i<=44;i++){const t=i/44;profile.push(new T.Vector2(.11+.18*Math.sin(Math.PI*t)+.008*Math.cos(i*Math.PI),t*.68-.34));}
- const lanternGeo=b.own(new T.LatheGeometry(profile,24)),lanternMat=b.mat('paper:lantern','#cdb17c',{emissive:'#e4b776',emissiveIntensity:.12});b.lamps.push({material:lanternMat,day:.12,night:.62});
- const captions=[...'中華そば天下一品'];
- for(let i=0;i<8;i++){const xx=x-3.12+i*.87;b.mesh(lanternGeo,lanternMat,[xx,2.52,front+.85]);b.cylinderAt([xx,2.89,front+.85],.06,.08,dark);b.cylinderAt([xx,2.17,front+.85],.09,.05,dark);const label=b.sign(captions[i],.28,.31,[xx,2.52,front+1.15],{draw(c,W,H){c.clearRect(0,0,W,H);c.fillStyle='#42372b';c.font='bold 760px serif';c.textAlign='center';c.textBaseline='middle';c.fillText(captions[i],W/2,H/2);}});label.material.transparent=true;label.material.alphaTest=.1;}
+ entranceLanterns(b,x,front,dark);
  for(const xx of [x-2.4,x,x+2.5])b.lamp([xx,2.86,front+.55],{intensity:9,range:4,color:'#ffd4a0',radius:.14});
- b.box([x,.97,z-.1],[w-.7,.16,.8],counter);b.box([x,.59,z-.1],[w-.8,.65,.6],interior);
- const bowl=b.own(new T.LatheGeometry([new T.Vector2(.07,0),new T.Vector2(.12,.04),new T.Vector2(.23,.13),new T.Vector2(.25,.2),new T.Vector2(.23,.21),new T.Vector2(.08,.04)],20)),ceramic=b.mat('interior:bowl-ceramic','#ded4ba',{roughness:.4});
+ b.box([x,.97,z-.1],[w-.7,.16,.8],counter);b.box([x,.59,z-.1],[w-.8,.65,.6],trim);
+ const strip=b.mat('lamp:counter-diffuser','#ece7ce',{emissive:'#fff0c5',emissiveIntensity:.5});b.lamps.push({material:strip,day:.45,night:1.05});
+ for(const dx of [-1.65,1.65]){
+  b.box([x+dx,3.055,z+.12],[1.65,.045,.15],dark);b.box([x+dx,3.025,z+.12],[1.55,.025,.115],strip);
+  b.lamp([x+dx,3.01,z+.15],{color:'#ffedd2',intensity:24,range:4.3,radius:.035});
+ }
+ const bowl=b.own(new T.LatheGeometry([new T.Vector2(.07,0),new T.Vector2(.12,.04),new T.Vector2(.23,.13),new T.Vector2(.25,.2),new T.Vector2(.23,.21),new T.Vector2(.08,.04)],20)),ceramic=b.mat('interior:bowl-ceramic','#e7e4d4',{roughness:.22});
+ ceramic.userData.surfaceFinish={roughness:.22,metalness:0,envMapIntensity:1.04};
+ const seat=b.own(new T.LatheGeometry([new T.Vector2(0,-.05),new T.Vector2(.25,-.05),new T.Vector2(.27,-.025),new T.Vector2(.273,.012),new T.Vector2(.256,.048),new T.Vector2(.19,.055),new T.Vector2(0,.058)],32));
+ const base=b.own(new T.LatheGeometry([new T.Vector2(.035,0),new T.Vector2(.24,0),new T.Vector2(.25,.012),new T.Vector2(.24,.028),new T.Vector2(.14,.045),new T.Vector2(.045,.07)],28));
  for(let i=0;i<6;i++){const xx=x-2.6+i*1.02;
-  b.cylinderAt([xx,.45,z+.87],.04,.66,steel);b.cylinderAt([xx,.16,z+.87],.26,.06,steel);b.cylinderAt([xx,.81,z+.87],.27,.1,red);b.cylinderAt([xx,.75,z+.87],.29,.04,steel);
+  b.cylinderAt([xx,.56,z+.87],.04,.45,steel);b.mesh(base,steel,[xx,.306,z+.87]);b.mesh(seat,red,[xx,.81,z+.87]);b.cylinderAt([xx,.755,z+.87],.245,.024,steel);
   b.mesh(bowl,ceramic,[xx,1.08,z-.1]);b.cylinderAt([xx,1.23,z-.5],.045,.28,dark);for(const dz of [0,.04])b.tube([xx-.24,1.3,z-.1+dz],[xx+.24,1.3,z-.1+dz],.008,wood);
  }
  b.sign('営業中',.42,.65,[x+3.46,1.6,front+.22],{bg:'#963a30',fg:'#eee3c9',size:140});
- // Remove both old blob crowns; the right one was inside the new restaurant.
- for(const name of ['Left_Front_Cherry','Right_Garden_Cherry']){const old=original.root.getObjectByName(name);if(old)old.visible=false;}
  sakuraTree(b,-12.6,4.1,{height:4.4,spread:1.8});sakuraTree(b,12.4,4.6,{height:4.1,spread:1.3});
  // Clear the bookshop frontage while retaining its original side house as a
  // neighbouring building behind the shop, rather than blocking its windows.
@@ -148,13 +151,13 @@ export function createScene({scene,renderer}){
  // long axis. A narrow header has a few tile courses, not a compressed facade.
  b.root.updateMatrixWorld(true);
  b.root.traverse(o=>{
-  if(!o.isMesh||![wall,wood,trim,counter].includes(o.material))return;
+  if(!o.isMesh||![wall,floor,wood,trim,counter].includes(o.material))return;
   const geometry=b.own(o.geometry.clone()),position=geometry.attributes.position,normal=geometry.attributes.normal,uv=geometry.attributes.uv,p=new T.Vector3();
   const size=o.scale.toArray().map(Math.abs),long=size.indexOf(Math.max(...size));
   for(let i=0;i<position.count;i++){
    p.fromBufferAttribute(position,i).applyMatrix4(o.matrixWorld);const n=[Math.abs(normal.getX(i)),Math.abs(normal.getY(i)),Math.abs(normal.getZ(i))],face=n.indexOf(Math.max(...n)),values=p.toArray();
-   if(o.material===wall){const u=face===0?p.z:p.x,v=face===1?p.z:p.y;uv.setXY(i,u/7.3,v/6.5);}
-   else {const cross=[0,1,2].find(axis=>axis!==long&&axis!==face)??((long+1)%3);uv.setXY(i,values[cross]/.12,values[long]/1.2);}
+   if(o.material===wall||o.material===floor){const u=face===0?p.z:p.x,v=face===1?p.z:p.y;const period=o.material===floor?1.20:1.36;uv.setXY(i,u/period,v/period);}
+   else {const cross=[0,1,2].find(axis=>axis!==long&&axis!==face)??((long+1)%3);uv.setXY(i,values[cross]/(o.material===counter?.8:.17),values[long]/(o.material===counter?3:1.5));}
   }
   o.geometry=geometry;
  });

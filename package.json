@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
@@ -57,10 +57,12 @@
     "secrets:prod": "node server/scripts/generate-secrets.mjs",
     "test:account": "node --test tests/account-*.test.cjs",
     "qa:account": "node tests/account-browser.mjs",
-    "qa:site": "node tests/site-browser.mjs"
+    "qa:site": "node tests/site-browser.mjs",
+    "release:win": "npm run build && node scripts/build-update-release.cjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
+    "js-yaml": "4.3.2",
     "lucide-react": "0.468.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -132,7 +134,8 @@
         "en_US"
       ],
       "language": "2052",
-      "artifactName": "Yukino-Companion-${version}-Base-Setup.exe"
+      "artifactName": "Yukino-Companion-${version}-Base-Setup.exe",
+      "include": "scripts/yukino-update.nsh"
     },
     "extraResources": [
       {
@@ -194,6 +197,11 @@
     ],
     "portable": {
       "artifactName": "Yukino-Companion-${version}-Portable.exe"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "fqxxzyw",
+      "repo": "Yukino-Companion"
     }
   }
 }

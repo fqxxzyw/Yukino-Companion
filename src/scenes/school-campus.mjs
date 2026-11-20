@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {plantTussocks} from './landscape-planting.mjs';
 import {Diorama} from './diorama-kit.mjs';
 
 // The official campus plan has a courtyard enclosed by four teaching wings.
@@ -214,6 +215,27 @@ export function extendSchoolCampus(api,{scene,renderer}){
   gardenPoints.push({x,y:groundY+.12+b.rng()*.65,z,size:.14+b.rng()*.16});
  }
  b.leaves(gardenPoints,{name:'foliage:campus-boundary-garden',color:'#647e44'});
+ // Across from the entrance, a real footway defines the near edge of
+ // the road. Planting beds stop short of its paved pedestrian crossing.
+ const footway=b.mat('paving:campus-neighbourhood-walk','#bbc4bd'),streetKerb=b.mat('concrete:campus-footway-kerb','#a3ada7');
+ const bed=b.mat('soil:campus-street-beds','#4b6556'),grate=b.mat('paint:campus-drain-iron','#53605c');
+ b.box([0,.063,27.05],[80,.17,4.0],footway);
+ b.box([0,.082,25.04],[80,.20,.22],streetKerb);
+ const sedges=[];
+ for(const side of [-1,1]){
+  // The median opening lines up with the main gate on the far kerb.
+  b.box([side*9,.138,27.24],[13.6,.070,1.58],bed);
+  for(const dz of [-.84,.84])b.box([side*9,.14,27.24+dz],[13.86,.15,.16],streetKerb);
+  for(const xx of [2.14,15.9])b.box([side*xx,.14,27.24],[.16,.15,1.74],streetKerb);
+  for(let i=0;i<70;i++){const group=Math.floor(i/7);sedges.push({
+   x:side*(2.7+group*1.34+(b.rng()-.5)*.58),z:27.24+(b.rng()-.5)*1.25,
+   y:.174,scale:.48+b.rng()*.61,angle:b.rng()*6.28,tone:.16+b.rng()*.50});}
+  for(const xx of [7.8,15]){const first=b.root.children.length;b.tree(side*xx,27.2,4.7+xx*.07,1.5+xx*.036);
+   for(const child of b.root.children.slice(first))child.position.y+=.132;}
+  for(const xx of [4.8,13.6]){b.box([side*xx,.108,24.76],[.72,.028,.36],grate);
+   for(let j=0;j<6;j++)b.box([side*xx-.27+j*.105,.127,24.76],[.033,.015,.29],streetKerb);}
+ }
+ const sedge=plantTussocks(sedges,'school:roadside-sedge');b.own(sedge.geometry);b.materials.add(sedge.material);b.instances.push(sedge);b.root.add(sedge);
  const before={background:scene.background,fog:scene.fog,environment:scene.environment,intensity:scene.environmentIntensity,tone:renderer?.toneMapping,exposure:renderer?.toneMappingExposure};
  const added=b.finish({w:112,d:119,photo:{position:[87,26,47],target:[0,6,-29],fov:48},companion:{position:[86,14,45],target:[3,7,-28],fov:49},background:'#9db7c6'});
  // The original school owns the sun, sky, climate and exposure. The extension

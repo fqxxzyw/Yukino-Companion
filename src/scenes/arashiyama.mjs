@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {Diorama} from './diorama-kit.mjs';
 import {canopyRays} from './canopy-rays.mjs';
+import {plantFerns} from './landscape-planting.mjs';
 import {bambooSway} from './bamboo-sway.mjs';
 
 export function createScene({scene,renderer}){
@@ -63,8 +64,15 @@ export function createScene({scene,renderer}){
  for(let i=0;i<580;i++){const x=-10+i*.0345;b.tube([x,.55,-10.5],[x+(r()-.5)*.18,1.65+r()*.5,-10.5+(r()-.5)*.24],.012,brush);}
  for(const y of [.85,1.55])b.tube([-10,y,-10.45],[10,y,-10.45],.045,fence);
  const undergrowth=[];
- for(let i=0;i<6200;i++){const z=-7.5+r()*19,x=center(z)+(i%2?1:-1)*(2.1+r()*1.2);undergrowth.push({x,y:.5+r()*.28,z,size:.08+r()*.08,hue:.21+r()*.06});}
- b.leaves(undergrowth,{name:'ground:fern-leaves',color:'#748051'});
+ for(let patch=0;patch<69;patch++){
+  const z0=-7.2+r()*18.3,side=patch%2?1:-1;
+  for(let j=0;j<3;j++){
+   const z=z0+(r()-.5)*.78,edge=2.04+r()*1.03,x=center(z)+side*edge;
+   const y=.18+Math.min(1,(edge-1.8)*.9)*(.35+.15*Math.sin(x*1.8+z*.6));
+   undergrowth.push({x,y,z,angle:r()*6.28,scale:.84+r()*.88,tone:r()});
+  }
+ }
+ plantFerns(b,undergrowth,'forest:ferns-in-bank');
  // Fine fallen bamboo leaves and irregular moss stones break the clean verge.
  const litter=[];for(let i=0;i<1800;i++){const z=-7.5+r()*19,x=center(z)+(i%2?1:-1)*(1.52+r()*.25);litter.push({x,y:.255+r()*.008,z,size:.055+r()*.09,rx:Math.PI/2,ry:0,rz:r()*6.28,hue:.105+r()*.04});}
  b.leaves(litter,{narrow:true,name:'ground:fallen-bamboo-leaves',color:'#b5a17b'}).material.userData.windUniforms.uWindStrength.value=0;
@@ -81,6 +89,6 @@ export function createScene({scene,renderer}){
  const api=b.finish({w:21,d:25,photo:{position:[0,2.3,15.2],target:[-.3,2.6,-7],fov:52},companion:{position:[.8,3,17],target:[0,3,-4],fov:46},overview:[.7,.82,1.5],background:'#72856c'});
  api.setSunlight=setSunlight;
  api.setWind=bambooSway(b,api.root);
- api.lightResponse={sun:.53,ambient:.61,environment:.27};
+ api.lightResponse={sun:.65,ambient:.78,environment:.31};
  api.fidelityDifferences=['Arashiyama-inspired miniature; photographed path and brush fence, not a surveyed map.'];return api;
 }

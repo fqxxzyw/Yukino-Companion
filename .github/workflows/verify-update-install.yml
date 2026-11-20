@@ -1,0 +1,158 @@
+name: Verify staged Windows update
+on:
+  push:
+    branches: ['codex/verify-windows-*']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Optional same-repository build run containing the final Windows release files
+        required: false
+        type: string
+      artifact_name:
+        description: Name of the build artifact (required with artifact_run_id)
+        required: false
+        type: string
+      candidate_sha256:
+        description: Optional pinned SHA-256 of the candidate Base-Setup.exe
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  acquire-draft:
+    if: ${{ github.event_name == 'push' && github.repository == 'fqxxzyw/Yukino-Companion' && !github.event.repository.fork && startsWith(github.ref, 'refs/heads/codex/verify-windows-') && github.event.after == github.sha && !github.event.deleted }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      installer_sha256: ${{ steps.download.outputs.sha256 }}
+    steps:
+      - name: Read the version from the exact public source revision without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --depth=1 --no-tags --filter=blob:none origin "$GITHUB_SHA"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$GITHUB_SHA" ]]
+          git checkout FETCH_HEAD -- package.json
+          version=$(jq -er '.version' package.json)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      # GitHub restricts draft visibility to push-capable identities. Only
+      # this download step receives the token; no repository script or
+      # downloaded binary runs in this job.
+      - name: Download the draft assets pinned to this push and check their GitHub digests
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          setup="Yukino-Companion-$VERSION-Base-Setup.exe"
+          api="repos/$GITHUB_REPOSITORY/releases"
+          draft=$(gh api --paginate --slurp "$api?per_page=100" | jq -ce --arg tag "$tag" --arg sha "$GITHUB_SHA" '
+            [.[][] | select(.tag_name == $tag)] |
+            if length == 1 and .[0].draft == true and .[0].target_commitish == $sha then .[0]
+            else error("expected one draft explicitly targeting the pushed commit SHA") end')
+          mkdir "$RUNNER_TEMP/candidate"
+          cd "$RUNNER_TEMP/candidate"
+          # Fetch by asset ID so no published-tag lookup or draft/tag race can
+          # substitute bytes. gh follows the short-lived GitHub CDN redirect.
+          for name in "$setup" "$setup.blockmap" latest.yml "SHA256SUMS-$VERSION.txt"; do
+            asset=$(jq -ce --arg name "$name" '[.assets[] | select(.name == $name and .state == "uploaded")] |
+              if length == 1 then .[0] else error("missing or duplicate draft asset") end' <<< "$draft")
+            id=$(jq -er '.id' <<< "$asset")
+            gh api -H 'Accept: application/octet-stream' "$api/assets/$id" > "$name"
+            sha=$(sha256sum "$name" | cut -d' ' -f1)
+            [[ "$(stat -c%s "$name")" == "$(jq -er '.size' <<< "$asset")" ]]
+            [[ "sha256:$sha" == "$(jq -er '.digest' <<< "$asset")" ]]
+            if [[ "$name" == "$setup" ]]; then echo "sha256=$sha" >> "$GITHUB_OUTPUT"; fi
+          done
+          gh api "$api/$(jq -er '.id' <<< "$draft")" | jq -e --arg tag "$tag" --arg sha "$GITHUB_SHA" '
+            .draft == true and .tag_name == $tag and .target_commitish == $sha' >/dev/null
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: verified-inputs-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/candidate/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3
+
+  upgrade:
+    needs: acquire-draft
+    if: ${{ !cancelled() && ((github.event_name == 'push' && needs.acquire-draft.result == 'success') || (needs.acquire-draft.result == 'skipped' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && !github.event.release.prerelease)))) }}
+    runs-on: windows-2022
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the draft handoff before selecting any artifact
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          ARTIFACT_ID: ${{ needs.acquire-draft.outputs.artifact_id }}
+          INSTALLER_DIGEST: ${{ needs.acquire-draft.outputs.installer_sha256 }}
+        run: |
+          if ($env:ARTIFACT_ID -notmatch '^[1-9][0-9]*$' -or $env:INSTALLER_DIGEST -notmatch '^[a-fA-F0-9]{64}$') {
+            throw 'Missing exact draft artifact ID or installer SHA-256'
+          }
+      - name: Download the immutable inputs from this workflow run
+        if: github.event_name == 'push'
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.acquire-draft.outputs.artifact_id }}
+          path: ${{ runner.temp }}/yukino-candidate-release
+      - name: Select previous public version and acquire exact installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN: ${{ inputs.artifact_run_id }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          RELEASE_EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid candidate version' }
+          if ($env:RELEASE_EVENT_TAG -and $env:RELEASE_EVENT_TAG -ne "v$version") { throw 'Release and source versions differ' }
+          if ([bool]$env:ARTIFACT_RUN -ne [bool]$env:ARTIFACT_NAME) { throw 'Specify both artifact_run_id and artifact_name' }
+          $tags = @(gh api --paginate "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')
+          if ($LASTEXITCODE) { throw 'Could not enumerate public releases' }
+          $previous = $tags | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' -and [version]$_.Substring(1) -lt [version]$version } |
+            Sort-Object { [version]$_.Substring(1) } -Descending | Select-Object -First 1
+          if (!$previous) { throw "No previous stable release below $version" }
+          $oldVersion = $previous.Substring(1)
+          $old = Join-Path $env:RUNNER_TEMP 'yukino-old-release'
+          $candidate = Join-Path $env:RUNNER_TEMP 'yukino-candidate-release'
+          New-Item -Force -Type Directory $old,$candidate | Out-Null
+          gh release download $previous --dir $old --pattern "Yukino-Companion-$oldVersion-Base-Setup.exe" --pattern latest.yml --pattern "SHA256SUMS-$oldVersion.txt"
+          if ($LASTEXITCODE) { throw 'Previous public release assets could not be downloaded' }
+          if ($env:ARTIFACT_RUN) {
+            if ($env:ARTIFACT_RUN -notmatch '^\d+$') { throw 'Invalid workflow run ID' }
+            gh run download $env:ARTIFACT_RUN --name $env:ARTIFACT_NAME --dir $candidate
+            if ($LASTEXITCODE) { throw 'Unable to download the selected build artifact' }
+          } elseif ($env:GITHUB_EVENT_NAME -ne 'push') {
+            gh release download "v$version" --dir $candidate --pattern "Yukino-Companion-$version-Base-Setup.exe*" --pattern latest.yml --pattern "SHA256SUMS-$version.txt"
+            if ($LASTEXITCODE) { throw 'Candidate is unavailable to the read-only token. Dispatch with a build artifact, or run against the published release.' }
+          }
+          "OLD_VERSION=$oldVersion" >> $env:GITHUB_ENV
+          "NEW_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Run original installers, verify restart and retained guest data
+        shell: pwsh
+        env:
+          CANDIDATE_SHA256: ${{ needs.acquire-draft.outputs.installer_sha256 || inputs.candidate_sha256 }}
+        run: |
+          ./scripts/verify-real-windows-upgrade.ps1 -OldVersion $env:OLD_VERSION -NewVersion $env:NEW_VERSION

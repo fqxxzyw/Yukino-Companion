@@ -1,5 +1,7 @@
 import * as T from 'three';
 import {Diorama} from './diorama-kit.mjs';
+import {plantTussocks} from './landscape-planting.mjs';
+import {addBoughs,addCedarStand} from './foliage-sprays.mjs';
 import {addClearStream} from './clear-stream.mjs';
 import {addSakuraLife} from './sakura-stream-life.mjs';
 import {addSakuraBankDetails} from './sakura-bank-details.mjs';
@@ -20,7 +22,8 @@ export function terrainHeight(x,z){
  if(d<=-.65)return streamBedY(x,z);
  if(d<0)return mix(streamBedY(x,z),STREAM_LEVEL+.035,smooth((d+.65)/.65));
  const crest=smooth(d/STREAM_BANK_RUN);
- return STREAM_LEVEL+.035+STREAM_BANK_RISE*crest+terrainNoise(x,z)*smooth(d*1.4)+(.085*Math.sin(x*.21+z*.09)+.065*Math.sin(x*.12-z*.17))*smooth(d/2.4);
+ const meadowRise=smooth((d-7.5)/13)*(1.9+.87*Math.sin(z*.14+.5)+.64*Math.cos(x*.17-z*.072));
+ return STREAM_LEVEL+.035+STREAM_BANK_RISE*crest+meadowRise+terrainNoise(x,z)*smooth(d*1.4)+(.085*Math.sin(x*.21+z*.09)+.065*Math.sin(x*.12-z*.17))*smooth(d/2.4);
 }
 export const groundHeight=(x,z)=>terrainHeight(x,z)+(Math.abs(x-scenePathCenter(z))<pathWidth(z)/2?.023:0);
 
@@ -97,7 +100,7 @@ export function createScene({scene,renderer}){
   pathGravel.push({position:[x,groundHeight(x,z)+.002,z],scale:[size,size*.25,size*(.75+random()*.6)],rotation:[random()*.3,random()*6.28,random()*.2],color:stoneColors[(i+1)%stoneColors.length].clone().multiplyScalar(.82)});
  }
  instances('path-edge-gravel',pebbleGeometry,dryStone,pathGravel);
- const grass=[],patches=Array.from({length:340},()=>{const z=mix(STREAM_START,STREAM_END,random()),side=random()<.45?-1:1,d=.6+random()*12;return {x:streamCenter(z)+side*(streamHalfWidth(z)+d),z,radius:.45+random()*1.3,fertility:random()};});
+ const grass=[],patches=Array.from({length:340},()=>{const z=mix(STREAM_START,STREAM_END,random()),side=random()<.45?-1:1,d=.3+random()*10;return {x:streamCenter(z)+side*(streamHalfWidth(z)+d),z,radius:.45+random()*1.3,fertility:random()};});
  for(let i=0;i<14500;i++){
   const patch=patches[i%patches.length],angle=random()*Math.PI*2,radius=Math.sqrt(random())*patch.radius,z=clamp(patch.z+Math.sin(angle)*radius,STREAM_START,STREAM_END),x=patch.x+Math.cos(angle)*radius;
   const bankDistance=Math.abs(x-streamCenter(z))-streamHalfWidth(z);
@@ -145,10 +148,30 @@ export function createScene({scene,renderer}){
  bridgeApproach(-1);bridgeApproach(1);
  addSakuraBankDetails(b,groundHeight);
  const water=addClearStream(b,renderer),life=addSakuraLife(b,{groundHeight});
+ // Low sedge on the wet margin, taller drifts by the outer meadow. An
+ // interrupted thicket curves back round the field instead of a straight
+ // band of trees on the horizon. The bridge approach and footpath stay open.
+ const sedges=[];
+ for(let patch=0;patch<128;patch++){
+  const z0=mix(STREAM_START+2,STREAM_END-1,random()),side=patch%4===0?-1:1;
+  const offset=patch%3===0?.30+random()*.55:2.9+random()*13;
+  const radius=.55+random()*1.20;
+  for(let plant=0;plant<9;plant++){
+   const z=z0+(random()-.5)*2.2,x=streamCenter(z)+side*(streamHalfWidth(z)+offset)+(random()-.5)*radius;
+   if(Math.abs(x-scenePathCenter(z))<1.20||Math.abs(x-streamCenter(z))<streamHalfWidth(z)+.20)continue;
+   sedges.push({x,y:terrainHeight(x,z),z,scale:.60+random()*.95,angle:random()*6.28,tone:random()});
+  }
+ }
+ const sedge=plantTussocks(sedges,'sakura-stream:riparian-sedge');b.own(sedge.geometry);b.materials.add(sedge.material);b.instances.push(sedge);b.root.add(sedge);
+ for(const [x,z,h,spread] of [[14,8,3.4,2.4],[16,11,4.8,3.1],[14,-3,5.6,3.4],[18,-9,4.1,2.9],[12,-14,3.0,2.2],[14,-18,5,3.2],[15,-29,4.4,3.5],[-17,-5,5,3.4],[-13,-31,5,3],[-18,14,4,2.4]]){
+  const first=b.root.children.length;b.tree(x,z,h,spread);
+  for(const object of b.root.children.slice(first))object.position.y+=terrainHeight(x,z);
+ }
  const eyeZ=15.5,eyeX=scenePathCenter(eyeZ),eyeY=groundHeight(eyeX,eyeZ)+1.65;
  const closeZ=7,closeX=streamCenter(closeZ)-streamHalfWidth(closeZ)-2.55,closeY=groundHeight(closeX,closeZ)+1.45;
  const api=b.finish({w:68,d:76,photo:{position:[closeX,closeY,closeZ],target:[.5,.65,-6],fov:55},companion:{position:[eyeX,eyeY,eyeZ],target:[.7,2,-9.5],fov:53},overview:[-.7,.65,1],background:'#a8c9d9'});
  api.sunAzimuthOffset=110;
+ api.render=(gpu,world,camera)=>{life.setView(camera,gpu.domElement?.height||800);gpu.render(world,camera);};
 
  // Backdrop meshes stay outside finite landscape framing so Home does not
  // turn the creek and individual blossom branches into a distant dot.
@@ -166,30 +189,39 @@ export function createScene({scene,renderer}){
  }
  // Distant forest has porous, folded-leaf silhouettes and branch-supported
  // crowns. No opaque spheres stand in for foliage at the mountain's foot.
- const canopyGeometry=b.own(new T.BufferGeometry());canopyGeometry.setAttribute('position',new T.Float32BufferAttribute([0,-.5,0,-.3,-.05,0,0,.5,.045,.3,-.05,0,0,0,.13],3));canopyGeometry.setIndex([0,1,4,1,2,4,2,3,4,3,0,4]);canopyGeometry.computeVertexNormals();
- const canopyMaterial=finish(b.mat('foliage:wooded-mountain-leaves','#ffffff',{side:T.DoubleSide}),.99,.06),distantBark=finish(b.mat('bark:wooded-distant-trunks','#625c4b'),.98,.08),forestBranches=[];
- // Write the fixed-size forest directly to GPU instance buffers. Retaining
- // hundreds of thousands of intermediate objects and colour strings causes a
- // long garbage-collection pause when entering this scene.
- const canopy=new T.InstancedMesh(canopyGeometry,canopyMaterial,450*5*150),leafObject=new T.Object3D(),leafColor=new T.Color();let leafIndex=0;
- canopy.name='sakura-stream:wooded-distant-leaves';
- const distantBranchGeometry=b.own(new T.CylinderGeometry(.64,1,1,7)),forestNear=new T.Color('#4d704b'),forestHaze=new T.Color('#92aeb1');
+ const distantBark=finish(b.mat('bark:wooded-distant-trunks','#625c4b'),.98,.08);
+ const forestBranches=[],sprays=[],cedars=[];
+ const distantBranchGeometry=b.own(new T.CylinderGeometry(.64,1,1,7)),forestHaze=new T.Color('#92aeb1');
  const branch=(a,c,radius)=>{const p=new T.Vector3(...a),q=new T.Vector3(...c),length=p.distanceTo(q),object=new T.Object3D();object.position.copy(p).add(q).multiplyScalar(.5);object.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),q.sub(p).normalize());object.scale.set(radius,length,radius);object.updateMatrix();forestBranches.push(object.matrix.clone());};
  for(let i=0;i<450;i++){
-  const x=(random()-.5)*168,z=-49-random()*96,base=mountainHeight(x,z),height=6.8+random()*6.4,spread=height*(.27+random()*.12),haze=smooth((-z-48)/170),forestColor=forestNear.clone().lerp(forestHaze,haze);
+  const x=(random()-.5)*168,z=-49-random()*96,base=mountainHeight(x,z),height=6.8+random()*6.4,spread=height*(.27+random()*.12),haze=smooth((-z-48)/170);
+  // Small stands of Japanese cedar mark the high ridge. Their single
+  // leader and tiered, tapered drooping branches contrast with the lower
+  // spreading broadleaf trees. Stand identity follows terrain, not tree ID.
+  const cedar=z< -69 && Math.sin(x*.073-z*.12)+Math.cos(x*.104+z*.052)>.10;
+  if(cedar){
+   const h=height*1.43;
+   branch([x,base,z],[x,base+h,z],height*.021);
+   cedars.push({x,z,base,h,haze});
+   continue;
+  }
   branch([x,base,z],[x+.09,base+height*.81,z+.06],height*.018);
   for(let limb=0;limb<5;limb++){
    const a=limb*2.39996+i*.7,end=[x+Math.cos(a)*spread*.63,base+height*(.6+limb*.065),z+Math.sin(a)*spread*.63];branch([x,base+height*.48,z],end,height*.006);
-   for(let leaf=0;leaf<150;leaf++){
-    const theta=random()*Math.PI*2,u=random()*2-1,ring=Math.sqrt(1-u*u),rad=Math.pow(random(),.3),size=.29+random()*.3;
-    leafObject.position.set(end[0]+Math.cos(theta)*ring*spread*.62*rad,end[1]+u*height*.19*rad,end[2]+Math.sin(theta)*ring*spread*.62*rad);
-    leafObject.scale.set(size,size*(1.1+random()*.5),size);leafObject.rotation.set(random()*3.14,random()*6.28,random()*6.28);leafObject.updateMatrix();
-    canopy.setMatrixAt(leafIndex,leafObject.matrix);canopy.setColorAt(leafIndex,leafColor.copy(forestColor).multiplyScalar(.75+random()*.5));leafIndex++;
+   // Overlapping branched sprays form a broad value mass at distance;
+   // single subpixel leaves previously dissolved into a screen of dots.
+   for(let spray=0;spray<14;spray++){
+    const angle=a+spray*2.39996,rad=(.15+random()*.40)*spread;
+    const tint=new T.Color('#99b89e').lerp(new T.Color('#b9ca9a'),random()*.66).lerp(forestHaze,haze*.88);
+    sprays.push({x:end[0]+Math.cos(angle)*rad,y:end[1]+(random()-.5)*height*.18,
+     z:end[2]+Math.sin(angle)*rad,yaw:angle,tilt:.6+random()*.86,
+     width:spread*(.9+random()*.55),height:height*(.21+random()*.10),color:tint});
    }
   }
  }
  const branches=new T.InstancedMesh(distantBranchGeometry,distantBark,forestBranches.length);branches.name='sakura-stream:wooded-distant-branches';forestBranches.forEach((matrix,i)=>branches.setMatrixAt(i,matrix));branches.computeBoundingSphere();branches.castShadow=false;branches.receiveShadow=true;b.root.add(branches);b.instances.push(branches);
- canopy.computeBoundingSphere();canopy.castShadow=false;canopy.receiveShadow=true;b.root.add(canopy);b.instances.push(canopy);
+ addCedarStand(b,cedars);
+ const canopy=addBoughs(b,sprays,'sakura-stream:wooded-distant-leaves');canopy.castShadow=false;
  const skyMaterial=new T.ShaderMaterial({name:'sky:sakura-stream',side:T.BackSide,depthWrite:false,fog:false,uniforms:{zenithTint:{value:new T.Color('#4b9bce')},horizonTint:{value:new T.Color('#b6d7e5')}},vertexShader:'varying vec3 vSkyDirection;void main(){vSkyDirection=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'varying vec3 vSkyDirection;uniform vec3 zenithTint;uniform vec3 horizonTint;void main(){float h=clamp(vSkyDirection.y,0.0,1.0);vec3 color=mix(horizonTint,zenithTint,smoothstep(0.0,.42,h));gl_FragColor=vec4(color,1.0);#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'});
  // Shader chunk directives must begin on their own line.
  skyMaterial.fragmentShader=skyMaterial.fragmentShader.replace(';#include',';\n#include');b.materials.add(skyMaterial);

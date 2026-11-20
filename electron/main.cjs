@@ -11,6 +11,7 @@ const {createLive2DAssets,live2dScheme}=require('./live2d-assets.cjs');
 const live2dAssets = createLive2DAssets({app,protocol,session});
 const motionEditor = require('./motion-editor.cjs').createMotionEditor({
   BrowserWindow, ipcMain, net, protocol, screen, session, additionalSchemes:[live2dScheme], development: Boolean(development.url), getUpdater:()=>appUpdater,
+  showAppUpdates:()=>{openMain();send('show-app-updates');},
   getCompanionModel: async id=>{const data=await readCharacterModel(id);const entry=characterEntry(id);return {id:entry.id,label:entry.label,sha256:entry.sha256,data};},
 });
 if (development.enabled) {
@@ -307,9 +308,13 @@ else {
     companions = new CompanionManager({electron,dataDir:app.getPath('userData'),onOpenMain:showMainWindow,onModelData:readCharacterModel,onModelActionData:readCharacterActions,onModelCatalog:()=>modelStore().catalog(),onLive2DViewer:()=>live2dAssets.viewerUrl(),onUse:value=>send('companion-use',{type:'pet-interaction',...value}),onReminder:result=>{if(result.readAloudEligible!==false)send('companion-caption',{text:result.text,characterId:companions.character?.id,source:'reminder'});},onProactive:generateProactive,onChat:(text,context)=>companionChatRequests.submit(text,context),onChatStop:()=>{companionChatRequests.cancel('本次消息已停止，未接受的输入仍保留。');controller?.abort();localChat?.cancel();translation?.cancelRequests();send('pet-chat-stop');},onVision:(owner,kind,options)=>companionVisual?.open(owner,kind,options),onVisionStop:()=>{vision?.cancel();companionVisual?.stop();},onOpenSettings:tab=>{openMain();send('open-settings',tab);},onQuit:()=>app.quit(),onChange:state=>send('companion-state',state),onCloseRequested:()=>send('close-requested'),onError:error=>send('app-error',{message:error.message})});
     await companions.initialize();const installedPet=await resourcePacks.status('pet');if(installedPet.installed)await companions.setResourceRoot?.(installedPet.root);companions.attachMainWindow(win);
 
-    appUpdater=require('./app-update.cjs').createUpdater({app,dialog,shell,send});
+    appUpdater=require('./app-update.cjs').createUpdater({app,dialog,shell,send,net,beforeInstall:async()=>{
+      if(!await flushRenderer())throw Error('应用状态未能保存，请重试后再安装更新。');
+      await saveQueue;
+    }});
     handle('app-update-check',()=>appUpdater.check());
     handle('app-update-download',()=>appUpdater.download());
+    handle('app-update-cancel',()=>appUpdater.cancel());
     handle('app-update-install',()=>appUpdater.install());
     handle('app-update-open',()=>appUpdater.open());
     handle('flush-complete', (id,ok)=>{flushResolvers.get(id)?.(ok);});
@@ -344,8 +349,16 @@ else {
     accountResult('account-skip',()=>accountStore.completeOnboarding());
     accountResult('account-switch-guest',async()=>{await flushBeforeAccountSwitch();return accountStore.switchGuest();});
     accountResult('account-login',async value=>{const input=accountArgs(value);const email=accountString(input.email,254),password=accountString(input.password,512);await flushBeforeAccountSwitch();return accountStore.login({email,password,remember:input.remember!==false});});
+    accountResult('account-nickname',input=>accountStore.updateNickname(accountArgs(input)));
+    accountResult('account-characters',input=>accountStore.profileRequest(input.profileId,'/api/v1/characters'),'data');
+    accountResult('account-character-save',input=>{
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(input.id)||input.id==='yukino') throw Error('角色编号无效。');
+      return accountStore.profileRequest(input.profileId,'/api/v1/characters/'+input.id,{
+        method:'PUT',body:{name:accountString(input.name,60),persona:accountString(input.persona,12000)}
+      });
+    },'data');
     accountResult('account-register-request',async value=>{const input=accountArgs(value);return accountStore.registerRequest({email:accountString(input.email,254)});},'data');
-    accountResult('account-register',async value=>{const input=accountArgs(value);await flushBeforeAccountSwitch();return accountStore.register({email:accountString(input.email,254),nickname:accountString(input.nickname,64),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64),password:accountString(input.password,512)});});
+    accountResult('account-register',async value=>{const input=accountArgs(value);await flushBeforeAccountSwitch();return accountStore.register({email:accountString(input.email,254),nickname:accountString(input.nickname??"",65536),code:accountString(input.code,16),challengeId:accountString(input.challengeId,64),password:accountString(input.password,512)});});
     accountResult('account-logout',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:false});});
     accountResult('account-logout-all',async()=>{await flushBeforeAccountSwitch();return accountStore.logout({all:true});});
     accountResult('account-sessions',()=>accountStore.listSessions(),'data');

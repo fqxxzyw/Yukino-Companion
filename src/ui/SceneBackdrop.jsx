@@ -68,7 +68,7 @@ export default function SceneBackdrop({scene,view,importedScenes=[],preview=fals
   }catch{instance?.dispose();renderer.current=null;fail()}}).catch(fail);
   return()=>{cancelled=true;instance?.dispose();renderer.current=null;if(rendererRef?.current===instance)rendererRef.current=null};
  },[preview,sceneEnabled,reducedMotion,rendererRef,sceneRetry,onSunlight]);
- useEffect(()=>{if(!sceneEnabled)return;const instance=renderer.current,id=sceneId(scene);if(!instance||instance.loading||instance.environmentScene!==id)setSceneStatus({kind:'loading',id});else setSceneStatus(status=>status?.id!==id?null:status);instance?.setRenderStyle(sceneStyle);instance?.update(scene,timeOfDay,weather,view)},[scene,view,sceneEnabled,timeOfDay,weather,sceneStyle]);
+ useEffect(()=>{if(!sceneEnabled)return;const instance=renderer.current,id=sceneId(scene);if(!instance||instance.loading||instance.environmentScene!==id)setSceneStatus({kind:'loading',id});else setSceneStatus(status=>status?.id!==id?null:status);instance?.setRenderStyle(sceneStyle,sceneId(scene));instance?.update(scene,timeOfDay,weather,view)},[scene,view,sceneEnabled,timeOfDay,weather,sceneStyle]);
  useEffect(()=>{renderer.current?.setAnimationEnabled(motionEnabled)},[motionEnabled]);
  useLayoutEffect(()=>{
   const element=layer.current;if(!element)return;const old=previousRef.current;previousRef.current=current;setPrevious(old);

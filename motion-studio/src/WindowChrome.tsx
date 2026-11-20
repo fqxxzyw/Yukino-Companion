@@ -10,9 +10,7 @@ declare global {
   interface Window {
     studioWindow?: {
       updateSupported?: () => Promise<boolean>;
-      updateCheck?: () => Promise<{version:string; downloadable:boolean}|null>;
-      updateDownload?: () => Promise<{saved?:boolean}>;
-      updateOpen?: () => Promise<void>;
+      showAppUpdates?: () => Promise<void>;
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
       close: () => Promise<void>;
@@ -96,13 +94,17 @@ export function WindowControls() {
 
 
 export function StudioUpdateNotice() {
-  const bridge=window.studioWindow;
-  const [release,setRelease]=useState<{version:string;downloadable:boolean}|null>(null);
-  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[supported,setSupported]=useState(false);
-  useEffect(()=>{let active=true;bridge?.updateSupported?.().then(value=>{if(active)setSupported(value)});return()=>{active=false}},[bridge]);
-  useEffect(()=>{if(!supported||!bridge?.updateCheck)return;let active=true;const check=()=>bridge.updateCheck!().then(value=>{if(active)setRelease(value)}).catch(()=>{});const first=setTimeout(check,5000),timer=setInterval(check,6*60*60*1000);return()=>{active=false;clearTimeout(first);clearInterval(timer)}},[bridge,supported]);
-  if(!supported||!bridge?.updateCheck)return null;
-  async function check(){setBusy(true);setMessage('');try{const value=await bridge!.updateCheck!();setRelease(value);if(!value)setMessage('当前没有可用的正式版更新。')}catch(error){setMessage(String(error))}finally{setBusy(false)}}
-  async function download(){setBusy(true);setMessage('正在下载并校验更新包…');try{const value=await bridge!.updateDownload!();setMessage(value.saved?'下载完成。关闭应用后运行安装包并选择原安装目录。':'')}catch(error){setMessage(String(error))}finally{setBusy(false)}}
-  return <div className="studio-update"><button type="button" onClick={()=>setOpen(!open)} aria-expanded={open}>{release?`发现新版本 ${release.version}`:'应用更新'}</button>{open&&<div className="studio-update-popover" role="dialog" aria-label="应用更新"><strong>{release?`发现新版本 ${release.version}`:'应用更新'}</strong><p>选择原安装目录更新，个人数据和已下载资源会保留。</p>{release&&!release.downloadable&&<p>此版本暂无基础安装包，请前往 GitHub 查看。</p>}{message&&<p role="status">{message}</p>}<div>{release?.downloadable&&<button disabled={busy} onClick={download}>下载更新</button>}<button disabled={busy} onClick={check}>检查更新</button><button onClick={()=>bridge.updateOpen!().catch(error=>setMessage(String(error)))}>前往 GitHub</button><button onClick={()=>setOpen(false)}>关闭</button></div></div>}</div>;
+  const bridge = window.studioWindow;
+  const [supported, setSupported] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    bridge?.updateSupported?.().then(value => { if (active) setSupported(value); });
+    return () => { active = false; };
+  }, [bridge]);
+  if (!supported || !bridge?.showAppUpdates) return null;
+  return <div className="studio-update">
+    <button onClick={() => {setError(''); bridge.showAppUpdates!().catch(err => setError(String(err)));}}>应用更新</button>
+    {error && <p className="studio-update-popover" role="alert">{error}</p>}
+  </div>;
 }

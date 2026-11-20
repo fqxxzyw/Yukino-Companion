@@ -1,13 +1,37 @@
 import * as T from 'three';
 import {Diorama} from './diorama-kit.mjs';
 import {architectureFinish} from './architecture-textures.mjs';
+import {addBoughs} from './foliage-sprays.mjs';
+
+function woodlandBoughMaterial(b) {
+ const canvas=document.createElement('canvas');canvas.width=192;canvas.height=144;
+ const ctx=canvas.getContext('2d');
+ let seed=15437;
+ const random=()=>(seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296;
+ const tones=['#789688','#91a786','#b7c69a','#a5b889','#c1cb9c'];
+ // Overlapping groups leave scalloped gaps along each branch silhouette.
+ for(let i=0;i<24;i++){
+  const angle=i*2.39996,radius=Math.sqrt((i+.5)/24);
+  const cx=96+Math.cos(angle)*radius*68,cy=74+Math.sin(angle)*radius*42;
+  for(let j=0;j<55;j++){
+   const a=random()*Math.PI*2,r=Math.sqrt(random());
+   const x=cx+Math.cos(a)*r*22,y=cy+Math.sin(a)*r*18;
+   const length=3.1+random()*5.4, tilt=random()*2.4-.9;
+   const shade=T.MathUtils.clamp(Math.floor(2.8+(65-y)*.020+(random()-.5)*2.4),0,tones.length-1);
+   ctx.fillStyle=tones[shade];ctx.beginPath();
+   ctx.ellipse(x,y,length,length*(.42+random()*.22),tilt,0,Math.PI*2);ctx.fill();
+  }
+ }
+ const map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace;map.name='foliage:woodland-bough';b.textures.add(map);
+ return b.mat('foliage:inage-shaded-boughs','#ffffff',{map,side:T.DoubleSide,alphaTest:.43,roughness:.91});
+}
 
 // Compact photographic reconstruction, not survey geometry. Both bridge decks
 // run along X; Route 14 passes below them along Z.
 export function createScene({scene,renderer}){
  const b=new Diorama(scene,renderer,'Inage_Overpass');b.plinth(48,30,'#565e60');
- const concrete=b.mat('concrete:piers','#b6b5ab'),steel=b.mat('paint:blue-steel','#507d99'),rail=b.mat('paint:pedestrian-railing','#b8d1d8');
- const dark=b.mat('asphalt:road','#343b40'),mark=b.mat('paint:road-lines','#d9d7c6'),orange=b.mat('paint:road-centre-line','#bb8c43'),soil=b.mat('soil:verge','#636d4f'),paver=b.mat('paving:walkway','#9c9585'),walk=b.mat('asphalt:pedestrian-walkway','#77645b'),noise=b.mat('paint:noise-barrier','#a7b0af'),rust=b.mat('paint:weathered-joints','#75675a');
+ const concrete=b.mat('concrete:piers','#bbbcb4'),steel=b.mat('paint:blue-steel','#527e91'),rail=b.mat('paint:pedestrian-railing','#c0d3cf');
+ const dark=b.mat('asphalt:road','#343b40'),mark=b.mat('paint:road-lines','#d9d7c6'),orange=b.mat('paint:road-centre-line','#bb8c43'),soil=b.mat('soil:verge','#636d4f'),paver=b.mat('paving:walkway','#a79e88'),walk=b.mat('asphalt:pedestrian-walkway','#92877a'),noise=b.mat('paint:noise-barrier','#a7b0af'),rust=b.mat('paint:weathered-joints','#75675a');
  for(const [m,rough,env]of [[concrete,.94,.18],[steel,.71,.32],[rail,.64,.36],[noise,.82,.24],[rust,.97,.15],[walk,.95,.19],[paver,.91,.22]])m.userData.surfaceFinish={roughness:rough,metalness:0,envMapIntensity:env};
  architectureFinish(b,concrete,'concrete',{scale:2.4});
  for(const m of [steel,rail,noise])architectureFinish(b,m,'paint');
@@ -215,7 +239,32 @@ export function createScene({scene,renderer}){
   b.box([x,.52,z],[1.24,.035,1.28],gasket);
   for(const dx of [-.68,.68])for(const dz of [-.68,.68])b.cylinderAt([x+dx,.515,z+dz],.038,.028,fastener);
  }
- const sign=b.sign('自転車はおして\nとおりましょう',1.35,.58,[8.9,lowerY+.83,-1.51],{bg:'#e8edf0',fg:'#31577b',size:100});sign.rotation.y=Math.PI/2;
+ // Separate the lower chords and service conduits from the web in silhouette.
+ // All clips sit on the same hanger, above the pedestrian clearance envelope.
+ const flange=b.mat('paint:lower-flange','#86a7ac'),pipe=b.mat('metal:galvanized-conduit','#8a9b99',{roughness:.52,metalness:.45});
+ for(const z of [-2.88,2.88])b.box([0,upperY-.80,z],[27.98,.09,.27],flange);
+ for(const z of [-1.45,-1.22])b.tube([-13.65,upperY-1.03,z],[13.65,upperY-1.03,z],z<-1.3?.073:.049,pipe);
+ for(const x of [-11.4,-7.6,-3.8,0,3.8,7.6,11.4]){
+  b.box([x,upperY-1.13,-1.335],[.085,.067,.56],joint);
+  for(const z of [-1.59,-1.08])b.box([x,upperY-.90,z],[.055,.46,.055],joint);
+ }
+ // Shoe-safe edge channels take rainwater away from the sheltered central walk.
+ const edgeTile=b.mat('paving:walkway-edge','#b6ae99'),drain=b.mat('metal:scupper-grille','#506d70',{roughness:.72,metalness:.28});
+ for(const side of [-1,1]){
+  const z=side*1.4;
+  b.box([-2.25,lowerY+.037,z],[23.95,.018,.16],edgeTile);
+  for(const x of [-9.3,-1.7,5.9]){
+   b.box([x,lowerY+.051,z],[.49,.008,.135],drain);
+   for(let i=0;i<6;i++)b.box([x-.192+i*.077,lowerY+.058,z],[.016,.008,.12],rail);
+  }
+ }
+ const access=b.mat('paving:tactile-warning','#c9a75f');
+ for(let row=0;row<2;row++)for(let col=0;col<3;col++){
+  const x=9.05+row*.30,z=(col-1)*.30;
+  b.box([x,lowerY+.034,z],[.294,.013,.294],access);
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)b.cylinderAt([x+(i-1)*.082,lowerY+.047,z+(j-1)*.082],.022,.015,access);
+ }
+ const sign=b.sign('自転車はおして\nとおりましょう',1.35,.58,[8.9,lowerY+.83,-1.51],{bg:'#e8edf0',fg:'#31577b',size:100});sign.rotation.y=-Math.PI*.38;
  for(const [x,z,h]of [[-19,-8,4.1],[-16,-9,4.8],[-12,-9.7,5],[-10,7.6,4.6],[-16,8.5,5.3],[9.1,8.7,5],[12.6,8.2,5.5],[17.5,-9.5,5.1],[19.9,9.4,5.6]])b.tree(x,z,h,1.3);
  b.shrubs(-15,-8,10,2,.9);b.shrubs(-15,8,9,2,.8);b.shrubs(15,8.5,7,2,.9);
  for(const [x,z,h]of [[19.7,5.8,4.3],[21.4,-5.6,5.1],[22.1,6.5,4.7]]){
@@ -242,18 +291,22 @@ export function createScene({scene,renderer}){
   b.box([0,.07,z],[10,.09,80],dark,context);b.box([0,.126,z],[.095,.012,80],orange,context);
   for(const side of [-1,1]){b.box([side*6.1,.17,z],[2.2,.22,80],paver,context);b.box([side*4.75,.125,z],[.1,.012,80],mark,context);}
  }
- const branches=[],leaves=[],r=b.rng;
+ const branches=[],leaves=[],sprays=[],canopySites=[],r=b.rng;
+ let treeCount=0;
  const branch=(a,c,radius)=>branches.push({a,c,radius});
  function woodlandTree(x,z,h,spread){
+  treeCount++;
   const y=lowHeight(x,z),lean=(r()-.5)*.6,top=[x+lean,y+h*.78,z+.12];branch([x,y,z],top,h*.028);
   for(let j=0;j<9;j++){
    const a=j*2.3999+r()*.28,reach=spread*(.6+r()*.4),end=[x+Math.cos(a)*reach,y+h*(.48+r()*.38),z+Math.sin(a)*reach];
    branch([x+lean*.5,y+h*(.3+j*.038),z],end,h*.008+.014);
+   canopySites.push({position:[end[0],end[1]+.42,end[2]],scale:[spread*.42,spread*.24,spread*.37],yaw:a,color:new T.Color().setHSL(.27+.02*Math.sin(a),.18,.33+j*.012)});
    for(let k=0;k<3;k++){
     const tip=[end[0]+Math.cos(a+k*1.9)*spread*.28,end[1]+.35+r()*.6,end[2]+Math.sin(a+k*1.9)*spread*.28];branch(end,tip,.015);
-    for(let n=0;n<24;n++){
+    sprays.push({x:tip[0],y:tip[1]-.30,z:tip[2],yaw:a+k*1.9,tilt:.64+.19*Math.sin(a),width:spread*.57,height:spread*.42,color:new T.Color().setHSL(.26+.02*k,.19,.61+j*.012)});
+    for(let n=0;n<8;n++){
      const angle=r()*Math.PI*2,rad=Math.sqrt(r())*spread*.39;
-     leaves.push({x:tip[0]+Math.cos(angle)*rad,y:tip[1]+(r()-.45)*spread*.56,z:tip[2]+Math.sin(angle)*rad,size:.15+r()*.18,hue:.22+r()*.065});
+     leaves.push({x:tip[0]+Math.cos(angle)*rad,y:tip[1]+(r()-.45)*spread*.46,z:tip[2]+Math.sin(angle)*rad,size:.16+r()*.16,hue:.24+r()*.06,lightness:.49+r()*.16});
     }
    }
   }
@@ -275,7 +328,28 @@ export function createScene({scene,renderer}){
  const branchGeometry=b.own(new T.CylinderGeometry(.62,1,1,7)),branchMesh=new T.InstancedMesh(branchGeometry,contextBark,branches.length),object=new T.Object3D(),up=new T.Vector3(0,1,0);
  branches.forEach(({a,c,radius},i)=>{const p=new T.Vector3(...a),q=new T.Vector3(...c);object.position.copy(p).add(q).multiplyScalar(.5);object.quaternion.setFromUnitVectors(up,q.clone().sub(p).normalize());object.scale.set(radius,p.distanceTo(q),radius);object.updateMatrix();branchMesh.setMatrixAt(i,object.matrix);});
  branchMesh.name='inage:woodland-branch-network';branchMesh.castShadow=true;branchMesh.receiveShadow=true;branchMesh.computeBoundingSphere();context.add(branchMesh);b.instances.push(branchMesh);
- const crown=b.leaves(leaves,{color:'#6d854c',name:'foliage:inage-woodland-leaves'});context.add(crown);
+ const cushion=b.own(new T.BufferGeometry()),positions=[],normals=[],uvs=[],indices=[];
+ for(let face=0;face<3;face++){
+  const yaw=face*Math.PI/3,c=Math.cos(yaw),s=Math.sin(yaw),offset=positions.length/3;
+  for(const [u,v] of [[0,0],[.5,0],[1,0],[0,1],[.5,1],[1,1]]){
+   const x=(u-.5)*2.7,fold=u===.5?.20:0;
+   positions.push(x*c-fold*s,(v-.5)*2.6,x*s+fold*c);
+   normals.push(c*(u-.5)*.8,.84,s*(u-.5)*.8+.22);
+   uvs.push(u,v);
+  }
+  indices.push(...[0,1,3,3,1,4,1,2,4,4,2,5].map(i=>i+offset));
+ }
+ cushion.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+ cushion.setAttribute('normal',new T.Float32BufferAttribute(normals,3));
+ cushion.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));cushion.setIndex(indices);
+ const core=new T.InstancedMesh(cushion,woodlandBoughMaterial(b),canopySites.length);
+ canopySites.forEach(({position,scale,yaw,color},i)=>{
+  object.position.fromArray(position);object.rotation.set(.08*Math.sin(yaw*4),yaw,.15*Math.cos(yaw));object.scale.fromArray(scale);
+  object.updateMatrix();core.setMatrixAt(i,object.matrix);core.setColorAt(i,color.clone().lerp(new T.Color('#dde3c9'),.72));
+ });
+ core.name='inage:inner-canopy';core.receiveShadow=true;core.castShadow=true;core.computeBoundingSphere();context.add(core);b.instances.push(core);
+ context.add(addBoughs(b,sprays,'foliage:inage-canopy-sprays'));
+ const crown=b.leaves(leaves,{color:'#b4c3a9',name:'foliage:inage-woodland-leaves'});context.add(crown);
  const bankCover=[];
  for(let i=0;i<50000;i++){
   const x=14.9+r()*8.8,z=-39+r()*78;
@@ -317,7 +391,7 @@ export function createScene({scene,renderer}){
   petals.setColorAt(i,new T.Color(p.color<.46?'#f8e8ea':p.color<.76?'#f4d076':p.color<.92?'#efb9cc':'#f7f2df'));
  }
  for(const [mesh,name]of [[petals,'inage:bank-wildflowers'],[stems,'inage:bank-wildflower-stems']]){mesh.name=name;mesh.castShadow=false;mesh.receiveShadow=true;mesh.computeBoundingSphere();context.add(mesh);b.instances.push(mesh);}
- api.root.userData.inageWoodland={trees:leaves.length/(9*3*24),contextOutsideFraming:true,bankHeightAtEdge:eastBankHeight(23.8,0)};
+ api.root.userData.inageWoodland={trees:treeCount,contextOutsideFraming:true,bankHeightAtEdge:eastBankHeight(23.8,0)};
  api.root.userData.inageLayout={axis:'x',groundRoadAxis:'z',upperY,lowerY,landingY,upperWidth,lowerWidth,roadHalfWidth:5,halfSpan,stairStart,stairEnd};
  api.root.userData.materialDirection={paint:'dielectric weathered blue coating',concrete:'CC0 photographed concrete at 2.4 metre scale',night:'shielded walkway and road downlights with selected cast shadows'};
  const dispose=api.dispose;let released=false;api.dispose=()=>{if(released)return;released=true;for(const entry of b.lamps)if(entry.light?.isSpotLight&&entry.light.castShadow)entry.light.shadow.dispose();dispose();};

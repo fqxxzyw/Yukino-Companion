@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {addBoughs} from './foliage-sprays.mjs';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -70,22 +71,49 @@ export class Diorama {
   m.customProgramCacheKey=()=>`leaf-wind:${narrow}`;
   const mesh=new T.InstancedMesh(g,m,points.length),o=new T.Object3D(),r=this.rng;
   mesh.name=name;
-  points.forEach((p,i)=>{o.position.set(p.x,p.y,p.z);o.rotation.set(p.rx??r()*2.4,p.ry??r()*6.28,p.rz??r()*6.28);const size=p.size??.17;o.scale.set(size,size*(narrow?2:1.25),size);o.updateMatrix();mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(p.hue??(.22+r()*.07),.23+r()*.2,.22+r()*.15));});
+  points.forEach((p,i)=>{o.position.set(p.x,p.y,p.z);o.rotation.set(p.rx??r()*2.4,p.ry??r()*6.28,p.rz??r()*6.28);const size=p.size??.17;o.scale.set(size,size*(narrow?2:1.25),size);o.updateMatrix();mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(p.hue??(.22+r()*.07),.25+r()*.16,p.lightness??(.30+r()*.17)));});
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();this.root.add(mesh);this.instances.push(mesh);this.animations.push(t=>{wind.uWindTime.value=t;});return mesh;
  }
  tree(x,z,height=4,spread=1.6){
   const bark=this.bark??=this.mat('tree:bark','#655b48');const r=this.rng;
-  const top=[x+.14,height*.74,z+.08];this.tube([x,0,z],top,height*.035,bark);
-  const points=[];
+  const taper=this.limbGeometry??=this.own(new T.CylinderGeometry(.48,1,1,9));
+  const limb=(a,end,radius)=>{
+   const p=vec(a),q=vec(end),length=p.distanceTo(q);
+   const piece=this.mesh(taper,bark,p.clone().lerp(q,.5).toArray(),[radius,length,radius]);
+   piece.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),q.sub(p).normalize());
+  };
+  const bend=[x+.08,height*.39,z-.07],fork=[x-.07,height*.61,z+.04],top=[x+.20,height*.83,z+.13];
+  limb([x,0,z],bend,height*.038);limb(bend,fork,height*.021);limb(fork,top,height*.010);
+
+  const points=[],sprays=[];
   for(let j=0;j<9;j++){
    const angle=j*2.3999,h=height*(.48+r()*.44),end=[x+Math.cos(angle)*spread*(.6+r()*.4),h,z+Math.sin(angle)*spread];
-   const start=[x+.1,height*(.34+j*.035),z];this.tube(start,end,.028+height*.007,bark);
+   const start=[x+.07,height*(.32+j*.034),z],knee=[x+Math.cos(angle)*spread*.30,h-.10*height,z+Math.sin(angle)*spread*.28];
+   limb(start,knee,.034+height*.009);limb(knee,end,.019+height*.005);
    for(let k=0;k<4;k++){
-    const tip=[end[0]+Math.cos(angle+k)*.6,end[1]+.4+r()*.45,end[2]+Math.sin(angle+k)*.6];this.tube(end,tip,.014,bark);
-    for(let n=0;n<32;n++){const a=r()*6.28,rad=Math.sqrt(r())*.65;points.push({x:tip[0]+Math.cos(a)*rad,y:tip[1]+(r()-.5)*.65,z:tip[2]+Math.sin(a)*rad,size:.12+r()*.15});}
+    const tip=[end[0]+Math.cos(angle+k)*.6,end[1]+.4+r()*.45,end[2]+Math.sin(angle+k)*.6];limb(end,tip,.016);
+    // Four fans of alternating blades grow out of the terminal twig. Leaf
+    // pairs face outward and share the value of their shoot, so the crown
+    // reads in clusters even when the individual blades are subpixel.
+    for(let fan=0;fan<4;fan++){
+     const yaw=angle+fan*Math.PI*.5+(r()-.5)*.64,reach=.38+r()*.31;
+     const rise=.08+r()*.40,shade=.34+r()*.14,hue=.205+r()*.045;
+     const tipOfShoot=[tip[0]+Math.cos(yaw)*reach,tip[1]+rise,tip[2]+Math.sin(yaw)*reach];
+     const tone=new T.Color().setHSL(hue,.30,.52+shade*.28);
+     sprays.push({x:tip[0],y:tip[1],z:tip[2],yaw:Math.PI/2-yaw,tilt:1.05+(fan%3)*.19,
+      width:(.75+reach*.55)*Math.min(1.55,spread*.70),height:reach*1.85,color:tone});
+     this.tube(tip,tipOfShoot,.008,bark);
+     for(let pair=0;pair<4;pair++)for(const side of [-1,1]){
+      const t=(pair+.45)/4,bladeYaw=yaw+side*(.5+r()*.48),size=.18+r()*.13;
+      points.push({x:tip[0]+Math.cos(yaw)*reach*t+Math.cos(bladeYaw)*size*.28,
+       y:tip[1]+rise*t+.04,z:tip[2]+Math.sin(yaw)*reach*t+Math.sin(bladeYaw)*size*.28,
+       rx:.65+r()*.75,ry:Math.PI/2-bladeYaw,rz:side*(.24+r()*.5),
+       hue:hue-.014*t,lightness:shade+t*.13,size:size*(1.1-.23*t)});
+     }
+    }
    }
   }
-  this.leaves(points);return points;
+  addBoughs(this,sprays);this.leaves(points,{color:'#81a265'});return points;
  }
  shrubs(x,z,w,d,h=.7){const pts=[];const r=this.rng;for(let i=0;i<w*d*130;i++)pts.push({x:x+(r()-.5)*w,y:.08+r()*h,z:z+(r()-.5)*d,size:.12+r()*.14});this.leaves(pts);}
  rail(a,b,height,m,{spacing=.65,base=0,depth=.045}={}){
