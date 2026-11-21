@@ -4,6 +4,10 @@
 
 # Yukino Companion · 雪乃数字人
 
+![Yukino Companion Windows 主界面，教室场景中的雪乃和中日双语对话](docs/screenshots/windows-main.webp)
+
+*以下为 Windows 客户端 0.4.3 实机截图，聊天内容为演示示例。*
+
 Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可以与雪乃或自己创建的角色聊天，显示中日双语回复，使用本地模型或已配置的 API，并选择 3D 人物、Q 版桌宠和语音功能。
 
 **多角色对话 · 本地 / API 模型 · 中日双语 · 语音 · 3D 与桌面陪伴**
@@ -39,6 +43,8 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm S
 
 > 请从本仓库的发行页下载应用。发行页中用于模型、语音或运行环境下载的资源附件是独立依赖，可能被不同版本引用；不要把它们当作另一个应用安装器。
 
+![首次配置向导，显示本地聊天、日语翻译、语音合成和桌宠语音的可选安装项](docs/screenshots/first-run.webp)
+
 <a id="usage"></a>
 
 ## 开始使用
@@ -49,6 +55,8 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm S
 - **API 对话**：打开「设置 → 模型与 API」，点击「添加 API」，选择服务商、填写凭据并保存，然后在「分配任务」中选择对话配置。可用模型、权限、地域和费用由所选服务商决定。保存配置不等于连接或模型能力已验证。
 - 点击停止按钮可中止当前回复；会话与角色资料保存在本机。切换角色后，后续对话使用该角色的设定和记忆。
 
+![模型与 API 设置，显示添加 API、任务分配和服务商目录](docs/screenshots/model-api.webp)
+
 ### 翻译与朗读
 
 1. 在「设置 → 双语与翻译」选择**不翻译、本地翻译或已配置的 API 翻译**。本地翻译用于中文到日语；不翻译时保留原文，不会自动发起收费翻译。
@@ -58,15 +66,47 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.0-Base-Setup.exe' -Algorithm S
 
 回复会按标点分段，首段尽早合成；标准本地引擎可将后续已准备好的句子组成小批次，并按原顺序播放。实际并发、显存占用和速度取决于所选引擎与硬件，不保证所有引擎都能同时推理多句。翻译、合成或播放失败时，文字回复仍可查看。
 
+![双语与翻译设置，显示气泡语言和本地或 API 翻译选项](docs/screenshots/bilingual-translation.webp)
+
+<details>
+<summary>查看语音输出设置</summary>
+
+![语音输出设置，显示本地 GPT-SoVITS、云端语音与不朗读选项](docs/screenshots/voice-output.webp)
+
+</details>
+
 ### 角色、人物与桌面陪伴
+
+![潮声誓约三维景观的近景，展示海边礼堂的入口、石阶和扶手](docs/screenshots/scene-gallery.webp)
+
+*三维场景观赏 · 潮声誓约*
 
 - 在「设置 → 角色管理」选择已有角色或点击「新建角色」。姓名和角色设定必填；音色与 3D 模型可选。设定可手动编辑，也可复制提示词，或主动选择已配置的对话 API 起草并审阅。
 - 在「人物与桌面」调整人物显示、桌宠、气泡、置顶和鼠标穿透等选项。关闭主窗口时可选择保留人物、桌宠、两者或完全退出；保留桌面形象时可通过系统托盘重新打开主窗口。
 - 桌面 3D 人物可用滚轮或方向键调整大小，拖动人物可旋转。内置服装仍遵循各自的可用状态与解锁条件；自定义 GLB 可在「高级与资源 → 导入人物模型」中检查并导入。
 
+<details>
+<summary>查看 Windows 桌宠和独立 3D 人物</summary>
+
+<p align="center">
+  <img src="docs/screenshots/desktop-pet.webp" width="220" alt="带有独立输入栏的 Q 版桌宠窗口">
+  <img src="docs/screenshots/desktop-model.webp" width="160" alt="带有工具栏和底部控件的独立 3D 雪乃窗口">
+</p>
+
+</details>
+
 ### 语音输入与视觉
 
 在「语音输入」中选择已接入的识别服务并检查麦克风；语音识别和语音输出是两项独立配置。在「视觉」中选择屏幕或摄像头并先预览，只有确认发送后才会将画面交给配置的视觉服务。服务列表中的能力与实际协议接入状态请以界面为准。
+
+![语音输入设置，显示麦克风检查入口与识别服务商目录](docs/screenshots/voice-input.webp)
+
+<details>
+<summary>查看桌面截图识别界面</summary>
+
+![桌面截图识别对话框，显示窗口预览授权和视觉 API 配置入口](docs/screenshots/desktop-vision.webp)
+
+</details>
 
 <a id="features"></a>
 
@@ -338,6 +378,8 @@ Yukino-Companion/
 <a id="motion-studio"></a>
 
 ## 3D 资产与动作编辑器
+
+![Windows 动作编辑器中的挥手示例，显示 3D 预览、IK 面板和多轨时间线](docs/screenshots/motion-studio.webp)
 
 数字人的表现不只取决于聊天模型。眨眼、闭眼、嘴型、头发和服装表现，还取决于模型本身是否具备正确的骨骼、表情通道与资源适配。动作模块也不能因为在一套模型上可用，就被认为能无条件迁移到所有服装。
 
