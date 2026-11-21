@@ -12,6 +12,8 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 **多角色对话 · 本地 / API 模型 · 中日双语 · 语音 · 3D 与桌面陪伴**
 
+[官方网站](https://yukino-api.fqxxzyw.workers.dev/) · [GitHub Pages（资源与使用文档）](https://fqxxzyw.github.io/Yukino-Companion/)
+
 **使用指南：** [下载与安装](#download) · [开始使用](#usage) · [功能与边界](#features) · [常见问题](#faq)
 
 **了解项目：** [模型与音色训练](#training) · [设计思路](#design) · [整体架构](#architecture) · [项目结构](#structure) · [3D 与动作编辑器](#motion-studio)
