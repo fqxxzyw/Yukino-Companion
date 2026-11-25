@@ -13,6 +13,7 @@ from urllib.request import Request,urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
 RELEASE='https://github.com/fqxxzyw/Yukino-Companion/releases/download/'
+R2_MIRROR='https://dl.yukino.fqxxzyw.cn/resources/v0.4.0-resources.1/'
 MIRROR=RELEASE+'v0.4.0-resources.1/'
 OLD=RELEASE+'v0.4.0-local.13/'
 RUNTIME_NAME='Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001'
@@ -75,7 +76,7 @@ def main():
     if args.runtime_catalog_only:
         runtime_catalog(ROOT/'build/base-resource-catalog')
         return
-    items=entries();mapping={'schemaVersion':1,'release':'v0.4.0-resources.1','sources':{item['url']:[MIRROR+item['asset'],item['url']] for item in items}}
+    items=entries();mapping={'schemaVersion':1,'release':'v0.4.0-resources.1','r2Base':R2_MIRROR,'sources':{item['url']:[R2_MIRROR+item['asset'],MIRROR+item['asset'],item['url']] for item in items}}
     (ROOT/'resources/resource-download-sources.json').write_text(json.dumps(mapping,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     if args.runtime_catalog:runtime_catalog(ROOT/'build/base-resource-catalog')
     if args.catalog_only:return

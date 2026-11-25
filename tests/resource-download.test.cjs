@@ -87,3 +87,12 @@ test('bundled 64 MiB release catalog is pinned and every entry validates',async(
  assert.ok(Object.keys(catalog.files).length>=10);
  for(const [digest,row] of Object.entries(catalog.files)){const parts=resourceParts(row.bytes,digest);assert.equal(parts.reduce((sum,part)=>sum+part.bytes,0),row.bytes);assert.ok(parts.every(part=>part.bytes<=64*1024**2));}
 });
+test('R2 custom domain source is preferred first and falls back cleanly to GitHub mirror',async t=>{
+ const f=await fixture(t),requested=[];
+ const sources=['https://dl.yukino.fqxxzyw.cn/resources/v0.4.0-resources.1/test.bin','https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-resources.1/test.bin'];
+ const fast=await downloadResource({...f,sources,fetcher:async url=>{requested.push(url);return ok();}});
+ assert.equal(fast.source.label,'dl.yukino.fqxxzyw.cn');assert.deepEqual(requested,[sources[0]]);
+ const f2=await fixture(t),requested2=[];
+ const fb=await downloadResource({...f2,sources,fetcher:async url=>{requested2.push(url);if(url.includes('dl.yukino.fqxxzyw.cn'))return new Response('unavailable',{status:503});return ok();}});
+ assert.equal(fb.source.label,'github.com');assert.deepEqual(requested2,sources);
+});

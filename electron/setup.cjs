@@ -44,7 +44,7 @@ class SetupService {
     });
   }
   report(id,progress){if(this.controller&&(this.activeSteps.has(id)||this.active===id)){this.progressByStep.set(id,progress);this.progress=progress;this.changed();}}
-  async install({runtimeFlavor='auto',features=['chat','translation','voice']}={}){
+  async install({runtimeFlavor='auto',runtimeSourceMode='auto',features=['chat','translation','voice']}={}){
     if(this.controller)throw Error('首次配置正在进行，请稍候或先取消。');
     features=selectedFeatures(features,{allowEmpty:false});
     const controller=new AbortController();this.controller=controller;this.features=features;this.phase='installing';this.error=null;this.failedStep=null;this.changed();
@@ -60,7 +60,7 @@ class SetupService {
     const inspect=()=>this.inspect({features});
     try{
       await this.prepare();controller.signal.throwIfAborted();
-      const runtimeTask=features.some(id=>id!=='pet')?step('runtime',async signal=>{await this.installRuntime(runtimeFlavor,{signal});signal.throwIfAborted();await this.refresh(signal);}):Promise.resolve();
+      const runtimeTask=features.some(id=>id!=='pet')?step('runtime',async signal=>{await this.installRuntime(runtimeFlavor,{signal,sourceMode:runtimeSourceMode});signal.throwIfAborted();await this.refresh(signal);}):Promise.resolve();
       const tasks=[runtimeTask];
       if(features.includes('chat'))tasks.push(step('chat',async signal=>{if(this.installChat)await this.installChat(signal);await runtimeTask;signal.throwIfAborted();const state=await inspect();if(state.steps.find(x=>x.id==='chat')?.state!=='ready')throw Error('本地角色模型尚未准备好，请重试下载或打开帮助。');}));
       if(features.includes('translation'))tasks.push(step('translation',this.installTranslation));

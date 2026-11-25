@@ -210,6 +210,8 @@ async function downloadParts({parts,dest,bytes,sha256,signal,notify,...options})
   }
 }
 
+const R2_PRIMARY_HOSTS = new Set(['dl.yukino.fqxxzyw.cn']);
+
 async function downloadResource({url,sources,dest,bytes,sha256,parts,onProgress=()=>{},signal,
   aria2Path=defaultAria2Path(),fetcher=globalThis.fetch,spawnProcess=spawn,timeoutMs=30000}={}) {
   check(signal);const candidates=normalizeSources(sources,url);
@@ -220,48 +222,65 @@ async function downloadResource({url,sources,dest,bytes,sha256,parts,onProgress=
   try {
     await fs.mkdir(path.dirname(dest),{recursive:true});check(signal);
     if(await verify(dest,bytes,sha256,signal)){notify({phase:'complete',received:bytes,total:bytes,engine:'cache'});return{path:dest,engine:'cache',source:null,resumed:false};}
-    const selectedParts=parts===undefined?resourceParts(bytes,sha256):parts;
+    const explicitParts=parts!==undefined;
+    const selectedParts=explicitParts?parts:resourceParts(bytes,sha256);
     if(selectedParts){
-      // Validate before entering a fallback path. A malformed pinned catalog is a
-      // build error, not a network failure, and must never be silently accepted.
+      // Validate before entering any network or fallback path. A malformed
+      // pinned catalog is a build error, not a network failure.
       validateParts(selectedParts,bytes);
-      try{return await downloadParts({parts:selectedParts,dest,bytes,sha256,signal,notify,aria2Path,fetcher,spawnProcess,timeoutMs});}
-      catch(error){check(signal);if(['EACCES','EPERM','ENOSPC','EROFS','EIO'].includes(error.code))throw Error('无法写入下载目录，请检查磁盘空间与文件权限。');notify({phase:'downloading',received:0,total:bytes,engine:'https',multipartFallback:true,retrying:true});}
     }
     await regular(sparse);await regular(sparse+'.aria2');await regular(continuous);
     const hasAria2=Boolean(aria2Path&&await regular(aria2Path));
-    for(let index=0;index<candidates.length;index++) {
-      check(signal);const source=candidates[index];
-      const progress=(engine,extra={})=>notify({phase:'downloading',received:0,total:bytes,engine,sourceIndex:index,sourceCount:candidates.length,sourceLabel:source.label,...extra});
-      if(index)progress(hasAria2?'aria2':'https',{sourceSwitch:true});
-      for(const engine of hasAria2?['aria2','https']:['https']) {
-        const temporary=engine==='aria2'?sparse:continuous;
-        let resumed=Boolean(await regular(temporary));
-        try {
-          check(signal);progress(engine);
-          for(let integrityAttempt=0;integrityAttempt<2;integrityAttempt++) {
-            if(engine==='aria2')await runAria2({executable:aria2Path,url:source.url,temporary,sha256,bytes,timeoutMs,signal,emit:value=>progress(engine,value),spawnProcess});
-            else if(!await verify(temporary,bytes,sha256,signal))await downloadHttps({url:source.url,temporary,bytes,signal,timeoutMs,emit:value=>progress(engine,value),fetcher});
-            progress(engine,{phase:'checking',received:bytes});
-            if(await verify(temporary,bytes,sha256,signal))break;
-            await fs.rm(temporary,{force:true});if(engine==='aria2')await fs.rm(temporary+'.aria2',{force:true});
-            // A previous failed source may have left a corrupt prefix. Give the
-            // current HTTPS source one clean retry instead of blaming that mirror.
-            if(engine==='https'&&resumed&&integrityAttempt===0){resumed=false;progress(engine,{retrying:true});continue;}
-            throw Error('下载文件完整性校验失败');
+    const trySources=async(entries)=>{
+      for(const {source,index} of entries) {
+        check(signal);
+        const progress=(engine,extra={})=>notify({phase:'downloading',received:0,total:bytes,engine,sourceIndex:index,sourceCount:candidates.length,sourceLabel:source.label,...extra});
+        if(index)progress(hasAria2?'aria2':'https',{sourceSwitch:true});
+        for(const engine of hasAria2?['aria2','https']:['https']) {
+          const temporary=engine==='aria2'?sparse:continuous;
+          let resumed=Boolean(await regular(temporary));
+          try {
+            check(signal);progress(engine);
+            for(let integrityAttempt=0;integrityAttempt<2;integrityAttempt++) {
+              if(engine==='aria2')await runAria2({executable:aria2Path,url:source.url,temporary,sha256,bytes,timeoutMs,signal,emit:value=>progress(engine,value),spawnProcess});
+              else if(!await verify(temporary,bytes,sha256,signal))await downloadHttps({url:source.url,temporary,bytes,signal,timeoutMs,emit:value=>progress(engine,value),fetcher});
+              progress(engine,{phase:'checking',received:bytes});
+              if(await verify(temporary,bytes,sha256,signal))break;
+              await fs.rm(temporary,{force:true});if(engine==='aria2')await fs.rm(temporary+'.aria2',{force:true});
+              // A previous failed source may have left a corrupt prefix. Give the
+              // current HTTPS source one clean retry instead of blaming that mirror.
+              if(engine==='https'&&resumed&&integrityAttempt===0){resumed=false;progress(engine,{retrying:true});continue;}
+              throw Error('下载文件完整性校验失败');
+            }
+            check(signal);await fs.rename(temporary,dest);
+            await Promise.all([sparse,sparse+'.aria2',continuous].map(file=>fs.rm(file,{force:true}).catch(()=>{})));
+            progress(engine,{phase:'complete',received:bytes});
+            return{path:dest,engine,source:{index,label:source.label},resumed};
+          } catch(error) {
+            check(signal);
+            if(engine==='https'&&['EACCES','EPERM','ENOSPC','EROFS','EIO'].includes(error.code))throw Error('无法写入下载目录，请检查磁盘空间与文件权限。');
+            // Sparse aria2 data must never be resumed as contiguous HTTPS bytes.
+            progress(engine,{phase:'downloading',retrying:true});
           }
-          check(signal);await fs.rename(temporary,dest);
-          await Promise.all([sparse,sparse+'.aria2',continuous].map(file=>fs.rm(file,{force:true}).catch(()=>{})));
-          progress(engine,{phase:'complete',received:bytes});
-          return{path:dest,engine,source:{index,label:source.label},resumed};
-        } catch(error) {
-          check(signal);
-          if(engine==='https'&&['EACCES','EPERM','ENOSPC','EROFS','EIO'].includes(error.code))throw Error('无法写入下载目录，请检查磁盘空间与文件权限。');
-          // Sparse aria2 data must never be resumed as contiguous HTTPS bytes.
-          progress(engine,{phase:'downloading',retrying:true});
         }
       }
+      return null;
+    };
+    const indexed=candidates.map((source,index)=>({source,index}));
+    const r2Primary=!explicitParts?indexed.filter(({source})=>R2_PRIMARY_HOSTS.has(new URL(source.url).hostname)):[];
+    const remaining=!explicitParts?indexed.filter(({source})=>!R2_PRIMARY_HOSTS.has(new URL(source.url).hostname)):indexed;
+    // Prefer our R2 CDN mirror (single-file multi-connection range download)
+    // before falling back to GitHub 64 MiB split parts and upstream mirrors.
+    if(r2Primary.length){
+      const fast=await trySources(r2Primary);
+      if(fast)return fast;
     }
+    if(selectedParts){
+      try{return await downloadParts({parts:selectedParts,dest,bytes,sha256,signal,notify,aria2Path,fetcher,spawnProcess,timeoutMs});}
+      catch(error){check(signal);if(['EACCES','EPERM','ENOSPC','EROFS','EIO'].includes(error.code))throw Error('无法写入下载目录，请检查磁盘空间与文件权限。');notify({phase:'downloading',received:0,total:bytes,engine:'https',multipartFallback:true,retrying:true});}
+    }
+    const fallback=await trySources(remaining);
+    if(fallback)return fallback;
     throw Error('所有下载源均暂时不可用，或文件校验未通过。请重试，或打开“无法下载，寻求帮助”。');
   } finally {active.delete(dest);}
 }

@@ -5,17 +5,34 @@ export const REPOSITORY = 'fqxxzyw/Yukino-Companion';
 export const AUTHOR_URL = 'https://github.com/fqxxzyw';
 export const REPOSITORY_URL = `https://github.com/${REPOSITORY}`;
 export const RELEASES_URL = `${REPOSITORY_URL}/releases`;
+export const R2_DOWNLOADS_BASE = 'https://dl.yukino.fqxxzyw.cn/releases';
 const API_URL = `https://api.github.com/repos/${REPOSITORY}/releases?per_page=30`;
-const CACHE_KEY = 'downloads:stable-installers-v2';
+const R2_LATEST_URL = `${R2_DOWNLOADS_BASE}/latest.json`;
+const CACHE_KEY = 'downloads:stable-installers-v3';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_INSTALLER_BYTES = 2 * 1024 ** 3;
 
 function releaseAsset(release, name) {
-  const expectedUrl = `${RELEASES_URL}/download/${release.tag_name}/${name}`;
-  const item = release.assets?.find(asset => asset?.name === name && asset.browser_download_url === expectedUrl
+  const githubUrl = `${RELEASES_URL}/download/${release.tag_name}/${name}`;
+  const cnUrl = `${R2_DOWNLOADS_BASE}/${release.tag_name}/${name}`;
+  const item = release.assets?.find(asset => asset?.name === name
+    && (asset.browser_download_url === githubUrl || asset.browser_download_url === cnUrl)
+    && (!asset.github_download_url || asset.github_download_url === githubUrl)
     && Number.isSafeInteger(asset.size) && asset.size > 0 && asset.size < MAX_INSTALLER_BYTES);
   if (!item) return null;
-  return {name, size: item.size, url: expectedUrl, contentType: item.content_type || 'application/octet-stream', platform: 'windows-x64'};
+  return {
+    name,
+    size: item.size,
+    url: cnUrl,
+    cnUrl,
+    githubUrl,
+    mirrors: [
+      {id: 'cn', label: '国内加速节点 (dl.yukino.fqxxzyw.cn)', url: cnUrl},
+      {id: 'github', label: 'GitHub 备用源', url: githubUrl},
+    ],
+    contentType: item.content_type || 'application/octet-stream',
+    platform: 'windows-x64',
+  };
 }
 
 function describe(release) {
@@ -63,6 +80,18 @@ function fallback(reason, cached = null) {
   };
 }
 
+async function fetchLatestFromR2(fetchImpl) {
+  const response = await fetchImpl(R2_LATEST_URL, {
+    headers: {'accept': 'application/json', 'user-agent': 'Yukino-Companion-Website'},
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`r2_${response.status}`);
+  const manifest = await response.json();
+  const latest = selectLatestRelease([manifest]);
+  if (!latest) throw new Error('r2-no-installer');
+  return latest;
+}
+
 export async function getDownloads({db, fetchImpl = globalThis.fetch, now = Date.now()}) {
   const cached = await cacheGet(db, CACHE_KEY, {allowStale: true, now});
   if (cached && !cached.stale) return {...cached.value, source: 'cache', updatedAt: cached.updatedAt};
@@ -90,9 +119,24 @@ export async function getDownloads({db, fetchImpl = globalThis.fetch, now = Date
     };
     await cachePut(db, CACHE_KEY, value, now);
     return value;
-  } catch (error) {
-    if (cached?.value) return fallback(String(error?.message || 'github-unavailable'), cached);
-    return fallback(String(error?.message || 'github-unavailable'));
+  } catch (githubError) {
+    try {
+      const latest = await fetchLatestFromR2(fetchImpl);
+      const value = {
+        ok: true,
+        source: 'r2-manifest',
+        updatedAt: now,
+        releaseUrl: RELEASES_URL,
+        repositoryUrl: REPOSITORY_URL,
+        authorUrl: AUTHOR_URL,
+        latest,
+      };
+      await cachePut(db, CACHE_KEY, value, now);
+      return value;
+    } catch {
+      if (cached?.value) return fallback(String(githubError?.message || 'github-unavailable'), cached);
+      return fallback(String(githubError?.message || 'github-unavailable'));
+    }
   }
 }
 
@@ -100,7 +144,9 @@ export async function downloadRoute({db, fetchImpl, now}) {
   const value = await getDownloads({db, fetchImpl, now});
   return json(value, {
     headers: {
-      'cache-control': value.source === 'github-api' ? 'public, max-age=300, stale-while-revalidate=1800' : 'public, max-age=60',
+      'cache-control': value.source === 'github-api' || value.source === 'r2-manifest'
+        ? 'public, max-age=300, stale-while-revalidate=1800'
+        : 'public, max-age=60',
     },
   });
 }

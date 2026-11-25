@@ -136,3 +136,36 @@ test('portable saves only the full installer, never executes, retains previous d
   mode.short=true;await assert.rejects(updater.download());assert.deepEqual(await fs.readFile(destination),target);
   await assert.rejects(updater.install());assert.equal(state.launches,0);
 });
+test('updater prefers dl.yukino.fqxxzyw.cn R2 assets and falls back to GitHub when R2 fails',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-update-r2-'));
+  t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const cache=path.join(root,'cache');await fs.mkdir(cache);
+  await fs.writeFile(path.join(cache,'installer.exe'),old);
+  await fs.writeFile(path.join(cache,'current.blockmap'),blockmap([shared,oldChunk,shared]));
+  const manifest='version: 0.4.4\nfiles:\n  - url: '+name+'\n    size: '+target.length+'\n    sha512: '+sha(target)+'\n';
+  const requested=[];
+  const get=async(u,opts={})=>{
+    requested.push(String(u));
+    if(String(u).includes('api.github.com'))throw Object.assign(Error('HTTP 403'),{status:403});
+    if(String(u).endsWith('/latest.json')){
+      return new Response(JSON.stringify({draft:false,prerelease:false,tag_name:tag,body:'## 更新内容\n- 加速下载',assets:[
+        {name,size:target.length,browser_download_url:'https://dl.yukino.fqxxzyw.cn/releases/'+tag+'/'+name},
+        {name:'latest.yml',size:Buffer.byteLength(manifest),browser_download_url:'https://dl.yukino.fqxxzyw.cn/releases/'+tag+'/latest.yml'},
+      ]}));
+    }
+    if(String(u).endsWith('/latest.yml'))return new Response(manifest);
+    if(String(u).includes('dl.yukino.fqxxzyw.cn')&&String(u).endsWith(name))throw Object.assign(Error('HTTP 503'),{status:503});
+    if(String(u).endsWith('.blockmap'))return new Response(blockmap([shared,changed,shared]));
+    if(String(u).includes('github.com')&&String(u).endsWith(name)){
+      const [,a,b]=/^bytes=(\d+)-(\d+)$/.exec(opts.headers.Range).map(Number);
+      return new Response(target.subarray(a,b+1),{status:206,headers:{'content-range':'bytes '+a+'-'+b+'/'+target.length}});
+    }
+    throw Object.assign(Error('HTTP 404'),{status:404});
+  };
+  const updater=createUpdater({get,app:{isPackaged:true,getVersion:()=>'0.4.3',getPath:()=>root,quit(){}},shell:{showItemInFolder(){}},dialog:{},isPortable:false,cacheDir:cache,send(){}});
+  const info=await updater.check();assert.equal(info.version,tag);
+  const res=await updater.download();assert.equal(res.differential,true);
+  assert.ok(requested.some(u=>u.startsWith('https://dl.yukino.fqxxzyw.cn/releases/latest.json')));
+  assert.ok(requested.some(u=>u.startsWith('https://dl.yukino.fqxxzyw.cn/releases/'+tag+'/'+name)));
+  assert.ok(requested.some(u=>u.startsWith('https://github.com/fqxxzyw/Yukino-Companion/releases/download/'+tag+'/'+name)));
+});

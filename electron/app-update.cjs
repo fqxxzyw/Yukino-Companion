@@ -11,6 +11,10 @@ const {limitedBody, planDownload, transfer, verifyFile} = require('./update-bloc
 
 const REPO = 'https://github.com/fqxxzyw/Yukino-Companion';
 const API = 'https://api.github.com/repos/fqxxzyw/Yukino-Companion/releases/latest';
+const R2_BASE = 'https://dl.yukino.fqxxzyw.cn/releases';
+const R2_LATEST = R2_BASE + '/latest.json';
+const TRUSTED_HOSTS = ['dl.yukino.fqxxzyw.cn','api.github.com','github.com','release-assets.githubusercontent.com','objects.githubusercontent.com'];
+const TRUSTED_REDIRECT_HOSTS = ['dl.yukino.fqxxzyw.cn','release-assets.githubusercontent.com','objects.githubusercontent.com'];
 const stable = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 function newer(a, b) {
   const left = stable.exec(a), right = stable.exec(b);
@@ -22,6 +26,7 @@ function newer(a, b) {
 }
 
 const assetUrl = (tag, name) => REPO + '/releases/download/' + tag + '/' + name;
+const r2AssetUrl = (tag, name) => R2_BASE + '/' + tag + '/' + name;
 const installerName = version => 'Yukino-Companion-' + version + '-Base-Setup.exe';
 function releaseNotes(body) {
   if (typeof body !== 'string') return '';
@@ -37,7 +42,8 @@ function releaseNotes(body) {
   return notes.length > 2000 ? notes.slice(0,1999)+'…' : notes;
 }
 function trustedAsset(asset, tag, name) {
-  return !!asset && stable.test(tag) && asset.name === name && asset.browser_download_url === assetUrl(tag, name) &&
+  return !!asset && stable.test(tag) && asset.name === name &&
+    (asset.browser_download_url === assetUrl(tag, name) || asset.browser_download_url === r2AssetUrl(tag, name)) &&
     Number.isSafeInteger(asset.size) && asset.size > 0 && asset.size < 2 * 1024 ** 3;
 }
 
@@ -72,8 +78,9 @@ function electronFetch(net, url, {signal, headers}) {
 }
 
 async function githubGet(url, {signal, headers, timeout=30000} = {}, request=fetch, rangeCache) {
-  // GitHub redirects public asset downloads to short-lived signed CDN URLs.
-  // Follow only that chain and never expose those URLs in errors or logs.
+  // GitHub redirects public asset downloads to short-lived signed CDN URLs;
+  // R2 custom domain serves objects directly over HTTPS with Range support.
+  // Follow only trusted hosts and never expose redirect URLs in errors/logs.
   const deadline = AbortSignal.timeout(timeout);
   const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
   const useCache = !!headers?.Range && !!rangeCache;
@@ -81,16 +88,16 @@ async function githubGet(url, {signal, headers, timeout=30000} = {}, request=fet
   let next = new URL(cached ? rangeCache.location : url);
   for (let i = 0; i < 6; i++) {
     if (next.protocol !== 'https:' || next.username || next.password || next.port ||
-        !['api.github.com','github.com','release-assets.githubusercontent.com','objects.githubusercontent.com'].includes(next.hostname)) {
+        !TRUSTED_HOSTS.includes(next.hostname)) {
       throw Error('更新来源校验失败');
     }
     const response = await request(next, {headers:{'User-Agent':'Yukino-Companion', ...headers}, signal:requestSignal, redirect:'manual'});
     if ([301,302,303,307,308].includes(response.status)) {
       await response.body?.cancel();
       const target = response.headers.get('location');
-      if (!target) throw Error('GitHub 重定向无效');
+      if (!target) throw Error('更新源重定向无效');
       next = new URL(target, next);
-      if (!['release-assets.githubusercontent.com','objects.githubusercontent.com'].includes(next.hostname)) throw Error('更新来源校验失败');
+      if (!TRUSTED_REDIRECT_HOSTS.includes(next.hostname)) throw Error('更新来源校验失败');
       continue;
     }
     if (!response.ok) {
@@ -100,40 +107,72 @@ async function githubGet(url, {signal, headers, timeout=30000} = {}, request=fet
         next = new URL(url);
         continue;
       }
-      throw Object.assign(Error('GitHub 请求失败（HTTP ' + response.status + '）'), {status:response.status});
+      throw Object.assign(Error('更新源请求失败（HTTP ' + response.status + '）'), {status:response.status});
     }
     if (useCache && next.href !== url && !cached) {
       Object.assign(rangeCache, {source:url, location:next.href, until:Date.now()+2*60*1000});
     }
     return response;
   }
-  throw Error('GitHub 重定向过多');
+  throw Error('更新源重定向过多');
+}
+
+async function fetchFirst(urls, get, limit) {
+  let lastError;
+  for (const url of [...new Set(urls.filter(Boolean))]) {
+    try {
+      return await limitedBody(await get(url), limit);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || Error('无法读取更新元数据');
 }
 
 async function discover(current, get) {
-  let response;
+  let r;
   try {
-    response = await get(API);
+    const response = await get(API);
+    r = JSON.parse(await limitedBody(response, 4 * 1024 ** 2));
   } catch (error) {
-    if (error.status !== 404) throw error;
-    // An empty, accessible repository has no /latest yet. A missing/private
-    // repository must still produce a visible HTTP error.
-    const releases = await get(API.replace('/latest', '?per_page=1'));
-    if (Array.isArray(JSON.parse(await limitedBody(releases, 1024 ** 2)))) return null;
-    throw error;
+    if (error.status === 404) {
+      // An empty, accessible repository has no /latest yet. A missing/private
+      // repository must still produce a visible HTTP error.
+      try {
+        const releases = await get(API.replace('/latest', '?per_page=1'));
+        if (Array.isArray(JSON.parse(await limitedBody(releases, 1024 ** 2)))) return null;
+      } catch {}
+    }
+    // Fall back to R2 release manifest if GitHub API is unreachable/rate-limited.
+    try {
+      const r2Response = await get(R2_LATEST);
+      r = JSON.parse(await limitedBody(r2Response, 4 * 1024 ** 2));
+    } catch {
+      throw error;
+    }
   }
-  const r = JSON.parse(await limitedBody(response, 4 * 1024 ** 2));
   if (r.draft !== false || r.prerelease !== false || !newer(r.tag_name, current)) return null;
   const tag = r.tag_name, version = tag.replace(/^v/, ''), name = installerName(version);
   const asset = (n) => r.assets?.find(a => trustedAsset(a, tag, n));
   const setup = asset(name), metadata = asset('latest.yml');
   if (!setup || !metadata || metadata.size > 256 * 1024) throw Error('正式版缺少可信的基础安装包或 latest.yml，请前往 GitHub。');
-  const info = yaml.load((await limitedBody(await get(metadata.browser_download_url), 256 * 1024)).toString('utf8'), {schema:yaml.JSON_SCHEMA});
+  const ymlRaw = await fetchFirst([r2AssetUrl(tag, 'latest.yml'), metadata.browser_download_url, assetUrl(tag, 'latest.yml')], get, 256 * 1024);
+  const info = yaml.load(ymlRaw.toString('utf8'), {schema:yaml.JSON_SCHEMA});
   const file = info?.files?.find(entry => entry.url === name);
   if (info?.version !== version || !file || file.size !== setup.size || !/^[A-Za-z0-9+/]{86}==$/.test(file.sha512)) {
     throw Error('latest.yml 的版本、安装包大小或 SHA-512 无效');
   }
-  return {name, tag, releaseNotes:releaseNotes(r.body), size:setup.size, sha512:file.sha512, url:setup.browser_download_url, mapUrl:assetUrl(tag,name+'.blockmap')};
+  return {
+    name,
+    tag,
+    releaseNotes: releaseNotes(r.body),
+    size: setup.size,
+    sha512: file.sha512,
+    url: r2AssetUrl(tag, name),
+    fallbackUrl: assetUrl(tag, name),
+    mapUrl: r2AssetUrl(tag, name + '.blockmap'),
+    fallbackMapUrl: assetUrl(tag, name + '.blockmap'),
+  };
 }
 
 async function launchInstaller(filename, directory) {
@@ -203,7 +242,11 @@ function createUpdater({app, dialog, shell, send, beforeInstall, net, get, launc
       if (!portable) {
         try {
           const old = app.getVersion();
-          const plan = await planDownload({cache, release, get, signal, oldMapUrl:assetUrl('v'+old, installerName(old)+'.blockmap')});
+          const oldMapUrls = [
+            r2AssetUrl('v'+old, installerName(old)+'.blockmap'),
+            assetUrl('v'+old, installerName(old)+'.blockmap'),
+          ];
+          const plan = await planDownload({cache, release, get, signal, oldMapUrl:oldMapUrls});
           result = await transfer({...options, plan});
           await fs.writeFile(path.join(pending, release.name+'.blockmap'), plan.blockmap);
         } catch (error) {
@@ -254,4 +297,4 @@ function createUpdater({app, dialog, shell, send, beforeInstall, net, get, launc
   return {portable, check, download, install, cancel:() => {controller?.abort(); return !!controller;}, open:() => shell.openExternal(REPO+'/releases')};
 }
 
-module.exports = {createUpdater, newer, trustedAsset, githubGet, electronFetch};
+module.exports = {createUpdater, newer, trustedAsset, githubGet, electronFetch, R2_BASE, r2AssetUrl};

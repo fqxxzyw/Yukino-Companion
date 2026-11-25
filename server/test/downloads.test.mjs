@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getDownloads, selectLatestRelease, RELEASES_URL} from '../src/downloads.js';
+import {getDownloads, selectLatestRelease, RELEASES_URL, R2_DOWNLOADS_BASE} from '../src/downloads.js';
 import {NodeD1, migrate} from '../dev/node-d1.mjs';
 import {readFile} from 'node:fs/promises';
 
@@ -12,7 +12,7 @@ const asset = (version, overrides = {}) => ({
   ...overrides,
 });
 
-test('installer selection prefers stable Windows installers and ignores model packs', () => {
+test('installer selection prefers stable Windows installers, sets cn R2 primary URL, and keeps GitHub backup', () => {
   const releases = [
     {
       tag_name: 'v0.5.0', draft: false, prerelease: false, published_at: '2026-11-10T00:00:00Z', html_url: 'https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.5.0',
@@ -28,7 +28,10 @@ test('installer selection prefers stable Windows installers and ignores model pa
   assert.equal(latest.version, '0.5.0');
   assert.equal(latest.channel, 'stable');
   assert.equal(latest.asset.name, 'Yukino-Companion-0.5.0-Base-Setup.exe');
-  assert.match(latest.asset.url, /^https:\/\/github\.com\/fqxxzyw\/Yukino-Companion\/releases\/download\//);
+  assert.equal(latest.asset.url, `${R2_DOWNLOADS_BASE}/v0.5.0/Yukino-Companion-0.5.0-Base-Setup.exe`);
+  assert.equal(latest.asset.cnUrl, `${R2_DOWNLOADS_BASE}/v0.5.0/Yukino-Companion-0.5.0-Base-Setup.exe`);
+  assert.equal(latest.asset.githubUrl, `${RELEASES_URL}/download/v0.5.0/Yukino-Companion-0.5.0-Base-Setup.exe`);
+  assert.deepEqual(latest.asset.mirrors.map(m => m.id), ['cn', 'github']);
 });
 
 test('website ignores prereleases even when no stable asset exists', () => {
@@ -47,7 +50,7 @@ test('untrusted download URLs are rejected', () => {
   assert.equal(selectLatestRelease([{tag_name: 'v1.0.0', assets: [{name: 'Yukino-Companion-1.0.0-Base-Setup.exe', size: 10, browser_download_url: 'https://github.com/other/repo/releases/download/v1.0.0/x.exe'}]}]), null);
 });
 
-test('GitHub failure uses a recent verified cache, then a releases fallback', async () => {
+test('GitHub failure tries R2 manifest, then recent verified cache, then releases fallback', async () => {
   const db = new NodeD1(':memory:');
   migrate(db, await readFile(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
   const releases = [{
@@ -69,7 +72,19 @@ test('GitHub failure uses a recent verified cache, then a releases fallback', as
 
   const emptyDb = new NodeD1(':memory:');
   migrate(emptyDb, await readFile(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
-  const fallback = await getDownloads({db: emptyDb, fetchImpl: async () => { throw new Error('offline'); }});
+  const r2Fallback = await getDownloads({
+    db: emptyDb,
+    fetchImpl: async (url) => {
+      if (String(url).includes('api.github.com')) return new Response('rate limited', {status: 403});
+      return new Response(JSON.stringify(releases[0]), {status: 200});
+    },
+  });
+  assert.equal(r2Fallback.source, 'r2-manifest');
+  assert.equal(r2Fallback.latest.version, '0.5.0');
+
+  const offlineDb = new NodeD1(':memory:');
+  migrate(offlineDb, await readFile(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
+  const fallback = await getDownloads({db: offlineDb, fetchImpl: async () => { throw new Error('offline'); }});
   assert.equal(fallback.source, 'fallback');
   assert.equal(fallback.releaseUrl, RELEASES_URL);
   assert.equal(fallback.latest, null);
@@ -85,7 +100,7 @@ test('website rejects a preview tag even when published as stable', () => {
   assert.equal(latest, null);
 });
 
-test('website links use the highest official release and its exact setup and portable assets', () => {
+test('website links use the highest official release and preserve both cn R2 and GitHub URLs', () => {
   const base = asset('0.4.10');
   const portable = {...base, name: base.name.replace('Base-Setup','Portable'), browser_download_url: base.browser_download_url.replace('Base-Setup','Portable')};
   const latest = selectLatestRelease([
@@ -93,6 +108,8 @@ test('website links use the highest official release and its exact setup and por
     {tag_name:'v0.4.10', published_at:'2026-11-19', assets:[base, portable]},
     {tag_name:'v0.4.11', assets:[base, portable]},
   ]);
-  assert.equal(latest.asset.url, base.browser_download_url);
-  assert.equal(latest.portable.url, portable.browser_download_url);
+  assert.equal(latest.asset.url, `${R2_DOWNLOADS_BASE}/v0.4.10/Yukino-Companion-0.4.10-Base-Setup.exe`);
+  assert.equal(latest.asset.githubUrl, base.browser_download_url);
+  assert.equal(latest.portable.url, `${R2_DOWNLOADS_BASE}/v0.4.10/Yukino-Companion-0.4.10-Portable.exe`);
+  assert.equal(latest.portable.githubUrl, portable.browser_download_url);
 });

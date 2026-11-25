@@ -31,9 +31,20 @@ function parseBlockmap(bytes, fileSize) {
   return map;
 }
 
-async function fetchMap(url, size, get, signal) {
-  const data = await limitedBody(await get(url, {signal}), 8 * 1024 ** 2);
-  return {data, map: parseBlockmap(data, size)};
+async function fetchMap(urlOrUrls, size, get, signal) {
+  const urls = (Array.isArray(urlOrUrls) ? urlOrUrls : [urlOrUrls]).filter(Boolean);
+  let lastError;
+  for (const url of urls) {
+    signal?.throwIfAborted();
+    try {
+      const data = await limitedBody(await get(url, {signal}), 8 * 1024 ** 2);
+      return {data, map: parseBlockmap(data, size)};
+    } catch (error) {
+      signal?.throwIfAborted();
+      lastError = error;
+    }
+  }
+  throw lastError || Error('无法获取区块表');
 }
 
 async function verifyFile(filename, {size, sha512}) {
@@ -57,7 +68,7 @@ async function planDownload({cache, release, oldMapUrl, get, signal}) {
     previous = old.map;
     await fsp.writeFile(cachedMap, old.data, {flag:'wx'});
   }
-  const next = await fetchMap(release.mapUrl, release.size, get, signal);
+  const next = await fetchMap([release.mapUrl, release.fallbackMapUrl], release.size, get, signal);
   const operations = computeOperations(previous, next.map, {info(){}, warn(){}});
   const total = operations.reduce((sum, op) => sum + (op.kind === OperationKind.DOWNLOAD ? op.end - op.start : 0), 0);
   if (total >= release.size) throw Error('没有可复用的区块');
@@ -69,6 +80,8 @@ async function planDownload({cache, release, oldMapUrl, get, signal}) {
 async function transfer({part, plan, release, get, signal, progress}) {
   const total = plan?.total ?? release.size;
   const differential = !!plan;
+  const sources = [...new Set([release.url, release.fallbackUrl].filter(Boolean))];
+  let sourceIndex = 0;
   let bytes = 0, last = 0, written = 0;
   const notify = () => progress({bytes, total, differential, fullSize:release.size, percent:total ? 100 * bytes / total : 100});
   notify();
@@ -83,10 +96,24 @@ async function transfer({part, plan, release, get, signal, progress}) {
       let input;
       if (download) {
         const headers = plan ? {Range:'bytes=' + op.start + '-' + (op.end-1)} : {};
-        const response = await get(release.url, {headers, signal, timeout:30*60*1000});
-        if (plan && (response.status !== 206 || response.headers.get('content-range') !== 'bytes '+op.start+'-'+(op.end-1)+'/'+release.size)) {
-          await response.body.cancel();
-          throw Error('服务器不支持所需的 Range 请求');
+        let response;
+        while (true) {
+          signal.throwIfAborted();
+          try {
+            response = await get(sources[sourceIndex], {headers, signal, timeout:30*60*1000});
+            if (plan && (response.status !== 206 || response.headers.get('content-range') !== 'bytes '+op.start+'-'+(op.end-1)+'/'+release.size)) {
+              await response.body?.cancel();
+              throw Error('服务器不支持所需的 Range 请求');
+            }
+            break;
+          } catch (error) {
+            signal.throwIfAborted();
+            if (sourceIndex + 1 < sources.length) {
+              sourceIndex += 1;
+              continue;
+            }
+            throw error;
+          }
         }
         input = response.body;
       } else {

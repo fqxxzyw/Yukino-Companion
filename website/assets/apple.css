@@ -218,6 +218,9 @@ html.v2-anim [data-reveal].in { opacity: 1; transform: none; }
 .v2-download .v2-display { font-size: clamp(40px, 6vw, 74px); }
 .v2-lede-center { margin-left: auto; margin-right: auto; }
 .v2-download-actions { justify-content: center; }
+.v2-download-backups { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; color: #8e8e93; }
+.v2-download-backups a { color: #b8d8ff; text-decoration: none; border-bottom: 1px solid #b8d8ff40; transition: color .15s, border-color .15s; }
+.v2-download-backups a:hover { color: #fff; border-color: #fff; }
 .v2-download-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; max-width: 880px; margin: 54px auto 0; padding: 22px 0; border-top: 1px solid #ffffff1c; border-bottom: 1px solid #ffffff1c; text-align: left; }
 .v2-download-meta div { padding: 0 20px; border-left: 1px solid #ffffff14; }
 .v2-download-meta div:first-child { border-left: 0; padding-left: 0; }

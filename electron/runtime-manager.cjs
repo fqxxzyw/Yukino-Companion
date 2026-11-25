@@ -103,11 +103,11 @@ class RuntimeManager{
     if(requested!=='auto')return requested;
     return catalog.variants?.cu124&&await detectNvidia(this.platform,this.hardwareRun,signal)?'cu124':'cpu';
   }
-  async install(requested='auto',{signal}={}){
+  async install(requested='auto',{signal,sourceMode='auto'}={}){
     if(!['auto','cpu','cu124'].includes(requested))throw Error('无效的运行环境选项');
-    return this.jobs.run(requested,controller=>this.installTask(requested,controller),{signal,targets:[this.root]});
+    return this.jobs.run(requested,controller=>this.installTask(requested,controller,{sourceMode}),{signal,targets:[this.root]});
   }
-  async installTask(requested,controller){
+  async installTask(requested,controller,{sourceMode='auto'}={}){
     this.controller=controller;
     let stage;
     try{
@@ -120,7 +120,7 @@ class RuntimeManager{
       if(this.platform!=='win32')throw Error('一键运行环境适用于 Windows；开发环境请配置本机 Python。');
       if(!pack||!Array.isArray(pack.parts)||!pack.parts.length)throw Error('此版本尚未提供所选运行环境，请选择其他环境或稍后重试。');
       if(catalog.schemaVersion!==1||typeof catalog.version!=='string'||!catalog.version.trim()||catalog.version.length>64||!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(pack.id)||!/^[a-f0-9]{64}$/.test(pack.archiveSha256)||!Number.isSafeInteger(pack.unpackedBytes)||pack.unpackedBytes<1||pack.unpackedBytes>16*1024**3)throw Error('运行环境下载清单不合法');
-      for(const part of pack.parts){safeEntry(this.root,part.path);if(!/^https:\/\/github\.com\/fqxxzyw\/Yukino-Companion\/releases\/download\//.test(part.url)||part.algorithm!=='sha256'||!/^[a-f0-9]{64}$/.test(part.digest)||!Number.isSafeInteger(part.bytes)||part.bytes<1)throw Error('运行环境文件清单不合法');}
+      for(const part of pack.parts){safeEntry(this.root,part.path);if(!/^https:\/\/(?:github\.com\/fqxxzyw\/Yukino-Companion\/releases\/download\/|dl\.yukino\.fqxxzyw\.cn\/resources\/)/.test(part.url)||part.algorithm!=='sha256'||!/^[a-f0-9]{64}$/.test(part.digest)||!Number.isSafeInteger(part.bytes)||part.bytes<1)throw Error('运行环境文件清单不合法');}
       await fs.mkdir(this.root,{recursive:true});
       const disk=await fs.statfs(this.root),downloadBytes=pack.parts.reduce((a,p)=>a+p.bytes,0);
       controller.signal.throwIfAborted();
@@ -144,7 +144,7 @@ class RuntimeManager{
       if(marker.flavor!==(pack.officialPip?'cpu':flavor))throw Error('下载的运行环境类型与所选版本不一致。');
       this.emit('checking');
       let official=null;
-      if(pack.officialPip)official=await installOfficialCuda({python,root:this.root,run:this.run,signal:controller.signal,notify:value=>this.emit(value.phase,{progress:value.progress})});
+      if(pack.officialPip)official=await installOfficialCuda({python,root:this.root,run:this.run,signal:controller.signal,sourceMode,notify:value=>this.emit(value.phase,{progress:value.progress})});
       this.emit('checking');
       const result=await this.run(python,['-X','utf8','-c',RUNTIME_PROBE],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal:controller.signal,env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1'}});
       const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),flavor);controller.signal.throwIfAborted();
