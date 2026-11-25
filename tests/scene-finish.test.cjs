@@ -83,6 +83,23 @@ test('day sky remains weather aware and its texture is disposed on scene exit',a
  f.api.dispose();f.api.dispose();assert.equal(disposed,1);assert.equal(f.scene.background,f.background);f.external.dispose();
 });
 
+test('first gouache switch relights the cloud volume and shares the visible panorama with reflections',async()=>{
+ const f=await fixture('kasai'),day={timeOfDay:14,weather:{cloud:.18}};
+ f.api.setClimate(day);const lit=f.scene.background;
+ assert.equal(f.scene.environment,lit);
+ f.api.setRenderStyle('toon');const painted=f.scene.background;
+ assert.equal(painted.name,'weather:gouache-cumulus');
+ assert.equal(painted.image.width,1536);assert.notEqual(painted,lit);
+ assert.equal(f.scene.environment,painted);
+ f.api.setClimate(day);f.api.setRenderStyle('lit');assert.equal(f.scene.background,lit);
+ f.api.setRenderStyle('toon');assert.equal(f.scene.background,painted);
+ for(const climate of [{timeOfDay:18.75},{timeOfDay:22,weather:{rain:1,cloud:1}}]){
+  f.api.setClimate(climate);assert.notEqual(f.scene.background,painted);
+  assert.equal(f.scene.environment,f.scene.background);
+ }
+ f.api.dispose();assert.equal(f.scene.environment,f.external);f.external.dispose();
+});
+
 test('toon upgrade retains wind hooks, source animation colours and texture ownership',async()=>{
  const T=await import('three'),{upgradeSurfaces}=await import('../src/scenes/surface-materials.mjs');
  const root=new T.Group(),map=new T.Texture(),source=new T.MeshToonMaterial({map,color:'#7c6952'});
@@ -162,6 +179,65 @@ test('clear-air fog is isolated from the authored weather and resets without den
   api.setClimate({timeOfDay:14,weather:{fog:.8,rain:.4}});assert.ok(scene.fog.density>.004);
  }
  api.dispose();assert.equal(scene.fog,native);
+});
+
+test('architectural midday colour follows solar elevation and clears on weather and style round trips',async()=>{
+ const f=await fixture('city');
+ const strength=f.material.userData.surfaceUniforms.uClearArchitectureDay,sourceColour=f.material.color.clone();
+ const clear={timeOfDay:14,weather:{cloud:.18}},grazing={kind:'solar',elevation:21,hourAngle:45};
+ assert.ok(strength);
+ for(const style of ['lit','toon','lit']){
+  f.api.setRenderStyle(style);
+  f.api.setClimate(clear);assert.equal(strength.value,1);
+  f.api.setClimate({timeOfDay:grazing,weather:null});assert.ok(strength.value>0&&strength.value<1);
+  f.api.setClimate({timeOfDay:14,weather:{cloud:.55}});assert.ok(strength.value>0&&strength.value<1);
+  for(const weather of [{cloud:1},{rain:.65},{fog:.7},{snow:.5}]){
+   f.api.setClimate({timeOfDay:14,weather});assert.equal(strength.value,0);
+  }
+  for(const timeOfDay of [18.75,23]){f.api.setClimate({timeOfDay,weather:null});assert.equal(strength.value,0);}
+  f.api.setClimate(clear);assert.equal(strength.value,1);assert.ok(f.material.color.equals(sourceColour));
+ }
+ f.api.dispose();f.external.dispose();
+});
+
+test('both render styles grade only architectural diffuse light, after shadows and occlusion',async()=>{
+ const T=await import('three'),{upgradeSurfaces}=await import('../src/scenes/surface-materials.mjs');
+ const {setSceneCelShading}=await import('../src/ui/scene-cel-materials.mjs');
+ const built=['inage','kasai','kyoto','school','city','bookshop','classroom','wedding'];
+ for(const id of [...built,'sakura','forest']){
+  const root=new T.Group(),geometry=new T.BoxGeometry(),map=new T.Texture();
+  const add=(name,options={})=>{
+   const mat=new T.MeshStandardMaterial(options);mat.name=name;const mesh=new T.Mesh(geometry,mat);
+   mesh.name=name;root.add(mesh);return mesh;
+  };
+  const wall=add('wall:stucco',{map}),wood=add('wood:door');
+  const skipped=[add('glass:window',{transparent:true,opacity:.24}),add('metal:steel-bolt',{metalness:.85}),
+   add('light:lit-panel',{emissive:0xffe9b0}),add('stone:recess'),add('water:bay'),add('leaf:foliage',{alphaTest:.4})];
+  const surfaces=upgradeSurfaces(root,id),wallMat=wall.material;
+  const uniform=wallMat.userData.surfaceUniforms.uClearArchitectureDay;
+  assert.equal(Boolean(uniform),built.includes(id),id);
+  assert.equal(wood.material.userData.surfaceUniforms.uClearArchitectureDay,uniform);
+  for(const mesh of skipped)assert.equal(mesh.material.userData.surfaceUniforms.uClearArchitectureDay,undefined,mesh.name);
+  if(uniform){
+   surfaces.setWeather(null,1);assert.equal(uniform.value,1);
+   for(const painted of [false,true,false]){
+    setSceneCelShading(root,painted,id);
+    wallMat.onBeforeRender(null,null,null,geometry,wall,null);
+    const shader={...T.ShaderLib.standard,uniforms:{}};
+    wallMat.onBeforeCompile(shader,null);
+    const frag=shader.fragmentShader,ao=frag.indexOf('#include <aomap_fragment>'),grade=frag.indexOf('float dayGrade=');
+    assert.ok(ao>=0&&grade>ao&&frag.indexOf('vec3 totalDiffuse')>grade);
+    assert.equal(shader.uniforms.uClearArchitectureDay,uniform);
+    const code=frag.slice(ao,frag.indexOf('vec3 totalDiffuse'));
+    assert.match(code,/headroom=1.-smoothstep/);
+    assert.match(code,/1.-white/);
+    assert.match(code,/reflectedLight\.directDiffuse\*=/);assert.match(code,/reflectedLight\.indirectDiffuse\*=/);
+    assert.doesNotMatch(code,/reflectedLight\.(?:direct|indirect)Specular|totalEmissiveRadiance/);
+    assert.equal(wallMat.map,map);
+   }
+  }
+  surfaces.dispose();geometry.dispose();root.children.forEach(mesh=>mesh.material.dispose());map.dispose();
+ }
 });
 
 test('all outdoor scenes share a weather-aware moon outside framing and dispose its resources once',async()=>{

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('studioWindow', {
   updateSupported: () => ipcRenderer.invoke('studio:update-supported').catch(() => false),
+  showAppUpdates: () => ipcRenderer.invoke('studio:show-updates'),
   updateCheck: () => ipcRenderer.invoke('studio:update-check'),
   updateDownload: () => ipcRenderer.invoke('studio:update-download'),
   updateOpen: () => ipcRenderer.invoke('studio:update-open'),

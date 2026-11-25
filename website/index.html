@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/assets/final.css">
   <link rel="stylesheet" href="/assets/interactive.css">
   <link rel="stylesheet" href="/assets/site-final.css">
+  <link rel="stylesheet" href="/assets/account-center.css?v=night-2">
 </head>
 <body class="v2-body">
 <a class="skip-link" href="#main">跳到主要内容</a>
@@ -39,7 +40,7 @@
       </nav>
       <div class="v2-nav-actions">
         <a class="v2-nav-link" href="https://github.com/fqxxzyw" target="_blank" rel="noopener noreferrer">联系我</a>
-        <a class="v2-nav-link" href="/login" data-link id="header-account">登录</a>
+        <a class="v2-nav-link" href="/login" data-link id="header-account">账号</a>
         <a class="v2-nav-download" href="/#download" data-link>下载</a>
       </div>
     </div>
@@ -59,7 +60,7 @@
         <h1>雪之下雪乃</h1>
         <p class="v2-hero-sub">3D / 2D 形象 · 双语对话 · GPT-SoVITS 语音 · 场景与衣橱 ·<br>Windows 10 / 11 桌面数字角色</p>
         <div class="v2-hero-actions">
-          <a class="v2-button v2-button-light" href="#download" data-link>下载 Windows 版 <span class="v2-button-note" id="hero-version">读取版本…</span></a>
+          <a class="v2-button v2-button-light" id="hero-download" href="https://github.com/fqxxzyw/Yukino-Companion/releases/latest" target="_blank" rel="noopener noreferrer">下载 Windows 版 <span class="v2-button-note" id="hero-version"></span></a>
           <a class="v2-button v2-button-ghost" href="#characters" data-link>查看形象 <span aria-hidden="true">↓</span></a>
         </div>
       </div>
@@ -294,10 +295,11 @@
         <img class="v2-download-icon" src="/assets/icon-192.png" width="86" height="86" alt="">
         <p class="v2-kicker">DOWNLOAD</p>
         <h2 id="download-title" class="v2-display" data-reveal>下载 Yukino Companion。</h2>
-        <p class="v2-lede v2-lede-center" id="download-lead">正在从 GitHub Releases 读取真实安装包信息…</p>
+        <p class="v2-lede v2-lede-center" id="download-lead">适用于 Windows 10 / 11。</p>
         <div class="v2-hero-actions v2-download-actions">
-          <a class="v2-button v2-button-light" id="download-button" href="https://github.com/fqxxzyw/Yukino-Companion/releases" target="_blank" rel="noopener noreferrer">打开 Releases 页面</a>
-          <a class="v2-button v2-button-ghost" href="https://github.com/fqxxzyw/Yukino-Companion/releases" target="_blank" rel="noopener noreferrer" id="release-notes">更新日志 ↗</a>
+          <a class="v2-button v2-button-light" id="download-button" href="https://github.com/fqxxzyw/Yukino-Companion/releases/latest" target="_blank" rel="noopener noreferrer">前往 GitHub 下载</a>
+          <a class="v2-button v2-button-ghost" id="portable-download" hidden target="_blank" rel="noopener noreferrer">下载便携版</a>
+          <a class="v2-button v2-button-ghost" href="https://github.com/fqxxzyw/Yukino-Companion/releases/latest" target="_blank" rel="noopener noreferrer" id="release-notes">更新日志 ↗</a>
         </div>
         <dl class="v2-download-meta">
           <div><dt>版本</dt><dd id="download-version">—</dd></div>
@@ -331,6 +333,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <noscript><p class="noscript">登录、注册与下载版本信息需要 JavaScript。桌面软件本身不依赖本页面。</p></noscript>
 <script src="/assets/config.js"></script>
+<script type="module" src="/assets/release-downloads.mjs"></script>
 <script type="module" src="/assets/app.mjs"></script>
 </body>
 </html>

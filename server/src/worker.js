@@ -1,5 +1,5 @@
 import {createApi} from './app.js';
-import {createMailer} from './mail.js';
+import {createMailer, securityNoticeEmail} from './mail.js';
 
 const apis = new WeakMap();
 function apiFor(env) {
@@ -69,7 +69,10 @@ export default {
         const pending = await db.prepare('SELECT * FROM mail_outbox WHERE status = ? ORDER BY created_at LIMIT 5').bind('pending').all();
         for (const row of pending?.results || []) {
           try {
-            await mailer.send({to: row.recipient, subject: row.subject, text: row.text_body});
+            const html = row.kind === 'notice-password-changed' || row.kind === 'notice-password-reset'
+              ? securityNoticeEmail({kind: row.kind.slice('notice-'.length), email: row.recipient}).html
+              : undefined;
+            await mailer.send({to: row.recipient, subject: row.subject, text: row.text_body, html});
             await db.prepare('UPDATE mail_outbox SET status = ?, attempts = attempts + 1, updated_at = ? WHERE id = ?').bind('sent', Date.now(), row.id).run();
           } catch (error) {
             await db.prepare('UPDATE mail_outbox SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?')

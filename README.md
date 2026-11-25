@@ -4,9 +4,15 @@
 
 # Yukino Companion · 雪乃数字人
 
+![Yukino Companion Windows 主界面，教室场景中的雪乃和中日双语对话](docs/screenshots/windows-main.webp)
+
+*以下为 Windows 客户端 0.4.3 实机截图，聊天内容为演示示例。*
+
 Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可以与雪乃或自己创建的角色聊天，显示中日双语回复，使用本地模型或已配置的 API，并选择 3D 人物、Q 版桌宠和语音功能。
 
 **多角色对话 · 本地 / API 模型 · 中日双语 · 语音 · 3D 与桌面陪伴**
+
+[官方网站](https://yukino.fqxxzyw.cn/) · [GitHub Pages（资源与使用文档）](https://fqxxzyw.github.io/Yukino-Companion/)
 
 **使用指南：** [下载与安装](#download) · [开始使用](#usage) · [自定义角色与场景](docs/CUSTOM_CHARACTERS.md) · [功能与边界](#features) · [常见问题](#faq)
 
@@ -20,24 +26,26 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 ## 下载与安装
 
-1. 打开 [Yukino Companion 0.4.3 发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.3)，下载 [Yukino-Companion-0.4.3-Base-Setup.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.3/Yukino-Companion-0.4.3-Base-Setup.exe)；也可以选择 [Yukino-Companion-0.4.3-Portable.exe](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.3/Yukino-Companion-0.4.3-Portable.exe) 免安装运行。请先阅读发行页中的已知问题和验收范围；其他版本可在 [Releases 下载页](https://github.com/fqxxzyw/Yukino-Companion/releases)查看。
+1. 在[官网下载页](https://yukino.fqxxzyw.cn/#download)选择 Windows 安装版或便携版。安装包和校验清单也可以从[最新正式版发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/latest)下载。
 2. 运行安装器，按提示选择安装位置。安装文件和数据建议放在有足够空闲空间的磁盘；请勿选择包含其他重要文件的非空目录。安装程序及其附件的大小、校验值以对应发行页为准。
 3. 启动 Yukino Companion。首次配置可按需选择本地对话、日语翻译、语音合成和桌宠语音，也可以先跳过，使用 API 文字聊天。
 4. 选择本地功能时，确认资源目录、预计下载量和运行环境，再开始准备。资源文件会按清单下载并校验；下载量、所需空间及耗时取决于所选功能、已有文件与网络条件。
 
-本次安装器的 SHA-256 为 `dab02ddf9cbdc566625605d2c055c78b5b5b407fac3c3dd49ade9f14f2bfd708`，大小为 `390578978` 字节。在下载目录打开 PowerShell，可用以下命令计算并与该值比较：
+下载后，可用 PowerShell 计算安装包的 SHA-256，与同一发行页的 `SHA256SUMS-<版本>.txt` 核对。
 
 ```powershell
-Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.3-Base-Setup.exe' -Algorithm SHA256
+Get-FileHash -LiteralPath (Read-Host '安装包路径') -Algorithm SHA256
 ```
 
-基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.3/Yukino-Companion-0.4.3-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
+基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.4/Yukino-Companion-0.4.4-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
 
-0.4.3 起，安装版更新会优先通过 `.blockmap` 只下载变化的安装器区块，下载完成后可在应用内“重启并安装”；便携版仍需完整安装包。由于 0.4.1 的旧更新器不支持差分，**0.4.1 → 0.4.3 仍会完整下载一次**，之后才能使用增量更新。
+0.4.3 起，安装版更新会优先通过 `.blockmap` 只下载变化的安装器区块，下载完成后可在应用内“重启并安装”；便携版仍需完整安装包。由于 0.4.1 和 0.4.2 的旧更新器不支持差分，**0.4.1 / 0.4.2 → 0.4.3 仍会完整下载一次**，之后才能使用增量更新。
 
 程序面向 **Windows 10 或更新版本的 x64 系统**。本地推理可选择 CPU；若有受支持的 NVIDIA 显卡，可在资源向导选择可用的 CUDA 环境。CUDA 配置会准备基础环境并从官方 PyTorch 与 llama.cpp 来源安装相应依赖，需要网络、足够磁盘空间和 NVIDIA 驱动。自动模式会检查实际环境；显卡型号、驱动、可用显存和依赖都影响能否使用 GPU。没有 NVIDIA CUDA 时不要把检测到显卡等同于 CUDA 已就绪。
 
 > 请从本仓库的发行页下载应用。发行页中用于模型、语音或运行环境下载的资源附件是独立依赖，可能被不同版本引用；不要把它们当作另一个应用安装器。
+
+![首次配置向导，显示本地聊天、日语翻译、语音合成和桌宠语音的可选安装项](docs/screenshots/first-run.webp)
 
 <a id="usage"></a>
 
@@ -49,6 +57,8 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.3-Base-Setup.exe' -Algorithm S
 - **API 对话**：打开「设置 → 模型与 API」，点击「添加 API」，选择服务商、填写凭据并保存，然后在「分配任务」中选择对话配置。可用模型、权限、地域和费用由所选服务商决定。保存配置不等于连接或模型能力已验证。
 - 点击停止按钮可中止当前回复；会话与角色资料保存在本机。切换角色后，后续对话使用该角色的设定和记忆。
 
+![模型与 API 设置，显示添加 API、任务分配和服务商目录](docs/screenshots/model-api.webp)
+
 ### 翻译与朗读
 
 1. 在「设置 → 双语与翻译」选择**不翻译、本地翻译或已配置的 API 翻译**。本地翻译用于中文到日语；不翻译时保留原文，不会自动发起收费翻译。
@@ -58,16 +68,48 @@ Get-FileHash -LiteralPath '.\Yukino-Companion-0.4.3-Base-Setup.exe' -Algorithm S
 
 回复会按标点分段，首段尽早合成；标准本地引擎可将后续已准备好的句子组成小批次，并按原顺序播放。实际并发、显存占用和速度取决于所选引擎与硬件，不保证所有引擎都能同时推理多句。翻译、合成或播放失败时，文字回复仍可查看。
 
+![双语与翻译设置，显示气泡语言和本地或 API 翻译选项](docs/screenshots/bilingual-translation.webp)
+
+<details>
+<summary>查看语音输出设置</summary>
+
+![语音输出设置，显示本地 GPT-SoVITS、云端语音与不朗读选项](docs/screenshots/voice-output.webp)
+
+</details>
+
 ### 角色、人物与桌面陪伴
+
+![潮声誓约三维景观的近景，展示海边礼堂的入口、石阶和扶手](docs/screenshots/scene-gallery.webp)
+
+*三维场景观赏 · 潮声誓约*
 
 - 在「设置 → 角色管理」选择已有角色，或点击角色列表下方的「新建角色」。填写姓名和角色设定，可选音色、3D 模型及默认场景。默认场景可用内置场景或已导入场景。
 - 在「人物与桌面」调整人物显示、桌宠、气泡、置顶和鼠标穿透等选项。关闭主窗口时可选择保留人物、桌宠、两者或完全退出；保留桌面形象时可通过系统托盘重新打开主窗口。
 - 在「高级与资源 → 导入人物模型」检查并导入 GLB 2.0 或 VRM 1.0。桌面 3D 人物可用滚轮或方向键调整大小，拖动人物可旋转。制作模型、检查蒙皮和绑定人物的步骤见[自定义角色图文指南](docs/CUSTOM_CHARACTERS.md)。
 - 在「设置 → 外观」导入三维场景，或单独调整各场景的显示位置、角度和大小，按需还原默认位置。[场景格式与调整说明](docs/CUSTOM_CHARACTERS.md#scene-settings)
 
+<details>
+<summary>查看 Windows 桌宠和独立 3D 人物</summary>
+
+<p align="center">
+  <img src="docs/screenshots/desktop-pet.webp" width="220" alt="带有独立输入栏的 Q 版桌宠窗口">
+  <img src="docs/screenshots/desktop-model.webp" width="160" alt="带有工具栏和底部控件的独立 3D 雪乃窗口">
+</p>
+
+</details>
+
 ### 语音输入与视觉
 
 在「语音输入」中选择已接入的识别服务并检查麦克风；语音识别和语音输出是两项独立配置。在「视觉」中选择屏幕或摄像头并先预览，只有确认发送后才会将画面交给配置的视觉服务。服务列表中的能力与实际协议接入状态请以界面为准。
+
+![语音输入设置，显示麦克风检查入口与识别服务商目录](docs/screenshots/voice-input.webp)
+
+<details>
+<summary>查看桌面截图识别界面</summary>
+
+![桌面截图识别对话框，显示窗口预览授权和视觉 API 配置入口](docs/screenshots/desktop-vision.webp)
+
+</details>
 
 <a id="features"></a>
 
@@ -339,6 +381,8 @@ Yukino-Companion/
 
 ## 3D 资产与动作编辑器
 
+![Windows 动作编辑器中的挥手示例，显示 3D 预览、IK 面板和多轨时间线](docs/screenshots/motion-studio.webp)
+
 数字人的表现不只取决于聊天模型。眨眼、闭眼、嘴型、头发和服装表现，还取决于模型本身是否具备正确的骨骼、表情通道与资源适配。动作模块也不能因为在一套模型上可用，就被认为能无条件迁移到所有服装。
 
 动作编辑器的设计，是把动作制作从主聊天流程中分离出来：在工作台编辑和录制关节或表情，将其作为可复用模块安排到时间线，再保存工程或导出动作包。
@@ -413,7 +457,7 @@ npm run build
 - 登录后使用 `profiles/<用户ID>/state.json`，与游客和其他账号隔离。
 - 账号服务不可达、令牌过期或刷新失败不会阻止本地使用，也不会删除聊天、模型或已确认服装资格。
 - 默认开放夏日、冬季两套校服；泳装在第 2 个确认登录日、双马尾在第 3 个确认登录日解锁，其余服装按好感度解锁。规则集中在 [`shared/outfit-rules.json`](shared/outfit-rules.json)，说明见 [服装解锁规则](docs/OUTFIT_UNLOCKS.md)。
-- 官网位于 `website/`，账号后端位于 `server/`；默认 API 为 `https://yukino-api.fqxxzyw.workers.dev`。
+- 官网位于 `website/`，账号后端位于 `server/`；默认 API 为 `https://yukino.fqxxzyw.cn`。
 
 本地开发：
 

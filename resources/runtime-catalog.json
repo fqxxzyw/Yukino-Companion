@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "version": "0.4.0",
+  "variants": {
+    "cpu": {
+      "id": "windows-x64-cpu",
+      "bytes": 681369634,
+      "unpackedBytes": 2534103346,
+      "archiveSha256": "6f8afeef581edfbe46f4d75188090b1e9042877b14b9f06712b06c2526e6411f",
+      "parts": [
+        {
+          "path": "Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001",
+          "bytes": 681369634,
+          "algorithm": "sha256",
+          "digest": "6f8afeef581edfbe46f4d75188090b1e9042877b14b9f06712b06c2526e6411f",
+          "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.0-local.13/Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001"
+        }
+      ]
+    }
+  }
+}

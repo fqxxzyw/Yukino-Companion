@@ -6,7 +6,7 @@ const server=await createServer({server:{host:'127.0.0.1',port:0,watch:{ignored:
 let browser;let releaseCity,releaseKasai;const cityGate=new Promise(resolve=>{releaseCity=resolve}),kasaiGate=new Promise(resolve=>{releaseKasai=resolve});
 try{
  await server.listen();
- browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ browser=await chromium.launch({headless:process.env.YUKINO_VISIBLE_REVIEW!=='1',executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  const page=await browser.newPage({viewport:{width:1280,height:800}});
  await page.addInitScript(()=>localStorage.setItem('yukino-ui-preview-v1:state',JSON.stringify({profiles:[{id:'default',name:'API'}],conversations:[],showAvatar:false,reduce:false,presentation:{scene:'city',spread:true,followTime:false,fixedHour:14,wallpaper:{enabled:false,items:[]}}})));
  await page.route('**/src/scenes/lawson.mjs*',async route=>{await cityGate;await route.continue()});
@@ -30,7 +30,7 @@ try{
  await page.getByRole('button',{name:'场景小菜单'}).click();
  await page.locator('.scene-menu-popover').getByRole('button',{name:'海风来信',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('.environment-backdrop-canvas')?.dataset.frozen==='true');
- const frozen=page.locator('.environment-backdrop-canvas canvas').last();
+ const frozen=page.locator('.environment-backdrop-canvas canvas[data-source=canvas]');
  assert.equal(await page.locator('.environment-backdrop-canvas').getAttribute('data-scene'),'classroom');
  assert.equal(await frozen.evaluate(el=>getComputedStyle(el).filter),'blur(8px)');
  assert.equal(await frozen.evaluate(el=>{const ctx=el.getContext('2d');for(let y=0;y<el.height;y+=Math.max(1,Math.floor(el.height/20)))for(let x=0;x<el.width;x+=Math.max(1,Math.floor(el.width/20))){const [r,g,b,a]=ctx.getImageData(x,y,1,1).data;if(a&&Math.max(r,g,b)-Math.min(r,g,b)>5)return true;}return false;}),true,'the retained image contains actual scene colour');

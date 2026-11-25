@@ -1,6 +1,6 @@
 import {audit, consumeRate, first, run} from './db.js';
 import {burnPasswordCheck, CURRENT_PARAMS, hashPassword, verifyPassword} from './password.js';
-import {mailConfigured, securityNoticeEmail, verificationEmail} from './mail.js';
+import {accountRequestEmail, mailConfigured, securityNoticeEmail, verificationEmail} from './mail.js';
 import {authenticate, createSession, listSessions, readRefreshCookie, refreshCookie, revokeFamily, revokeSession, revokeUserSessions, rotateSession, signAccessToken, SESSION_IDLE_MS} from './session.js';
 import {
   ApiError,
@@ -183,26 +183,10 @@ export async function requestCode({request, env, db, mailer, body, purpose, now 
   }
 
   try {
-    if (purpose === 'reset' && !user) {
-      // Uniform response for unknown mailboxes. This message tells the mailbox
-      // owner the truth without exposing account existence to the requester.
-      const generic = verificationEmail({purpose: 'reset', code: challenge.code, minutes: Math.round(OTP_TTL_MS / 60000), email});
+    if ((purpose === 'reset' && !user) || (purpose === 'register' && user)) {
+      // Only the mailbox owner sees whether this address has an account.
       await dailyMailBudget(db, now);
-      await mailer.send({
-        to: email,
-        subject: 'Yukino Companion · 密码重置请求',
-        text: '我们收到了一次密码重置请求，但这个邮箱没有对应的 Yukino Companion 账号。\n\n如果你刚刚注册过，请先确认邮箱地址；否则可以忽略本邮件。',
-        html: '<p>我们收到了一次密码重置请求，但这个邮箱没有对应的 Yukino Companion 账号。</p><p>如果刚刚注册过，请先确认邮箱地址；否则可以忽略本邮件。</p>',
-      });
-      void generic;
-    } else if (purpose === 'register' && user) {
-      await dailyMailBudget(db, now);
-      await mailer.send({
-        to: email,
-        subject: 'Yukino Companion · 账号已存在',
-        text: '这个邮箱已经注册过 Yukino Companion。请直接登录；忘记密码时可使用“忘记密码”。\n\n如果不是你本人操作，可以忽略本邮件。',
-        html: '<p>这个邮箱已经注册过 Yukino Companion。请直接登录；忘记密码时可使用“忘记密码”。</p>',
-      });
+      await mailer.send({to: email, ...accountRequestEmail({purpose})});
     } else {
       await sendChallengeMail({db, mailer, to: email, purpose, code: challenge.code, now, userId: user?.id || null});
     }
@@ -262,7 +246,8 @@ function clearCookie(response, request, env) {
 export async function register({request, env, db, mailer, body, now = Date.now()}) {
   const email = normalizeEmail(body.email);
   const password = requirePassword(body.password);
-  const {nickname, key: nicknameKey} = normalizeNickname(body.nickname);
+  const suggested = body.nickname == null || (typeof body.nickname === 'string' && !body.nickname.trim());
+  const {nickname, key: nicknameKey} = normalizeNickname(suggested ? '旅人·' + crypto.randomUUID().replaceAll('-', '').slice(0, 16) : body.nickname);
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   const challengeId = typeof body.challengeId === 'string' ? body.challengeId : '';
   if (!/^\d{6}$/.test(code) || !/^[0-9a-f-]{36}$/i.test(challengeId)) fail(400, 'invalid_code', '验证码不正确或已过期。');

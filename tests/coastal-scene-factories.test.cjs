@@ -160,6 +160,67 @@ test('wedding: 26 original-size steps, landing, tower attachments and sloped pos
   });
 });
 
+test('Kasai bay follows the visible live sky, stays outside framing and releases its geometry', async () => {
+  const T=await import('three'),{finishScene}=await import('../src/scenes/scene-finish.mjs');
+  const {createScene}=await import('../src/scenes/kasai.mjs'),waterName='kasai:tokyo-bay';
+    withCanvas(()=>{
+      const scene=new T.Scene(),native=createScene({scene}),water=scene.getObjectByName(waterName);
+      assert.equal(water.parent,scene);
+      assert.equal(native.framingRoot.getObjectByName(waterName),undefined);
+      scene.add(native.root);
+      // Rays through the front corners of the overview used to fall straight
+      // through the abrupt side edges of a finite rectangular sea shelf.
+      scene.updateMatrixWorld(true);
+      const width=water.material.uniforms.uWidth.value,shore=water.material.uniforms.uShore.value;
+      const ray=new T.Raycaster(new T.Vector3(),new T.Vector3(0,-1,0));
+      for(const [x,z] of [[-1.35,1.1],[1.35,1.1],[-1.7,.85],[1.7,.85],[0,1.55],[0,-1.7]]){
+        ray.ray.origin.set(x*width,10,z*width);
+        const hit=ray.intersectObject(water)[0];
+        assert.ok(hit,'continuous water in and beyond the landward blend');
+        assert.ok(hit.point.y<=-2.79,'water stays below the original plinth');
+      }
+      assert.equal(water.material.transparent,true);
+      assert.equal(water.material.depthWrite,false);
+      assert.ok(water.renderOrder<0,'water composites before the translucent facade');
+      water.geometry.computeBoundingBox();
+      const bounds=water.geometry.boundingBox;
+      assert.ok(Math.abs(bounds.min.z-(shore-1250))<.01,'original rear horizon distance');
+      assert.ok(Math.abs(bounds.min.y+25.8)<.01,'original horizon elevation');
+      const api=finishScene(native,{scene,id:'kasai'});
+      const u=water.material.uniforms;
+      api.setClimate({timeOfDay:14,weather:null});
+      const clear=scene.background;assert.equal(u.uSky.value,clear);
+      api.setRenderStyle('toon');assert.notEqual(scene.background,clear);
+      assert.equal(u.uSky.value,scene.environment);assert.equal(u.uPainted.value,1);
+      api.setClimate({timeOfDay:22,weather:{cloud:1,rain:.8}});
+      assert.equal(u.uDay.value,0);assert.equal(u.uRain.value,.8);assert.equal(u.uSunStrength.value,0);
+      api.setRenderStyle('lit');api.setClimate({timeOfDay:14,weather:null});
+      assert.equal(u.uPainted.value,0);assert.equal(u.uRain.value,0);assert.equal(u.uSky.value,clear);
+      let releases=0;water.geometry.addEventListener('dispose',()=>releases++);
+      api.dispose();api.dispose();assert.equal(water.parent,null);assert.equal(releases,1);assert.equal(u.uSky.value,null);
+    });
+});
+
+test('the wedding hall retains its authored base and a dry panorama in either style',async()=>{
+  const T=await import('three'),{createScene}=await import('../src/scenes/surf-hall.mjs');
+  const {finishScene}=await import('../src/scenes/scene-finish.mjs');
+  withCanvas(()=>{
+    const scene=new T.Scene(),native=createScene({scene});scene.add(native.root);
+    assert.equal(native.setVisibleSky,undefined);
+    const bounds=new T.Box3().setFromObject(native.framingRoot);
+    const api=finishScene(native,{scene,id:'wedding'});
+    for(const style of ['lit','toon','lit']){
+      api.setRenderStyle(style);
+      for(const timeOfDay of [14,22]){
+        api.setClimate({timeOfDay,weather:null});assert.ok(scene.background.isTexture);
+        scene.traverse(o=>{if(o.isMesh)assert.ok(!o.material?.uniforms?.uShore&&!/sea-horizon/.test(o.name));});
+      }
+      assert.ok(new T.Box3().setFromObject(native.framingRoot).equals(bounds));
+    }
+    api.dispose();api.dispose();assert.equal(scene.children.length,0);
+  });
+});
+
 test('school: night warms actual classroom/door glass and resets to daylight', async () => {
   const THREE = await import('three');
   const { createScene } = await import('../src/scenes/school.mjs');

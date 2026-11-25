@@ -1,5 +1,37 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 
+test('bookshop neutral tubes light the actual book table and back spines across day and night',async t=>{
+ const T=await import('three'),{createScene}=await import('../src/scenes/bookshop-ramen.mjs');
+ const previous=global.document,gradient={addColorStop(){}};
+ global.document={createElement(){const canvas={};canvas.getContext=()=>new Proxy({
+  canvas,createLinearGradient:()=>gradient,createRadialGradient:()=>gradient,measureText:()=>({width:40}),
+  getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
+ },{get:(o,k)=>k in o?o[k]:()=>{}});return canvas;}};
+ t.after(()=>{if(previous===undefined)delete global.document;else global.document=previous;});
+ // This geometry/photometry test needs a valid environment target, while
+ // native panorama convolution is covered by the browser capture.
+ t.mock.method(T.PMREMGenerator.prototype,'compileEquirectangularShader',()=>{});
+ t.mock.method(T.PMREMGenerator.prototype,'fromEquirectangular',()=>new T.WebGLRenderTarget(4,4));
+ t.mock.method(T.PMREMGenerator.prototype,'dispose',()=>{});
+ const renderer={shadowMap:{},capabilities:{getMaxAnisotropy:()=>4}},api=createScene({scene:new T.Scene(),renderer});
+ t.after(()=>api.dispose());
+ const room=api.root.getObjectByName('Bookshop_Interior'),shelf=room.getObjectByName('Bookshop_Back_Shelves');
+ const display=room.getObjectByName('bookshop:fluorescent-window-display'),rear=room.getObjectByName('bookshop:fluorescent-back-shelves');
+ const target=rear.target.getWorldPosition(new T.Vector3());
+ assert.ok(new T.Box3().setFromObject(shelf).expandByScalar(.15).containsPoint(target),'beam hits the original shelf');
+ assert.ok(display.target.position.distanceTo(new T.Vector3(-.42,1,1.89))<.01);
+ api.setLighting('day');
+ const day=[display.intensity,rear.intensity];
+ for(const light of [display,rear]){
+  const offset=light.position.clone().sub(light.target.position),r=offset.length();
+  const incident=light.intensity/r**2*(1-(r/light.distance)**4)**2*offset.normalize().z;
+  assert.ok(incident>.55&&incident<3,'book covers and spines receive a bounded direct contribution');
+  assert.ok(light.color.r/light.color.b<1.12&&light.color.r>=light.color.b);
+ }
+ api.setLighting('night');assert.equal(rear.intensity,day[1]*.82);
+ api.setLighting('day');assert.deepEqual([display.intensity,rear.intensity],day);
+});
+
 test('static repeated geometry preserves world transforms when batched as instances',async()=>{
  const T=await import('three'),{Diorama}=await import('../src/scenes/diorama-kit.mjs');
  const b=new Diorama(new T.Scene(),{toneMappingExposure:1},'instances-test'),material=b.mat('test:posts','#fff');

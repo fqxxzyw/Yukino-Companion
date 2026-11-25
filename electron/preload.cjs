@@ -46,6 +46,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 contextBridge.exposeInMainWorld('desktop', {
   appUpdateCheck:()=>invoke('app-update-check'),appUpdateDownload:()=>invoke('app-update-download'),appUpdateInstall:()=>invoke('app-update-install'),appUpdateOpen:()=>invoke('app-update-open'),onAppUpdateProgress:fn=>subscribe('app-update-progress',fn),
+  appUpdateCancel:()=>invoke('app-update-cancel'),onShowAppUpdates:fn=>subscribe('show-app-updates',fn),
   visionSources:options=>invoke('vision-sources',options), visionAnalyze:options=>invoke('vision-analyze',options), visionWatch:options=>invoke('vision-watch',options), onVisionStatus:fn=>subscribe('vision-status',fn), visionCancel:()=>invoke('vision-cancel'),
   wallpaperPick:()=>invoke('wallpaper-pick'), wallpaperRead:id=>invoke('wallpaper-read',id),
   sceneList:()=>invoke('scene-list'), sceneImport:()=>invoke('scene-import'), sceneRead:id=>invoke('scene-read',id), sceneRemove:id=>invoke('scene-remove',id),
@@ -93,6 +94,9 @@ contextBridge.exposeInMainWorld('desktop', {
   accountState:()=>invoke('account-state'), onAccountState:fn=>subscribe('account-state',fn), onAccountProfile:fn=>subscribe('account-profile',fn),
   accountSkip:()=>invoke('account-skip'), accountSwitchGuest:()=>invoke('account-switch-guest'),
   accountLogin:input=>invoke('account-login',input), accountRegisterRequest:input=>invoke('account-register-request',input), accountRegister:input=>invoke('account-register',input),
+  accountNickname:input=>invoke('account-nickname',input),
+  accountCharacters:profileId=>invoke('account-characters',{profileId}),
+  accountCharacterSave:input=>invoke('account-character-save',input),
   accountLogout:()=>invoke('account-logout'), accountLogoutAll:()=>invoke('account-logout-all'),
   accountSessions:()=>invoke('account-sessions'), accountRevokeSession:id=>invoke('account-revoke-session',{id:id}),
   accountChangePassword:input=>invoke('account-change-password',input),

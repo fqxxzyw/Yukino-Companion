@@ -42,15 +42,15 @@ function petalGeometry({flower=false,lowDetail=false}={}){
 // transparent gaps. The close blossoms remain cupped geometry; neither layer
 // needs an opaque sphere or a filled crown core.
 function blossomSprayTexture(){
- const size=256,data=new Uint8Array(size*size*4),random=randomSeed(90127),flowers=220;
+ const size=256,data=new Uint8Array(size*size*4),random=randomSeed(90127),flowers=156;
  for(let flower=0;flower<flowers;flower++){
-  const a=random()*TAU,r=Math.sqrt(random()),lobe=flower%4,clusterAngle=lobe*TAU/4+.27,cx=size*.5+Math.cos(clusterAngle)*34+Math.cos(a)*r*76,cy=size*.5+Math.sin(clusterAngle)*35+Math.sin(a)*r*80,radius=3.8+random()*2.5,turn=random()*TAU;
+  const a=random()*TAU,r=Math.sqrt(random()),lobe=flower%4,clusterAngle=lobe*TAU/4+.27,cx=size*.5+Math.cos(clusterAngle)*34+Math.cos(a)*r*72,cy=size*.5+Math.sin(clusterAngle)*35+Math.sin(a)*r*73,radius=6.8+random()*4.4,turn=random()*TAU;
   for(let y=Math.floor(cy-radius-1);y<=Math.ceil(cy+radius+1);y++)for(let x=Math.floor(cx-radius-1);x<=Math.ceil(cx+radius+1);x++){
    if(x<0||y<0||x>=size||y>=size)continue;
    const dx=x+.5-cx,dy=y+.5-cy,angle=Math.atan2(dy,dx)-turn,distance=Math.hypot(dx,dy),lobe=Math.cos(angle*5),boundary=radius*(.78+.22*lobe-.055*Math.exp(-((Math.sin(angle*5)/.16)**2))*Math.max(0,lobe));
    const alpha=clamp(boundary-distance+.6,0,1);if(!alpha)continue;const t=clamp(distance/radius,0,1),i=(y*size+x)*4;
    if(alpha*255<data[i+3])continue;
-   const centre=1-clamp(distance/(radius*.23),0,1);data[i]=Math.round(255-centre*55);data[i+1]=Math.round(143+100*Math.pow(t,.36)-centre*18);data[i+2]=Math.round(174+70*Math.pow(t,.34)-centre*33);data[i+3]=Math.round(alpha*255);
+   const centre=1-clamp(distance/(radius*.23),0,1);data[i]=Math.round(255-centre*55);data[i+1]=Math.round(179+68*Math.pow(t,.36)-centre*32);data[i+2]=Math.round(193+55*Math.pow(t,.34)-centre*34);data[i+3]=Math.round(alpha*255);
   }
  }
  const texture=new T.DataTexture(data,size,size);texture.name='sakura:transparent-individual-five-petal-sprays';texture.colorSpace=T.SRGBColorSpace;texture.magFilter=T.LinearFilter;texture.minFilter=T.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;texture.userData={flowers,petals:5,transparentGaps:true};return texture;
@@ -62,7 +62,7 @@ function cherryBarkTextures(){
  const width=256,height=512,colour=new Uint8Array(width*height*4),bump=new Uint8Array(width*height*4),roughness=new Uint8Array(width*height*4),random=randomSeed(118051);
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   const u=x/width*TAU,v=y/height*TAU,grain=Math.sin(u*17+Math.sin(v*3)*.9)*.45+Math.sin(u*43+Math.sin(v*7)*.6)*.17,flake=Math.sin(u*5+Math.sin(v*4)*1.8)*Math.sin(v*11+u)*.45,k=(y*width+x)*4,variation=grain*5+flake*10;
-  colour[k]=clamp(128+variation,0,255);colour[k+1]=clamp(110+variation*.86,0,255);colour[k+2]=clamp(102+variation*.8,0,255);colour[k+3]=255;
+  colour[k]=clamp(148+variation,0,255);colour[k+1]=clamp(132+variation*.86,0,255);colour[k+2]=clamp(123+variation*.8,0,255);colour[k+3]=255;
   const relief=clamp(128+grain*19+flake*13,0,255),rough=clamp(227-grain*9+flake*8,0,255);for(let channel=0;channel<3;channel++){bump[k+channel]=relief;roughness[k+channel]=rough;}bump[k+3]=roughness[k+3]=255;
  }
  for(let scar=0;scar<155;scar++){
@@ -98,76 +98,190 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
  const bloom=material('paper:sakura-delicate-five-petal',{color:'#ffffff',vertexColors:true,side:T.DoubleSide,roughness:.94,metalness:0});
  const loose=material('paper:sakura-water-and-falling-petal',{color:'#fff4f4',vertexColors:true,side:T.DoubleSide,roughness:.9,metalness:0});
  const flowerGeometry=own(petalGeometry({flower:true})),farFlowerGeometry=own(petalGeometry({flower:true,lowDetail:true})),singleGeometry=own(petalGeometry());
- const sprayTexture=blossomSprayTexture();textures.add(sprayTexture);const sprayMaterial=material('paper:sakura-transparent-blossom-sprays',{color:'#ffffff',map:sprayTexture,alphaTest:.3,alphaToCoverage:true,side:T.DoubleSide,roughness:.95,metalness:0}),sprayGeometry=own(new T.PlaneGeometry(1,1));let sprayCount=0;
+ const sprayTexture=blossomSprayTexture();textures.add(sprayTexture);const sprayMaterial=material('paper:sakura-transparent-blossom-sprays',{color:'#ffffff',map:sprayTexture,alphaTest:.3,alphaToCoverage:true,side:T.DoubleSide,roughness:.95,metalness:0}),sprayGeometry=own(new T.PlaneGeometry(1,1,3,3));let sprayCount=0;
+ const sprayPoints=sprayGeometry.attributes.position;
+ for(let i=0;i<sprayPoints.count;i++){
+  const x=sprayPoints.getX(i),y=sprayPoints.getY(i);
+  sprayPoints.setZ(i,.17*(1-2.6*(x*x+y*y))+.05*Math.sin(6*x+3*y));
+ }
+ sprayGeometry.computeVertexNormals();
+ for(const material of [bloom,sprayMaterial,loose]){
+  material.onBeforeCompile=shader=>{
+   shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+    #if NUM_DIR_LIGHTS > 0
+     // A paper-thin petal transmits warm sunlight when viewed against the sky.
+     float petalBack=smoothstep(-.28,.79,dot(-normal,directionalLights[0].direction));
+     reflectedLight.indirectDiffuse+=diffuseColor.rgb*directionalLights[0].color*(.055+.19*petalBack);
+    #endif
+   `);
+  };
+  material.customProgramCacheKey=()=> 'edo-higan-petal-transmission-v1';
+ }
  const mesh=(g,m,parent,name)=>{const o=new T.Mesh(g,m);o.name=name;o.userData.keep=true;o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;};
  const scratch=new T.Object3D(),tone=new T.Color();let blossomCount=0;
 
- function tree(spec,index,weeping){
-  const treeRoot=new T.Group();treeRoot.name=`sakura:tree-${index}`;treeRoot.position.set(spec.x,groundHeight(spec.x,spec.z)-.1,spec.z);root.add(treeRoot);
-  const h=spec.height,spread=spec.spread,lean=index%2?-1:1,trunk=taperedBranch([[0,0,0],[-.16*lean,h*.12,.11],[-.07*lean,h*.3,.17],[.3*lean,h*.48,-.07],[.5*lean,h*.63,.1],[.2*lean,h*.75,.18]],h*.027,.038,23);
+ function tree(spec,index) {
+  const hero = index === 0;
+  const treeRoot = new T.Group();
+  treeRoot.name = `sakura:tree-${index}`;
+  treeRoot.position.set(spec.x, groundHeight(spec.x,spec.z)-.1, spec.z);
+  root.add(treeRoot);
+  const h=spec.height, spread=spec.spread, lean=hero?1:Math.sin(index*2.41);
+  const trunk=taperedBranch([[0,0,0],[-.28*lean,h*.12,.12],[-.56*lean,h*.24,-.13],
+   [lean*.24,h*.37,-.25],[lean*.63,h*.54,.04],[lean*.28,h*.72,.24]], h*(hero?.073:.033),hero?.085:.025,24);
   mesh(own(trunk.geometry),bark,treeRoot,`sakura:tree-${index}:trunk`);
   const roots=[];
-  for(let i=0;i<6;i++){
-   const angle=i*2.39996+index*.63,reach=.43+rng()*.43,tip=new T.Vector3(Math.cos(angle)*reach,groundHeight(spec.x+Math.cos(angle)*reach,spec.z+Math.sin(angle)*reach)-treeRoot.position.y-.075,Math.sin(angle)*reach),origin=new T.Vector3(-.02,.095,.03);
-   roots.push(taperedBranch([origin,origin.clone().lerp(tip,.48),tip],h*.0075,.007,7).geometry);
+  for(let i=0;i<(hero?8:5);i++){
+   const angle=i*2.39996+index*.63, reach=(hero?1.2:.42)*(.67+rng()*.64);
+   const x=Math.cos(angle)*reach,z=Math.sin(angle)*reach;
+   const tip=new T.Vector3(x,groundHeight(spec.x+x,spec.z+z)-treeRoot.position.y-.09,z);
+   roots.push(taperedBranch([[0,hero?.30:.14,0], [x*.45,.07,z*.48],tip], h*(hero?.029:.012),.011,7).geometry);
   }
-  const rootWood=mergeGeometries(roots,false);roots.forEach(g=>g.dispose());mesh(own(rootWood),bark,treeRoot,`sakura:tree-${index}:root-flare`);
-  const count=weeping?9:7;
-  for(let branch=0;branch<count;branch++){
-   const towardsWater=spec.x<streamCenter(spec.z)?0:Math.PI;
-   const angle=branch===0?towardsWater+.04:branch*2.39996+index*.7;
-   const reach=spread*(branch===0?1.19:.62+rng()*.4),start=trunk.curve.getPointAt(.36+branch/(count-1)*.43);
-   const end=new T.Vector3(Math.cos(angle)*reach,h*(.65+rng()*.16),Math.sin(angle)*reach);
-   const branchPoints=[new T.Vector3(),new T.Vector3(Math.cos(angle)*reach*.25,h*.65-start.y,Math.sin(angle)*reach*.32),new T.Vector3(Math.cos(angle)*reach*.72,h*.82-start.y,Math.sin(angle)*reach*.75),end.clone().sub(start)];
-   const arm=taperedBranch(branchPoints,(.077+rng()*.023)*(h/8),.01,18),group=new T.Group();group.name=`sakura:tree-${index}:bough-${branch}`;group.position.copy(start);treeRoot.add(group);
-   const woody=[arm.geometry],flowers=[],sprays=[],phase=rng()*TAU,twigCount=weeping?14:10;
-   const spray=(point,width,height)=>{sprays.push({point,width,height,rotation:[(cardRandom()-.5)*.7,cardRandom()*TAU,(cardRandom()-.5)*.55]});};
-   const flowerCluster=(stem,n,radius=.07)=>{for(let f=0;f<n;f++){const a=f*2.399+rng()*.9,offset=.016+rng()*radius,p=stem.clone().add(new T.Vector3(Math.cos(a)*offset,(rng()-.5)*radius,Math.sin(a)*offset));flowers.push({p,size:(weeping?.026:.024)+rng()*.014,rotation:[(rng()-.5)*2.4,rng()*TAU,rng()*TAU]});}};
-   for(let cluster=0;cluster<22;cluster++)flowerCluster(arm.curve.getPointAt(.18+cluster/22*.82),weeping?6:5,.095);
-   for(let cluster=0;cluster<10;cluster++)spray(arm.curve.getPointAt(.15+(cluster+cardRandom()*.7)*.08),.48+cardRandom()*.24,.35+cardRandom()*.24);
-   for(let twig=0;twig<twigCount;twig++){
-    const u=.23+(twig+.35)/twigCount*.75,base=arm.curve.getPointAt(u),hang=weeping?h*(.22+rng()*.32):h*(.1+rng()*.16),out=.25+rng()*.9,strandAngle=angle+(rng()-.5)*1.4;
-    const tip=base.clone().add(new T.Vector3(Math.cos(strandAngle)*out,-hang,Math.sin(strandAngle)*out)),tipX=spec.x+start.x+tip.x,tipZ=spec.z+start.z+tip.z,clearance=(insideWater(tipX,tipZ)?STREAM_LEVEL:groundHeight(tipX,tipZ))+.45;
-    tip.y=Math.max(clearance-treeRoot.position.y-start.y,tip.y);
-    const side=new T.Vector3(-Math.sin(strandAngle),0,Math.cos(strandAngle)),bow=.1+rng()*.3;
-    const strand=taperedBranch([base,base.clone().add(new T.Vector3(Math.cos(strandAngle)*.35,.12,Math.sin(strandAngle)*.35)),base.clone().lerp(tip,.43).addScaledVector(side,bow),base.clone().lerp(tip,.76).addScaledVector(side,-bow*.35),tip],.011+rng()*.003,.0022,12);woody.push(strand.geometry);
-    const gap=.24+rng()*.42,sprayBands=weeping?6+Math.floor(rng()*3):4;
-    for(let cluster=0;cluster<sprayBands;cluster++){
-     const t=.08+(cluster+.25+cardRandom()*.55)/sprayBands*.86;if(Math.abs(t-gap)<.07)continue;const taper=.68+.32*Math.sin(t*Math.PI);
-     const fullness=t<.6?1.15:1;spray(strand.curve.getPointAt(t),(.32+cardRandom()*.24)*taper*fullness,(.44+cardRandom()*.32)*taper*fullness);
+  const foot=mergeGeometries(roots,false);roots.forEach(g=>g.dispose());
+  mesh(own(foot),bark,treeRoot,`sakura:tree-${index}:root-flare`);
+
+  // The old Edo-higan opens around a heavy low lateral and a taller,
+  // forked scaffold. Each tuple defines azimuth, reach, fork and tip height.
+  const arms=hero?[[.06,1.12,.27,.43],[-.53,.87,.41,.61],[.64,.73,.53,.70],
+   [-1.28,.59,.57,.84],[1.54,.44,.56,.68],[2.55,.39,.45,.63],[-2.47,.53,.62,.91],[-.27,.43,.73,.94]]
+   :Array.from({length:3+index%3},(_,j)=>[j*2.40+index*1.7,.55+rng()*.45,.30+j*.085,.64+rng()*.20]);
+  for(const [branch,[angle,reachScale,fork,top]] of arms.entries()){
+   const reach=spread*reachScale,start=trunk.curve.getPointAt(fork);
+   const dx=Math.cos(angle),dz=Math.sin(angle),side=new T.Vector3(-dz,0,dx);
+   const armPoint=(t,y,offset)=>new T.Vector3(dx*reach*t, h*y-start.y, dz*reach*t).addScaledVector(side,offset);
+   const low=hero&&branch===0;
+   const arm=taperedBranch([new T.Vector3(),armPoint(.22,low?.30:top*.73,.12),
+    armPoint(.52,low?.30:top*.83,-.24),armPoint(.79,low?.35:top*.96,.10),
+    armPoint(1,top,-.17)], h*(low?.046:hero?.026:.014)*(1-.26*fork),.018,18);
+   const group=new T.Group();
+   group.name=`sakura:tree-${index}:bough-${branch}`;group.position.copy(start);treeRoot.add(group);
+   if(low){
+    // Authentic Garyu-zakura weathered timber crutch props (支柱) cradling
+    // the massive low horizontal limb along the grassy bank beside the stream.
+    const propMat=material('wood:garyu-crutch-prop',{color:'#796856',roughness:.94,metalness:0});
+    propMat.userData.surfaceFinish={roughness:.94,metalness:0,envMapIntensity:.12};
+    const propParts=[];
+    for(const u of [.33]){
+     const cradle=arm.curve.getPointAt(u).clone().add(start);
+     const wx=spec.x+cradle.x,wz=spec.z+cradle.z;
+     if(!insideWater(wx,wz,.45)){
+      const footY=groundHeight(wx,wz)-treeRoot.position.y-.10;
+      const topY=cradle.y-.04;
+      for(const s of [-1,1]){
+       const leg=taperedBranch([
+        new T.Vector3(cradle.x,footY,cradle.z+s*.34),
+        new T.Vector3(cradle.x,topY+.08,cradle.z+s*.06)
+       ],.050,.040,4);
+       propParts.push(leg.geometry);
+      }
+      const tie=taperedBranch([
+       new T.Vector3(cradle.x,topY-.18,cradle.z-.24),
+       new T.Vector3(cradle.x,topY-.18,cradle.z+.24)
+      ],.034,.034,3);
+      propParts.push(tie.geometry);
+     }
     }
-    const clusters=weeping?23:17;
-    for(let cluster=0;cluster<clusters;cluster++){
-     const t=.06+(cluster+.15+rng()*.7)/clusters*.91,stem=strand.curve.getPointAt(t);if(Math.abs(t-gap)<.06&&rng()>.28)continue;flowerCluster(stem,3+Math.floor(rng()*3),.055+rng()*.033);
-     if(cluster%5===1)emitters.push({group,point:stem.clone(),tree:index});
-    }
-    // Small lateral forks break the parallel-string silhouette; flowers remain
-    // supported by real fine wood instead of filling an opaque crown volume.
-    for(let spur=0;spur<(weeping?3:2);spur++){
-     const origin=strand.curve.getPointAt(.28+spur*.22),a=strandAngle+(spur%2?1:-1)*(1+rng()*.6),reach=.24+rng()*.4,finish=origin.clone().add(new T.Vector3(Math.cos(a)*reach,-.3-rng()*.3,Math.sin(a)*reach));
-     const side=taperedBranch([origin,origin.clone().lerp(finish,.45).add(new T.Vector3(0,.07,0)),finish],.0045,.0012,5);woody.push(side.geometry);
-     for(let bloom=0;bloom<5;bloom++)flowerCluster(side.curve.getPointAt(.15+bloom*.17),3,.052);
+    if(propParts.length){
+     const mergedProps=mergeGeometries(propParts,false);
+     propParts.forEach(g=>g.dispose());
+     mesh(own(mergedProps),propMat,treeRoot,`sakura:tree-${index}:crutch-props`);
     }
    }
-   const wood=mergeGeometries(woody,false);for(const g of woody)g.dispose();mesh(own(wood),bark,group,`sakura:tree-${index}:wood-${branch}`);
-   const flowersMesh=new T.InstancedMesh(index===0?flowerGeometry:farFlowerGeometry,bloom,flowers.length);flowersMesh.name=`sakura:tree-${index}:flowers-${branch}`;flowersMesh.castShadow=true;flowersMesh.receiveShadow=true;flowersMesh.userData.windOwner=group.name;
-   flowers.forEach((flower,i)=>{scratch.position.copy(flower.p);scratch.rotation.set(...flower.rotation);scratch.scale.setScalar(flower.size);scratch.updateMatrix();flowersMesh.setMatrixAt(i,scratch.matrix);tone.set(weeping?'#fff1f1':'#fffdf5').lerp(new T.Color('#eeb5cb'),rng()*(weeping?.32:.06));flowersMesh.setColorAt(i,tone);});
-   flowersMesh.computeBoundingSphere();group.add(flowersMesh);instances.add(flowersMesh);blossomCount+=flowers.length;
-   const sprayMesh=new T.InstancedMesh(sprayGeometry,sprayMaterial,sprays.length);sprayMesh.name=`sakura:tree-${index}:flower-sprays-${branch}`;sprayMesh.userData.windOwner=group.name;sprayMesh.castShadow=true;sprayMesh.receiveShadow=true;
-   sprays.forEach((entry,i)=>{scratch.position.copy(entry.point);scratch.rotation.set(...entry.rotation);scratch.scale.set(entry.width,entry.height,1);scratch.updateMatrix();sprayMesh.setMatrixAt(i,scratch.matrix);tone.set(weeping?'#fff1f3':'#fffdfa');sprayMesh.setColorAt(i,tone);});sprayMesh.computeBoundingSphere();group.add(sprayMesh);instances.add(sprayMesh);sprayCount+=sprays.length;
-   boughs.push({group,phase,amplitude:(weeping?.013:.009)*(1+branch/count)});
+   const woody=[arm.geometry],flowers=[],sprays=[];
+   const twigCount=hero?(low?12:8):4+index%3;
+   for(let twig=0;twig<twigCount;twig++){
+    const u=.25+(twig+.4)/twigCount*.73,base=arm.curve.getPointAt(u);
+    const direction=angle+(twig%2?1:-1)*(.46+rng()*.86);
+    const length=h*(hero?.21:.15)*(.56+rng()*.77);
+    const delta=new T.Vector3(Math.cos(direction)*length,h*(.10+rng()*.11),Math.sin(direction)*length);
+    const end=base.clone().add(delta);
+    const forkBranch=taperedBranch([base,base.clone().addScaledVector(delta,.42).addScaledVector(side,.14),
+      end.clone().addScaledVector(side,-.08)],hero?.043:.023,.005,8);
+    woody.push(forkBranch.geometry);
+    for(let spur=0;spur<(hero?5:3);spur++){
+     const foot=forkBranch.curve.getPointAt(.19+.77*(spur+.25)/(hero?5:3));
+     const a=direction+(spur%2?1:-1)*(.60+rng()*.68);
+     const r=h*(.085+rng()*.08),tip=foot.clone().add(new T.Vector3(Math.cos(a)*r,h*(.045+rng()*.09),Math.sin(a)*r));
+     const mid=foot.clone().lerp(tip,.55);mid.y-=.06;
+     const spurWood=taperedBranch([foot,mid,tip],hero?.019:.013,.0025,5);woody.push(spurWood.geometry);
+     // Each flower fan has a volumetric centre just inside its outer blossoms.
+     // The cards bend around this centre; light follows the fan, not its cards.
+     const centre=spurWood.curve.getPointAt(.59);
+     centre.y-=.13;
+     for(let k=0;k<(hero?4:3);k++){
+      const n=k*2.39996+cardRandom()*.45, point=spurWood.curve.getPointAt(.29+k*.17);
+      const fan=(hero?(low?.82:.73):.42)*(.76+cardRandom()*.48);
+      point.x+=Math.cos(n)*fan*.36;point.y+=.05+Math.sin(k*.98)*fan*.39;point.z+=Math.sin(n)*fan*.38;
+      sprays.push({point,centre,width:fan*1.62,height:fan*1.33,rotation:[-.39-cardRandom()*.68,n+angle,(cardRandom()-.5)*.51]});
+     }
+     for(let k=0;k<(hero?4:2);k++){
+      const p=spurWood.curve.getPointAt(.43+k*.14);
+      p.x+=(rng()-.5)*.10;p.y+=rng()*.12;p.z+=(rng()-.5)*.10;
+      flowers.push({p,centre,size:.036+rng()*.019,rotation:[(rng()-.5)*2.1,rng()*TAU,rng()*TAU]});
+     }
+     if(spur%2===0)emitters.push({group,point:tip,tree:index});
+    }
+   }
+   const wood=mergeGeometries(woody,false);woody.forEach(g=>g.dispose());
+   mesh(own(wood),bark,group,`sakura:tree-${index}:wood-${branch}`);
+   function makeBlossoms(template,entries,mat,label,isSpray){
+    // The small geometry is branch-owned because its centre attribute is
+    // per-instance. Changing a sibling's wind pose cannot disturb these fans.
+    const geometry=own(template.clone());
+    const centres=new Float32Array(entries.length*3);
+    const batch=new T.InstancedMesh(geometry,mat,entries.length);
+    batch.name=`sakura:tree-${index}:${label}-${branch}`;batch.userData.windOwner=group.name;
+    entries.forEach((entry,i)=>{
+     scratch.position.copy(isSpray?entry.point:entry.p);scratch.rotation.set(...entry.rotation);
+     if(isSpray)scratch.scale.set(entry.width,entry.height,1);else scratch.scale.setScalar(entry.size);
+     scratch.updateMatrix();batch.setMatrixAt(i,scratch.matrix);
+     tone.set('#fff8f2').lerp(pink,rng()*(hero?.25:.14));batch.setColorAt(i,tone);
+     entry.centre.toArray(centres,i*3);
+    });
+    geometry.setAttribute('crownCenter',new T.InstancedBufferAttribute(centres,3));
+    batch.computeBoundingSphere();batch.castShadow=isSpray;batch.receiveShadow=true;group.add(batch);instances.add(batch);
+   }
+   makeBlossoms(hero?flowerGeometry:farFlowerGeometry,flowers,bloom,'flowers',false);
+   makeBlossoms(sprayGeometry,sprays,sprayMaterial,'flower-sprays',true);
+   blossomCount+=flowers.length;sprayCount+=sprays.length;
+   boughs.push({group,phase:rng()*TAU,amplitude:(hero?.005:.009)*(1+branch/arms.length)});
   }
-  trees.push({index,x:spec.x,z:spec.z,height:h,spread,weeping,rootY:treeRoot.position.y,boughs:count});
+  trees.push({index,x:spec.x,z:spec.z,height:h,spread,form:hero?'garyu':'companion',weeping:false,rootY:treeRoot.position.y,boughs:arms.length});
  }
- STREAM_HERO_TREES.forEach((spec,i)=>tree(spec,i,true));
- for(const [i,z]of [-9,-23].entries())tree({x:streamCenter(z)+streamHalfWidth(z)+2.25,z,height:6.3-i*.5,spread:3.9-i*.3},STREAM_HERO_TREES.length+i,false);
+ const pink=new T.Color('#e6b1c1');
+ STREAM_HERO_TREES.forEach(tree);
 
  const metadata={version:1,trees,blossomCount,sprayCount,sprayFlowers:sprayTexture.userData.flowers,fivePetals:true,opaqueCrownCores:false,emitterCount:emitters.length,falling:0,floating:0,landed:0,contacts:0,waterContacts:0,landContacts:0,releases:0,waterContactY:contactY,phase:0,motionEnabled:true,wind:.45,petals:[]};
  root.updateWorldMatrix(true,true);const inverseRoot=new T.Matrix4().copy(root.matrixWorld).invert();
  const emitterPosition=emitter=>emitter.point.clone().applyMatrix4(emitter.group.matrixWorld).applyMatrix4(inverseRoot);
  const waterEmitters=emitters.filter(emitter=>{const p=emitterPosition(emitter);return insideWater(p.x,p.z,.12);});
  metadata.waterEmitterCount=waterEmitters.length;
- const count=204,states=[],petalsMesh=new T.InstancedMesh(singleGeometry,loose,count);petalsMesh.name='sakura:falling-and-stream-floating-petals';petalsMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);petalsMesh.frustumCulled=false;petalsMesh.renderOrder=2;root.add(petalsMesh);instances.add(petalsMesh);
+ const nearEmitters=emitters.filter(emitter=>emitter.tree===0),nearWater=waterEmitters.filter(emitter=>emitter.tree===0);
+ const count=240,states=[],petalsMesh=new T.InstancedMesh(singleGeometry,loose,count);petalsMesh.name='sakura:falling-and-stream-floating-petals';petalsMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);petalsMesh.frustumCulled=false;petalsMesh.renderOrder=2;root.add(petalsMesh);instances.add(petalsMesh);
+ // Narrow companion windows move the physical camera farther from the tree.
+ // Retain a small readable airborne silhouette while water/ground contacts
+ // keep their authored size. Reflection captures use their own viewport.
+ const airborne=new T.InstancedBufferAttribute(new Float32Array(count),1).setUsage(T.DynamicDrawUsage);
+ singleGeometry.setAttribute('petalAirborne',airborne);
+ const viewport=new T.Vector4(),viewHeight={value:720};
+ petalsMesh.onBeforeRender=renderer=>{
+  renderer.getCurrentViewport(viewport);
+  viewHeight.value=viewport.w/(renderer.getRenderTarget()?1:renderer.getPixelRatio());
+ };
+ const looseCompile=loose.onBeforeCompile;
+ loose.onBeforeCompile=shader=>{
+  looseCompile(shader);
+  shader.uniforms.uPetalViewHeight=viewHeight;
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute float petalAirborne; uniform float uPetalViewHeight;')
+   .replace('#include <begin_vertex>',`#include <begin_vertex>
+    float viewDepth=-(modelViewMatrix*vec4(instanceMatrix[3].xyz,1.)).z;
+    float metrePerPixel=2.0*max(viewDepth,0.)/(max(1.,uPetalViewHeight)*projectionMatrix[1][1]);
+    float authoredSize=length(modelMatrix[0].xyz)*length(instanceMatrix[0].xyz);
+    float readable=clamp(5.2*metrePerPixel/max(.001,authoredSize),1.0,4.0);
+    transformed*=mix(1.0,readable,petalAirborne);
+   `);
+ };
+ loose.customProgramCacheKey=()=> 'falling-petal-flutter-v2';
  let enabled=true,disposed=false,lastHost=null,simTime=0,wind=.45,targetWind=.45,emissionCredit=0;
  const flat=new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2),yawAxis=new T.Vector3(0,1,0),petalNormal=new T.Vector3(0,0,1),yaw=new T.Quaternion();
  const landNormal=(x,z)=>new T.Vector3(-(groundHeight(x+.03,z)-groundHeight(x-.03,z))/.06,1,-(groundHeight(x,z+.03)-groundHeight(x,z-.03))/.06).normalize();
@@ -180,19 +294,30 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
   let lift=0;for(let i=0;i<singleGeometry.attributes.position.count;i++){contactPoint.fromBufferAttribute(singleGeometry.attributes.position,i).applyMatrix4(scratch.matrix);lift=Math.max(lift,groundHeight(contactPoint.x,contactPoint.z)+.002-contactPoint.y);}state.position.y+=lift;
  }
  function spawn(state,initial=false){
-  const preferWater=state.id%4!==0&&waterEmitters.length>0,list=preferWater?waterEmitters:emitters,emitter=list[Math.floor(rng()*list.length)];
-  state.position.copy(emitterPosition(emitter));state.kind='falling';state.age=0;state.fade=1;state.recycle=false;if(!initial)metadata.releases++;state.velocity.set((rng()-.5)*.04,-.25-rng()*.16,(rng()-.5)*.025);state.water=insideWater(state.position.x,state.position.z);state.emitterTree=emitter.tree;
+  const close=state.id%5!==0,wet=state.id%4!==0;
+  const list=wet&&waterEmitters.length?(close&&nearWater.length?nearWater:waterEmitters):(close?nearEmitters:emitters);
+  const emitter=list[Math.floor(rng()*list.length)];
+  state.position.copy(emitterPosition(emitter));state.kind='falling';state.age=0;state.fade=1;state.recycle=false;if(!initial)metadata.releases++;state.velocity.set((rng()-.45)*.14,-.32-rng()*.15,.19+rng()*.37);state.water=insideWater(state.position.x,state.position.z);state.emitterTree=emitter.tree;
  }
  for(let id=0;id<count;id++){
-  const state={id,kind:'falling',position:new T.Vector3(),velocity:new T.Vector3(),age:0,seed:rng()*TAU,size:.027+rng()*.025,turn:rng()*TAU,lateral:0,normal:new T.Vector3(0,1,0),fade:1,recycle:false};spawn(state,true);
+  const state={id,kind:'falling',position:new T.Vector3(),velocity:new T.Vector3(),age:0,seed:rng()*TAU,size:.064+rng()*.048,turn:rng()*TAU,lateral:0,normal:new T.Vector3(0,1,0),fade:1,recycle:false};spawn(state,true);
   if(id%3===0){state.kind='floating';state.age=15+rng()*70;state.position.z=STREAM_START+5+rng()*(STREAM_END-STREAM_START-12);state.lateral=(rng()-.5)*1.75;state.position.set(streamCenter(state.position.z)+state.lateral*streamHalfWidth(state.position.z),contactY,state.position.z);}
   else if(id%7===0){state.kind='landed';state.age=20+rng()*60;state.position.x=streamCenter(state.position.z)-streamHalfWidth(state.position.z)-.4-rng()*3.2;seatLandedPetal(state);}
-  else state.position.y=Math.max((state.water?contactY:groundHeight(state.position.x,state.position.z)+.008)+.15,state.position.y-rng()*2.7);
+  else {
+   // Seed the existing trajectories throughout the open air below the crown.
+   // A new camera sees petals already drifting clear of the dense blossom fans.
+   const elapsed=1.5+rng()*6.6;
+   state.position.x+=state.velocity.x*elapsed;
+   state.position.z+=state.velocity.z*elapsed;
+   const surface=insideWater(state.position.x,state.position.z)?contactY:groundHeight(state.position.x,state.position.z)+.008;
+   state.position.y=Math.max(surface+.20+rng()*.24,state.position.y+state.velocity.y*elapsed-.012*elapsed*elapsed);
+  }
   states.push(state);metadata.petals.push({id,kind:state.kind,x:0,y:0,z:0,contactY:0});
  }
  function drawPetals(){
   metadata.falling=metadata.floating=metadata.landed=0;
   for(const state of states){
+   airborne.setX(state.id,state.kind==='falling'?1:0);
    scratch.position.copy(state.position);scratch.scale.setScalar(state.size*state.fade);
    if(state.kind==='falling')scratch.rotation.set(state.turn+simTime*.8+Math.sin(simTime*.75+state.seed)*.5,state.seed+simTime*.4,Math.sin(simTime*.9+state.seed)*1.2);
    else if(state.kind==='floating'){yaw.setFromAxisAngle(yawAxis,state.turn+simTime*.055);scratch.quaternion.copy(yaw).multiply(flat);}
@@ -200,9 +325,10 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
    scratch.updateMatrix();petalsMesh.setMatrixAt(state.id,scratch.matrix);metadata[state.kind]++;
    Object.assign(metadata.petals[state.id],{kind:state.kind,x:state.position.x,y:state.position.y,z:state.position.z,contactY:state.kind==='floating'?contactY:state.kind==='landed'?groundHeight(state.position.x,state.position.z)+.008:null});
   }
-  petalsMesh.instanceMatrix.needsUpdate=true;metadata.phase=simTime;metadata.wind=wind;
+  airborne.needsUpdate=true;petalsMesh.instanceMatrix.needsUpdate=true;metadata.phase=simTime;metadata.wind=wind;
  }
  drawPetals();
+ let lastShadowPose=-Infinity;
  function update(time){
   if(disposed||!Number.isFinite(time))return;if(lastHost===null){lastHost=time;return;}
   const dt=Math.max(0,Math.min(.08,time-lastHost));lastHost=time;if(!enabled||!dt)return;
@@ -211,12 +337,15 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
   root.updateWorldMatrix(true,true);inverseRoot.copy(root.matrixWorld).invert();
   // The host parks shadow maps between frames. Moving wood and attached
   // blossoms must invalidate their actual shadows with the same pose.
-  if(b.renderer?.shadowMap)b.renderer.shadowMap.needsUpdate=true;
+  if(b.renderer?.shadowMap && simTime-lastShadowPose>=.12){
+   b.renderer.shadowMap.needsUpdate=true;lastShadowPose=simTime;
+  }
   for(const state of states){
    state.age+=dt;if(state.recycle){state.fade=Math.max(0,state.fade-dt*1.5);if(!state.fade)spawn(state);}
    if(state.kind==='falling'){
     state.velocity.y=Math.max(-.58,state.velocity.y-.035*dt);state.position.y+=state.velocity.y*dt;
-    state.position.x+=(state.velocity.x+Math.sin(simTime*1.4+state.seed)*.025+wind*.025)*dt;state.position.z+=(state.velocity.z+Math.cos(simTime*.8+state.seed)*.025)*dt;
+    state.position.x+=(state.velocity.x+Math.sin(simTime*1.6+state.seed)*.21+wind*.048)*dt;
+    state.position.z+=(state.velocity.z*(.68+wind*.70)+Math.cos(simTime*1.17+state.seed)*.11)*dt;
     const water=insideWater(state.position.x,state.position.z),surface=water?contactY:groundHeight(state.position.x,state.position.z)+.008;
     if(state.position.y<=surface){state.position.y=surface;state.kind=water?'floating':'landed';state.lateral=clamp((state.position.x-streamCenter(state.position.z))/streamHalfWidth(state.position.z),-.95,.95);if(water)state.position.x=streamCenter(state.position.z)+state.lateral*streamHalfWidth(state.position.z);else seatLandedPetal(state);state.age=0;metadata.contacts++;if(water)metadata.waterContacts++;else metadata.landContacts++;}
    }else if(state.kind==='floating'){
@@ -225,7 +354,7 @@ export function addSakuraLife(b,{groundHeight=()=>.62}={}){
     if(state.position.z>STREAM_END-.8)spawn(state);
    }else if(state.age>95)state.recycle=true;
   }
-  emissionCredit+=dt*(4.2+wind*1.2);
+  emissionCredit+=dt*(7.7+wind*1.8);
   while(emissionCredit>=1){const candidate=states.filter(state=>state.kind!=='falling'&&!state.recycle&&state.age>18).sort((a,b)=>b.age-a.age)[0];if(!candidate){emissionCredit=Math.min(1,emissionCredit);break;}candidate.recycle=true;emissionCredit--; }
   drawPetals();
  }

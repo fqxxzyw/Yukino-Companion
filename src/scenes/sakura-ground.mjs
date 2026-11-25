@@ -53,6 +53,7 @@ export function finishMeadowGround(b,bankMaterial,pathMaterial){
    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMeadowWorld;').replace('#include <project_vertex>','#include <project_vertex>\nvMeadowWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\n'+groundFunctions);
    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+    #ifndef YUKINO_GOUACHE
     vec2 meadowP=vMeadowWorld.xz;
     float meadowMacro=meadowFilteredNoise(meadowP*.34),meadowMid=meadowFilteredNoise(meadowP*1.4+17.3);
     vec2 meadowUv=meadowP+vec2(meadowNoise(meadowP*.19),meadowNoise(meadowP*.23+7.0))*.23;
@@ -78,9 +79,16 @@ export function finishMeadowGround(b,bankMaterial,pathMaterial){
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.18,.127,.074)*(.78+.35*meadowMid),meadowBare*.34);
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.6,.83,.43),meadowMoss*.37);
     `}
+    #endif
    `);
    shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    normal=meadowBump(-vViewPosition,normal,(meadowHeight-.5)*${path?'.003':'.008'}*meadowDetail);
+    #ifndef YUKINO_GOUACHE
+    normal=meadowBump(-vViewPosition,normal,(meadowHeight-.5)*${path?'.003':'.007'}*meadowDetail);
+    #endif
+   `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+    #ifndef YUKINO_GOUACHE
+    roughnessFactor=1.0;
+    #endif
    `);
   };
   material.customProgramCacheKey=()=>`${cache}|sakura-meadow-roots-v1:${path}`;material.needsUpdate=true;
@@ -88,40 +96,79 @@ export function finishMeadowGround(b,bankMaterial,pathMaterial){
  return textures;
 }
 
-// Three curved blades share a buried root. Geometry carries the taper, folded
-// midrib and bend, so silhouettes remain convincing without alpha rectangles.
-export function addMeadowBlades(b,points,{reed=false,name='foliage:stream-bank-grass'}={}){
- const positions=[],uvs=[],colors=[],indices=[],root=new T.Color('#737a52'),tip=new T.Color('#edf0c0');
- for(let blade=0;blade<3;blade++){
-  const a=blade*2.39996,height=[1,.78,.9][blade],base=positions.length/3;
-  for(let row=0;row<=4;row++){
-   const u=row/4,reach=(reed?.12:.24)*u*u,width=(reed?.025:.047)*Math.pow(1-u,.72),rise=height*(u-.075*u*u),color=root.clone().lerp(tip,Math.pow(u,.52));
-   for(let side=-1;side<=1;side++){
-    const sideways=side*width,x=Math.cos(a)*reach-Math.sin(a)*sideways,z=Math.sin(a)*reach+Math.cos(a)*sideways;
-    positions.push(x,rise,z+(side===0?.024:0)*Math.sin(u*Math.PI));uvs.push((side+1)/2,u);colors.push(color.r,color.g,color.b);
+// Fan-shaped tussocks share one tapering blade mesh. Their world-space roots
+// sample the very same pigment field as the bank and the wind crosses an
+// entire patch before individual blades flex.
+export function createMeadowPatch(points,{name='foliage:stream-bank-grass',groundColor,reed=false}={}) {
+ const positions=[],uvs=[],colors=[],indices=[];
+ const root=new T.Color('#d4d3b2'),tip=new T.Color('#faf5d6');
+ for(let blade=0;blade<5;blade++){
+  const a=blade*2.39996,height=[1,.73,.89,.64,.83][blade],base=positions.length/3;
+  for(const u of [0,.39,.76]){
+   const bend=(reed?.17:.46)*u*u, width=(reed?.033:.094)*(1-u*.95), c=root.clone().lerp(tip,u);
+   for(const s of [-1,1]){
+    const lateral=s*width;
+    positions.push(Math.cos(a)*bend-Math.sin(a)*lateral,height*u*(1-.14*u),Math.sin(a)*bend+Math.cos(a)*lateral);
+    uvs.push((s+1)/2,u);colors.push(c.r,c.g,c.b);
    }
-   if(row)for(let side=0;side<2;side++){const i=base+(row-1)*3+side;indices.push(i,i+3,i+1,i+1,i+3,i+4);}
   }
+  const bend=reed?.17:.46;
+  positions.push(Math.cos(a)*bend,height*.86,Math.sin(a)*bend);uvs.push(.5,1);colors.push(tip.r,tip.g,tip.b);
+  for(let row=0;row<2;row++){const i=base+row*2;indices.push(i,i+1,i+2,i+1,i+3,i+2);}
+  indices.push(base+4,base+5,base+6);
  }
- const geometry=b.own(new T.BufferGeometry());geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.userData={rooted:true,curved:true,tapered:true,blades:3};
- const material=b.mat(name,'#ffffff',{side:T.DoubleSide,roughness:.97,vertexColors:true});material.userData.surfaceFinish={roughness:.97,metalness:0,envMapIntensity:.06};material.userData.botanicalKind='grass';
- const wind={uWindTime:{value:0},uWindStrength:{value:reed?.09:.12}};material.userData.windUniforms=wind;
+ const geometry=new T.BufferGeometry();
+ geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+ geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));
+ geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+ geometry.setIndex(indices);geometry.computeVertexNormals();
+ // Translucent narrow blades share the bank's broad skylight. The gentle
+ // lateral component keeps each curved silhouette and its coherent wind.
+ const normals=geometry.attributes.normal,upward=new T.Vector3();
+ for(let i=0;i<normals.count;i++){
+  upward.fromBufferAttribute(normals,i);upward.set(upward.x*.31,.82+Math.abs(upward.y)*.18,upward.z*.31).normalize();
+  normals.setXYZ(i,upward.x,upward.y,upward.z);
+ }
+ geometry.userData={rooted:true,curved:true,tapered:true,blades:5};
+ const material=new T.MeshStandardMaterial({color:'#ffffff',side:T.DoubleSide,roughness:1,metalness:0,envMapIntensity:.02,vertexColors:true});
+ material.name=name;material.userData.surfaceFinish={roughness:1,metalness:0,envMapIntensity:.02};
+ material.userData.botanicalKind='grass';
+ const wind={uWindTime:{value:0},uWindStrength:{value:reed?.21:.26}};
+ material.userData.windUniforms=wind;
  material.onBeforeCompile=shader=>{
-  Object.assign(shader.uniforms,wind);shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime;uniform float uWindStrength;');
+  Object.assign(shader.uniforms,wind);
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime; uniform float uWindStrength;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+   vec3 meadowUp=(viewMatrix*vec4(0.,1.,0.,0.)).xyz;
+   if(dot(normal,meadowUp)<0.0)normal=-normal;
+  `);
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
-   float meadowPhase=instanceMatrix[3].x*1.7+instanceMatrix[3].z*.8;
-   transformed.x+=sin(uWindTime*1.5+meadowPhase)*uWindStrength*position.y*position.y;
-   transformed.z+=sin(uWindTime*1.2+meadowPhase*.7)*uWindStrength*.6*position.y*position.y;
+   vec2 meadowRoot=instanceMatrix[3].xz;
+   float wave=sin(dot(meadowRoot,vec2(.40,.22))-uWindTime*1.5) + .24*sin(dot(meadowRoot,vec2(.7,-.55))-uWindTime*.91);
+   vec2 localX=normalize(instanceMatrix[0].xz);
+   vec2 push=vec2(1.0,.35)*wave*uWindStrength*uv.y*uv.y;
+   transformed.xz+=vec2(dot(push,localX),dot(push,vec2(-localX.y,localX.x)));
   `);
  };
- material.customProgramCacheKey=()=>`meadow-rooted-blade-v1:${reed}`;
- const mesh=new T.InstancedMesh(geometry,material,points.length),object=new T.Object3D(),color=new T.Color(),baseColor=new T.Color(reed?'#719047':'#6e8e3f'),dryColor=new T.Color('#b1a167'),rng=randomSeed(reed?1853:91853);
+ material.customProgramCacheKey=()=>`meadow-tussock-v2:${reed}`;
+ const mesh=new T.InstancedMesh(geometry,material,points.length),object=new T.Object3D(),color=new T.Color();
+ const baseColor=groundColor?.isColor?groundColor:new T.Color(reed?'#748d58':'#769451'),rng=randomSeed(reed?1853:91853);
  points.forEach((p,i)=>{
-  const height=p.size*2;object.position.set(p.x,groundContact(p),p.z);object.rotation.set((p.rx||0)*.3,p.ry||0,(p.rz||0)*.3);object.scale.set(height,height,height);object.updateMatrix();mesh.setMatrixAt(i,object.matrix);
-  const drought=smooth(.5+.3*Math.sin(p.x*.7+p.z*.31)+.2*Math.sin(p.x*2.6-p.z*1.7));
-  color.copy(baseColor).lerp(dryColor,drought*(rng()<.14?.85:.28)).multiplyScalar(.75+rng()*.37);mesh.setColorAt(i,color);
+  object.position.set(p.x,p.y-.002,p.z);object.rotation.set((p.rx||0)*.22,p.ry||0,(p.rz||0)*.22);
+  object.scale.set(p.size*(reed?1:1.25),p.size,p.size*(reed?1:1.25));object.updateMatrix();
+  mesh.setMatrixAt(i,object.matrix);color.copy(baseColor);
+  if(typeof groundColor==='function')groundColor(p.x,p.z,color);
+  color.multiplyScalar(.92+rng()*.26);
+  mesh.setColorAt(i,color);
  });
- mesh.name=name;mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();b.root.add(mesh);b.instances.push(mesh);b.animations.push(t=>{wind.uWindTime.value=t;});return mesh;
+ mesh.name=name;mesh.castShadow=false;mesh.receiveShadow=true;mesh.computeBoundingSphere();
+ function update(time){wind.uWindTime.value=time;}
+ let disposed=false;
+ return {mesh,update,dispose(){if(disposed)return;disposed=true;mesh.removeFromParent();mesh.dispose();geometry.dispose();material.dispose();}};
 }
-
-function groundContact(point){return point.y-point.size-.003;}
+export function addMeadowBlades(b,points,options={}) {
+ const planted=points.map(p=>({...p,y:p.y-p.size,size:p.size*2}));
+ const {mesh,update}=createMeadowPatch(planted,options);
+ b.own(mesh.geometry);b.materials.add(mesh.material);b.root.add(mesh);b.instances.push(mesh);b.animations.push(update);
+ return mesh;
+}

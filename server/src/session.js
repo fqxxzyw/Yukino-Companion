@@ -121,7 +121,8 @@ export async function rotateSession(db, {refreshToken, client, request, env, now
     await run(db, 'UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', now, row.id);
     fail(401, 'session_expired');
   }
-  const user = await first(db, 'SELECT id, email, status, security_version FROM users WHERE id = ?', row.user_id);
+  const user = await first(db, `SELECT id, email, status, security_version, nickname, created_at, password_changed_at
+    FROM users WHERE id = ?`, row.user_id);
   if (!user || user.status !== 'active') fail(401, 'account_unavailable');
 
   const nextId = crypto.randomUUID();

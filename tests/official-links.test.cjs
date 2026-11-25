@@ -1,13 +1,13 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 
-test('official website is the worker root and is not an API endpoint',()=>{
+test('official website is the production domain root and is not an API endpoint',()=>{
  const {OFFICIAL_SITE_URL}=require('../electron/official-links.cjs');
- assert.equal(OFFICIAL_SITE_URL,'https://yukino-api.fqxxzyw.workers.dev/');
+ assert.equal(OFFICIAL_SITE_URL,'https://yukino.fqxxzyw.cn/');
  const url=new URL(OFFICIAL_SITE_URL);
  assert.equal(url.pathname,'/');assert.equal(url.search,'');assert.equal(url.hash,'');
  const {DEFAULT_BASE}=require('../electron/account-client.cjs');
- assert.equal(DEFAULT_BASE,'https://yukino-api.fqxxzyw.workers.dev');
+ assert.equal(DEFAULT_BASE,'https://yukino.fqxxzyw.cn');
  const accountSource=fs.readFileSync(path.join(__dirname,'../electron/account-client.cjs'),'utf8');
  assert.match(accountSource,/startsWith\('\/api\/v1\/'\)/);
 });
@@ -20,7 +20,7 @@ test('opening the official site uses the system shell and reports failures clear
  await assert.rejects(openOfficialSite({openExternal:async()=>{throw Error('no handler')}}),error=>{
   assert.equal(error.code,'OFFICIAL_SITE_OPEN_FAILED');
   assert.match(error.message,/无法打开系统默认浏览器/);
-  assert.match(error.message,/https:\/\/yukino-api\.fqxxzyw\.workers\.dev\//);
+  assert.match(error.message,/https:\/\/yukino\.fqxxzyw\.cn\//);
   return true;
  });
 });

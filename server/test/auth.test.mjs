@@ -113,12 +113,17 @@ test('web session uses HttpOnly cookie and never returns the refresh token in JS
   const setCookie = created.headers.get('set-cookie') || '';
   assert.match(setCookie, /HttpOnly/);
   assert.match(setCookie, /SameSite=Lax/);
+  assert.match(setCookie, /Max-Age=2592000/);
   assert.doesNotMatch(setCookie, /Secure/); // local HTTP development
   const refreshed = await app.call('/api/v1/auth/refresh', {
     method: 'POST', body: {client: 'web'}, cookie: cookieHeader(setCookie), headers: {origin: 'http://127.0.0.1:8787'},
   });
   assert.equal(refreshed.status, 200);
   assert.equal(refreshed.data.refreshToken, undefined);
+  const me = await app.call('/api/v1/me', {token: refreshed.data.accessToken});
+  assert.equal(me.status, 200);
+  assert.deepEqual(refreshed.data.user, me.data.user);
+  assert.match(refreshed.headers.get('set-cookie') || '', /Max-Age=2592000/);
 });
 
 test('password change revokes other sessions and immediately invalidates old access tokens', async () => {

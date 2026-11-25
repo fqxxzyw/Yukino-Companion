@@ -63,21 +63,29 @@ test('central stairs rise longitudinally to the pier landing with broad connecte
  }
 });
 
-test('wooded context continues the raised bank without changing the finite bridge framing',async t=>{
- const {T,api,node}=await fixture(t),context=api.root.getObjectByName('inage:continuing-woodland');
- assert.ok(context&&!api.framingRoot.children.includes(context),'distant woodland stays outside Home framing');
- assert.ok(api.root.userData.inageWoodland.trees>=100);
- const bounds=new T.Box3().setFromObject(context);
- assert.ok(bounds.max.x>100&&bounds.min.z< -90&&bounds.max.z>90,'forest ground extends beyond the photographed camera frustum');
- assert.ok(api.bounds.max.x<25&&api.bounds.min.x> -25,'finite architecture bounds do not include the surrounding landscape');
+test('diorama woodland, enclosed embankment and slope cribwork stay cleanly inside the 48x68 plinth',async t=>{
+ const {T,api,node}=await fixture(t),woodland=api.root.getObjectByName('inage:diorama-woodland');
+ assert.ok(woodland,'bounded diorama woodland group exists');
+ assert.ok(api.root.getObjectByName('inage:slope-cribwork'),'Japanese concrete slope cribwork exists');
+ for(const cut of ['bank-cut-east','bank-cut-north','bank-cut-south','bank-toe'])assert.ok(node(cut),`${cut} seals the raised embankment`);
+ assert.ok(api.root.userData.inageWoodland.trees>=25&&api.root.userData.inageWoodland.dioramaContained);
+ assert.ok(api.bounds.max.x<28&&api.bounds.min.x> -28,'diorama X bounds stay compact on the 48m plinth');
+ assert.ok(api.bounds.max.z<39&&api.bounds.min.z> -39,'diorama Z bounds stay compact on the 68m plinth');
  const bank=node('continuous-east-bank');
- for(const z of [-12,0,12]){
+ const grade=[bank,node('bank-toe')];
+ const preset=api.cameraPresets.companion,camera=new T.PerspectiveCamera(preset.fov,11/7,.05,1500);
+ camera.position.fromArray(preset.position);camera.lookAt(new T.Vector3(...preset.target));camera.updateMatrixWorld();
+ for(const [x,y] of [[-.70,-.48],[-.69,-.45],[.694,-.48]]){
+  const ray=new T.Raycaster();ray.setFromCamera(new T.Vector2(x,y),camera);
+  assert.ok(ray.intersectObjects(grade,false).length,'visible ground closes the toe of the bank');
+ }
+ for(const z of [-28,0,28]){
   const ray=new T.Raycaster(new T.Vector3(23.75,20,z),new T.Vector3(0,-1,0));
-  const hit=ray.intersectObject(bank,false)[0];assert.ok(hit&&hit.point.y>10.3,'both bank shoulders reach the raised rear woodland');
+  const hit=ray.intersectObject(bank,false)[0];assert.ok(hit&&hit.point.y>10.3,'both bank shoulders reach the raised east embankment crest');
  }
  for(const x of [-3.5,0,3.5]){
-  const road=new T.Raycaster(new T.Vector3(x,2.2,92),new T.Vector3(0,0,-1),0,184);
-  assert.equal(road.intersectObject(api.root,true).length,0,'continuing woodland leaves the distant traffic corridor open too');
+  const road=new T.Raycaster(new T.Vector3(x,2.2,33.5),new T.Vector3(0,0,-1),0,67);
+  assert.equal(road.intersectObject(api.root,true).length,0,'Route 14 traffic corridor stays completely clear across the plinth');
  }
 });
 

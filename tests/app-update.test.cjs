@@ -1,44 +1,138 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs/promises');
-const os=require('node:os');
-const path=require('node:path');
-const crypto=require('node:crypto');
-const {createUpdater,newer,trustedAsset}=require('../electron/app-update.cjs');
-test('only newer numeric stable versions and trusted GitHub assets qualify',()=>{assert.equal(newer('v0.5.0','0.4.0'),true);assert.equal(newer('v0.4.0-base.4','0.4.0'),false);assert.equal(newer('v0.4.0','0.4.0'),false);assert.equal(trustedAsset({browser_download_url:'https://evil.example/a',size:2}),false)});
-test('download verifies bytes before replacing the chosen file',async()=>{
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'yukino-update-'));const dest=path.join(dir,'installer.exe');const payload=Buffer.from('test installer');const digest=crypto.createHash('sha256').update(payload).digest('hex');const asset={name:'Yukino-Companion-0.5.0-Base-Setup.exe',size:payload.length,digest:'sha256:'+digest,browser_download_url:'https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.5.0/setup.exe'};const oldFetch=global.fetch;let bad=false;
- global.fetch=async url=>url.includes('api.github.com')?new Response(JSON.stringify([{tag_name:'v0.5.0',assets:[asset]}])):new Response(bad?Buffer.from('bad installer!'):payload);
- try{const updater=createUpdater({app:{getVersion:()=> '0.4.0',getPath:()=>dir},dialog:{showSaveDialog:async()=>({filePath:dest})},shell:{showItemInFolder(){}},send(){}});assert.deepEqual(await updater.check(),{version:'v0.5.0',downloadable:true,portable:true,native:false});await updater.download();assert.deepEqual(await fs.readFile(dest),payload);bad=true;await assert.rejects(updater.download());assert.deepEqual(await fs.readFile(dest),payload);assert.deepEqual((await fs.readdir(dir)),['installer.exe'])}finally{global.fetch=oldFetch;await fs.rm(dir,{recursive:true,force:true})}
+'use strict';
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const os = require('node:os');
+const {createHash} = require('node:crypto');
+const {gzipSync} = require('node:zlib');
+const {createServer} = require('node:http');
+const {once} = require('node:events');
+const {createUpdater, newer, trustedAsset, githubGet} = require('../electron/app-update.cjs');
+
+const tag = 'v0.4.4';
+const name = 'Yukino-Companion-0.4.4-Base-Setup.exe';
+const repo = 'https://github.com/fqxxzyw/Yukino-Companion/releases/download/';
+const url = repo+tag+'/'+name;
+const shared = Buffer.alloc(8192, 1), oldChunk = Buffer.alloc(2048, 2), changed = Buffer.alloc(2048, 3);
+const old = Buffer.concat([shared,oldChunk,shared]), target = Buffer.concat([shared,changed,shared]);
+const sha = b => createHash('sha512').update(b).digest('base64');
+const blockmap = blocks => gzipSync(JSON.stringify({version:'2', files:[{name:'file',offset:0,sizes:blocks.map(b=>b.length),checksums:blocks.map(b=>sha(b).slice(0,24))}]}));
+
+async function fixture(t, mode = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(),'yukino-update-'));
+  const cache = path.join(root,'cache'), destination = path.join(root,'saved.exe');
+  await fs.mkdir(cache);
+  if (mode.cache !== false) {
+    await fs.writeFile(path.join(cache,'installer.exe'), mode.badCache ? Buffer.alloc(old.length) : old);
+    if (mode.map !== false) await fs.writeFile(path.join(cache,'current.blockmap'), mode.badMap ? 'broken' : blockmap([shared,oldChunk,shared]));
+  }
+  const manifest = () => 'version: 0.4.4\nfiles:\n  - url: '+name+'\n    size: '+target.length+'\n    sha512: '+(mode.wrongHash ? sha(old) : sha(target))+'\n';
+  const asset = (name,size) => ({name,size,browser_download_url:repo+tag+'/'+name});
+  const state = {requests:[],progress:[],launches:0,quits:0,saves:0};
+  const server = createServer((req,res)=>{
+    const send = body => {res.writeHead(200,{'content-length': Buffer.byteLength(body)});res.end(body);};
+    if(req.url.endsWith('/releases/latest')) {
+      if(mode.status){res.writeHead(mode.status);res.end();return;}
+      const assets=[asset(name,target.length),asset('latest.yml',Buffer.byteLength(manifest()))];
+      if(mode.foreign)assets[0].browser_download_url='https://example.org/'+name;
+      return send(JSON.stringify({draft:false,prerelease:!!mode.preview,tag_name:tag,body:mode.notes,assets}));
+    }
+    if(req.url.endsWith('/latest.yml')) return send(manifest());
+    if(req.url.endsWith('.blockmap')) {
+      if(mode.noRemoteMaps){res.writeHead(404);res.end();return;}
+      return send(blockmap(req.url.includes('0.4.3') ? [shared,oldChunk,shared] : [shared,changed,shared]));
+    }
+    if(!req.url.endsWith(name)){res.writeHead(404);res.end();return;}
+    const range = req.headers.range;
+    if (range && !mode.noRanges) {
+      const [,a,b] = /^bytes=(\d+)-(\d+)$/.exec(range).map(Number);
+      const chunk = target.subarray(a,b+1);
+      state.requests.push(chunk.length);
+      res.writeHead(206, {'content-range':'bytes '+a+'-'+b+'/'+target.length});res.end(chunk);
+    } else {
+      state.requests.push(target.length);
+      if(mode.interrupt){res.writeHead(200,{'content-length':target.length});res.write(target.subarray(0,128));res.destroy();return;}
+      send(mode.short ? target.subarray(1) : target);
+    }
+  });
+  server.listen(0,'127.0.0.1'); await once(server,'listening');
+  const get = async (url,opts) => {
+    const r = await fetch('http://127.0.0.1:'+server.address().port+new URL(url).pathname,opts);
+    if(!r.ok) throw Object.assign(Error('HTTP '+r.status), {status:r.status});
+    return r;
+  };
+  const make = () => createUpdater({get, app:{isPackaged:true,getVersion:()=>mode.current||'0.4.3',getPath:()=>root,quit:()=>state.quits++},
+    shell:{showItemInFolder(){}}, dialog:{showSaveDialog:async()=>({filePath:destination})}, isPortable:!!mode.portable, cacheDir:cache,
+    send:(_,p)=>{state.progress.push(p); if(mode.cancel)updater.cancel();}, beforeInstall:async()=>{state.saves++;},
+    launch:async()=>{assert.ok(state.saves); if(mode.failLaunch)throw Error('failed'); state.launches++;}});
+  const updater = make();
+  t.after(async()=>{server.closeAllConnections(); await new Promise(done=>server.close(done)); await fs.rm(root,{recursive:true,force:true});});
+  return {updater,make,state,destination,cache,filename:path.join(cache,'pending',name)};
+}
+
+test('accepts only newer stable versions and exact project assets',()=>{
+  assert.equal(newer('v0.4.4','0.4.3'),true);
+  for(const v of ['v0.4.3','v0.4.2','v0.4.4-beta','v0.04.4'])assert.equal(newer(v,'0.4.3'),false);
+  assert.equal(trustedAsset({name,size:1,browser_download_url:url},tag,name),true);
+  assert.equal(trustedAsset({name,size:1,browser_download_url:repo+'v0.4.3/'+name},tag,name),false);
 });
-
-test('newer releases without installer still appear with GitHub as the available route',async()=>{const oldFetch=global.fetch;global.fetch=async()=>new Response(JSON.stringify([{tag_name:'v0.5.0',assets:[]} ]));try{const updater=createUpdater({app:{getVersion:()=> '0.4.0'},dialog:{},shell:{},send(){}});assert.deepEqual(await updater.check(),{version:'v0.5.0',downloadable:false,portable:true,native:false});await assert.rejects(updater.download(),/GitHub/)}finally{global.fetch=oldFetch}});
-
-test('installed builds use electron-updater differential download and restart-to-install',async()=>{
- const listeners={};
- const nativeUpdater={
-  autoDownload:true,autoInstallOnAppQuit:true,allowPrerelease:true,allowDowngrade:true,disableDifferentialDownload:false,logger:null,
-  on(name,fn){listeners[name]=fn},
-  async checkForUpdates(){return {isUpdateAvailable:true,updateInfo:{version:'0.5.0',files:[{url:'https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.5.0/setup.exe',size:1000,sha512:'sha512'}]}}},
-  async downloadUpdate(){listeners['download-progress']?.({transferred:200,total:300,percent:66.7});return ['C:\cache\setup.exe']},
-  quitAndInstall(silent,force){this.quitArgs=[silent,force];return true},
- };
- const progress=[];
- const updater=createUpdater({app:{isPackaged:true,getVersion:()=> '0.4.0'},dialog:{},shell:{openExternal(){}},send:(channel,value)=>progress.push({channel,value}),nativeUpdater,isPortable:false});
- assert.deepEqual(await updater.check(),{version:'v0.5.0',downloadable:true,portable:false,native:true,differential:true,fullSize:1000});
- assert.equal(nativeUpdater.autoDownload,false);
- assert.equal(nativeUpdater.autoInstallOnAppQuit,false);
- const result=await updater.download();
- assert.equal(result.ready,true);assert.equal(result.differential,true);assert.equal(result.bytes,200);assert.equal(result.total,300);assert.equal(result.fullSize,1000);
- assert.equal(progress.at(-1).channel,'app-update-progress');assert.equal(progress.at(-1).value.differential,true);
- await updater.install();assert.deepEqual(nativeUpdater.quitArgs,[false,true]);
+for(const mode of [{current:'0.4.4'},{preview:true}])test('no update '+JSON.stringify(mode),async t=>{
+  const {updater}=await fixture(t,mode);assert.equal(await updater.check(),null);await assert.rejects(updater.download());
 });
-
-test('a full fallback download is reported as full, and no-update checks return null',async()=>{
- const listeners={},nativeUpdater={autoDownload:true,autoInstallOnAppQuit:true,allowPrerelease:true,allowDowngrade:true,disableDifferentialDownload:false,logger:null,on(name,fn){listeners[name]=fn},async checkForUpdates(){return {isUpdateAvailable:false,updateInfo:{version:'0.4.0',files:[]}}},async downloadUpdate(){listeners['download-progress']?.({transferred:1000,total:1000,percent:100});return ['setup.exe']},quitAndInstall(){return true}};
- const updater=createUpdater({app:{isPackaged:true,getVersion:()=> '0.4.0'},dialog:{},shell:{openExternal(){}},send(){},nativeUpdater,isPortable:false});
- assert.equal(await updater.check(),null);
- const secondNative={...nativeUpdater,async checkForUpdates(){return {isUpdateAvailable:true,updateInfo:{version:'0.5.0',files:[{url:'https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.5.0/setup.exe',size:1000,sha512:'sha512'}]}}},on(name,fn){listeners[name]=fn}};
- const second=createUpdater({app:{isPackaged:true,getVersion:()=> '0.4.0'},dialog:{},shell:{openExternal(){}},send(){},nativeUpdater:secondNative,isPortable:false});
- await second.check();const result=await second.download();assert.equal(result.differential,false);assert.equal(result.total,1000);
+for(const status of [403,404,429])test('surfaces GitHub HTTP '+status,async t=>{
+  const {updater}=await fixture(t,{status});await assert.rejects(updater.check(),new RegExp(String(status)));
+});
+test('rejects a foreign asset and redirect',async t=>{
+  const {updater}=await fixture(t,{foreign:true});await assert.rejects(updater.check(),/可信/);
+  const orig=global.fetch;t.after(()=>global.fetch=orig);
+  global.fetch=async()=>new Response(null,{status:302,headers:{Location:'https://untrusted.example/bad.exe'}});
+  await assert.rejects(githubGet(url),/来源/);
+});
+test('returns the release changes section and bounds historical notes',async t=>{
+  const mode={notes:'发布公告\r\n## 更新内容\r\n- 衣橱：新增筛选\r\n- 场景：调整光照\r\n## 下载\r\n安装说明'};
+  const {updater}=await fixture(t,mode);
+  assert.equal((await updater.check()).releaseNotes,'- 衣橱：新增筛选\n- 场景：调整光照');
+  mode.notes='旧版修订'.repeat(900);
+  const value=(await updater.check()).releaseNotes;
+  assert.equal(value.length,2000);assert.ok(value.startsWith('旧版修订'));assert.ok(value.endsWith('…'));
+});
+test('rebuilds from an actual Range response, saves state and launches only on explicit install',async t=>{
+  const {updater,make,state,filename}=await fixture(t,{map:false});
+  assert.equal((await updater.check()).version,tag);
+  const result=await updater.download();assert.equal(result.differential,true);
+  assert.deepEqual(state.requests,[changed.length]);assert.deepEqual(await fs.readFile(filename),target);
+  assert.equal(state.progress.at(-1).percent,100);assert.equal(state.quits,0);assert.equal(state.launches,0);
+  const restarted=make();assert.equal((await restarted.check()).ready.fromCache,true);
+  await restarted.install();assert.equal(state.saves,1);assert.equal(state.launches,1);assert.equal(state.quits,1);
+});
+for(const mode of [{cache:false},{badMap:true},{noRanges:true},{badCache:true},{noRemoteMaps:true}])test('falls back to verified full download '+JSON.stringify(mode),async t=>{
+  const {updater,state,filename}=await fixture(t,mode);await updater.check();const result=await updater.download();
+  assert.equal(result.differential,false);assert.equal(result.total,target.length);assert.equal(state.progress.at(-1).differential,false);
+  assert.deepEqual(await fs.readFile(filename),target);assert.equal(state.launches,0);
+});
+for(const mode of [{wrongHash:true},{short:true, cache:false},{interrupt:true,cache:false}])test('failed download cleans partial, preserves existing cache, can retry '+JSON.stringify(mode),async t=>{
+  const {updater,state,cache,filename}=await fixture(t,mode);await updater.check();
+  await assert.rejects(updater.download());await assert.rejects(updater.install());assert.equal(state.quits,0);
+  assert.deepEqual(await fs.readdir(path.dirname(filename)),[]);
+  if(mode.cache!==false)assert.deepEqual(await fs.readFile(path.join(cache,'installer.exe')),old);
+  Object.assign(mode,{wrongHash:false,short:false,interrupt:false});await updater.check();assert.equal((await updater.download()).ready,true);
+});
+test('cancel does not trigger a full fallback',async t=>{
+  const mode={cancel:true};const {updater,state,filename}=await fixture(t,mode);await updater.check();
+  assert.equal((await updater.download()).cancelled,true);assert.ok(!state.requests.includes(target.length));assert.deepEqual(await fs.readdir(path.dirname(filename)),[]);
+});
+test('rejects tampered pending installer just before launch',async t=>{
+  const {updater,state,filename}=await fixture(t);await updater.check();await updater.download();await fs.writeFile(filename,old);
+  await assert.rejects(updater.install(),/SHA-512/);assert.equal(state.launches,0);assert.equal(state.quits,0);
+});
+test('spawn failure keeps the app open and enables retry',async t=>{
+  const mode={failLaunch:true};const {updater,state}=await fixture(t,mode);await updater.check();await updater.download();
+  await assert.rejects(updater.install(),/启动失败/);assert.equal(state.quits,0);mode.failLaunch=false;await updater.install();assert.equal(state.quits,1);
+});
+test('portable saves only the full installer, never executes, retains previous destination on failure',async t=>{
+  const mode={portable:true};const {updater,state,destination}=await fixture(t,mode);await updater.check();
+  assert.equal((await updater.download()).saved,true);assert.deepEqual(state.requests,[target.length]);assert.deepEqual(await fs.readFile(destination),target);
+  mode.short=true;await assert.rejects(updater.download());assert.deepEqual(await fs.readFile(destination),target);
+  await assert.rejects(updater.install());assert.equal(state.launches,0);
 });

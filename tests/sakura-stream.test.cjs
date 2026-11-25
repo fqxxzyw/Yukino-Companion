@@ -49,9 +49,54 @@ test('path, low bridge and mountain context share ground while far backdrop does
  for(const preset of [api.cameraPresets.companion,api.cameraPresets.photo]){
   const [x,y,z]=preset.position;assert.ok(y-groundHeight(x,z)>=1.4,'camera stays at walking height above the raised path');
  }
- assert.ok(api.root.getObjectByName('sakura-stream:mountain-layer-0'));assert.ok(api.root.getObjectByName('sakura-stream:sky'));
+ assert.ok(api.root.getObjectByName('sakura-stream:wooded-distant-leaves'),'alpha-cut feathery ridge pines replace low-poly flat disks');
+ assert.ok(api.root.getObjectByName('sakura-stream:wooded-distant-broadleaf'),'broadleaf understory sprays accompany ridge pines');
+ assert.ok(api.root.getObjectByName('sakura:tree-0:crutch-props'),'Garyu-zakura low lateral limb rests on authentic wooden crutch props');
+ assert.ok(api.root.getObjectByName('sakura-stream:sky'));
  assert.ok([...api.bounds.min.toArray(),...api.bounds.max.toArray()].every(Number.isFinite));assert.ok(api.bounds.getSize(new T.Vector3()).length()<140);
  assert.ok(api.root.getObjectByName('sakura-stream:sky').parent===api.root);
+});
+
+test('square river diorama seals all four cut-earth walls and translucent water cross-section caps',async t=>{
+ const {T,api,terrainHeight}=await fixture(t),{STREAM_START,STREAM_END,STREAM_LEVEL,streamCenter,streamHalfWidth}=await import('../src/scenes/sakura-stream-layout.mjs');
+ const find=name=>api.root.getObjectByName('sakura-stream:'+name);
+ for(const piece of ['plinth-south-wall','plinth-north-wall','plinth-west-wall','plinth-east-wall','plinth-trim','plinth-footing','water-cut-south','water-cut-north']){
+  assert.ok(find(piece),`diorama piece ${piece} exists`);
+ }
+ assert.equal(api.streamWater.mesh.parent,api.root);
+ assert.ok(api.bounds.equals(new T.Box3().setFromObject(api.framingRoot)));
+ const down=new T.Vector3(0,-1,0);
+ for(const z of [STREAM_START+.25,-12,0,15,STREAM_END-.25]){
+  const x=streamCenter(z),half=streamHalfWidth(z);
+  const rayAt=rx=>new T.Raycaster(new T.Vector3(rx,12,z),down,0,16);
+  const bed=rayAt(x).intersectObject(find('riverbed'))[0],water=rayAt(x).intersectObject(api.streamWater.mesh)[0];
+  assert.ok(bed&&water&&bed.point.y<STREAM_LEVEL-.85);
+  assert.ok(Math.abs(water.point.y-STREAM_LEVEL)<1e-5);
+  for(const side of [-1,1]){
+   const bankX=x+side*(half+1.45),bank=rayAt(bankX).intersectObject(find(side===-1?'left-bank':'right-bank'))[0];
+   assert.ok(bank&&Math.abs(bank.point.y-terrainHeight(bankX,z))<.1);
+  }
+ }
+});
+
+test('the companion camera opens on visible airborne petals which traverse open air and continue releasing',async t=>{
+ const {T,api,terrainHeight}=await fixture(t),preset=api.cameraPresets.companion;
+ const camera=new T.PerspectiveCamera(preset.fov,1.6,.05,1500);
+ camera.position.fromArray(preset.position);camera.lookAt(...preset.target);camera.updateMatrixWorld();
+ const life=api.sakuraLife,pt=new T.Vector3(),batch=api.root.getObjectByName('sakura:falling-and-stream-floating-petals');
+ const inAir=()=>life.metadata.petals.filter(p=>{
+  if(p.kind!=='falling'||p.z<0||p.y>4.3||p.y<terrainHeight(p.x,p.z)+.25)return false;
+  pt.set(p.x,p.y,p.z).project(camera);
+  return Math.abs(pt.x)<.88&&Math.abs(pt.y)<.88&&pt.z>0&&pt.z<1;
+ });
+ const first=inAir().map(p=>({...p}));assert.ok(first.length>=24);
+ for(const p of first)assert.equal(batch.geometry.attributes.petalAirborne.getX(p.id),1);
+ api.setMotion({enabled:true});
+ for(let i=0;i<=30;i++)api.update(.04,i*.04);
+ const moved=first.filter(p=>{const now=life.metadata.petals[p.id];return now.kind==='falling'&&now.y<p.y-.2&&now.z>p.z+.08;});
+ assert.ok(moved.length>=12,'a newly opened companion frame has clearly descending petals already drifting toward the viewer');
+ for(let i=31;i<=2250;i++)api.update(.04,i*.04);
+ assert.ok(inAir().length>=20&&life.metadata.releases>100,'the visible stream outlasts the first cohort');
 });
 
 test('scene motion, climate hooks and idempotent disposal coordinate water and blossoms without replacing river geometry',async t=>{

@@ -1,34 +1,69 @@
 import * as T from 'three';
 
-// Branch-supported five-petal flowers. No opaque balls or spherical crown cores.
-export function sakuraTree(b,x,z,{height=4.4,spread=1.8}={}){
- const r=b.rng,bark=b.mat('bark:cherry-tree','#64514b'),flowers=[],twigs=[];
- const stem=(points,radius)=>b.mesh(b.own(new T.TubeGeometry(new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),10,radius,7,false)),bark);
- stem([[x,.12,z],[x-.1,1,z+.1],[x+.14,height*.5,z],[x-.03,height*.77,z+.04]],.12);
- for(let branch=0;branch<12;branch++){
-  const a=branch*2.399,reach=spread*(.48+r()*.52),end=[x+Math.cos(a)*reach,height*(.66+r()*.27),z+Math.sin(a)*reach];
-  const start=[x,height*(.36+branch*.024),z];stem([start,[(start[0]+end[0])/2,height*.65,(start[2]+end[2])/2],end],.027+r()*.018);
-  for(let k=0;k<7;k++){
-   const tip=[end[0]+Math.cos(a+k*1.1)*.58,end[1]+(r()-.35)*.65,end[2]+Math.sin(a+k*1.1)*.58];b.tube(end,tip,.009,bark);twigs.push(tip);
-   for(let n=0;n<40;n++){const t=r(),offset=.18+r()*.12;flowers.push([T.MathUtils.lerp(end[0],tip[0],t)+(r()-.5)*offset,T.MathUtils.lerp(end[1],tip[1],t)+(r()-.5)*offset,T.MathUtils.lerp(end[2],tip[2],t)+(r()-.5)*offset]);}
+// Small street trees keep their crowns outside both shop entrances. Flower
+// sprays grow along lateral twigs, with a different leading limb for each tree.
+export function sakuraTree(b,x,z,{height=4.4,spread=1.8,heading=0}={}){
+ const r=b.rng,bark=b.mat('bark:cherry-tree','#635349'),flowers=[],centers=[],leaves=[];
+ function limb(points,baseRadius,tipRadius){
+  const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)));
+  const rings=7,sides=7,geometry=b.own(new T.TubeGeometry(curve,rings,baseRadius,sides,false));
+  const positions=geometry.attributes.position,point=new T.Vector3(),axis=new T.Vector3();
+  for(let ring=0;ring<=rings;ring++){
+   const t=ring/rings;curve.getPointAt(t,axis);
+   const taper=T.MathUtils.lerp(1,tipRadius/baseRadius,t);
+   for(let side=0;side<=sides;side++){
+    const i=ring*(sides+1)+side;
+    point.fromBufferAttribute(positions,i).sub(axis).multiplyScalar(taper).add(axis);
+    positions.setXYZ(i,point.x,point.y,point.z);
+   }
+  }
+  geometry.computeVertexNormals();return b.mesh(geometry,bark);
+ }
+ const trunkTop=[x+.17*Math.cos(heading),height*.76,z+.17*Math.sin(heading)];
+ limb([[x,.11,z],[x-.08,height*.21,z+.08],[x+.12,height*.5,z],trunkTop],height*.041,height*.014);
+ for(let branch=0;branch<11;branch++){
+  const angle=heading+branch*2.39996+(r()-.5)*.37;
+  const reach=spread*(.62+.32*Math.cos(angle-heading)+r()*.36);
+  const start=[x+.07,height*(.34+branch*.026),z+.04];
+  const end=[x+Math.cos(angle)*reach,height*(.69+r()*.24),z+Math.sin(angle)*reach*.83];
+  limb([start,[start[0]+(end[0]-start[0])*.52,end[1]-.36,start[2]+(end[2]-start[2])*.59],end],.055+r()*.027,.018);
+  for(let spray=0;spray<5;spray++){
+   const bearing=angle+(spray-2)*.63,reachTip=.38+r()*.34;
+   const tip=[end[0]+Math.cos(bearing)*reachTip,end[1]+.13+r()*.39,end[2]+Math.sin(bearing)*reachTip];
+   b.tube(end,tip,.012,bark);
+   const center=tip.map((v,k)=>(v+end[k])*.5);
+   for(let n=0;n<33;n++){
+    const t=r(),rad=.09+.13*Math.sin(Math.PI*t),a=r()*Math.PI*2,offset=rad*Math.sqrt(r());
+    flowers.push([T.MathUtils.lerp(end[0],tip[0],t)+Math.cos(a)*offset,
+     T.MathUtils.lerp(end[1],tip[1],t)+(r()-.5)*rad*1.7,T.MathUtils.lerp(end[2],tip[2],t)+Math.sin(a)*offset]);
+    centers.push(...center);
+   }
+   if(spray%2===0)leaves.push({x:tip[0],y:tip[1]-.04,z:tip[2],size:.12,hue:.19,center});
   }
  }
- const pos=[],colors=[],idx=[];const center=new T.Color('#bd6d83'),edge=new T.Color('#f1d6d5');
+ // The petals remain cupped and notched from close range. Their short outer
+ // fans cost 35 triangles per flower and keep both street trees in two draws.
+ const pos=[],colors=[],indices=[],inner=new T.Color('#c47d91'),rim=new T.Color('#ffebeb');
+ const profile=[[.42,0,.04],[.12,-.04,.01],[.55,-.30,.12],[.94,-.20,.25],[.88,0,.22],[.98,.18,.25],[.56,.31,.12],[.12,.04,.01]];
  for(let petal=0;petal<5;petal++){
-  const angle=petal*Math.PI*2/5,base=pos.length/3;
-  for(let j=0;j<=5;j++)for(let side=0;side<3;side++){
-   const t=j/5,w=Math.sin(t*Math.PI)*.38,s=(side-1)*w,rad=.12+t*.9;
-   pos.push(Math.cos(angle)*rad-Math.sin(angle)*s,Math.sin(angle)*rad+Math.cos(angle)*s,.06+Math.sin(t*Math.PI)*.13+(side===1?0:.06));
-   const color=center.clone().lerp(edge,Math.pow(t,.4));colors.push(color.r,color.g,color.b);
+  const a=petal*2*Math.PI/5,first=pos.length/3;
+  for(const [rad,tangent,h] of profile){
+   pos.push(Math.cos(a)*rad-Math.sin(a)*tangent,Math.sin(a)*rad+Math.cos(a)*tangent,h);
+   const color=inner.clone().lerp(rim,Math.min(1,rad));colors.push(color.r,color.g,color.b);
   }
-  for(let j=0;j<5;j++)for(let side=0;side<2;side++){const n=base+j*3+side;idx.push(n,n+1,n+3,n+1,n+4,n+3);}
+  for(let vertex=1;vertex<=7;vertex++)indices.push(first,first+vertex,first+(vertex%7+1));
  }
- const geo=b.own(new T.BufferGeometry());geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(idx);geo.computeVertexNormals();
- const m=new T.MeshPhysicalMaterial({color:'#ffffff',vertexColors:true,side:T.DoubleSide,roughness:.96,metalness:0,specularIntensity:.14});m.name='paper:sakura-petal';b.materials.add(m);
- m.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>\n diffuseColor.rgb*=.96+.04*sin(vNormal.x*23.0+vNormal.y*17.0);`);};m.customProgramCacheKey=()=> 'sakura-petal-fold-v1';
- const mesh=new T.InstancedMesh(geo,m,flowers.length),o=new T.Object3D();mesh.name='sakura:individual-five-petal-flowers';
- flowers.forEach((p,i)=>{o.position.set(...p);o.rotation.set(r()*6.28,r()*6.28,r()*6.28);o.scale.setScalar(.045+r()*.035);o.updateMatrix();mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(.97+r()*.04,.05+r()*.13,.75+r()*.2));});
+ const geo=b.own(new T.BufferGeometry());
+ geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+ geo.setAttribute('crownCenter',new T.InstancedBufferAttribute(new Float32Array(centers),3));geo.setIndex(indices);geo.computeVertexNormals();
+ const mat=new T.MeshPhysicalMaterial({color:'#fff9f4',vertexColors:true,side:T.DoubleSide,roughness:.95,specularIntensity:.13});
+ mat.name='paper:sakura-petal';b.materials.add(mat);
+ mat.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>\n diffuseColor.rgb*=.97+.03*sin(vNormal.x*23.0+vNormal.y*17.0);`);};mat.customProgramCacheKey=()=> 'street-cherry-petal-fold-v2';
+ const mesh=new T.InstancedMesh(geo,mat,flowers.length),o=new T.Object3D();mesh.name='sakura:individual-five-petal-flowers';
+ flowers.forEach((p,i)=>{
+  o.position.set(...p);o.rotation.set(r()*Math.PI*2,r()*Math.PI*2,r()*Math.PI*2);o.scale.setScalar(.061+r()*.032);o.updateMatrix();
+  mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(.972+r()*.025,.055+r()*.06,.84+r()*.12));
+ });
  mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();b.root.add(mesh);b.instances.push(mesh);
- const leaves=twigs.filter((_,i)=>i%3===0).map(p=>({x:p[0],y:p[1],z:p[2],size:.13,hue:.21}));b.leaves(leaves,{color:'#87916b'});
- return mesh;
+ b.leaves(leaves,{color:'#8a976c'});return mesh;
 }

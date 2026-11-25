@@ -1,7 +1,8 @@
 'use strict';
 // Minimal desktop account transport. Tokens stay in the main process; the
 // renderer only receives account state and session summaries.
-const DEFAULT_BASE = 'https://yukino-api.fqxxzyw.workers.dev';
+const DEFAULT_BASE = 'https://yukino.fqxxzyw.cn';
+const LEGACY_DEFAULT_BASE = 'https://yukino-api.fqxxzyw.workers.dev';
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i;
 
 class AccountError extends Error {
@@ -80,4 +81,4 @@ class AccountClient {
   }
 }
 
-module.exports = {AccountClient, AccountError, DEFAULT_BASE, validateBase, LOOPBACK};
+module.exports = {AccountClient, AccountError, DEFAULT_BASE, LEGACY_DEFAULT_BASE, validateBase, LOOPBACK};

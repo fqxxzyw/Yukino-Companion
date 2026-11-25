@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict');
 const http = require('node:http');
-const {AccountClient, AccountError, validateBase} = require('../electron/account-client.cjs');
+const {AccountClient, AccountError, DEFAULT_BASE, validateBase} = require('../electron/account-client.cjs');
 
 function serve(handler) {
   return new Promise((resolve) => {
@@ -15,7 +15,9 @@ function serve(handler) {
 }
 
 test('base URL validation allows HTTPS and loopback HTTP only', () => {
-  assert.equal(validateBase('https://yukino-api.fqxxzyw.workers.dev'), 'https://yukino-api.fqxxzyw.workers.dev');
+  assert.equal(DEFAULT_BASE, 'https://yukino.fqxxzyw.cn');
+  assert.equal(validateBase(''), 'https://yukino.fqxxzyw.cn');
+  assert.equal(validateBase('https://yukino.fqxxzyw.cn'), 'https://yukino.fqxxzyw.cn');
   assert.equal(validateBase('http://127.0.0.1:8787'), 'http://127.0.0.1:8787');
   assert.throws(() => validateBase('http://example.com'), /HTTPS/);
   assert.throws(() => validateBase('ftp://example.com'), /HTTPS/);

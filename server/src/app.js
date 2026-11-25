@@ -18,6 +18,7 @@ import {
 import {createMailer} from './mail.js';
 import {checkIn, getProgress, submitEvents, skins} from './progress.js';
 import {downloadRoute} from './downloads.js';
+import {listCharacters, saveCharacter} from './character-profiles.js';
 import {deleteChat, deleteMemory, getChat, getMemory, getSettings, listMemories, postChat, putMemory, putSettings} from './memory.js';
 import {publicJwkFromEnv} from './entitlement.js';
 import {ApiError, clientIp, errorResponse, fail, json, originOf, readJson} from './util.js';
@@ -38,7 +39,7 @@ function corsHeaders(origin, allowed) {
   return new Headers({
     'access-control-allow-origin': origin,
     'access-control-allow-credentials': 'true',
-    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+    'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'access-control-allow-headers': 'authorization,content-type,x-client',
     'access-control-max-age': '600',
     'vary': 'Origin',
@@ -143,6 +144,11 @@ export function createApi({env, db, fetchImpl = globalThis.fetch, mailer, now = 
       return resetPassword({...context, body: await readJson(request, MAX_BODY)});
     }
     if (path === '/api/v1/me' && method === 'GET') return me(context);
+    if (path === '/api/v1/characters' && method === 'GET') return listCharacters(context);
+    const character = /^\/api\/v1\/characters\/([a-zA-Z0-9_-]{1,100})$/.exec(path);
+    if (character && character[1] !== 'yukino' && method === 'PUT') {
+      return saveCharacter({...context, id: character[1], body: await readJson(request, MAX_BODY)});
+    }
     if (path === '/api/v1/me' && method === 'PATCH') {
       return updateNickname({...context, body: await readJson(request, MAX_BODY)});
     }

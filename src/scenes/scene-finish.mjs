@@ -14,29 +14,32 @@ export function finishScene(api,{scene,renderer,id}){
  api.root.traverse(o=>{for(const m of [o.material].flat().filter(Boolean)){
   if(!m.isMeshStandardMaterial||groundMaterials.has(m))continue;
   if(/^(soil:verge|soil:woodland-ground|soil:stream-bank|verge:grass|grass|leaf:campus-lawn|garden:lawn|garden:lawn-large|lawn)$/.test(m.name)){
-   architectureFinish(groundOwner,m,'grass',{scale:2,amount:m.name==='soil:stream-bank'?.58:.72});groundMaterials.add(m);
+   architectureFinish(groundOwner,m,'grass',{scale:2,amount:id==='kasai'?.24:m.name==='soil:stream-bank'?.58:.72});groundMaterials.add(m);
   }
  }});
  const details=refineArchitecture(api.root,id),surfaces=upgradeSurfaces(api.root,id);
  const original={setLighting:api.setLighting,update:api.update,dispose:api.dispose,setWeather:api.setWeather};
  const outdoor=id!=='classroom',lights=[],effects=[],skies=[],waters=[],winds=[],rainObjects=[],puddles=[];
  const nightSky=outdoor?addNightSky(api,scene):null;api.nightSky=nightSky;
- const daySky=outdoor?createDaySky():null;
+ // The classroom retains its native lit backdrop; its windows can also show
+ // the painted panorama. Textures are allocated on the first weather update.
+ const daySky=createDaySky();
  // The older sakura illustration encloses the entire scene; hide that sky
  // mesh so the shared weather sky can be seen without changing scene bounds.
  const authoredSky=outdoor?api.root.getObjectByName('sakura-stream:sky'):null;
  const authoredSkyVisible=authoredSky?.visible;if(authoredSky)authoredSky.visible=false;
- let disposed=false,climate=null,baseExposure=renderer?.toneMappingExposure||1;
+ let disposed=false,climate=null,renderStyle='lit',baseExposure=renderer?.toneMappingExposure||1;
  let sourceEnvironment=scene.environment,sourceIntensity=scene.environmentIntensity,sourceBackground=scene.background;
  let sourceFog=scene.fog;
  const clearFog=sourceFog?.isFogExp2?sourceFog.clone():null;
  const sourceToneMapping=renderer?.toneMapping;
+ const originalBackgroundIntensity=scene.backgroundIntensity;
  const clearSky=sourceBackground?.isColor?new THREE.Color():null;
  let ownedIntensity=scene.environmentIntensity;
  const weatherFog=new THREE.FogExp2('#a8b4be',0);
  api.root.traverse(o=>{
   if(o.name.startsWith('weather:rain-'))rainObjects.push(o);
-  if(o.isLight)lights.push({node:o,intensity:o.intensity,color:o.color.clone(),position:o.position.clone()});
+  if(o.isLight)lights.push({node:o,intensity:o.intensity,color:o.color.clone(),groundColor:o.groundColor?.clone(),position:o.position.clone()});
   if(o.material?.transparent&&(o.material.blending===THREE.AdditiveBlending||(id==='forest'&&o.name==='Backlit_Mist'))&&!effects.some(e=>e.node.material===o.material))effects.push({node:o,opacity:o.material.opacity});
   for(const material of [o.material].flat().filter(Boolean)){
    const u=material.uniforms;
@@ -67,7 +70,7 @@ export function finishScene(api,{scene,renderer,id}){
  // The shadow camera follows the companion framing, not the full display slab:
  // the visible architecture and ground get the texel budget. Distant mountains
  // and the 720 m street extension stay outside the finite shadow frustum.
- const shadowRadius=clamp(viewDistance*1.15,24,82);
+ const shadowRadius=outdoor?clamp(viewDistance*1.15,24,82):clamp(viewDistance*.8,7.5,11);
  const shadowDistance=Math.max(shadowRadius*2.2,32);
  if(key){
   key.node.castShadow=true;
@@ -79,7 +82,7 @@ export function finishScene(api,{scene,renderer,id}){
    shadow.camera.left=-shadowRadius;shadow.camera.right=shadowRadius;
    shadow.camera.top=shadowRadius*.82;shadow.camera.bottom=-shadowRadius*.82;
    shadow.camera.near=1;shadow.camera.far=shadowDistance+shadowRadius*1.8;
-   shadow.normalBias=clamp(shadowRadius*.0006,.018,.05);
+   shadow.normalBias=outdoor?clamp(shadowRadius*.0006,.018,.05):.005;
    shadow.bias=-.00018;
    shadow.camera.updateProjectionMatrix();shadow.needsUpdate=true;
   }
@@ -101,6 +104,8 @@ export function finishScene(api,{scene,renderer,id}){
   return next;
  };
  let environment=makeEnvironment();
+ const ownsEnvironment=value=>value===environment||daySky.owns(value);
+ const ownsBackground=value=>value===clearSky||ownsEnvironment(value);
  let environmentKey='';
  function attenuateEffects(){
   if(!climate)return;
@@ -130,11 +135,11 @@ export function finishScene(api,{scene,renderer,id}){
  }
  function remember(){
   baseExposure=renderer?.toneMappingExposure||1;
-  if(scene.environment!==environment)sourceEnvironment=scene.environment;
+  if(!ownsEnvironment(scene.environment))sourceEnvironment=scene.environment;
   sourceIntensity=scene.environmentIntensity;
-  if(scene.background!==environment&&scene.background!==clearSky&&!daySky?.owns(scene.background))sourceBackground=scene.background;
+  if(!ownsBackground(scene.background))sourceBackground=scene.background;
   if(scene.fog!==weatherFog&&scene.fog!==clearFog)sourceFog=scene.fog;
-  for(const l of lights){l.intensity=l.node.intensity;l.color.copy(l.node.color);l.position.copy(l.node.position);}
+  for(const l of lights){l.intensity=l.node.intensity;l.color.copy(l.node.color);l.groundColor?.copy(l.node.groundColor);l.position.copy(l.node.position);}
   for(const effect of effects)effect.opacity=effect.node.material.opacity;
   for(const water of waters)water.sky.copy(water.u.uSky.value);
  }
@@ -143,6 +148,7 @@ export function finishScene(api,{scene,renderer,id}){
   const daylight=sceneDaylight(climate.timeOfDay),weather=climate.weather;
   const cloud=clamp(weather?.cloud||0,0,1),rain=clamp(weather?.rain||0,0,1),fog=clamp(weather?.fog||0,0,1),snow=clamp(weather?.snow||0,0,1);
   const brightness=daylight.brightness;
+  const painted=renderStyle==='toon';
   const sun=sceneSun({timeOfDay:climate.timeOfDay,weather,baseIntensity:key?.intensity??1,outdoor,azimuthOffset:api.sunAzimuthOffset});
   nightSky?.setClimate(daylight,weather);
   let sunDirection=null,keyIntensity=0;
@@ -150,6 +156,7 @@ export function finishScene(api,{scene,renderer,id}){
    const node=l.node;
    if(l===key){
     node.color.set(sun.color);
+    if(painted)node.color.lerp(new THREE.Color('#ffdfab'),brightness*(1-cloud)*.16);
     // One beam, attenuated by weather. Clear days keep a deliberate gap over
     // the sky fill; overcast and rain broaden the fill instead of painting the
     // beam out with exposure.
@@ -169,6 +176,11 @@ export function finishScene(api,{scene,renderer,id}){
     // authored practical-light balance rather than crushing the blacks.
     node.intensity=l.intensity*sun.fillScale*(api.lightResponse?.ambient??1);
     node.color.copy(l.color).lerp(new THREE.Color('#c4d0da'),cloud*.55).lerp(new THREE.Color('#dbe5ec'),fog*.35).lerp(new THREE.Color('#dfe9f2'),snow*.25);
+    if(l.groundColor)node.groundColor.copy(l.groundColor);
+    if(painted){
+     node.color.lerp(new THREE.Color('#c5d3ec'),.21);
+     node.groundColor?.lerp(new THREE.Color('#9ca4bf'),.23*brightness);
+    }
    }else if(node.isDirectionalLight){node.intensity=l.intensity*(.18+.82*brightness)*.7*(1-cloud*.25)*(1-rain*.1);}
   }
   attenuateEffects();
@@ -189,17 +201,23 @@ export function finishScene(api,{scene,renderer,id}){
   // unrelated solid structures or wash out a night/rain scene.
   const rayPhase=((daylight.hour*60+7)%37)/37;
   const rayWindow=Math.max(0,1-Math.abs(rayPhase-.5)/.19);
-  if(key)api.setSunlight?.(key.node.position.clone().sub(key.node.target.position),brightness,cloud,rayWindow);
+  if(key)api.setSunlight?.(key.node.position.clone().sub(key.node.target.position),brightness,cloud,id==='forest'?1:rayWindow,weather);
   api.setWind?.(weather?.wind);
   for(const o of rainObjects){o.visible=rain>.01;if(o.isLineSegments)o.geometry.setDrawRange(0,Math.floor(o.geometry.attributes.position.count/2*rain)*2);}
   for(const u of puddles){u.uLiveWetness.value=rain;u.uLiveDaylight.value=.18+.82*brightness;}
   // Weather affects exterior receivers; room surfaces remain dry.
-  surfaces.setWeather(weather);surfaces.sync();
-  updateEnvironment(daylight,weather);scene.environmentIntensity=sun.environmentScale*(api.lightResponse?.environment??1);ownedIntensity=scene.environmentIntensity;
+  surfaces.setWeather(weather,sun.brightness*sun.direction[1]);surfaces.sync();
+  scene.environmentIntensity=sun.environmentScale*(api.lightResponse?.environment??1);ownedIntensity=scene.environmentIntensity;
   if(clearSky&&outdoor)clearSky.set(daylight.sun.skyColor).lerp(new THREE.Color('#79b9e9'),brightness*.55*(1-cloud));
-  if(outdoor&&!daylight.night){daySky.update(daylight,weather,sunDirection);scene.background=daySky.texture;}
-  else scene.background=cloud>.35||(outdoor&&daylight.night)?environment:sourceBackground;
-  scene.backgroundIntensity=daylight.night?.18:((1.07-cloud*.34)*(1-rain*.08)*(1-fog*.06)+snow*.02);
+  if((outdoor&&!daylight.night)||painted){
+   daySky.update(daylight,weather,sunDirection,renderStyle);
+   scene.background=scene.environment=daySky.texture;
+  }else{
+   updateEnvironment(daylight,weather);
+   scene.background=cloud>.35||(outdoor&&daylight.night)?environment:sourceBackground;
+  }
+  scene.backgroundIntensity=daylight.night?(painted?.82:.18):((1.07-cloud*.34)*(1-rain*.08)*(1-fog*.06)+snow*.02);
+  api.setVisibleSky?.(scene.background,scene.backgroundIntensity,{sun,weather,renderStyle});
   if(fog||rain||snow||(outdoor&&daylight.night)){
    weatherFog.color.set(daylight.sun.skyColor).lerp(new THREE.Color('#a8b4be'),.6).lerp(new THREE.Color('#d7dfe5'),snow*.35).multiplyScalar(daylight.night?.12:1);
    weatherFog.density=daylight.night?(sourceFog?.density||0):(fog*.8+rain*.12+snow*.05)/Math.max(size,1);
@@ -217,7 +235,7 @@ export function finishScene(api,{scene,renderer,id}){
   }
   api.sunState={
    ...sun,
-   id,
+   id,color:key?'#'+key.node.color.getHexString():sun.color,
    direction:sun.direction.slice(),
    intensity:keyIntensity,
    keyBase:key?.intensity??0,
@@ -229,10 +247,14 @@ export function finishScene(api,{scene,renderer,id}){
   if(disposed)return false;
   // Some supplied indoor factories mutate a Color background in place. Return
   // their own object before invoking them after an overcast texture override.
-  if(scene.background===environment||scene.background===clearSky||daySky?.owns(scene.background))scene.background=sourceBackground;
-  if(scene.environment===environment)scene.environment=sourceEnvironment;
+  if(ownsBackground(scene.background))scene.background=sourceBackground;
+  if(ownsEnvironment(scene.environment))scene.environment=sourceEnvironment;
   if(scene.fog===weatherFog||scene.fog===clearFog)scene.fog=sourceFog;
   scene.environmentIntensity=sourceIntensity;
+  for(const l of lights){
+   l.node.intensity=l.intensity;l.node.color.copy(l.color);l.node.position.copy(l.position);
+   if(l.groundColor)l.node.groundColor.copy(l.groundColor);
+  }
   for(const e of effects)e.node.material.opacity=e.opacity;
   const result=original.setLighting?.(id);surfaces.sync();remember();
   // Host calls setClimate after a preset; continuous updates don't select a
@@ -240,6 +262,15 @@ export function finishScene(api,{scene,renderer,id}){
   return result;
  };
  api.setClimate=value=>{climate=value;applyClimate();};
+ const setAuthoredStyle=api.setRenderStyle;
+ api.setRenderStyle=value=>{
+  const next=value==='toon'?'toon':'lit';
+  if(disposed||next===renderStyle)return;
+  renderStyle=next;
+  setAuthoredStyle?.(next);
+  api.streamWater?.setRenderStyle?.(next);
+  applyClimate();
+ };
  api.setWeather=value=>{original.setWeather?.(value);if(climate){climate={...climate,weather:value};applyClimate();}};
  api.update=(...args)=>{
   if(disposed)return;
@@ -253,13 +284,13 @@ export function finishScene(api,{scene,renderer,id}){
   if(disposed)return;disposed=true;
   // Detach additions before the source factory traverses its owned resources.
   details.dispose();surfaces.dispose();nightSky?.dispose();for(const texture of groundTextures)texture.dispose();groundTextures.clear();
-  if(scene.environment===environment)scene.environment=sourceEnvironment;
-  if(scene.background===environment||scene.background===clearSky||daySky?.owns(scene.background))scene.background=sourceBackground;
+  if(ownsEnvironment(scene.environment))scene.environment=sourceEnvironment;
+  if(ownsBackground(scene.background)){scene.background=sourceBackground;scene.backgroundIntensity=originalBackgroundIntensity;}
   if(scene.environmentIntensity===ownedIntensity)scene.environmentIntensity=sourceIntensity;
   if(scene.fog===weatherFog||scene.fog===clearFog||scene.fog===sourceFog)scene.fog=sourceFog;
   if(renderer?.toneMapping===THREE.NeutralToneMapping)renderer.toneMapping=sourceToneMapping;
   if(authoredSky)authoredSky.visible=authoredSkyVisible;
-  daySky?.dispose();environment.dispose();original.dispose?.();
+  daySky.dispose();environment.dispose();original.dispose?.();
  };
  return api;
 }

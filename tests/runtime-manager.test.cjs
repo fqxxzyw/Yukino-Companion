@@ -344,3 +344,29 @@ test('official pip failure preserves prior runtime and leaves retry logs/cache i
  assert.match(await fs.readFile(path.join(env.manager.root,'official-install.log'),'utf8'),/connection reset/);await fs.access(path.join(env.manager.root,'pip-cache'));
  failed=false;const installed=await env.manager.install('cu124');assert.equal(installed.flavor,'cu124');assert.equal(env.calls.length,2,'retry reuses the previously checked base archive parts');await fs.access(previous.root);
 });
+
+test('packaged extraResources include the pinned runtime catalog, voice presets, and aria2', async t => {
+ const pkg = JSON.parse(await fs.readFile(path.join(__dirname, '../package.json'), 'utf8'));
+ const extra = pkg.build?.extraResources || [];
+ assert.ok(extra.some(entry => entry.from === 'resources/runtime-catalog.json' && entry.to === 'runtime-catalog.json'));
+ assert.ok(extra.some(entry => entry.from === 'resources/voice-presets' && entry.to === 'voice-presets'));
+ assert.ok(extra.some(entry => entry.from === 'build/aria2' && entry.to === 'aria2'));
+
+ const catalogPath = path.join(__dirname, '../resources/runtime-catalog.json');
+ const bytes = await fs.readFile(catalogPath);
+ assert.equal(bytes.length, 703);
+ assert.equal(digest(bytes), '81f3ba2946e665d63fc1e03937e4eff1ec714e202b51dc321b8fe5c65a63f29c');
+
+ const temp = await temporary(t);
+ const manager = new RuntimeManager({
+  dataRoot: path.join(temp, 'data'),
+  resourceRoot: path.join(temp, 'resources'),
+  catalogPath,
+  platform: 'win32',
+  hardwareRun: async () => ({stdout: 'NVIDIA GeForce RTX 4060'}),
+ });
+ const status = await manager.status();
+ assert.deepEqual(status.variants, ['cpu', 'cu124']);
+ assert.equal(status.officialInstall, true);
+ assert.equal(status.version, '0.4.0');
+});

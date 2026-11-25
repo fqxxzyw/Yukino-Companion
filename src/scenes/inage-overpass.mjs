@@ -1,16 +1,18 @@
 import * as T from 'three';
 import {Diorama} from './diorama-kit.mjs';
 import {architectureFinish} from './architecture-textures.mjs';
+import {createMeadowPatch} from './sakura-ground.mjs';
 
 // Compact photographic reconstruction, not survey geometry. Both bridge decks
 // run along X; Route 14 passes below them along Z.
 export function createScene({scene,renderer}){
- const b=new Diorama(scene,renderer,'Inage_Overpass');b.plinth(48,30,'#565e60');
+ const b=new Diorama(scene,renderer,'Inage_Overpass');b.plinth(48,68,'#575c59',{depth:2.0,topY:.01});
  const concrete=b.mat('concrete:piers','#b6b5ab'),steel=b.mat('paint:blue-steel','#507d99'),rail=b.mat('paint:pedestrian-railing','#b8d1d8');
  const dark=b.mat('asphalt:road','#343b40'),mark=b.mat('paint:road-lines','#d9d7c6'),orange=b.mat('paint:road-centre-line','#bb8c43'),soil=b.mat('soil:verge','#636d4f'),paver=b.mat('paving:walkway','#9c9585'),walk=b.mat('asphalt:pedestrian-walkway','#77645b'),noise=b.mat('paint:noise-barrier','#a7b0af'),rust=b.mat('paint:weathered-joints','#75675a');
- for(const [m,rough,env]of [[concrete,.94,.18],[steel,.71,.32],[rail,.64,.36],[noise,.82,.24],[rust,.97,.15],[walk,.95,.19],[paver,.91,.22]])m.userData.surfaceFinish={roughness:rough,metalness:0,envMapIntensity:env};
+ const guardWhite=b.mat('paint:highway-guardrail','#e3e5df'),bollardDark=b.mat('paint:bollard-band','#2b3135'),reflectorYellow=b.mat('paint:bollard-reflector','#dfbe48');
+ for(const [m,rough,env]of [[concrete,.94,.18],[steel,.71,.32],[rail,.64,.36],[noise,.82,.24],[rust,.97,.15],[walk,.95,.19],[paver,.91,.22],[guardWhite,.62,.34],[bollardDark,.76,.2],[reflectorYellow,.45,.42]])m.userData.surfaceFinish={roughness:rough,metalness:0,envMapIntensity:env};
  architectureFinish(b,concrete,'concrete',{scale:2.4});
- for(const m of [steel,rail,noise])architectureFinish(b,m,'paint');
+ for(const m of [steel,rail,noise,guardWhite])architectureFinish(b,m,'paint');
  const keep=(o,name)=>{o.name='inage:'+name;o.userData.keep=true;return o;};
  const structuralBox=(p,s,m,name)=>keep(b.box(p,s,m),name);
  const upperY=10.8,lowerY=5.2,landingY=7.1,halfSpan=14,upperWidth=6.8,lowerWidth=3.2;
@@ -54,6 +56,12 @@ export function createScene({scene,renderer}){
   const geo=b.own(new T.ExtrudeGeometry(shape,{depth:z2-z1,bevelEnabled:false}));geo.setIndex(Array.from({length:geo.attributes.position.count},(_,i)=>i));return b.mesh(geo,soil,[0,0,z1]);
  }
  const eastBankHeight=(x,z)=>.3+T.MathUtils.clamp((x-14.8)/8,0,1)*10.2+(x>23.8?.23*Math.sin((x-23.8)*.09)*Math.sin(z*.065):0);
+ // Broad drifts bend across the grade. The same coverage field leaves clay
+ // visible between the rooted plants and opens sight lines to the landings.
+ const coverAt=(x,z)=>T.MathUtils.smoothstep(
+  Math.sin(z*.36+Math.sin(x*.7))*.48+Math.sin(x*.98+z*.21)*.31+Math.cos(z*.12-x*.49)*.21,-.48,.68);
+ const bankEarth=b.mat('soil:inage-bank','#ffffff',{vertexColors:true});
+ architectureFinish(b,bankEarth,'grass',{scale:2.7,amount:.26});
  function terrainPatch(x0,x1,z0,z1,height,material,name,step=1.8){
   const nx=Math.ceil((x1-x0)/step),nz=Math.ceil((z1-z0)/step),positions=[],uv=[],ids=[];
   for(let j=0;j<=nz;j++)for(let i=0;i<=nx;i++){
@@ -61,18 +69,38 @@ export function createScene({scene,renderer}){
    if(i&&j){const a=(j-1)*(nx+1)+i-1;ids.push(a,a+nx+1,a+1,a+1,a+nx+1,a+nx+2);}
   }
   const geometry=b.own(new T.BufferGeometry());geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setIndex(ids);geometry.computeVertexNormals();
+  if(material.vertexColors){
+   const clay=new T.Color('#aa9678'),moss=new T.Color('#768951'),pigment=new T.Color(),colors=[];
+   for(let i=0;i<positions.length;i+=3)pigment.copy(clay).lerp(moss,coverAt(positions[i],positions[i+2])).toArray(colors,i);
+   geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+  }
   return keep(b.mesh(geometry,material),name);
  }
 
  // Keep the through road unobstructed. Every pier and approach lies outside
  // its traffic corridor, rather than occupying a fictitious road median.
- b.box([0,.015,0],[47.7,.07,29.6],soil);
- structuralBox([0,.07,0],[10,.09,29.8],dark,'ground-road');
- for(const x of [-6.1,6.1])b.box([x,.17,0],[2.2,.22,29.7],paver);
- for(const x of [-4.75,4.75])b.box([x,.125,0],[.1,.012,29.5],mark);
- for(let z=-14;z<=14;z+=3)for(const x of [-2.45,2.45])b.box([x,.126,z],[.085,.012,1.65],mark);
- b.box([0,.126,0],[.095,.012,29.5],orange);
- for(const x of [-7.4,7.4])b.rail([x,.15,-14.5],[x,.15,14.5],.85,rail,{spacing:1.1,depth:.025});
+ const halfZ=33.9;
+ b.box([0,.015,0],[47.8,.07,halfZ*2],soil);
+ structuralBox([0,.07,0],[10,.09,halfZ*2],dark,'ground-road');
+ for(const x of [-6.1,6.1])b.box([x,.17,0],[2.2,.22,halfZ*2],paver);
+ for(const x of [-4.75,4.75])b.box([x,.125,0],[.1,.012,halfZ*2-.2],mark);
+ for(let z=-32;z<=32;z+=3)for(const x of [-2.45,2.45])b.box([x,.126,z],[.085,.012,1.65],mark);
+ b.box([0,.126,0],[.095,.012,halfZ*2-.2],orange);
+ // Real-photo Chiba Route 14 roadside: outer pedestrian rail + white W-beam
+ // steel guardrail along the carriageway curb + striped safety bollards.
+ for(const x of [-7.4,7.4])b.rail([x,.15,-33.4],[x,.15,33.4],.85,rail,{spacing:1.1,depth:.025});
+ for(const side of [-1,1]){
+  const gx=side*5.12;
+  b.box([gx,.60,0],[.065,.24,halfZ*2-.6],guardWhite);
+  b.box([gx-side*.03,.60,0],[.02,.06,halfZ*2-.6],noise);
+  for(let z=-33;z<=33;z+=2.0)b.cylinderAt([gx,.39,z],.042,.62,guardWhite);
+  for(const z of [-30.5,-23.5,-16.5,-10.5,-5.5,5.5,10.5,16.5,23.5,30.5]){
+   const bx=side*5.42;
+   b.cylinderAt([bx,.58,z],.052,.78,guardWhite);
+   for(const dy of [.36,.58,.78])b.cylinderAt([bx,dy,z],.055,.09,bollardDark);
+   b.cylinderAt([bx,.89,z],.055,.065,reflectorYellow);
+  }
+ }
 
  // Vehicle road with acoustic screens, Langer arch ribs, overhead cross-braces
  // and a blue cross-braced underside visible from the pedestrian route.
@@ -142,14 +170,45 @@ export function createScene({scene,renderer}){
   const p=spiral[i],x=12.7+(p[0]-12.7)*.8,z=8+(p[2]-8)*.8,top=p[1]-.22;
   structuralBox([x,top/2,z],[.18,top,.18],steel,'spiral-support-'+i);
  }
- slabPath([[12.7,upperY,4.8],[23.2,upperY,4.8]],2.2,'upper-bank-path');
- structuralBox([18.4,upperY-.24,0],[8.8,.48,6.8],steel,'upper-east-approach');
- b.box([18.4,upperY+.025,0],[8.8,.05,6.5],dark);b.box([18.4,upperY+.057,0],[8.8,.014,.07],orange);
- for(const z of [-2.78,2.78])b.box([18.4,upperY+.057,z],[8.8,.014,.075],mark);
- for(const z of [-3.2,3.2])b.box([18.4,upperY+.7,z],[8.8,1.4,.09],noise);
- // The embankment continues beyond both shoulders. Its top joins the distant
- // wooded ground instead of ending as a thin green extrusion behind the pier.
- terrainPatch(14.8,23.8,-14.9,14.9,eastBankHeight,soil,'continuous-east-bank',.8);
+ slabPath([[12.7,upperY,4.8],[23.95,upperY,4.8]],2.2,'upper-bank-path');
+ structuralBox([19.0,upperY-.24,0],[10.0,.48,6.8],steel,'upper-east-approach');
+ b.box([19.0,upperY+.025,0],[10.0,.05,6.5],dark);b.box([19.0,upperY+.057,0],[10.0,.014,.07],orange);
+ for(const z of [-2.78,2.78])b.box([19.0,upperY+.057,z],[10.0,.014,.075],mark);
+ for(const z of [-3.2,3.2])b.box([19.0,upperY+.7,z],[10.0,1.4,.09],noise);
+ // Watertight enclosed east embankment inside the 48x34 square diorama plinth,
+ // with stratified cut-earth cross-section faces and concrete slope cribwork.
+ terrainPatch(14.8,24.0,-halfZ,halfZ,eastBankHeight,bankEarth,'continuous-east-bank',.55);
+ keep(b.box([14.8,.14,0],[.18,.34,halfZ*2],concrete),'bank-toe');
+ const bankCutMat=b.mat('base:inage-bank-cut','#686051',{roughness:.96});
+ keep(b.box([23.94,eastBankHeight(24.0,0)/2,0],[.14,eastBankHeight(24.0,0),halfZ*2],bankCutMat),'bank-cut-east');
+ for(const side of [-1,1]){
+  const zFace=side*halfZ,shape=new T.Shape();
+  shape.moveTo(14.8,0);shape.lineTo(14.8,eastBankHeight(14.8,zFace));
+  shape.lineTo(22.8,eastBankHeight(22.8,zFace));shape.lineTo(24.0,eastBankHeight(24.0,zFace));
+  shape.lineTo(24.0,0);shape.closePath();
+  const sideGeo=b.own(new T.ExtrudeGeometry(shape,{depth:.12,bevelEnabled:false}));
+  keep(b.mesh(sideGeo,bankCutMat,[0,0,side<0?zFace:zFace-.12]),'bank-cut-'+(side<0?'north':'south'));
+ }
+ // Japanese diamond concrete slope cribwork (法面保護工) embedded on the open
+ // east embankment flanks, keeping the bridge portal & spiral deck untouched.
+ const cribGroup=b.group('inage:slope-cribwork');
+ const cribMat=b.mat('concrete:slope-cribwork','#b8b7ac',{roughness:.92});
+ cribMat.userData.surfaceFinish={roughness:.92,metalness:0,envMapIntensity:.16};
+ for(const [zMin,zMax] of [[-32.8,-4.2],[4.2,32.8]]){
+  const slopeSpan=22.4-15.2,slopeRise=eastBankHeight(22.4,0)-eastBankHeight(15.2,0);
+  // Horizontal concrete curb bands at toe and crest of each crib panel.
+  b.box([15.25,eastBankHeight(15.25,0)+.04,(zMin+zMax)/2],[.22,.18,zMax-zMin],cribMat,cribGroup);
+  b.box([22.35,eastBankHeight(22.35,0)+.04,(zMin+zMax)/2],[.22,.18,zMax-zMin],cribMat,cribGroup);
+  for(let z0=zMin;z0<=zMax;z0+=2.4){
+   for(const dir of [-1,1]){
+    const z1=T.MathUtils.clamp(z0+dir*5.2,zMin,zMax);
+    const frac=Math.abs(z1-z0)/5.2;
+    if(frac<.18)continue;
+    const x1=15.2+slopeSpan*frac;
+    b.beam([15.2,eastBankHeight(15.2,z0)+.04,z0],[x1,eastBankHeight(x1,z1)+.04,z1],.14,cribMat,cribGroup,.14);
+   }
+  }
+ }
 
  // Other branch reaches the wooded roadside outside the Route 14 corridor.
  slabPath([[15.9,landingY,-1.6],[15.9,landingY,-4.7],[11.4,landingY,-4.7]],1.65,'east-bank-landing');
@@ -162,10 +221,10 @@ export function createScene({scene,renderer}){
  for(const x of [10.58,12.22])b.rail([x,landingY,-4.7],[x,.3,-11.33],1.05,rail,{spacing:.65,depth:.03});
  structuralBox([13.2,landingY/2,-4.7],[.55,landingY,.55],concrete,'east-bank-landing-column');
 
- // The miniature cuts the long descending western approach at a planted low
- // bank. It continues along X and never drops into the ground road.
- slabPath([[-22.8,3.5,0],[-14.3,lowerY,0]],lowerWidth,'west-descent');
- bank([[-22.8,3.22],[-18.7,.15]],-3.1,3.1);
+  // The miniature cuts the long descending western approach at a planted low
+  // bank. It continues along X and never drops into the ground road.
+ slabPath([[-23.95,3.5,0],[-14.3,lowerY,0]],lowerWidth,'west-descent');
+ bank([[-23.95,3.22],[-18.7,.15]],-3.1,3.1);
  structuralBox([-18.3,2.05,0],[.65,4.1,.65],steel,'west-descent-column');
  for(const [x,y,z]of [[-9,lowerY,-1.43],[-2,lowerY,-1.43],[5.7,lowerY,-1.43]]){
   b.cylinderAt([x,y+1.52,z],.045,3.04,rail);b.tube([x,y+3.04,z],[x,y+3.04,z+.38],.038,rail);
@@ -199,6 +258,15 @@ export function createScene({scene,renderer}){
  tie.userData.surfaceFinish={roughness:.98,metalness:0,envMapIntensity:0};
  joint.userData.surfaceFinish={roughness:.77,metalness:0,envMapIntensity:.28};architectureFinish(b,joint,'paint');
  const boltGeo=b.own(new T.CylinderGeometry(.032,.032,.023,6));boltGeo.rotateX(Math.PI/2);
+ const flange=b.mat('paint:blue-girder-flange','#628fa7'),steelHead=b.own(new T.CylinderGeometry(.033,.039,.023,8));
+ flange.userData.surfaceFinish={roughness:.66,metalness:0,envMapIntensity:.32};
+ for(let x=-13.3;x<14;x+=1.9){
+  b.box([x,upperY-.727,0],[.215,.035,6.37],flange);
+  for(const z of [-3.05,3.05]){
+   b.box([x,upperY-.754,z],[.32,.032,.42],joint);
+   for(const dz of [-.13,.13])b.mesh(steelHead,fastener,[x,upperY-.779,z+dz]);
+  }
+ }
  for(const x of [-10.5,-3.5,3.5,10.5])for(const z of [-3.325,3.325]){
   b.box([x,upperY-.47,z],[.52,.38,.025],joint);
   for(const dx of [-.17,.17])for(const dy of [-.11,.11])b.mesh(boltGeo,fastener,[x+dx,upperY-.47+dy,z+Math.sign(z)*.024]);
@@ -215,9 +283,12 @@ export function createScene({scene,renderer}){
   b.box([x,.52,z],[1.24,.035,1.28],gasket);
   for(const dx of [-.68,.68])for(const dz of [-.68,.68])b.cylinderAt([x+dx,.515,z+dz],.038,.028,fastener);
  }
- const sign=b.sign('自転車はおして\nとおりましょう',1.35,.58,[8.9,lowerY+.83,-1.51],{bg:'#e8edf0',fg:'#31577b',size:100});sign.rotation.y=Math.PI/2;
+ // The notice is fixed flush to the solid left parapet before the stairs.
+ const signPanelZ=-(lowerWidth-.06)/2+.033;
+ b.box([8.85,lowerY+.36,signPanelZ],[.86,.37,.004],rail);
+ b.sign('自転車はおして\nとおりましょう',.83,.34,[8.85,lowerY+.36,signPanelZ+.003],{bg:'#e8edf0',fg:'#31577b',size:100});
  for(const [x,z,h]of [[-19,-8,4.1],[-16,-9,4.8],[-12,-9.7,5],[-10,7.6,4.6],[-16,8.5,5.3],[9.1,8.7,5],[12.6,8.2,5.5],[17.5,-9.5,5.1],[19.9,9.4,5.6]])b.tree(x,z,h,1.3);
- b.shrubs(-15,-8,10,2,.9);b.shrubs(-15,8,9,2,.8);b.shrubs(15,8.5,7,2,.9);
+ for(const [x,z,w,d,h] of [[-18,-8.7,3.4,2.1,1.2],[-13.1,-7.9,1.8,1.5,.56],[-16.4,8.3,3.2,2.3,1.35],[-10.9,7.8,1.6,1.1,.48],[12.6,10.6,2.8,1.7,.82]])b.shrubs(x,z,w,d,h);
  for(const [x,z,h]of [[19.7,5.8,4.3],[21.4,-5.6,5.1],[22.1,6.5,4.7]]){
   const before=new Set(b.root.children);b.tree(x,z,h,1.3);const rise=.3+(x-14.8)/8*10.2;
   for(const o of b.root.children)if(!before.has(o))o.position.y+=rise;
@@ -228,66 +299,72 @@ export function createScene({scene,renderer}){
  b.box([-10,1.35,6.92],[1.35,.65,.02],glass);
  const wheel=b.own(new T.CylinderGeometry(.32,.32,.17,16));wheel.rotateZ(Math.PI/2);
  for(const z of [7.6,9.8])for(const x of [-10.82,-9.18])b.mesh(wheel,tyre,[x,.38,z]);
- const api=b.finish({w:48,d:30,photo:{position:[-27,17,30],target:[0,6,0],fov:46},companion:{position:[-11,6.85,.05],target:[10.6,7,0],fov:56},overview:[-1,.8,1.3],background:'#a8b8be'});
- // Keep the continuous surroundings outside the finite bridge bounds so Home
- // still frames the architecture. B owns their buffers and materials as usual.
- const context=b.group('inage:continuing-woodland');
- const contextSoil=b.mat('soil:woodland-ground','#536448'),contextBark=b.mat('bark:woodland-branches','#534d3d');
- const lowHeight=(x,z)=>x>=14.8?eastBankHeight(x,z):.018+.035*Math.sin(x*.09)*Math.sin(z*.13);
- const addGround=(...args)=>{const mesh=terrainPatch(...args,lowHeight,contextSoil,'woodland-terrain',2.7);context.add(mesh);};
- addGround(23.8,125,-95,95);addGround(-100,23.8,-95,-14.9);addGround(-100,23.8,14.9,95);addGround(-100,-24,-14.9,14.9);
- // Extend the roadway through the envelope so the front edge does not float
- // against an empty horizon. These distant receivers add no overview padding.
- for(const z of [-54.9,54.9]){
-  b.box([0,.07,z],[10,.09,80],dark,context);b.box([0,.126,z],[.095,.012,80],orange,context);
-  for(const side of [-1,1]){b.box([side*6.1,.17,z],[2.2,.22,80],paver,context);b.box([side*4.75,.125,z],[.1,.012,80],mark,context);}
- }
- const branches=[],leaves=[],r=b.rng;
+ // Lush Japanese embankment woodland, tiered slope shrubs, meadow grass and
+ // wildflowers strictly contained within the 48x34 square diorama plinth.
+ const woodland=b.group('inage:diorama-woodland');
+ const contextBark=b.mat('bark:woodland-branches','#655747');
+ const lowHeight=(x,z)=>x>=14.8?eastBankHeight(x,z):.05;
+ const branches=[],leaves=[],r=b.rng;let treeCount=0;
  const branch=(a,c,radius)=>branches.push({a,c,radius});
  function woodlandTree(x,z,h,spread){
-  const y=lowHeight(x,z),lean=(r()-.5)*.6,top=[x+lean,y+h*.78,z+.12];branch([x,y,z],top,h*.028);
+  treeCount++;
+  const y=lowHeight(x,z),lean=(r()-.5)*1.0,top=[x+lean,y+h*.78,z+.12];branch([x,y,z],top,h*.029);
   for(let j=0;j<9;j++){
    const a=j*2.3999+r()*.28,reach=spread*(.6+r()*.4),end=[x+Math.cos(a)*reach,y+h*(.48+r()*.38),z+Math.sin(a)*reach];
    branch([x+lean*.5,y+h*(.3+j*.038),z],end,h*.008+.014);
    for(let k=0;k<3;k++){
-    const tip=[end[0]+Math.cos(a+k*1.9)*spread*.28,end[1]+.35+r()*.6,end[2]+Math.sin(a+k*1.9)*spread*.28];branch(end,tip,.015);
-    for(let n=0;n<24;n++){
-     const angle=r()*Math.PI*2,rad=Math.sqrt(r())*spread*.39;
-     leaves.push({x:tip[0]+Math.cos(angle)*rad,y:tip[1]+(r()-.45)*spread*.56,z:tip[2]+Math.sin(angle)*rad,size:.15+r()*.18,hue:.22+r()*.065});
+    const tip=[end[0]+Math.cos(a+k*1.9)*spread*.28,end[1]+.35+r()*.55,end[2]+Math.sin(a+k*1.9)*spread*.28];branch(end,tip,.015);
+    for(let n=0;n<18;n++){
+     const angle=r()*Math.PI*2,rad=Math.sqrt(r())*spread*.38;
+     leaves.push({x:tip[0]+Math.cos(angle)*rad,y:tip[1]+(r()-.45)*spread*.54,z:tip[2]+Math.sin(angle)*rad,center:tip,size:.24+r()*.22,hue:.21+r()*.08});
     }
    }
   }
  }
- // A close irregular shoulder, a middle canopy and a taller rear layer give
- // parallax and branch-sized openings instead of an opaque row of green balls.
- for(let row=0;row<5;row++)for(let j=0;j<12;j++){
-  const x=26.7+row*10+r()*4,z=-48+j*8.6+(r()-.5)*4;
-  woodlandTree(x,z,6.7+r()*4.5,2.8+r()*1.3);
+ // Bounded corner groves and east hillside crest trees inside the 48x58 block.
+ const dioramaTrees=[
+  [-21.5,-24.0,6.8,2.4],[-16.2,-22.5,7.2,2.4],[-11.4,-24.8,6.9,2.3],
+  [-21.5,-13.0,6.6,2.3],[-17.8,-12.2,7.2,2.4],[-11.6,-13.4,7.4,2.5],
+  [-21.2,12.6,6.8,2.4],[-16.8,13.0,7.1,2.3],[-11.8,13.6,6.4,2.2],
+  [-20.8,23.5,6.9,2.4],[-15.8,24.2,7.1,2.4],[-11.2,22.8,6.6,2.3],
+  [17.8,-25.5,5.4,1.9],[21.4,-24.2,6.6,2.2],[22.6,-19.2,6.8,2.2],[18.6,-18.8,5.5,1.9],
+  [17.8,-13.6,5.0,1.8],[21.2,-13.2,6.4,2.1],[22.6,-8.6,6.8,2.1],[22.8,-4.8,5.9,1.9],
+  [17.6,13.8,5.1,1.8],[21.0,13.2,6.3,2.1],[22.6,9.2,6.6,2.1],[22.4,14.2,5.8,1.9],
+  [18.2,19.4,5.4,1.9],[21.6,19.8,6.5,2.2],[22.4,25.0,6.7,2.2],[17.8,25.2,5.2,1.9],
+  [17.8,-30.5,5.5,2.0],[21.8,-29.6,6.8,2.2],[17.8,30.5,5.5,2.0],[21.8,29.6,6.8,2.2],
+  [18.8,-7.2,4.8,1.7],[20.2,-11.0,5.6,1.9],[20.6,11.2,5.4,1.9],
+ ];
+ for(const [x,z,h,s] of dioramaTrees)woodlandTree(x,z,h,s);
+ const slopeShrubSpecs=[
+  [16.2,-24.2,2.2,1.5],[19.4,-22.2,2.3,1.6],[21.6,-17.8,2.2,1.5],[16.8,-18.6,2.1,1.4],
+  [16.2,-11.6,2.0,1.4],[17.6,-6.2,1.8,1.2],[19.0,-9.2,2.1,1.5],[21.4,-7.8,2.1,1.5],
+  [16.2,12.2,2.0,1.4],[18.8,10.0,2.1,1.4],[21.6,8.4,2.1,1.6],[21.2,-3.6,1.6,1.0],
+  [17.2,-14.6,1.9,1.3],[19.6,14.6,1.9,1.3],
+  [16.4,19.2,2.2,1.5],[19.8,21.6,2.3,1.6],[21.8,24.4,2.2,1.5],[16.8,25.0,2.1,1.4],
+ ];
+ for(const [sx,sz,rad,ht] of slopeShrubSpecs){
+  const baseY=eastBankHeight(sx,sz),center=[sx,baseY+ht*.42,sz];
+  for(let n=0;n<64;n++){
+   const a=r()*Math.PI*2,d=Math.sqrt(r())*rad,px=T.MathUtils.clamp(sx+Math.cos(a)*d,15.0,23.6),pz=T.MathUtils.clamp(sz+Math.sin(a)*d,-halfZ+.4,halfZ-.4);
+   const py=eastBankHeight(px,pz)+(.14+r()*ht*(1-d/rad*.45));
+   leaves.push({x:px,y:py,z:pz,center,size:.21+r()*.20,hue:.21+r()*.06});
+  }
  }
- for(const side of [-1,1])for(let row=0;row<3;row++)for(let j=0;j<11;j++){
-  const x=-44+j*6.1+(r()-.5)*2,z=side*(18+row*9+r()*3);
-  if(Math.abs(x)<9.5)continue; // the continuing road stays clear beyond the model too
-  if(x>8&&x<18&&row===0)continue;
-  woodlandTree(x,z,6+r()*5,2.7+r()*1.3);
- }
- for(const [x,z,h,s]of [[-18,-10,8.2,3.1],[-11,-11.6,9.1,3.3],[-20,9.5,8.7,3.5],[-12,11.6,8,3],[19,-10,7.4,2.8],[20,13,8.3,3.2],[25,8,8.2,3.4],[26,-6.5,7.8,3.2]])woodlandTree(x,z,h,s);
- for(const [x,z,h,s]of [[17.3,-11,4.8,1.8],[19,-6.9,5.3,1.9],[20.5,-12.7,5.7,2.2],[17.2,13.3,4.9,1.8],[20.5,11.4,5.5,2]])woodlandTree(x,z,h,s);
  const branchGeometry=b.own(new T.CylinderGeometry(.62,1,1,7)),branchMesh=new T.InstancedMesh(branchGeometry,contextBark,branches.length),object=new T.Object3D(),up=new T.Vector3(0,1,0);
  branches.forEach(({a,c,radius},i)=>{const p=new T.Vector3(...a),q=new T.Vector3(...c);object.position.copy(p).add(q).multiplyScalar(.5);object.quaternion.setFromUnitVectors(up,q.clone().sub(p).normalize());object.scale.set(radius,p.distanceTo(q),radius);object.updateMatrix();branchMesh.setMatrixAt(i,object.matrix);});
- branchMesh.name='inage:woodland-branch-network';branchMesh.castShadow=true;branchMesh.receiveShadow=true;branchMesh.computeBoundingSphere();context.add(branchMesh);b.instances.push(branchMesh);
- const crown=b.leaves(leaves,{color:'#6d854c',name:'foliage:inage-woodland-leaves'});context.add(crown);
+ branchMesh.name='inage:woodland-branch-network';branchMesh.castShadow=true;branchMesh.receiveShadow=true;branchMesh.computeBoundingSphere();woodland.add(branchMesh);b.instances.push(branchMesh);
+ const crown=b.leaves(leaves,{color:'#83995e',name:'foliage:inage-woodland-leaves'});woodland.add(crown);
  const bankCover=[];
- for(let i=0;i<50000;i++){
-  const x=14.9+r()*8.8,z=-39+r()*78;
-  // Cover the near shoulder and both outer edges too. Size and direction
-  // still vary so the bank reads as interwoven plants rather than flat paint.
-  const size=.30+r()*.30;
-  bankCover.push({x,y:eastBankHeight(x,z)+size*.42,z,size,rx:(r()-.5)*.7,ry:r()*Math.PI*2,rz:(r()-.5)*.85,hue:.20+r()*.085});
+ for(let i=0;i<22000;i++){
+  const x=14.95+r()*8.8,z=-halfZ+.35+r()*(halfZ*2-.7);
+  const cover=coverAt(x,z);
+  if(r()>.025+cover*cover*.86)continue;
+  const size=.13+cover*.2+r()*.24;
+  bankCover.push({x,y:eastBankHeight(x,z),z,size,ry:r()*Math.PI*2});
  }
- const groundcover=b.leaves(bankCover,{narrow:true,color:'#688449',name:'foliage:inage-bank-groundcover'});context.add(groundcover);
- // A varied meadow on the sloping banks, in small irregular drifts rather
- // than a repeated border. Each blossom is instanced together with its stem,
- // so thousands of details need just two additional draw calls.
+ const grassPigment=new T.Color('#768951'),dryPigment=new T.Color('#aa9678');
+ const meadow=createMeadowPatch(bankCover,{name:'foliage:inage-bank-groundcover',groundColor:(x,z,out)=>out.copy(dryPigment).lerp(grassPigment,coverAt(x,z))});
+ woodland.add(meadow.mesh);b.instances.push(meadow.mesh);b.own(meadow.mesh.geometry);b.materials.add(meadow.mesh.material);b.animations.push(meadow.update);
  const flowerPositions=[],flowerIndices=[];
  for(let petal=0;petal<5;petal++){
   const a=petal*Math.PI*2/5,tip=[Math.cos(a)*.1,0,Math.sin(a)*.1],side=.043;
@@ -300,12 +377,13 @@ export function createScene({scene,renderer}){
  const stemMaterial=b.mat('plant:inage-meadow-stems','#63804d',{roughness:.95});
  const stemGeometry=b.own(new T.CylinderGeometry(.008,.012,1,5));
  const blossoms=[];
- for(let patch=0;patch<680;patch++){
-  const cx=15.8+r()*7.7,cz=-38+r()*76;
-  for(let j=0,n=4+Math.floor(r()*6);j<n;j++){
-   const x=cx+(r()-.5)*1.5,z=cz+(r()-.5)*1.5;
-   if(x<15.2||x>23.6||Math.abs(z)>38.5)continue;
-   const height=.13+r()*.22,scale=.72+r()*.65;
+ for(let patch=0;patch<58;patch++){
+  const cx=15.3+r()*3.4,cz=-halfZ+1.2+r()*(halfZ*2-2.4);
+  if(coverAt(cx,cz)<.44)continue;
+  for(let j=0,n=3+Math.floor(r()*4);j<n;j++){
+   const x=cx+(r()-.5)*1.1,z=cz+(r()-.5)*1.1;
+   if(x<15.1||x>20.5||Math.abs(z)>halfZ-.6)continue;
+   const height=.10+r()*.14,scale=.52+r()*.42;
    blossoms.push({x,z,y:eastBankHeight(x,z),height,scale,color:r()});
   }
  }
@@ -314,11 +392,12 @@ export function createScene({scene,renderer}){
  for(let i=0;i<blossoms.length;i++){
   const p=blossoms[i];flowerObject.quaternion.copy(normalRotation);flowerObject.position.set(p.x,p.y,p.z).addScaledVector(bankNormal,p.height/2);flowerObject.scale.set(1,p.height,1);flowerObject.updateMatrix();stems.setMatrixAt(i,flowerObject.matrix);
   flowerObject.position.set(p.x,p.y,p.z).addScaledVector(bankNormal,p.height);flowerObject.scale.setScalar(p.scale);flowerObject.updateMatrix();petals.setMatrixAt(i,flowerObject.matrix);
-  petals.setColorAt(i,new T.Color(p.color<.46?'#f8e8ea':p.color<.76?'#f4d076':p.color<.92?'#efb9cc':'#f7f2df'));
+  petals.setColorAt(i,new T.Color(p.color<.42?'#e2d8be':p.color<.78?'#d8be6a':p.color<.92?'#d6a9b6':'#dfe3c8'));
  }
- for(const [mesh,name]of [[petals,'inage:bank-wildflowers'],[stems,'inage:bank-wildflower-stems']]){mesh.name=name;mesh.castShadow=false;mesh.receiveShadow=true;mesh.computeBoundingSphere();context.add(mesh);b.instances.push(mesh);}
- api.root.userData.inageWoodland={trees:leaves.length/(9*3*24),contextOutsideFraming:true,bankHeightAtEdge:eastBankHeight(23.8,0)};
- api.root.userData.inageLayout={axis:'x',groundRoadAxis:'z',upperY,lowerY,landingY,upperWidth,lowerWidth,roadHalfWidth:5,halfSpan,stairStart,stairEnd};
+ for(const [mesh,name]of [[petals,'inage:bank-wildflowers'],[stems,'inage:bank-wildflower-stems']]){mesh.name=name;mesh.castShadow=false;mesh.receiveShadow=true;mesh.computeBoundingSphere();woodland.add(mesh);b.instances.push(mesh);}
+ const api=b.finish({w:48,d:68,photo:{position:[-27,17,30],target:[0,6,0],fov:46},companion:{position:[-9.5,6.85,.05],target:[15.5,7,0],fov:52},overview:[-.92,.72,1.25],background:'#a8b8be'});
+ api.root.userData.inageWoodland={trees:treeCount,dioramaContained:true,bankHeightAtEdge:eastBankHeight(24.0,0)};
+ api.root.userData.inageLayout={axis:'x',groundRoadAxis:'z',upperY,lowerY,landingY,upperWidth,lowerWidth,roadHalfWidth:5,halfSpan,stairStart,stairEnd,diorama:{width:48,depth:68}};
  api.root.userData.materialDirection={paint:'dielectric weathered blue coating',concrete:'CC0 photographed concrete at 2.4 metre scale',night:'shielded walkway and road downlights with selected cast shadows'};
  const dispose=api.dispose;let released=false;api.dispose=()=>{if(released)return;released=true;for(const entry of b.lamps)if(entry.light?.isSpotLight&&entry.light.castShadow)entry.light.shadow.dispose();dispose();};
  return api;

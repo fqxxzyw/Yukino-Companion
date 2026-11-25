@@ -4,6 +4,7 @@ import { Group as HostGroup, Color as HostColor, DataTexture as $n, Vector3 as P
 import { RoundedBoxGeometry as Ia } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries as Da } from 'three/addons/utils/BufferGeometryUtils.js';
 import {createClassroomClock} from './classroom-clock.mjs';
+import {finishClassroomInterior} from './classroom-interior.mjs';
 
 export function createScene({scene,renderer}={}) {
 
@@ -91,6 +92,7 @@ function Cu(i={},e={}){let t={meshes:e.meshes||new Set,geometries:e.geometries||
 var Mi=Cu({shadows:!0,motion:!0});
 As.add(Mi);
 const wallClock=createClassroomClock(Mi);
+const interior=finishClassroomInterior(Mi);
 var Qt=new mi(16777215,2);
 Qt.castShadow=!0;
 Qt.shadow.mapSize.set(2048,2048);
@@ -125,12 +127,15 @@ As.add(La);
   const anchor=Mi.getObjectByName('Character_Anchor');
   const anchors={character:anchor,Character_Anchor:anchor};
   function updateTime(date=new Date()){return !disposed&&wallClock.updateTime(date)}
-  function update(dt,time) { if(!disposed){updateTime();Mi.userData.animate(Number.isFinite(time)?time:0);} }
+  let moving=true;
+  function setMotion(value){moving=typeof value==='boolean'?value:value?.enabled!==false;Mi.userData.setMotionEnabled(moving);}
+  function update(dt,time) { if(!disposed){updateTime();const t=Number.isFinite(time)?time:0;Mi.userData.animate(t);if(moving)interior.update(t);} }
   setLighting();
 
 
   // Keep host characters/lights intact; move only newly authored objects under this factory root.
   for (const child of [...scene.children]) if (!existing.has(child)) root.add(child);
+  root.add(interior.exteriorRain,interior.overhang);
   scene.add(root);
   rememberRendererState();
   const ownedBackground = scene.background, ownedFog = scene.fog, ownedEnvironment=scene.environment;
@@ -157,6 +162,7 @@ As.add(La);
   function dispose() {
     if (disposed) return;
     disposed = true;
+    interior.dispose();
     root.removeFromParent();
     for (const light of resources.lights) light.shadow?.dispose();
     for (const instance of resources.instances) instance.dispose();
@@ -173,5 +179,5 @@ As.add(La);
 
   }
 
-return {root,anchors,cameraPresets,lightingPresets,setLighting,update,updateTime,timeUpdateInterval:1000,dispose};
+return {root,framingRoot:Mi,anchors,cameraPresets,lightingPresets,setLighting,setMotion,setSunlight:interior.setSunlight,sunAzimuthOffset:-121,lightResponse:{sun:.94,ambient:.64,environment:.54},update,updateTime,timeUpdateInterval:1000,dispose};
 }

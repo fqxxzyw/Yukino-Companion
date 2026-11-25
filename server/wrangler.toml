@@ -23,9 +23,9 @@ APP_ENV = "production"
 MAIL_PROVIDER = "gmail"
 MAIL_FROM_EMAIL = "fqxxzyw@gmail.com"
 MAIL_FROM_NAME = "Yukino Companion"
-# Add the production origin(s), comma separated. workers.dev plus a future
-# custom domain; never use "*".
-ALLOWED_ORIGINS = "https://yukino-api.fqxxzyw.workers.dev"
+# Production origins, comma separated (custom domain plus workers.dev fallback);
+# never use "*".
+ALLOWED_ORIGINS = "https://yukino.fqxxzyw.cn,https://yukino-api.fqxxzyw.workers.dev"
 
 [[d1_databases]]
 binding = "DB"

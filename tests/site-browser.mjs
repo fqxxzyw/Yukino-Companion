@@ -39,7 +39,7 @@ try {
   // Register through the real website; code comes from the loopback mailbox.
   await page.goto(`${BASE}/register`, {waitUntil: 'domcontentloaded'});
   await page.fill('#register-email', email);
-  await page.fill('#register-nickname', `站点测试${Date.now()}`);
+  assert.equal(await page.locator('#register-nickname').getAttribute('required'), null);
   await page.click('#register-send-code');
   await page.locator('.form-notice').waitFor({state: 'visible'});
   const registerCode = await codeFor(email, '注册验证码');
@@ -48,8 +48,20 @@ try {
   await page.fill('#register-confirm', password);
   await Promise.all([page.waitForURL('**/account'), page.click('#register-submit')]);
   await page.locator('.account-center, .account-head').first().waitFor({state: 'visible'});
-  assert.match(await page.locator('body').innerText(), /已确认进度/);
-  assert.match(await page.locator('body').innerText(), /网页端/);
+  assert.match(await page.locator('body').innerText(), /陪伴进度/);
+  const newName = `🌙晚风 · ${Date.now().toString(36).slice(-4)}`;
+  const nickname = page.locator('#nickname-input');
+  if (await nickname.isHidden()) await page.click('#edit-nickname');
+  await nickname.fill(newName);
+  await page.click('#nickname-submit');
+  await page.waitForFunction(name => document.querySelector('.ac-identity h1')?.textContent === name, newName);
+  assert.deepEqual(await page.locator('.ac-avatar,.header-user-avatar').allTextContents(), ['🌙','🌙','🌙']);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(name => document.querySelector('.ac-identity h1')?.textContent === name, newName);
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({path:'build/account-review/site-account-390.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
   const accountScreenshot = 'build/account-review/site-account-1440.png';
   await page.screenshot({path: accountScreenshot, fullPage: true});
 
@@ -75,6 +87,32 @@ try {
   await Promise.all([page.waitForURL('**/account'), page.click('#login-submit')]);
   await page.locator('.account-head').waitFor({state: 'visible'});
 
+  const cookies = await context.cookies();
+  const refreshCookie = cookies.find(({name}) => name === 'yk_refresh');
+  assert.ok(refreshCookie?.httpOnly);
+  assert.ok(refreshCookie.expires > Date.now() / 1000);
+
+  const refreshPath = '**/api/v1/auth/refresh';
+  await page.route(refreshPath, (route) => route.fulfill({status: 503, json: {}}), {times: 1});
+  await page.goto(`${BASE}/login/`, {waitUntil: 'domcontentloaded'});
+  await page.locator('#retry-account').waitFor({state: 'visible'});
+  assert.equal(await page.locator('#login-form').count(), 0);
+
+  // Restore the account even if another tab is briefly rotating the cookie.
+  await page.route(refreshPath, (route) => route.fulfill({
+    status: 409, json: {error: {code: 'refresh_in_progress', retryAfter: 1}},
+  }), {times: 1});
+  await Promise.all([page.waitForURL('**/account', {timeout: 6000}), page.click('#retry-account')]);
+  await page.locator('.account-head').waitFor({state: 'visible'});
+
+  // A brief service outage shows retry without taking the user to sign-in.
+  await page.route(refreshPath, (route) => route.fulfill({status: 503, json: {}}), {times: 1});
+  await page.reload({waitUntil: 'domcontentloaded'});
+  await page.locator('#retry-account').waitFor({state: 'visible'});
+  assert.equal(new URL(page.url()).pathname, '/account');
+  await page.click('#retry-account');
+  await page.locator('.account-head').waitFor({state: 'visible'});
+
   // Deep links and unknown API behavior.
   await page.goto(`${BASE}/account`, {waitUntil: 'domcontentloaded'});
   await page.waitForTimeout(800);
@@ -87,12 +125,15 @@ try {
   const mobile = await context.newPage();
   await mobile.setViewportSize({width: 390, height: 844});
   await mobile.goto(`${BASE}/`, {waitUntil: 'domcontentloaded'});
+  const restoredAccount = mobile.locator('#header-account[href="/account"]');
+  await restoredAccount.waitFor({state: 'attached'});
+  assert.equal(await restoredAccount.locator('.header-user-avatar').textContent(), '🌙');
   await mobile.click('#nav-toggle');
   assert.equal(await mobile.locator('#header-nav').evaluate((node) => getComputedStyle(node).display !== 'none'), true);
   await mobile.screenshot({path: 'build/account-review/site-home-390.png', fullPage: true});
 
   assert.deepEqual(errors, []);
-  console.log('PASS website: real download link, register + auto-login, password reset, login, deep link, mobile nav');
+  console.log('PASS website: downloads, registration, password reset, remembered login, refresh retries, deep links, mobile nav');
 } finally {
   await browser.close();
 }

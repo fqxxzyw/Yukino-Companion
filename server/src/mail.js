@@ -3,9 +3,11 @@
 // writes messages to a loopback-only test inbox instead.
 import {base64url, fail} from './util.js';
 import {maskEmail} from './validation.js';
+import {MAIL_LOGO_PNG_BASE64} from './mail-logo.js';
 
 const GMAIL_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const GMAIL_SEND_ENDPOINT = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
+const LOGO_DATA_URL = `data:image/png;base64,${MAIL_LOGO_PNG_BASE64}`;
 let tokenCache = {key: '', value: '', expiresAt: 0};
 
 function toBase64(value) {
@@ -17,6 +19,10 @@ function toBase64(value) {
 
 function encodeHeader(value) {
   return `=?UTF-8?B?${toBase64(String(value))}?=`;
+}
+
+function mimePart(headers, base64) {
+  return [...headers, 'Content-Transfer-Encoding: base64', '', base64.match(/.{1,76}/g)?.join('\r\n') || ''];
 }
 
 function escapeHtml(value) {
@@ -116,9 +122,14 @@ export function createMailer({env, fetchImpl = globalThis.fetch, localSink = nul
     async send({to, subject, text, html}) {
       if (typeof to !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new Error('invalid recipient');
       if (typeof subject !== 'string' || subject.length > 160 || typeof text !== 'string' || text.length > 20000) throw new Error('invalid message');
-      const boundary = `yukino-${crypto.randomUUID()}`;
+      const messageId = crypto.randomUUID();
+      const boundary = `yukino-alternative-${messageId}`;
+      const related = `yukino-related-${messageId}`;
       const plain = String(text).replace(/\r?\n/g, '\r\n');
       const rich = html || `<pre style="font:14px/1.7 ui-sans-serif,system-ui,sans-serif;white-space:pre-wrap">${escapeHtml(plain)}</pre>`;
+      const hasLogo = rich.includes(LOGO_DATA_URL);
+      const logoId = `yukino-logo.${messageId}@${fromEmail.split('@').at(-1)}`;
+      const htmlPart = mimePart(['Content-Type: text/html; charset="UTF-8"'], toBase64(rich.replaceAll(LOGO_DATA_URL, `cid:${logoId}`)));
       const raw = [
         `From: ${encodeHeader(fromName)} <${fromEmail}>`,
         `To: <${to}>`,
@@ -127,15 +138,21 @@ export function createMailer({env, fetchImpl = globalThis.fetch, localSink = nul
         `Content-Type: multipart/alternative; boundary="${boundary}"`,
         '',
         `--${boundary}`,
-        'Content-Type: text/plain; charset="UTF-8"',
-        'Content-Transfer-Encoding: base64',
-        '',
-        toBase64(plain).replace(/(.{76})/g, '$1\r\n'),
+        ...mimePart(['Content-Type: text/plain; charset="UTF-8"'], toBase64(plain)),
         `--${boundary}`,
-        'Content-Type: text/html; charset="UTF-8"',
-        'Content-Transfer-Encoding: base64',
-        '',
-        toBase64(rich).replace(/(.{76})/g, '$1\r\n'),
+        ...(hasLogo ? [
+          `Content-Type: multipart/related; boundary="${related}"; type="text/html"`,
+          '',
+          `--${related}`,
+          ...htmlPart,
+          `--${related}`,
+          ...mimePart([
+            'Content-Type: image/png; name="yukino-mark.png"',
+            `Content-ID: <${logoId}>`,
+            'Content-Disposition: inline; filename="yukino-mark.png"',
+          ], MAIL_LOGO_PNG_BASE64),
+          `--${related}--`,
+        ] : htmlPart),
         `--${boundary}--`,
         '',
       ].join('\r\n');
@@ -146,16 +163,12 @@ export function createMailer({env, fetchImpl = globalThis.fetch, localSink = nul
   };
 }
 
-// Use a fixed project-owned image URL; the adjacent brand text remains visible
-// when an email client blocks remote images. No secrets belong in this URL.
-const LOGO_URL = 'https://yukino-api.fqxxzyw.workers.dev/assets/icon-192.png';
-
 function mailLayout({title, content}) {
   return `<div style="margin:0;padding:24px 12px;background:#f3f6fa;color:#233042;font-family:Arial,'Microsoft YaHei',sans-serif">
-    <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;margin:0 auto;border-collapse:collapse;background:#ffffff;border:1px solid #e0e7ef;border-radius:14px">
+    <table role="presentation" align="center" cellspacing="0" cellpadding="0" style="width:100%;max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e0e7ef;border-radius:14px">
       <tr><td style="padding:24px 24px 18px;border-bottom:1px solid #edf1f5">
         <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse"><tr>
-          <td style="vertical-align:middle;padding-right:10px"><img src="${LOGO_URL}" width="36" height="36" alt="" style="display:block;border:0;border-radius:9px"></td>
+          <td style="vertical-align:middle;padding-right:10px"><img src="${LOGO_DATA_URL}" width="36" height="36" alt="" style="display:block;border:0"></td>
           <td style="vertical-align:middle;color:#27384b;font-size:16px;font-weight:700">Yukino Companion</td>
         </tr></table>
       </td></tr>
@@ -163,58 +176,73 @@ function mailLayout({title, content}) {
         <h1 style="margin:0 0 16px;color:#1d2b3c;font-size:21px;line-height:1.4">${escapeHtml(title)}</h1>
         ${content}
       </td></tr>
-      <tr><td style="padding:16px 24px 22px;border-top:1px solid #edf1f5;color:#66778b;font-size:12px;line-height:1.7">
-        这是一封自动发送的账号服务邮件。请妥善保管你的账号信息。
-      </td></tr>
     </table>
   </div>`;
 }
 
 export function verificationEmail({purpose, code, minutes = 10, email}) {
   const register = purpose === 'register';
-  const action = register ? '注册 Yukino Companion 账号' : '重置 Yukino Companion 密码';
-  const title = register ? '确认你的注册' : '确认重置密码';
+  const title = register ? '注册验证码' : '密码重置验证码';
+  const instruction = `请在应用或官网的${register ? '注册' : '密码重置'}页面输入下方验证码。`;
+  const security = '请勿向任何人透露验证码。如果这不是你的操作，请忽略这封邮件。';
   const account = maskEmail(email);
   const text = [
-    `你正在${action}。`,
+    instruction,
     '',
     `验证码：${code}`,
     `有效期：${minutes} 分钟`,
     '',
-    '请在应用或官网的对应页面输入此验证码。请勿向任何人透露验证码。',
-    '如果不是你本人操作，请忽略本邮件。Yukino Companion 不会通过邮件、聊天或电话索要你的密码或验证码。',
+    security,
     '',
     `账号邮箱：${account}`,
     'Yukino Companion 账号服务',
   ].join('\n');
   const html = mailLayout({title, content: `
-    <p style="margin:0 0 16px">你正在${escapeHtml(action)}。请在应用或官网的对应页面输入下方验证码：</p>
-    <p style="margin:0 0 14px;padding:16px;color:#244664;font-family:Consolas,monospace;font-size:28px;font-weight:700;letter-spacing:5px;text-align:center;background:#f0f6fb;border:1px solid #d9e6f1;border-radius:10px">${escapeHtml(code)}</p>
-    <p style="margin:0 0 16px">有效期 <strong>${escapeHtml(minutes)} 分钟</strong>。请勿向任何人透露验证码。</p>
-    <p style="margin:0 0 14px;color:#52657a">如果不是你本人操作，请忽略本邮件。Yukino Companion 不会通过邮件、聊天或电话索要你的密码或验证码。</p>
+    <p style="margin:0 0 16px">${instruction}</p>
+    <p style="margin:0 0 8px;padding:14px;color:#244664;font-family:Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:4px;text-align:center;background:#f0f6fb;border:1px solid #d9e6f1;border-radius:10px">${escapeHtml(code)}</p>
+    <p style="margin:0 0 18px;color:#52657a;font-size:14px;text-align:center">验证码在 <strong>${escapeHtml(minutes)} 分钟</strong>内有效</p>
+    <p style="margin:0 0 14px;color:#52657a">${security}</p>
     <p style="margin:0;color:#718196;font-size:13px">账号邮箱：${escapeHtml(account)}</p>`});
-  return {subject: `Yukino Companion · ${register ? '注册验证码' : '密码重置验证码'}`, text, html};
+  return {subject: `Yukino Companion · ${title}`, text, html};
+}
+
+export function accountRequestEmail({purpose}) {
+  const register = purpose === 'register';
+  const title = register ? '账号已存在' : '密码重置请求';
+  const summary = register
+    ? '这个邮箱已经注册过 Yukino Companion。'
+    : '我们收到了密码重置请求，这个邮箱没有对应的 Yukino Companion 账号。';
+  const nextStep = register
+    ? '请直接登录。如果忘记密码，可以使用“忘记密码”功能。'
+    : '如果你已注册，请核对填写的邮箱地址。';
+  const ignore = '如果这不是你的操作，请忽略这封邮件。';
+  return {
+    subject: `Yukino Companion · ${title}`,
+    text: [summary, nextStep, '', ignore, '', 'Yukino Companion 账号服务'].join('\n'),
+    html: mailLayout({title, content: `
+      <p style="margin:0 0 12px">${summary}</p>
+      <p style="margin:0 0 12px">${nextStep}</p>
+      <p style="margin:0;color:#52657a">${ignore}</p>`}),
+  };
 }
 
 export function securityNoticeEmail({kind, email}) {
   const label = kind === 'password-changed' ? '密码已修改' : '密码已重置';
   const account = maskEmail(email);
+  const nextStep = '如果这不是你的操作，请在 Yukino Companion 应用或官网使用“忘记密码”重置密码，并检查登录设备。';
   const text = [
     `你的 Yukino Companion 账号${label}。`,
     '',
     `账号邮箱：${account}`,
     '',
-    '如果是你本人操作，无需采取其他行动。',
-    '如果这不是你本人的操作，请打开 Yukino Companion 应用或官网，使用“忘记密码”重置密码，并检查账号中的登录设备。',
-    '本邮件不会包含密码或验证码。',
+    '如果是你的操作，无需处理。',
+    nextStep,
     '',
     'Yukino Companion 账号服务',
   ].join('\n');
-  const html = mailLayout({title: `账号安全提醒：${label}`, content: `
-    <p style="margin:0 0 16px">你的 Yukino Companion 账号<strong>${escapeHtml(label)}</strong>。</p>
-    <p style="margin:0 0 16px;color:#52657a">账号邮箱：${escapeHtml(account)}</p>
-    <p style="margin:0 0 14px">如果是你本人操作，无需采取其他行动。</p>
-    <p style="margin:0 0 14px;padding:14px 16px;background:#f4f7fa;border-left:3px solid #8aa8c5">如果这不是你本人的操作，请打开 Yukino Companion 应用或官网，使用“忘记密码”重置密码，并检查账号中的登录设备。</p>
-    <p style="margin:0;color:#52657a">本邮件不会包含密码或验证码。</p>`});
+  const html = mailLayout({title: label, content: `
+    <p style="margin:0 0 16px">如果是你的操作，无需处理。</p>
+    <p style="margin:0 0 14px;padding:14px 16px;background:#f4f7fa;border-left:3px solid #8aa8c5">${nextStep}</p>
+    <p style="margin:0;color:#52657a;font-size:13px">账号邮箱：${escapeHtml(account)}</p>`});
   return {subject: `Yukino Companion · ${label}`, text, html};
 }

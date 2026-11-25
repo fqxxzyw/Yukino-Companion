@@ -27,8 +27,16 @@ export class Diorama {
  beam(a,b,width,m,parent=this.root,depth=width){const p=vec(a),q=vec(b),o=this.box(p.clone().add(q).multiplyScalar(.5).toArray(),[width,p.distanceTo(q),depth],m,parent);o.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),q.sub(p).normalize());return o;}
  tube(a,b,r,m,parent=this.root){const p=vec(a),q=vec(b),o=this.cylinderAt(p.clone().add(q).multiplyScalar(.5).toArray(),r,p.distanceTo(q),m,parent);o.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),q.sub(p).normalize());return o;}
  group(name,p=[0,0,0],parent=this.root){const g=new T.Group();g.name=name;g.position.set(...p);parent.add(g);return g;}
- plinth(w,d,color='#686555'){
-  this.mesh(this.own(new RoundedBoxGeometry(w,.62,d,2,.14)),this.mat('base:cut-earth',color),[0,-.35,0]);
+ plinth(w,d,color='#686555',{depth=1.65,topY=0,x=0,z=0,rimColor='#4b473f',footColor='#383530'}={}){
+  // Museum-grade architectural miniature base: chamfered upper lip, recessed
+  // shadow reveal, thick stratified earth/concrete cut-wall, and dark footing.
+  const trim=this.mat('base:plinth-rim',rimColor,{roughness:.88});
+  const body=this.mat('base:cut-earth',color,{roughness:.96});
+  const foot=this.mat('base:plinth-footing',footColor,{roughness:.92});
+  const rimH=.14,footH=.22,bodyH=Math.max(.5,depth-rimH-footH);
+  this.mesh(this.own(new RoundedBoxGeometry(w+.14,rimH,d+.14,2,.04)),trim,[x,topY-rimH/2-.01,z]);
+  this.mesh(this.own(new RoundedBoxGeometry(w,bodyH,d,2,.10)),body,[x,topY-rimH-bodyH/2,z]);
+  this.mesh(this.own(new RoundedBoxGeometry(w-.42,footH,d-.42,2,.06)),foot,[x,topY-rimH-bodyH-footH/2+.02,z]);
  }
  sign(text,w,h,p,{bg='#ece8d6',fg='#292e30',size=82,font='serif',draw,emissive=false,parent=this.root}={}){
   const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.max(128,Math.round(1024*h/w));
@@ -68,9 +76,14 @@ export class Diorama {
    #endif
    transformed.z+=sin(uWindTime*1.8+phase+position.y*4.0)*uWindStrength*(position.y+.5);`);};
   m.customProgramCacheKey=()=>`leaf-wind:${narrow}`;
+  if(points.every(p=>p.center)){
+   const centers=new Float32Array(points.length*3);
+   points.forEach(({center},i)=>{if(center.isVector3)center.toArray(centers,i*3);else centers.set(center,i*3);});
+   g.setAttribute('crownCenter',new T.InstancedBufferAttribute(centers,3));
+  }
   const mesh=new T.InstancedMesh(g,m,points.length),o=new T.Object3D(),r=this.rng;
   mesh.name=name;
-  points.forEach((p,i)=>{o.position.set(p.x,p.y,p.z);o.rotation.set(p.rx??r()*2.4,p.ry??r()*6.28,p.rz??r()*6.28);const size=p.size??.17;o.scale.set(size,size*(narrow?2:1.25),size);o.updateMatrix();mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(p.hue??(.22+r()*.07),.23+r()*.2,.22+r()*.15));});
+  points.forEach((p,i)=>{o.position.set(p.x,p.y,p.z);o.rotation.set(p.rx??r()*2.4,p.ry??r()*6.28,p.rz??r()*6.28);const size=p.size??.17;o.scale.set(size,size*(narrow?2:1.25),size);o.updateMatrix();mesh.setMatrixAt(i,o.matrix);mesh.setColorAt(i,new T.Color().setHSL(p.hue??(.22+r()*.07),.17+r()*.15,.50+r()*.19));});
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();this.root.add(mesh);this.instances.push(mesh);this.animations.push(t=>{wind.uWindTime.value=t;});return mesh;
  }
  tree(x,z,height=4,spread=1.6){
@@ -82,7 +95,7 @@ export class Diorama {
    const start=[x+.1,height*(.34+j*.035),z];this.tube(start,end,.028+height*.007,bark);
    for(let k=0;k<4;k++){
     const tip=[end[0]+Math.cos(angle+k)*.6,end[1]+.4+r()*.45,end[2]+Math.sin(angle+k)*.6];this.tube(end,tip,.014,bark);
-    for(let n=0;n<32;n++){const a=r()*6.28,rad=Math.sqrt(r())*.65;points.push({x:tip[0]+Math.cos(a)*rad,y:tip[1]+(r()-.5)*.65,z:tip[2]+Math.sin(a)*rad,size:.12+r()*.15});}
+    for(let n=0;n<32;n++){const a=r()*6.28,rad=Math.sqrt(r())*.65;points.push({x:tip[0]+Math.cos(a)*rad,y:tip[1]+(r()-.5)*.65,z:tip[2]+Math.sin(a)*rad,size:.12+r()*.15,center:tip});}
    }
   }
   this.leaves(points);return points;

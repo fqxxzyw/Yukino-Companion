@@ -9,7 +9,15 @@ function advance(life,seconds,start=0){life.update(start);for(let i=1;i<=Math.ro
 
 test('cherry crowns are branch-supported notched five-petal geometry without opaque spherical cores',async()=>{
  const f=await fixture(),flower=f.root.getObjectByName('sakura:tree-0:flowers-0'),positions=flower.geometry.attributes.position,bins=new Set();
- assert.equal(f.life.metadata.trees.length,5);assert.equal(f.life.metadata.trees.filter(tree=>tree.weeping).length,3);assert.ok(f.life.metadata.blossomCount>40000);
+ const [hero,...companion]=f.life.metadata.trees;
+ assert.equal(hero.form,'garyu');assert.equal(f.life.metadata.trees.filter(tree=>tree.weeping).length,0);
+ assert.ok(companion.every(tree=>tree.spread<hero.spread*.5));
+ const arm=f.root.getObjectByName('sakura:tree-0:bough-0'),wood=arm.getObjectByName('sakura:tree-0:wood-0');
+ wood.geometry.computeBoundingBox();const extents=wood.geometry.boundingBox;
+ assert.ok(extents.max.x>hero.height,'principal limb extends further sideways than the tree is tall');
+ assert.ok(arm.position.y<hero.height*.32,'principal limb forks low on the old trunk');
+ assert.ok(f.life.metadata.sprayCount>500 && f.life.metadata.blossomCount>900);
+ assert.equal(flower.geometry.attributes.crownCenter.count,flower.count);
  for(let i=0;i<positions.count;i++){const x=positions.getX(i),y=positions.getY(i);if(Math.hypot(x,y)>.8)bins.add(Math.round(Math.atan2(y,x)/(Math.PI*2/5))+5);}
  assert.equal(bins.size,5);assert.equal(flower.geometry.userData.petals,5);assert.equal(flower.geometry.userData.notched,true);assert.equal(flower.geometry.userData.cupped,true);assert.equal(flower.material.emissive.getHex(),0);assert.equal(flower.material.side,f.T.DoubleSide);
  assert.equal(flower.parent.name,flower.userData.windOwner);assert.ok(flower.parent.children.some(child=>child.name.includes(':wood-')));

@@ -9,7 +9,7 @@ const entries={
  kasai:{label:'海风来信',kind:'outdoor',description:'海滨玻璃建筑与步道；白昼、暮色和夜景各有照明。',clear:'#91afbe',direction:[1,.65,1.5]},
  inage:{label:'未说出口',kind:'outdoor',description:'蓝色车行拱桥正下方是人行桥，地面道路从桥下横穿；纵向窄阶、两侧推行坡面与绕墩弧形坡道连接桥端。',clear:'#889caa',direction:[1,.8,1.2]},
  kyoto:{label:'朱影寻春',kind:'outdoor',description:'清水寺西门与三重塔、林间朱红鸟居通道的组合微缩景观；并非实地相邻关系。',clear:'#9daaa4',direction:[1,.85,1.3]},
- sakura:{label:'花影随流',kind:'outdoor',description:'垂樱小路旁的清浅溪流，能看见河床石子；花枝随风轻摇，花瓣落在水面后随流漂远。',clear:'#87b8cd',direction:[.55,.5,1.4]}
+ sakura:{label:'花影随流',kind:'outdoor',description:'臥龍桜的低横枝伸向清浅溪流，能看见河床石子；花枝随风轻摇，花瓣落在水面后随流漂远。',clear:'#87b8cd',direction:[.55,.5,1.4]}
 };
 export const SCENES=Object.freeze(Object.fromEntries(Object.entries(entries).map(([id,v])=>[id,Object.freeze({...v,thumbnail:`./scene-previews/${id}.jpg`,liveDaylight:true,background:`radial-gradient(ellipse at 50% 42%,${v.clear},#172332)`,lighting:Object.freeze({ambient:v.kind==='indoor'?.9:.75,key:1,color:'#eef4ff',direction:Object.freeze(v.direction)})})])));
 // Old identifiers migrate without retaining any old geometry or changing model files.

@@ -20,7 +20,7 @@ function normalMap(seed){
  return texture;
 }
 
-export function addClearStream(b,renderer){
+export function addClearStream(b,renderer,{downstreamEnd=STREAM_END}={}){
  // These stones interrupt the actual visible current. The same positions own
  // the wake field, so the choppy patches never appear without an obstruction.
  const obstacles=[[-1.28,-17,.45],[.75,-6.6,.52],[-1.18,3.8,.43],[1.05,16.2,.48]].map(([offset,z,radius])=>({x:streamCenter(z)+offset,z,radius}));
@@ -41,8 +41,10 @@ export function addClearStream(b,renderer){
   rock.bedY=bed;rock.topY=bed+halfHeight*2-.025;
  }
  const positions=[],uvs=[],flowData=[],indices=[],rows=192,columns=8;
- for(let i=0;i<=rows;i++){
-  const z=STREAM_START+(STREAM_END-STREAM_START)*i/rows,center=streamCenter(z),width=streamHalfWidth(z);
+ const distantRows=Math.ceil((downstreamEnd-STREAM_END)/1.5);
+ for(let i=0;i<=rows+distantRows;i++){
+  const z=i<=rows?STREAM_START+(STREAM_END-STREAM_START)*i/rows:STREAM_END+(downstreamEnd-STREAM_END)*(i-rows)/distantRows;
+  const center=streamCenter(z),width=streamHalfWidth(z);
   const tangentX=(streamCenter(z+.04)-streamCenter(z-.04))/.08;
   for(let j=0;j<=columns;j++){const u=j/columns,lateral=(u*2-1)*width;positions.push(center+lateral,-z,0);uvs.push(u,i/rows);flowData.push(lateral,z,tangentX,width);}
   if(i)for(let j=0;j<columns;j++){const a=(i-1)*(columns+1)+j,c=i*(columns+1)+j;indices.push(a,c,a+1,a+1,c,c+1);}
@@ -58,7 +60,7 @@ export function addClearStream(b,renderer){
  const uniforms={...T.UniformsUtils.clone(T.UniformsLib.fog),
   uReflection:{value:reflectionTarget.texture},uRefraction:{value:refractionTarget.texture},
   uNormal0:{value:normals[0]},uNormal1:{value:normals[1]},uTextureMatrix:{value:textureMatrix},
-  uTime:{value:0},uRippleStrength:{value:.8},uSunDirection:{value:new T.Vector3(-.3,.8,.5).normalize()},uSunStrength:{value:1},
+  uTime:{value:0},uRippleStrength:{value:.8},uSunDirection:{value:new T.Vector3(-.3,.8,.5).normalize()},uSunStrength:{value:1},uPainted:{value:0},
   uObstacles:{value:obstacles.map(o=>new T.Vector4(o.x,o.z,o.radius,1))},
  };
  const material=new T.ShaderMaterial({name:'stream:clear-reflection-refraction',uniforms,transparent:true,depthWrite:false,fog:true,
@@ -92,6 +94,7 @@ export function addClearStream(b,renderer){
    uniform float uRippleStrength;
    uniform vec3 uSunDirection;
    uniform float uSunStrength;
+   uniform float uPainted;
    uniform vec4 uObstacles[4];
    varying vec4 vProjected;
    varying vec4 vFlow;
@@ -130,6 +133,9 @@ export function addClearStream(b,renderer){
      slope+=(downstream*.22*cos(wakePhase)+across*.14*sin(wakePhase+lateral*5.0))*envelope*pulse;
      wakeStrength+=envelope;
     }
+    float farWater=smoothstep(10.,80.,length(vToEye));
+    slope*=1.-farWater*.63;
+    slope=mix(slope,(downstream*.06*cos(wave)+across*.025*cos(p.x*2.+p.y))*uRippleStrength,uPainted*.55);
     vec3 normal=normalize(vec3(slope.x,1.0,slope.y));
     vec3 eye=normalize(vToEye);
     float cosine=clamp(dot(normal,eye),0.0,1.0);
@@ -162,13 +168,16 @@ export function addClearStream(b,renderer){
     float solarFresnel=.02+.98*pow(1.0-vDotH,5.0);
     float glint=min(2.6,distribution*masking*solarFresnel/max(4.0*nDotV,.05)*45.0)*uSunStrength;
     float capillary=pow(.5+.5*sin(p.x*65.0+sin(p.y*29.0)*1.8),16.0)*pow(.5+.5*sin(p.y*54.0+p.x*18.0),11.0);
-    water+=vec3(1.0,.97,.86)*glint*(.72+capillary*2.6);
+    float glintBand=smoothstep(.08,.26,glint)*.20+smoothstep(.36,.78,glint)*.28;
+    water+=vec3(1.0,.97,.86)*mix(glint*(.72+capillary*2.6),glintBand,uPainted);
     // Thin, broken reflection streaks travel with the current. They modulate
     // existing reflected light rather than drawing an opaque foam blanket.
     float thread=pow(.5+.5*sin(p.x*19.0+sin(p.y*1.7)*1.2),18.0);
     thread*=pow(.5+.5*sin(p.y*3.4+sin(p.x*4.7)),9.0);
     float streak=thread*(.012+.035*fresnel)*(.15+.85*uSunStrength);
-    water+=reflected*streak;
+    float crest=cos(p.y*6.+sin(p.x*3.+p.y*.50));
+    float stroke=smoothstep(.81-fwidth(crest),.94+fwidth(crest),crest)*smoothstep(.3,.85,cos(p.x*3.-p.y*.74));
+    water+=reflected*(streak+uPainted*stroke*(.018+.10*fresnel)*(1.-farWater));
     gl_FragColor=vec4(water,1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -191,9 +200,10 @@ export function addClearStream(b,renderer){
    mesh.visible=visible;gl.xr.enabled=xr;gl.shadowMap.autoUpdate=shadowAuto;gl.setRenderTarget(target,cube,mip);gl.state.viewport(savedViewport);capturing=false;
   }
  };
- const metadata={level:STREAM_LEVEL,startZ:STREAM_START,endZ:STREAM_END,flowDirection:'+Z',flowSpeed:{center:.82,bank:.36},flowCycleSeconds:6,fresnelF0:.02,bedTransmission:[.984,.996,.998],reflectionSize:768,refractionSize:1024,authoritativeTime:true,turbulence:'obstacle-wakes',obstacles:obstacles.map(o=>({...o})),solarReflection:'GGX'};
+ const metadata={level:STREAM_LEVEL,startZ:STREAM_START,endZ:downstreamEnd,flowDirection:'+Z',flowSpeed:{center:.82,bank:.36},flowCycleSeconds:6,fresnelF0:.02,bedTransmission:[.984,.996,.998],reflectionSize:768,refractionSize:1024,authoritativeTime:true,turbulence:'obstacle-wakes',obstacles:obstacles.map(o=>({...o})),solarReflection:'GGX'};
  mesh.userData.waterOptics=metadata;
  return {mesh,material,normalMaps:normals,renderTargets:[reflectionTarget,refractionTarget],metadata,
+  setRenderStyle(style){uniforms.uPainted.value=style==='toon'?1:0;},
   update(time){if(disposed||!Number.isFinite(time))return;if(!started){started=true;if(enabled)flowTime=Math.max(0,time);}else if(enabled&&lastInput!==null)flowTime+=Math.max(0,time-lastInput);lastInput=time;uniforms.uTime.value=flowTime;},
   setMotion({enabled:next}){if(disposed||Boolean(next)===enabled)return;enabled=Boolean(next);lastInput=null;},
   setSunlight(direction,brightness=1,cloud=0){if(disposed)return;if(direction?.isVector3)uniforms.uSunDirection.value.copy(direction).normalize();else if(Array.isArray(direction))uniforms.uSunDirection.value.fromArray(direction).normalize();uniforms.uSunStrength.value=T.MathUtils.clamp(brightness,0,1)*(1-T.MathUtils.clamp(cloud,0,1)*.88);},

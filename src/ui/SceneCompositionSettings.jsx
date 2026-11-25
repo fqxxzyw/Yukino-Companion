@@ -23,7 +23,7 @@ export default function SceneCompositionSettings({config,importedScenes,onScene,
   <div className="scene-display-switches">
    <label className="row"><div><strong>打开三维场景</strong><small>关闭后隐藏场景。</small></div><input className="scene-switch" type="checkbox" role="switch" aria-label="打开三维场景" checked={config.sceneEnabled} onChange={event=>onSceneEnabledChange?.(event.target.checked)}/></label>
    <label className={"row "+(!config.sceneEnabled?"switch-disabled":"")}><div><strong>环境延伸到整个界面</strong><small>关闭时场景仅显示在人物框内。</small></div><input className="scene-switch" type="checkbox" role="switch" aria-label="环境延伸到整个界面" disabled={!config.sceneEnabled} checked={config.spread} onChange={event=>onSpreadChange?.(event.target.checked)}/></label>
-   <label className="row"><div><strong>赛璐璐场景</strong><small>独立控制场景的新海诚式分层天空、云与描边。</small></div><input className="scene-switch" type="checkbox" role="switch" aria-label="赛璐璐场景渲染" checked={config.sceneToon===true} onChange={event=>onSceneToonChange?.(event.target.checked)}/></label>
+   <label className="row"><div><strong>吉卜力水粉场景</strong><small>为内置地点启用手绘笔触、分层积云和暖墨轮廓。</small></div><input className="scene-switch" type="checkbox" role="switch" aria-label="吉卜力水粉场景渲染" checked={config.sceneToon===true} onChange={event=>onSceneToonChange?.(event.target.checked)}/></label>
   </div>
   <div className="scene-option-groups" aria-label="人物环境">
    {SCENE_GROUPS.map(({kind,label})=>{

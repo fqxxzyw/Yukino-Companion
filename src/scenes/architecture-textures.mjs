@@ -44,6 +44,7 @@ export function architectureFinish(b,material,kind,{scale=2.4,amount=1}={}){
    vPatinaWorld=(modelMatrix*patinaPosition).xyz;`);
   shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\n'+common);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+   #ifndef YUKINO_GOUACHE
    vec3 pn=normalize(cross(dFdx(vPatinaWorld),dFdy(vPatinaWorld)))*(gl_FrontFacing?1.:-1.);
    vec3 pp=vPatinaWorld/${scale.toFixed(4)};
    float age=patinaNoise(vPatinaWorld*vec3(2.2,.23,2.2));
@@ -62,6 +63,14 @@ export function architectureFinish(b,material,kind,{scale=2.4,amount=1}={}){
       diffuseColor.rgb*=mix(vec3(1.),concreteTint*concreteVariation,${amount.toFixed(3)});
       patinaHeight+=(concreteLuma-.4)*.005;`:
      kind==='grass'?`float turfMask=${material.name==='soil:stream-bank'?'smoothstep(.55,1.7,vPatinaWorld.y)':'1.0'};
+      ${material.name==='soil:stream-bank'?`
+       float turfFootprint=max(length(dFdx(vPatinaWorld)),length(dFdy(vPatinaWorld)));
+       turfMask*=1.0-.76*smoothstep(.055,.3,turfFootprint);
+       // Regional grass pigment continues beneath the bundled grass photograph.
+       // Its fibre contrast survives where the individual stalks resolve.
+       float turfLight=dot(photographed,vec3(.2126,.7152,.0722));
+       photographed=mix(diffuseColor.rgb*clamp(.68+turfLight*2.2,.67,1.56),photographed,.38);
+      `:''}
       diffuseColor.rgb=mix(diffuseColor.rgb,photographed*.95,${amount.toFixed(3)}*turfMask);patinaHeight+=(dot(photographed,vec3(.333))-.25)*.008*turfMask;`:
      `diffuseColor.rgb=mix(diffuseColor.rgb,photographed,${amount.toFixed(3)});patinaHeight+=(dot(photographed,vec3(.333))-.4)*.005;`}
     roughnessFactor=mix(roughnessFactor,clamp(photographedRough,.62,.99),.65);`:
@@ -69,8 +78,9 @@ export function architectureFinish(b,material,kind,{scale=2.4,amount=1}={}){
    ${kind==='concrete'?`float form=min(fract(vPatinaWorld.y/1.22),1.-fract(vPatinaWorld.y/1.22));float formSeam=(1.-smoothstep(.001,.0025+fwidth(vPatinaWorld.y),form))*.13;diffuseColor.rgb*=1.-formSeam;patinaHeight-=formSeam*.003;`:''}
    ${kind==='paint'?`float runoff=smoothstep(.58,.8,patinaNoise(vPatinaWorld*vec3(12.,.24,12.)));diffuseColor.rgb*=.94-runoff*.1;roughnessFactor=clamp(roughnessFactor+(age-.5)*.16,.48,.9);`:''}
    ${kind==='stone'?`float moss=smoothstep(.6,.82,age)*smoothstep(.1,.9,max(pn.y,0.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.11,.026),moss*.38);`:''}
+   #endif
   `);
-  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n normal=patinaBump(-vViewPosition,normal,patinaHeight);');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\n #ifndef YUKINO_GOUACHE\n normal=patinaBump(-vViewPosition,normal,patinaHeight);\n #endif\n');
  };
  material.customProgramCacheKey=()=>`${key}|architecture-patina-v3:${kind}:${Boolean(source)}:${scale}:${amount}`;
  material.userData.architecturalFinish={kind,photographed:Boolean(source),scale};

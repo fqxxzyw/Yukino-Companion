@@ -16,6 +16,43 @@ const profiles={
  moss:[1,0,.28,.008,22],
 };
 
+const builtArchitecture=new Set(['inage','kasai','kyoto','school','city','bookshop','classroom','wedding']);
+// A small sunward tint for low-chroma mineral and timber finishes. Lacquer,
+// painted steel and coloured panels keep their own hue.
+const sunlitFinish={
+ plaster:[1.065,1.018,.947],stone:[1.043,1.015,.964],paving:[1.037,1.013,.971],
+ shopTile:[1.043,1.014,.96],wood:[1.080,1.018,.92],
+ paint:[1.012,1.006,.987],vermilion:[1.012,1.006,.987],redPanel:[1.018,1.006,.986],
+};
+
+// Project courses in metres onto the two faces of a street building. A single
+// batch may contain several façades, so the joints use world position. Below
+// pixel scale their contrast fades into the finish of the more distant wall.
+function claddingShader(kind){
+ const sizes={brick:[.31,.115],siding:[2.72,.255],panel:[1.65,.82],render:[2.45,2.80]};
+ const size=sizes[kind];if(!size)return '';
+ const seam=kind==='render'?.07:kind==='brick'?.29:.21;
+ return `
+  if(abs(surfaceNormalWorld.y)<.55){
+   vec2 wallMetres=vec2(abs(surfaceNormalWorld.x)>.55?vSurfaceWorld.z:vSurfaceWorld.x,vSurfaceWorld.y);
+   vec2 course=wallMetres/vec2(${size[0].toFixed(3)},${size[1].toFixed(3)});
+   vec2 footprint=max(fwidth(course),vec2(.001));
+   ${kind==='brick'||kind==='siding'?'course.x+=mod(floor(course.y),2.)*.5;':''}
+   vec2 coord=fract(course),edge=min(coord,1.-coord),unitMetres=vec2(${size[0].toFixed(3)},${size[1].toFixed(3)});
+   vec2 halfJoint=vec2(.004)/unitMetres;
+   vec2 visible=1.-smoothstep(vec2(.12),vec2(.80),footprint);
+   vec2 reveal=(1.-smoothstep(halfJoint,halfJoint+footprint,edge))*visible;
+   float block=surfaceHash(vec3(floor(course),7.73))-.5;
+   float unitVariation=block*visible.x*visible.y;
+   float batchTint=surfaceNoise(vec3(wallMetres.x*.42,wallMetres.y*.55,4.6))-.5;
+   diffuseColor.rgb*=vec3(1.)+unitVariation*vec3(.18,.13,.10)+batchTint*vec3(.11,.08,.045);
+   diffuseColor.rgb*=1.-max(reveal.x,reveal.y)*${seam.toFixed(2)};
+   float lowerSkirt=1.-smoothstep(.60,.64,vSurfaceWorld.y);
+   diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.65,.69,.73),lowerSkirt);
+   surfaceDetail-=max(reveal.x,reveal.y)*.30;
+  }`;
+}
+
 export function surfaceProfile(material,names=''){
  const name=`${material.name} ${material.map?.name||''} ${names}`.toLowerCase();
  if(/bamboo:culm/.test(name))return 'bamboo';
@@ -57,18 +94,26 @@ float surfaceNoise(vec3 p){
  return mix(mix(mix(surfaceHash(i),surfaceHash(i+vec3(1,0,0)),f.x),mix(surfaceHash(i+vec3(0,1,0)),surfaceHash(i+vec3(1,1,0)),f.x),f.y),
  mix(mix(surfaceHash(i+vec3(0,0,1)),surfaceHash(i+vec3(1,0,1)),f.x),mix(surfaceHash(i+vec3(0,1,1)),surfaceHash(i+vec3(1,1,1)),f.x),f.y),f.z);
 }
-float surfaceFilteredNoise(vec3 p){float footprint=max(length(dFdx(p)),length(dFdy(p)));return mix(surfaceNoise(p),.5,smoothstep(.28,1.15,footprint));}
+float surfaceFilteredNoise(vec3 p){
+ #ifdef YUKINO_GOUACHE
+  return .5;
+ #else
+  float footprint=max(length(dFdx(p)),length(dFdy(p)));return mix(surfaceNoise(p),.5,smoothstep(.28,1.15,footprint));
+ #endif
+}
 vec3 surfaceBump(vec3 pos,vec3 n,float height){
  vec3 dx=dFdx(pos),dy=dFdy(pos),r1=cross(dy,n),r2=cross(n,dx);
  float det=dot(dx,r1);return normalize(abs(det)*n-sign(det)*(dFdx(height)*r1+dFdy(height)*r2));
 }
 `;
 
-export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=false}={}){
+export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=false,clearDay=null}={}){
  const [roughness,metalness,variation,relief,frequency]=profiles[profile]||profiles.paint;
  const priorCompile=material.onBeforeCompile,priorKey=material.customProgramCacheKey.bind(material);
  const cache=priorKey();
+ const cladding=material.userData.cladding||'';
  const uniforms={uSurfaceRain:{value:0},uSurfaceSnow:{value:0},uSurfaceExposure:{value:exposed?1:0}};
+ if(clearDay)uniforms.uClearArchitectureDay=clearDay;
  material.roughness=roughness;material.metalness=metalness;material.dithering=true;
  const authored=material.userData.surfaceFinish;
  if(authored){
@@ -120,6 +165,7 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.87,1.06,.78),smoothstep(.66,.84,surfaceMacro)*.28);
    `:''}
    ${leafUv?`
+    #ifndef YUKINO_GOUACHE
     float leafT=clamp(vBotanicalUv.y,0.0,1.0),leafAcross=abs(vBotanicalUv.x-.5);
     float leafAA=max(fwidth(vBotanicalUv.x),.003);
     float leafMidrib=1.0-smoothstep(.009,.009+leafAA,leafAcross);
@@ -129,6 +175,7 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
     diffuseColor.rgb*=mix(.76,1.12,smoothstep(0.0,.8,leafT));
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.06,.78),leafMidrib*.3+leafVein*.13);
     surfaceDetail=mix(surfaceDetail,.7,leafMidrib*.32+leafVein*.12);
+    #endif
    `:''}
    ${profile==='bamboo'?`surfaceDetail=mix(surfaceGrain,surfaceFilteredNoise(surfaceP*vec3(110.0,1.2,110.0)),.7);float bambooPatina=surfaceFilteredNoise(surfaceP*vec3(3.0,.45,3.0));diffuseColor.rgb*=.84+.24*bambooPatina;`:''}
    ${profile==='forestPath'?`float aggregate=surfaceFilteredNoise(surfaceP*62.0);float repairs=smoothstep(.55,.75,surfaceFilteredNoise(surfaceP*vec3(.7,1.0,.9)));surfaceDetail=mix(surfaceDetail,aggregate,.55);diffuseColor.rgb*=.78+aggregate*.35-repairs*.13;`:''}
@@ -137,23 +184,52 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
    float surfaceWet=uSurfaceRain*uSurfaceExposure*mix(.12,1.0,smoothstep(.25,.85,surfaceUp));
    float surfaceCover=uSurfaceSnow*uSurfaceExposure*smoothstep(.65,.98,surfaceUp);
    float surfaceJoint=0.0;
+   ${claddingShader(cladding)}
    ${profile==='shopTile'?`vec2 tileUv=(abs(surfaceNormalWorld.z)>.5?surfaceP.xy:surfaceP.zy)/vec2(.12,.08);vec2 tileEdge=min(fract(tileUv),1.0-fract(tileUv));vec2 tileAA=max(fwidth(tileUv),vec2(.001));surfaceJoint=(1.0-smoothstep(.025,.025+tileAA.x,tileEdge.x))+(1.0-smoothstep(.025,.025+tileAA.y,tileEdge.y));surfaceJoint=min(1.0,surfaceJoint)*(1.0-smoothstep(.1,.8,max(tileAA.x,tileAA.y)));`:''}
    ${profile==='vermilion'?`surfaceDetail=mix(surfaceGrain,surfaceFilteredNoise(surfaceP*vec3(30.0,.7,30.0)),.55);diffuseColor.rgb*=.92+.13*surfaceDetail;`:''}
    ${ground?`vec2 tile=surfaceP.xz/vec2(.72,.42);tile.x+=mod(floor(tile.y),2.0)*.5;
     vec2 edge=min(fract(tile),1.0-fract(tile));vec2 aa=max(fwidth(tile),vec2(.001));
     surfaceJoint=(1.0-smoothstep(.006,.006+aa.x,edge.x))+(1.0-smoothstep(.009,.009+aa.y,edge.y));
     surfaceJoint=min(1.0,surfaceJoint)*(1.0-smoothstep(.05,.7,max(aa.x,aa.y)))*surfaceUp;
+    // Variation follows individual slabs and fades with distance. The joint
+    // and slight difference between paving lots remain in both styles.
+    float slabTone=(surfaceHash(vec3(floor(tile),19.7))-.5)*(1.-smoothstep(.12,.8,max(aa.x,aa.y)))*surfaceUp;
+    diffuseColor.rgb*=vec3(1.)+slabTone*vec3(.17,.14,.10);
     surfaceDetail=mix(surfaceDetail,.18,surfaceJoint*.65);`:''}
    ${profile==='redPanel'?`float course=surfaceP.y/.42;float edge=min(fract(course),1.0-fract(course));surfaceJoint=1.0-smoothstep(.014,.014+max(fwidth(course),.012),edge);`:''}
    diffuseColor.rgb*=1.0+(surfaceMacro-.5)*${variation.toFixed(3)}+(surfaceDetail-.5)*${(variation*.55).toFixed(3)};
    ${profile==='moss'?`float mossPatch=smoothstep(.36,.67,surfaceFilteredNoise(surfaceP*vec3(1.3,2.0,1.3)));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.12,.18,.052),mossPatch*.65);`:''}
+   ${profile==='asphalt'?`
+    // Subtle Japanese road patina: wheel-track wear & aggregate micro-grain
+    // break flat grey plastic asphalt without introducing noisy sparkle.
+    float roadAgg=surfaceFilteredNoise(surfaceP*70.0);
+    float roadPatch=surfaceFilteredNoise(surfaceP*vec3(.42,1.0,.42));
+    float wheelWear=smoothstep(.44,.88,abs(sin(surfaceP.x*.92+surfaceP.z*.08)));
+    surfaceDetail=mix(surfaceDetail,roadAgg,.60);
+    diffuseColor.rgb*=vec3(.89+.20*roadAgg)*(.94+.11*roadPatch);
+    diffuseColor.rgb*=1.0-wheelWear*.065;
+    roughnessFactor=clamp(roughnessFactor-wheelWear*.10,.36,1.0);
+   `:''}
+   ${['plaster','stone','redPanel','shopTile'].includes(profile)?`
+    // Subtle rainwater vertical weathering & ground-contact mineral darkening
+    // on exterior vertical walls removes the brand-new plastic model look.
+    #ifndef YUKINO_GOUACHE
+    if(abs(surfaceNormalWorld.y)<.45 && uSurfaceExposure>.5){
+     float rainStreak=surfaceFilteredNoise(vec3(surfaceP.x*2.4+surfaceP.z*2.4,surfaceP.y*.22,5.1));
+     float dampFoot=1.0-smoothstep(.04,.55,max(0.0,vSurfaceWorld.y));
+     diffuseColor.rgb*=1.0-(rainStreak-.5)*.075-dampFoot*.10;
+     roughnessFactor=clamp(roughnessFactor+dampFoot*.06,.08,1.0);
+    }
+    #endif
+   `:''}
    diffuseColor.rgb*=1.0-surfaceJoint*.22;
    diffuseColor.rgb*=1.0-surfaceWet*${profile==='metal'||profile==='glass'?'0.02':'0.24'};
    // Keep the pigment's luminance but restore colour separation lost in pale
    // authored palettes. Neutral masonry stays neutral; grass, paint and timber
    // retain stronger chroma under the same physically lit material model.
    float pigmentLuma=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
-   diffuseColor.rgb=max(vec3(0.0),mix(vec3(pigmentLuma),diffuseColor.rgb,${['leaf','paint','vermilion','bamboo','redPanel'].includes(profile)?'1.34':'1.18'}));
+   diffuseColor.rgb=max(vec3(0.0),mix(vec3(pigmentLuma),diffuseColor.rgb,${['paint','vermilion','bamboo','redPanel'].includes(profile)?'1.30':profile==='leaf'?'1.18':'1.16'}));
+   ${profile==='leaf'?`roughnessFactor=max(roughnessFactor,.88);`:''}
    ${profile==='plaster'?`diffuseColor.rgb*=1.09;`:''}
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.82,.86,.88),surfaceCover*.85);
    roughnessFactor=clamp(roughnessFactor+(surfaceDetail-.5)*.13, .06,1.0);
@@ -161,18 +237,50 @@ export function finishMaterial(material,profile,{exposed=true,scale=1,leafUv=fal
    roughnessFactor=mix(roughnessFactor,.96,surfaceCover);
   `.replaceAll('gl_FrontFacingSign','(gl_FrontFacing ? 1.0 : -1.0)'));
   shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+   #ifndef YUKINO_GOUACHE
    normal=surfaceBump(-vViewPosition,normal,(surfaceDetail-.5-surfaceJoint*.65)*${(relief*scale).toFixed(6)}*(1.0-surfaceWet*.45));
+   #endif
    ${profile==='glass'?`float surfaceFresnel=pow(1.0-clamp(dot(normal,normalize(vViewPosition)),0.0,1.0),5.0);
     diffuseColor.a=clamp(diffuseColor.a+(1.0-diffuseColor.a)*surfaceFresnel*.7,.06,.88);`:''}
   `);
+  if(clearDay){
+   shader.fragmentShader='uniform float uClearArchitectureDay;\n'+shader.fragmentShader.replace('#include <aomap_fragment>',`
+    #include <aomap_fragment>
+    {
+    // Work on diffuse light after shadows and ambient occlusion. Specular,
+    // glass, emission, the sky and the final exposure keep their own response.
+    vec3 daylightLuma=vec3(.2126,.7152,.0722);
+    float albLuma=max(dot(diffuseColor.rgb,daylightLuma),.015);
+    float peak=max(max(diffuseColor.r,diffuseColor.g),diffuseColor.b);
+    float chroma=(peak-min(min(diffuseColor.r,diffuseColor.g),diffuseColor.b))/max(peak,.014);
+    vec3 received=reflectedLight.directDiffuse+reflectedLight.indirectDiffuse;
+    float headroom=1.-smoothstep(.53,1.04,max(max(received.r,received.g),received.b));
+    float white=smoothstep(.48,.85,albLuma)*(1.-smoothstep(.06,.23,chroma));
+    float directShare=dot(reflectedLight.directDiffuse,daylightLuma)/max(.015,dot(received,daylightLuma));
+    float sunward=smoothstep(.06,.65,directShare);
+    vec3 hue=clamp(diffuseColor.rgb/albLuma-1.,vec3(-.7),vec3(.7));
+    vec3 colourDirection=hue*(1.-smoothstep(.40,.92,chroma))*.43;
+    colourDirection+=(vec3(${sunlitFinish[profile].map(n=>n.toFixed(3)).join(',')})-1.)*
+                      (1.-smoothstep(.18,.56,chroma))*(1.-white);
+    float dayGrade=uClearArchitectureDay*headroom*smoothstep(.012,.11,albLuma);
+    #ifdef YUKINO_GOUACHE
+      dayGrade*=.82;
+    #endif
+    reflectedLight.directDiffuse*=1.+dayGrade*(vec3(.44)+colourDirection*1.36);
+    reflectedLight.indirectDiffuse*=1.+dayGrade*(vec3(.045+.22*sunward)+
+                                     colourDirection*(.13+.66*sunward));
+    }
+   `);
+  }
  };
- material.customProgramCacheKey=()=>`${cache}|architectural-surface-v3:${profile}:${scale}:${leafUv}`;
+ material.customProgramCacheKey=()=>`${cache}|architectural-surface-v5:${profile}:${scale}:${leafUv}:${Boolean(clearDay)}:${cladding}`;
  material.needsUpdate=true;
  return uniforms;
 }
 
 export function upgradeSurfaces(root,id){
  const converted=new Map(),uniforms=[],owned=new Set(),materials=new Map(),glass=[];
+ const clearDay={value:0};
  root.traverse(object=>{if(object.isMesh)for(const material of [object.material].flat()){
   const entry=materials.get(material)||[];entry.push(object);materials.set(material,entry);
  }});
@@ -200,14 +308,22 @@ export function upgradeSurfaces(root,id){
   const outside=!indoors||/outside|road|asphalt|curb|exterior/.test(names);
   const exposed=original.userData.weatherExposure??(outside&&!/interior|lobby|porch|ceiling|soffit|base:/.test(original.name));
   const leafUv=profile==='leaf'&&original.userData.botanicalKind!=='grass'&&objects.every(o=>o.geometry?.attributes.uv);
-  uniforms.push(finishMaterial(material,profile,{exposed,leafUv}));
+  const architectural=builtArchitecture.has(id)&&Boolean(sunlitFinish[profile])&&
+   !material.transparent&&!material.alphaTest&&!(material.emissive?.getHex()>0)&&
+   !/shadow|recess|joint|gasket|soot|black-post-foot|rock|boulder|water|glass|pane-depth|window-depth|lamp:|light:/.test(material.name);
+  uniforms.push(finishMaterial(material,profile,{exposed,leafUv,clearDay:architectural?clearDay:null}));
  }
  return {
   sync(){
    for(const [source,target]of converted){target.color.copy(source.color);target.emissive.copy(source.emissive);target.emissiveIntensity=source.emissiveIntensity;target.opacity=source.opacity;}
    for(const material of glass){const authored=material.userData.surfaceFinish;material.metalness=0;material.roughness=Number.isFinite(authored?.roughness)?THREE.MathUtils.clamp(authored.roughness,.06,1):.12;material.envMapIntensity=Number.isFinite(authored?.envMapIntensity)?THREE.MathUtils.clamp(authored.envMapIntensity,0,2):.85;}
   },
-  setWeather(weather){for(const u of uniforms){u.uSurfaceRain.value=THREE.MathUtils.clamp(weather?.rain||0,0,1);u.uSurfaceSnow.value=THREE.MathUtils.clamp(weather?.snow||0,0,1);}},
+  setWeather(weather,sunHeight=0){
+   const smooth=THREE.MathUtils.smoothstep;
+   clearDay.value=smooth(sunHeight,.24,.52)*(1.-smooth(weather?.cloud||0,.30,.82))*
+    (1.-smooth(weather?.rain||0,0,.08))*(1.-smooth(weather?.fog||0,.02,.30))*(1.-smooth(weather?.snow||0,0,.10));
+   for(const u of uniforms){u.uSurfaceRain.value=THREE.MathUtils.clamp(weather?.rain||0,0,1);u.uSurfaceSnow.value=THREE.MathUtils.clamp(weather?.snow||0,0,1);}
+  },
   dispose(){for(const material of owned)material.dispose();owned.clear();},
   count:uniforms.length,
  };

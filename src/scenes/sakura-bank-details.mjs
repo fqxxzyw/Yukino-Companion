@@ -1,19 +1,24 @@
 import * as T from 'three';
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {STREAM_START,STREAM_END,streamCenter,streamHalfWidth,pathCenter} from './sakura-stream-layout.mjs';
 
 // Grounded clusters give the creek banks a spring understory without putting
 // flowers on the footpath or into the water. Instances share three draw calls.
 export function addSakuraBankDetails(b,groundHeight){
- const random=b.rng,petals=[];
+ const random=b.rng,positions=[],indices=[];
+ // Small riverside daisies are only a few pixels wide at the walking camera.
+ // A ridged cupped petal has a readable silhouette without a sphere per lobe.
  for(let i=0;i<5;i++){
-  const petal=new T.SphereGeometry(1,7,5),angle=i*Math.PI*2/5;
-  petal.scale(.38,.12,.68);petal.rotateY(angle);petal.translate(Math.sin(angle)*.46,0,Math.cos(angle)*.46);petals.push(petal);
+  const a=i*Math.PI*2/5,c=Math.cos(a),s=Math.sin(a),offset=positions.length/3;
+  for(const [side,rise,radius] of [[0,.02,.05],[-.26,.09,.52],[-.18,.19,.94],[.14,.18,1],[.27,.09,.54],[0,.14,.58]]){
+   positions.push(c*radius-s*side,rise,s*radius+c*side);
+  }
+  for(const [p,q] of [[0,1],[1,2],[2,3],[3,4],[4,0]])indices.push(offset+q,offset+p,offset+5);
  }
- const flowerGeometry=b.own(mergeGeometries(petals));petals.forEach(g=>g.dispose());
- const stemGeometry=b.own(new T.CylinderGeometry(.005,.007,1,5));
- const centerGeometry=b.own(new T.SphereGeometry(1,7,5));
- const flowerMaterial=b.mat('foliage:stream-wildflower-petals','#ffffff',{roughness:.9});
+ const flowerGeometry=b.own(new T.BufferGeometry());flowerGeometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+ flowerGeometry.setIndex(indices);flowerGeometry.computeVertexNormals();
+ const stemGeometry=b.own(new T.CylinderGeometry(.005,.007,1,5,1,true));
+ const centerGeometry=b.own(new T.IcosahedronGeometry(1,0));
+ const flowerMaterial=b.mat('foliage:stream-wildflower-petals','#ffffff',{roughness:.91,side:T.DoubleSide});
  const stemMaterial=b.mat('foliage:stream-wildflower-stems','#5b7945');
  const centerMaterial=b.mat('foliage:stream-wildflower-centers','#e4b952');
  const heads=[],leaves=[],palette=['#fff7f1','#fff3dd','#f2d6e3','#ead9f3','#ffed9b'].map(c=>new T.Color(c));

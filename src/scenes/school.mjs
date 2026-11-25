@@ -2,6 +2,7 @@
 // The standalone renderer, controls, bundled Three, and HTML bootstrap are intentionally omitted.
 import { CanvasTexture as $n, AmbientLight as $s, LinearFilter as Ee, BoxGeometry as En, PlaneGeometry as Fe, LinearMipmapLinearFilter as Fn, Vector3 as I, DoubleSide as Je, Group as Jt, RepeatWrapping as Li, DirectionalLight as Ni, MeshBasicMaterial as Nn, NoColorSpace as Rn, Color as SceneTreeColor, Group as SceneTreeGroup, InstancedMesh as SceneTreeInstances, Object3D as SceneTreeTransform, Vector3 as SceneTreeVector, PointLight as Tn, InstancedMesh as Ve, IcosahedronGeometry as Xs, NormalBlending as Zn, HemisphereLight as Zs, SRGBColorSpace as be, FrontSide as bn, CylinderGeometry as fi, ClampToEdgeWrapping as ke, SphereGeometry as qs, Mesh as re, Object3D as se, MeshStandardMaterial as us, Color as zt } from 'three';
 import { RoundedBoxGeometry as ho } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {InstancedBufferAttribute} from 'three';
 import {extendSchoolCampus} from './school-campus.mjs';
 
 function qe(i){return function(){i|=0,i=i+1831565813|0;let t=Math.imul(i^i>>>15,1|i);return t=t+Math.imul(t^t>>>7,61|t)^t,((t^t>>>14)>>>0)/4294967296}}
@@ -34,12 +35,15 @@ var Fl=Object.freeze({cream:"#e7e0d2",creamLight:"#f0eadf",creamShade:"#d6ccbb",
     }
   }
   const count=Math.max(240,Math.round(clusters*18));
-  const canopy=new SceneTreeInstances(this._unit.card,this._leafCardMaterial(),count);
+  const geometry=this._trackGeo(this._unit.card.clone()),centers=new Float32Array(count*3);
+  geometry.setAttribute('crownCenter',new InstancedBufferAttribute(centers,3));
+  const canopy=new SceneTreeInstances(geometry,this._leafCardMaterial(),count);
   canopy.name="tree:canopy"; canopy.castShadow=true; canopy.receiveShadow=true;
   canopy.userData.foliage="instanced-leaf-cards";
   const transform=new SceneTreeTransform(), color=new SceneTreeColor();
   for(let index=0;index<count;index++) {
     const tip=twigTips[index%twigTips.length], spread=radius*(.12+random()*.17);
+    tip.toArray(centers,index*3);
     transform.position.copy(tip).add(new SceneTreeVector((random()-.5)*spread*2,(random()-.5)*height*.15,(random()-.5)*spread*2));
     transform.rotation.set((random()-.5)*Math.PI,random()*Math.PI*2,(random()-.5)*Math.PI);
     const size=radius*(.15+random()*.15);

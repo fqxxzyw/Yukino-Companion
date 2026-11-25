@@ -344,3 +344,26 @@ test('an explicit local apiBase survives initialization when no config file exis
     await fs.rm(dir, {recursive: true, force: true});
   }
 });
+
+test('persisted legacy workers.dev apiBase migrates to yukino.fqxxzyw.cn unless config.json overrides it', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'yukino-account-migrate-'));
+  await fs.mkdir(path.join(dir, 'account'), {recursive: true});
+  await fs.writeFile(path.join(dir, 'account', 'account.json'), JSON.stringify({
+    version: 1,
+    onboardingComplete: true,
+    activeProfile: 'guest',
+    profiles: {},
+    backups: {},
+    apiBase: 'https://yukino-api.fqxxzyw.workers.dev',
+  }));
+  const client = fakeClient();
+  const store = createAccountStore({userData: dir, safeStorage: fakeSafeStorage(), client});
+  try {
+    await store.initialize();
+    assert.equal(store.client.baseUrl, 'https://yukino.fqxxzyw.cn');
+    assert.equal(store.snapshot().apiBase, 'https://yukino.fqxxzyw.cn');
+  } finally {
+    await store.dispose();
+    await fs.rm(dir, {recursive: true, force: true});
+  }
+});

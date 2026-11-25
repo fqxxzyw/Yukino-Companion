@@ -147,7 +147,7 @@ npx wrangler deploy --dry-run                            # 不发布的构建检
 | --- | --- | --- |
 | `DB` | `server/wrangler.toml` 的 `[[d1_databases]]` | 现有 D1 数据库绑定；不得重复创建或删除重建 |
 | `ASSETS` | `server/wrangler.toml` 的 `[assets]` | 官网静态资源绑定，目录 `../website` |
-| `YUKINO_API_BASE` | 桌面端进程环境变量（可选） | 覆盖账号 API 地址；生产默认 `https://yukino-api.fqxxzyw.workers.dev`。本地可设为 `http://127.0.0.1:8787` |
+| `YUKINO_API_BASE` | 桌面端进程环境变量（可选） | 覆盖账号 API 地址；生产默认 `https://yukino.fqxxzyw.cn`。本地可设为 `http://127.0.0.1:8787` |
 | `YUKINO_WEB_BASE` | 桌面端进程环境变量（可选） | “打开网页账号中心/找回密码”使用的站点地址；默认同 API 地址 |
 | `shared/entitlement-public-key.json` | 桌面安装包 `shared/` | 客户端只持公钥；本地开发自动从 loopback 端点读取 |
 | `website/assets/config.js` 的 `apiBase` | 官网静态资源 | 默认空字符串（同源）；只有官网与 API 跨域时才填写，并同步更新 Worker `ALLOWED_ORIGINS` |

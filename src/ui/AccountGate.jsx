@@ -64,7 +64,7 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
     event.preventDefault();
     if(!validateIdentity())return;
     const displayName=normalizeNickname(nickname);
-    const nameProblem=nicknameProblem(displayName);
+    const nameProblem=displayName&&nicknameProblem(displayName);
     if(nameProblem){setError(nameProblem);return}
     if(!challengeId){setError('请先发送验证码。');return}
     if(!/^\d{6}$/.test(code.trim())){setError('请输入 6 位验证码。');return}
@@ -126,7 +126,7 @@ export default function AccountGate({api,onDone,initialStatus=''}) {
         </form>:null}
         {mode==='register'?<form className="account-form" onSubmit={register} noValidate>
           <label className="field account-field" htmlFor="account-register-email"><span>邮箱</span><input ref={emailRef} id="account-register-email" type="email" inputMode="email" autoComplete="email" value={email} disabled={disabled} placeholder="you@example.com" onChange={event=>setEmail(event.target.value)}/></label>
-          <label className="field account-field" htmlFor="account-register-nickname"><span>昵称</span><input id="account-register-nickname" value={nickname} disabled={disabled} placeholder="例如：雪乃" maxLength={32} onChange={event=>setNickname(event.target.value)}/><small>支持中文、英文、数字和常见符号；昵称不可重复。</small></label>
+          <label className="field account-field" htmlFor="account-register-nickname"><span>昵称（选填）</span><input id="account-register-nickname" value={nickname} disabled={disabled} placeholder="留空自动分配" onChange={event=>setNickname(event.target.value)}/><small>可稍后在账号中心修改。</small></label>
           <label className="field account-field" htmlFor="account-code"><span>邮箱验证码</span><div className="account-code-row"><input ref={codeRef} id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} disabled={disabled} placeholder="6 位数字" onChange={event=>setCode(event.target.value.replace(/\D/g,'').slice(0,6))}/><button type="button" className="secondary" disabled={disabled||countdown>0} onClick={()=>sendCode('register')}>{busy==='code'?'发送中…':countdown>0?`${countdown} 秒后重发`:'发送验证码'}</button></div><small>验证码 10 分钟有效。重发会使旧验证码失效。</small></label>
           <PasswordField id="account-register-password" label="密码" value={password} onChange={setPassword} autoComplete="new-password" disabled={disabled} placeholder="例如 Abc123!"/>
           <PasswordField id="account-register-confirm" label="确认密码" value={confirm} onChange={setConfirm} autoComplete="new-password" disabled={disabled} placeholder="再输入一次"/>

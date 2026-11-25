@@ -33,21 +33,31 @@ export function extendSchoolCampus(api,{scene,renderer}){
  });
  // The real facade is pale painted concrete, rather than warm grey card.
  // Keep recessed bands darker so neutral whites retain their architectural depth.
- for(const [name,hex]of [['school:stucco','#ffffff'],['school:trim','#e7e9e1'],['school:shade','#a4b2b1'],['school:roof','#748481'],['stairs:cheek','#e5e5da'],['stairs:stone','#c3c7bc']])borrowed.get(name)?.color.set(hex);
+ for(const [name,hex]of [['school:stucco','#f5f4ec'],['school:trim','#e7e9e1'],['school:shade','#94a6a4'],['school:roof','#748481'],['stairs:cheek','#e4e4d9'],['stairs:stone','#c3c7bc']])borrowed.get(name)?.color.set(hex);
  const plaster=borrowed.get('school:stucco')||b.mat('plaster:school-extension','#e3e0d4');
  const trim=borrowed.get('school:trim')||b.mat('stone:school-coping','#d8d6cc');
  const shade=borrowed.get('school:shade')||b.mat('plaster:school-recess','#bcbeb6');
  const roof=borrowed.get('school:roof')||b.mat('concrete:school-roof','#92968e');
  const glass=borrowed.get('school:glass')||b.mat('glass:school-extension','#718b96',{transparent:true,opacity:.92,depthWrite:false});
  const metal=borrowed.get('window:frame')||b.mat('paint:school-window-frame','#7e8a89');
- const pavement=b.mat('paving:campus-entry','#a6a396'),asphalt=b.mat('asphalt:school-side-road','#3a4146'),line=b.mat('paint:school-road-lines','#deded0');
+ for(const [m,roughness,metalness,envMapIntensity] of [[plaster,.93,0,.26],[metal,.34,.72,.54],[glass,.15,0,.53],[trim,.84,0,.28]]){
+  m.userData.surfaceFinish={roughness,metalness,envMapIntensity};
+ }
+ const pavement=b.mat('paving:campus-entry','#a6a396'),asphalt=b.mat('asphalt:school-side-road','#586066'),line=b.mat('paint:school-road-lines','#deded0');
+ asphalt.userData.surfaceFinish={roughness:.95,metalness:0,envMapIntensity:.12};
+ // Also brighten the original front asphalt strip if present so the sunlit road matches Japanese pavement.
+ borrowed.get('asphalt')?.color.set('#586066');
  const dark=b.mat('plaster:school-window-recess','#263438'),soil=b.mat('soil:campus-garden','#514e3e'),lawn=b.mat('leaf:campus-lawn','#647f47');
  const red=b.mat('paint:library-terracotta-cladding','#934b42'),redSeam=b.mat('paint:library-panel-reveal','#703b35'),gateMetal=b.mat('paint:school-gate-rail','#667b72');
+ const reveal=b.mat('plaster:school-covered-reveal','#788b89'),warmRoom=b.mat('interior:occupied-classroom','#8f917f',{emissive:'#ffd4a2',roughness:.94});
+ b.lamps.push({material:warmRoom,day:0,night:.86});
  red.userData.surfaceFinish={roughness:.86,metalness:0,envMapIntensity:.18};redSeam.userData.surfaceFinish={roughness:.96,metalness:0,envMapIntensity:.1};
  const keep=(o,name)=>{o.name='school:'+name;o.userData.keep=true;return o;};
  const box=(p,s,m,name)=>{const o=b.box(p,s,m);return name?keep(o,name):o;};
  const base=api.root.getObjectByName('Base');base?.removeFromParent();
  box([4.5,-1.225,-34.5],[120,2.45,119],b.mat('stone:complete-campus-foundation','#77766a'),'complete-foundation');
+ b.box([4.5,-.09,-34.5],[120.4,.20,119.4],b.mat('base:school-plinth-rim','#4f4d46',{roughness:.88}));
+ b.box([4.5,-2.54,-34.5],[118.8,.32,117.8],b.mat('base:school-plinth-footing','#3a3833',{roughness:.92}));
  box([-3,groundY-.48,-40.4],[100,.96,106],pavement,'connected-campus-ground');
  box([-6,groundY+.012,-42],[43,.025,43],lawn,'inner-courtyard-lawn');
  // An uninterrupted perimeter service path joins the doors of all four wings.
@@ -56,13 +66,22 @@ export function extendSchoolCampus(api,{scene,renderer}){
  box([0,groundY+.03,-42],[3.3,.035,40],pavement);
  box([0,groundY+.032,-42],[43,.035,3.2],pavement);
 
+ let windowBand=0;
  function windows({position,width=12,height=1.7,cols=8,yaw=0,material=glass,name='classroom-window'}){
   const group=b.group('school:'+name,position);group.rotation.y=yaw;
-  b.box([0,0,-.045],[width+.2,height+.18,.08],dark,group);
-  b.box([0,0,.008],[width,height,.018],material,group);
-  for(const y of [-height/2,0,height/2])b.box([0,y,.035],[width+.1,.055,.07],metal,group);
-  for(let i=0;i<=cols;i++)b.box([-width/2+width*i/cols,0,.04],[.045,height+.08,.08],metal,group);
-  b.box([0,-height/2-.11,.055],[width+.24,.12,.18],trim,group);
+  b.box([0,0,.026],[width+.16,height+.17,.038],dark,group);
+  const pitch=width/cols;
+  if(windowBand%3!==1){
+   const count=Math.min(3,cols-1),start=(windowBand*7)%Math.max(1,cols-count);
+   b.box([-width/2+(start+count/2)*pitch,0,.051],[count*pitch-.07,height-.11,.012],warmRoom,group);
+  }
+  windowBand++;
+  for(const side of [-1,1])b.box([side*(width/2+.045),0,.089],[.08,height+.16,.16],reveal,group);
+  b.box([0,height/2+.05,.095],[width+.23,.095,.24],reveal,group);
+  b.box([0,0,.142],[width,height,.014],material,group);
+  for(const y of [-height/2,0,height/2])b.box([0,y,.168],[width+.1,.055,.069],metal,group);
+  for(let i=0;i<=cols;i++)b.box([-width/2+pitch*i,0,.175],[.045,height+.08,.082],metal,group);
+  b.box([0,-height/2-.10,.13],[width+.24,.12,.32],trim,group);
   return group;
  }
  function wing(name,{x,z,width,depth,height=14.1,front='z',outerSign=1,opening=false}){
@@ -171,11 +190,11 @@ export function extendSchoolCampus(api,{scene,renderer}){
  const updateClock=date=>{const value=date instanceof Date?date:new Date(date||Date.now()),second=Math.floor(value.getTime()/1000);if(second===lastClock)return;lastClock=second;const s=value.getSeconds(),m=value.getMinutes()+s/60,h=value.getHours()%12+m/60;hourHand.rotation.z=-h*Math.PI/6;minuteHand.rotation.z=-m*Math.PI/30;secondHand.rotation.z=-s*Math.PI/30;clock.userData.time={hour:value.getHours(),minute:value.getMinutes(),second:s};if(renderer?.shadowMap)renderer.shadowMap.needsUpdate=true;};
  updateClock(new Date());
 
- // The two public roads are one real corner, with a clear traffic corridor.
- box([4,.025,21],[112,.05,7.9],asphalt,'south-road');
+ // The two public roads are one real corner, flush with the 120x119 campus plinth.
+ box([4.5,.025,21],[119.8,.05,7.9],asphalt,'south-road');
  box([55,.025,-34.5],[10,.05,119],asphalt,'east-road');
  box([48.4,.11,-41],[2.1,.22,106],pavement,'east-sidewalk');
- for(const z of [17.35,24.4])box([4,.065,z],[112,.016,.09],line);
+ for(const z of [17.35,24.4])box([4.5,.065,z],[119.4,.016,.09],line);
  for(const x of [50.5,59.5])box([x,.065,-34.5],[.09,.016,119],line);
  for(let z=-89;z<10;z+=4.8)box([55,.066,z],[.085,.016,2.65],line);
  for(let x=-50;x<46;x+=5)box([x,.066,21],[2.65,.016,.085],line);
@@ -188,6 +207,33 @@ export function extendSchoolCampus(api,{scene,renderer}){
  // Globe fixtures match the entrance photograph; downward practicals reveal
  // the paving instead of relying on emissive bulbs alone.
  const practicals=[];
+ api.root.updateMatrixWorld(true);
+ const fixed=new Map();
+ api.root.traverseVisible(o=>{
+  if(o.name==='gate-lamp'){
+   const p=o.getWorldPosition(new T.Vector3());
+   b.box([p.x,groundY+.095,p.z-.02],[.60,.19,.76],shade);
+   b.box([p.x,groundY+.19,p.z-.02],[.55,.05,.71],trim);
+   const light=new T.SpotLight('#ffe1ac',32,6.8,.67,.78,2);light.position.copy(p).y-=.13;
+   light.target.position.set(p.x*.95,groundY,p.z+.92);b.root.add(light,light.target);
+   b.lamps.push({light,intensity:32,day:0,night:1});
+  }
+  if(!o.isMesh||o.isInstancedMesh||!['tree:trunk','window:frame','window:shadow','window:sill','railing:metal'].includes(o.material?.name))return;
+  // Branches and twigs remain children of their moving tree. Only identical
+  // source geometry, material and shadow state can share an instance batch.
+  const tree=o.material.name==='tree:trunk',parent=tree?o.parent:api.root;
+  const key=[o.geometry.uuid,o.material.uuid,o.castShadow,o.receiveShadow,parent.uuid,tree?o.name:''].join('|');
+  if(!fixed.has(key))fixed.set(key,{parent,meshes:[]});
+  fixed.get(key).meshes.push(o);
+ });
+ for(const {parent,meshes} of fixed.values()){
+  if(meshes.length<3)continue;
+  const first=meshes[0],batch=new T.InstancedMesh(first.geometry,first.material,meshes.length);
+  batch.name=first.name||first.material.name;batch.castShadow=first.castShadow;batch.receiveShadow=first.receiveShadow;
+  const inverse=parent.matrixWorld.clone().invert(),local=new T.Matrix4();
+  meshes.forEach((o,i)=>{batch.setMatrixAt(i,local.multiplyMatrices(inverse,o.matrixWorld));o.removeFromParent();});
+  batch.computeBoundingSphere();parent.add(batch);
+ }
  for(const [x,z]of [[45.4,-48.7],[45.4,-31.3],[46.8,5],[46.8,-70]]){
   b.cylinderAt([x,groundY+1.9,z],.048,3.8,gateMetal);
   const lens=b.mat('lamp:school-entry-globe','#e2ded0',{emissive:'#ffe1b0',emissiveIntensity:.1}),g=b.mesh(b.own(new T.SphereGeometry(.15,16,12)),lens,[x,groundY+3.86,z]);g.castShadow=false;
@@ -224,11 +270,6 @@ export function extendSchoolCampus(api,{scene,renderer}){
  api.root.add(added.root);api.root.updateMatrixWorld(true);
  for(const light of api.root.children)if(light.isDirectionalLight&&light.castShadow){light.shadow.camera.left=-84;light.shadow.camera.right=84;light.shadow.camera.top=84;light.shadow.camera.bottom=-84;light.shadow.camera.far=240;light.shadow.camera.updateProjectionMatrix();light.shadow.needsUpdate=true;}
  api.framingRoot=api.root;api.bounds=new T.Box3().setFromObject(api.root);
- // The public streets continue beyond the finite campus framing. They keep
- // pedestrian views grounded instead of exposing the edge of a display slab.
- const outside=b.mesh(b.own(new T.PlaneGeometry(720,720)),b.mat('soil:school-street-verge','#75885c'),[0,-.018,-30],[1,1,1],api.root,'school:continuous-surroundings');outside.rotation.x=-Math.PI/2;outside.castShadow=false;
- for(const [x,width]of [[-176,248],[180,240]])b.box([x,.025,21],[width,.05,7.9],asphalt,api.root,'school:continuing-south-road');
- for(const [z,depth]of [[-197,206],[162.5,275]])b.box([55,.025,z],[10,.05,depth],asphalt,api.root,'school:continuing-east-road');
  const white=api.cameraPresets.photo;
  const front={position:[0,2.15,36],target:[0,5.4,-12],fov:47};
  api.cameraPresets={...api.cameraPresets,photo:front,whiteEntrance:front,redEntrance:{position:[79,2.15,-40],target:[28,6.6,-40],fov:49},campusCorner:added.cameraPresets.photo,companion:front,overview:{direction:[1.1,.8,1.3],fov:36,padding:1.03}};
@@ -237,6 +278,9 @@ export function extendSchoolCampus(api,{scene,renderer}){
  api.setLighting=id=>{
   const result=original.setLighting(id),saved={background:scene.background,fog:scene.fog,tone:renderer?.toneMapping,exposure:renderer?.toneMappingExposure};
   added.setLighting(result==='night'?'night':result==='dusk'?'evening':'day');
+  // The selected occupied rooms are visible through the pane. All glazing
+  // receives a more subdued interior tint, while the gate lamps light paving.
+  if(result==='night'||result==='dusk')glass.emissive.set('#7b644c');
   scene.background=saved.background;scene.fog=saved.fog;if(renderer){renderer.toneMapping=saved.tone;renderer.toneMappingExposure=saved.exposure;}return result;
  };
  api.setMotion=value=>{const result=original.setMotion(value);added.setMotion(typeof value==='boolean'?{enabled:value}:value);return result;};

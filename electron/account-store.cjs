@@ -5,7 +5,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const {createHash, randomUUID, webcrypto} = require('node:crypto');
 const {writeAtomicJson} = require('./atomic-json.cjs');
-const {AccountClient, AccountError, DEFAULT_BASE, LOOPBACK} = require('./account-client.cjs');
+const {AccountClient, AccountError, DEFAULT_BASE, LEGACY_DEFAULT_BASE, LOOPBACK} = require('./account-client.cjs');
 const {canonicalOutfitIds} = require('./skin-policy.cjs');
 
 const EVENT_TYPES = new Set(['message', 'pet-interaction', 'manual-voice']);
@@ -170,6 +170,7 @@ class AccountStore {
     this.credentials = await this.readJson(this.credentialsFile, {version: 1, users: {}});
     this.credentials.users = this.credentials.users && typeof this.credentials.users === 'object' ? this.credentials.users : {};
     const config = await this.readJson(this.configFile, {});
+    if (this.meta.apiBase === LEGACY_DEFAULT_BASE) this.meta.apiBase = DEFAULT_BASE;
     const base = process.env.YUKINO_API_BASE || config.apiBase || this.meta.apiBase || this.initialBase || DEFAULT_BASE;
     try { this.client.setBase(base); } catch (error) { this.lastError = error.message; }
     if (this.activeProfile !== 'guest') {
@@ -404,6 +405,7 @@ class AccountStore {
         const data = await this.client.request('/api/v1/auth/refresh', {
           method: 'POST', body: {refreshToken, remember: this.meta.profiles[userId]?.remember !== false, client: 'desktop'},
         });
+        if (data.user?.id===userId && data.user.nickname) this.meta.profiles[userId].nickname=data.user.nickname;
         this.saveAccess(userId, data.accessToken, data.expiresIn);
         await this.saveRefreshToken(userId, data.refreshToken, this.meta.profiles[userId]?.remember !== false);
         this.status = 'authenticated-online';
@@ -697,6 +699,27 @@ class AccountStore {
     this.heartbeatScheduled = 0;
     if (this.syncTimer) clearTimeout(this.syncTimer);
     this.syncTimer = null;
+  }
+
+  async profileRequest(profileId, path, options = {}) {
+    const check = token => {
+      if (this.activeProfile !== profileId || profileId === 'guest' || this.accessFor(profileId) !== token) throw new AccountError('账号已切换，请重新打开设置。');
+      return this.client.request(path, {...options, token});
+    };
+    try { return await check(await this.ensureAccess()); }
+    catch (error) {
+      if (error.status !== 401 || this.activeProfile !== profileId) throw error;
+      return check(await this.refreshAccess());
+    }
+  }
+
+  async updateNickname({profileId,nickname}) {
+    const data=await this.profileRequest(profileId, '/api/v1/me', {method:'PATCH',body:{nickname}});
+    if(data.user?.id!==profileId || !data.user.nickname) throw new AccountError('账号资料无效。');
+    this.meta.profiles[profileId].nickname=data.user.nickname;
+    await this.writeJson(this.metaFile,this.meta);
+    this.emitState();
+    return this.snapshot();
   }
 
   async memorySettings() {

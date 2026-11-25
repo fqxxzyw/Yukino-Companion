@@ -17,7 +17,7 @@ export function refineArchitecture(root,id){
   leaf.setAttribute('position',new THREE.Float32BufferAttribute([0,-.5,0,-.32,0,0,0,.5,.07,.32,0,0,0,0,.12],3));
   leaf.setIndex([0,1,4,1,2,4,2,3,4,3,0,4]);leaf.computeVertexNormals();ownG(leaf);
   const material=ownM(new THREE.MeshStandardMaterial({color:'#627b47',roughness:.91,side:THREE.DoubleSide}));material.name='hedge:fine-leaves';
-  const transforms=[],colors=[],random=seeded(7821),matrix=new THREE.Matrix4(),world=new THREE.Matrix4();
+  const transforms=[],colors=[],centers=[],random=seeded(7821),matrix=new THREE.Matrix4(),world=new THREE.Matrix4();
   const object=new THREE.Object3D(),point=new THREE.Vector3(),normal=new THREE.Vector3(),up=new THREE.Vector3(0,0,1);
   const inverse=root.matrixWorld.clone().invert();
   for(const cluster of clusters){
@@ -27,6 +27,7 @@ export function refineArchitecture(root,id){
     world.copy(inverse).multiply(cluster.matrixWorld).multiply(matrix);
     const scale=new THREE.Vector3().setFromMatrixScale(world);
     const radius=sphere.radius*Math.max(scale.x,scale.y,scale.z);
+    const center=sphere.center.clone().applyMatrix4(world);
     const count=Math.min(160,Math.max(40,Math.round(radius*radius*300)));
     for(let j=0;j<count;j++){
      const y=1-2*(j+.5)/count,angle=j*2.399963229728653,ring=Math.sqrt(1-y*y);
@@ -35,6 +36,7 @@ export function refineArchitecture(root,id){
      if(normal.y<-.65)continue;
      object.position.copy(point);object.quaternion.setFromUnitVectors(up,normal.transformDirection(world));
      object.rotateZ(random()*Math.PI*2);const size=.08+random()*.08;object.scale.set(size,size*1.4,size);object.updateMatrix();
+     centers.push(center.x,center.y,center.z);
      transforms.push(object.matrix.clone());colors.push(new THREE.Color().setHSL(.23+random()*.035,.25+random()*.2,.19+random()*.11));
     }
    }
@@ -43,15 +45,18 @@ export function refineArchitecture(root,id){
    cluster.visible=false;
   }
   if(transforms.length){
+   leaf.setAttribute('crownCenter',new THREE.InstancedBufferAttribute(new Float32Array(centers),3));
    const leaves=new THREE.InstancedMesh(leaf,material,transforms.length);leaves.name='hedge:individual-leaves';
    transforms.forEach((m,i)=>{leaves.setMatrixAt(i,m);leaves.setColorAt(i,colors[i]);});
    leaves.castShadow=true;leaves.receiveShadow=true;leaves.computeBoundingSphere();instances.add(leaves);added.add(leaves);
   }
  }
  if(id==='school'){
-  const frame=ownM(new THREE.MeshStandardMaterial({color:'#b8bfbd',roughness:.38,metalness:.7}));frame.name='window:aluminium';
-  const curtain=ownM(new THREE.MeshStandardMaterial({color:'#a5aaa0',roughness:1}));curtain.name='window:interior-blinds';
-  const interior=ownM(new THREE.MeshStandardMaterial({color:'#4b5351',roughness:.94}));interior.name='window:interior-depth';
+  const frame=ownM(new THREE.MeshStandardMaterial({color:'#bcc3c2',roughness:.36,metalness:.72}));frame.name='window:aluminium';
+  const curtain=ownM(new THREE.MeshStandardMaterial({color:'#a2a89f',roughness:1}));curtain.name='window:interior-blinds';
+  const interior=ownM(new THREE.MeshStandardMaterial({color:'#31393b',roughness:.96}));interior.name='window:interior-depth';
+  const lintelShadow=ownM(new THREE.MeshStandardMaterial({color:'#23292c',roughness:.98}));lintelShadow.name='window:recess-shadow';
+  const concreteBrow=ownM(new THREE.MeshStandardMaterial({color:'#e5e4dc',roughness:.88,metalness:0}));concreteBrow.name='window:concrete-brow';
   const unit=ownG(new THREE.BoxGeometry(1,1,1));
   let windowIndex=0;
   root.traverse(o=>{
@@ -63,6 +68,11 @@ export function refineArchitecture(root,id){
    // The glass remains a surface. These shallow interior layers explain its
    // depth without claiming a surveyed classroom plan behind the facade.
    const back=new THREE.Mesh(ownG(new THREE.BoxGeometry(width,height,.012)),interior);back.position.z=.025;windowRoot.add(back);
+   const headShade=new THREE.Mesh(ownG(new THREE.BoxGeometry(width,.14,.095)),lintelShadow);headShade.position.set(0,height*.5-.06,.065);windowRoot.add(headShade);
+   // Real-photo Chiba Municipal Inage High School projecting concrete window
+   // sun-shading brow & sill drip ledges casting crisp sunlit shadow bands.
+   const brow=new THREE.Mesh(ownG(new THREE.BoxGeometry(width+.24,.085,.28)),concreteBrow);brow.position.set(0,height*.5+.085,.20);brow.castShadow=true;brow.receiveShadow=true;windowRoot.add(brow);
+   const sill=new THREE.Mesh(ownG(new THREE.BoxGeometry(width+.18,.07,.22)),concreteBrow);sill.position.set(0,-height*.5-.065,.17);sill.castShadow=true;sill.receiveShadow=true;windowRoot.add(sill);
    for(let c=0;c<columns;c++){
     const widthPerPane=width/columns,x=-width/2+(c+.5)*widthPerPane;
     const blindWidth=widthPerPane*(.28+((c+windowIndex)%3)*.14);

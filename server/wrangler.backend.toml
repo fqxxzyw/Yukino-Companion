@@ -14,7 +14,7 @@ APP_ENV = "production"
 MAIL_PROVIDER = "gmail"
 MAIL_FROM_EMAIL = "fqxxzyw@gmail.com"
 MAIL_FROM_NAME = "Yukino Companion"
-ALLOWED_ORIGINS = "https://yukino-api.fqxxzyw.workers.dev"
+ALLOWED_ORIGINS = "https://yukino.fqxxzyw.cn,https://yukino-api.fqxxzyw.workers.dev"
 
 [[d1_databases]]
 binding = "DB"

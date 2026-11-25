@@ -34,7 +34,7 @@ function motionEditorFile(url, characterRoot) {
   return model ? path.join(characterRoot, model[1]) : null;
 }
 
-function createMotionEditor({ BrowserWindow, ipcMain, net, protocol, screen, session, development, getCompanionModel, getUpdater, additionalSchemes = [] }) {
+function createMotionEditor({ BrowserWindow, ipcMain, net, protocol, screen, session, development, getCompanionModel, getUpdater, showAppUpdates, additionalSchemes = [] }) {
   protocol?.registerSchemesAsPrivileged([{
     scheme, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
   }, ...additionalSchemes]);
@@ -89,6 +89,10 @@ function createMotionEditor({ BrowserWindow, ipcMain, net, protocol, screen, ses
       return theme;
     });
     ipcMain.handle('studio:update-supported', event => trustedEditor(event) && !!getUpdater?.());
+    ipcMain.handle('studio:show-updates', event => {
+      if (!trustedEditor(event)) throw Error('不允许的调用');
+      return showAppUpdates();
+    });
     for (const [channel,method] of [['studio:update-check','check'],['studio:update-download','download'],['studio:update-open','open']]) {
       ipcMain.handle(channel, event => { if (!trustedEditor(event) || !getUpdater?.()) throw Error('不允许的调用'); return getUpdater()[method](); });
     }

@@ -28,7 +28,15 @@ function CharacterCard({character,model,current,busy,onSelect}){
  </button>;
 }
 const VOICE_NONE='none',VOICE_CLONE='__clone__';
-export default function CharacterSettings({characters,current,models,wardrobeModels=models,voices=[],draftConfigs=[],cloneConfigs=[],importedScenes=[],createRequest=0,relationship,usedDates,api,onPrepareDraft,onCloneCreated,onCreate,onSelect,onModelChange,onSkinPreviewChange,onVoiceLanguageChange,onDefaultSceneChange,busy}){
+export default function CharacterSettings({cloudProfile,onBackup,onRestore,characters,current,models,wardrobeModels=models,voices=[],draftConfigs=[],cloneConfigs=[],importedScenes=[],createRequest=0,relationship,usedDates,api,onPrepareDraft,onCloneCreated,onCreate,onSelect,onModelChange,onSkinPreviewChange,onVoiceLanguageChange,onDefaultSceneChange,busy}){
+ const [cloudStatus,setCloudStatus]=useState(''),[cloudBusy,setCloudBusy]=useState(false);
+ async function cloudAction(restore){
+  setCloudBusy(true);
+  try {
+   if(restore){const count=await onRestore();setCloudStatus(count?'已恢复 '+count+' 个角色。':'云端角色均已在本机。')}
+   else {await onBackup(current);setCloudStatus('角色文字已备份。')}
+  }catch(error){setCloudStatus(error.message)}finally{setCloudBusy(false)}
+ }
  const creatingRef=useRef(false),copyAttempt=useRef(null),draftAttempt=useRef(null),nameInput=useRef(null),createToggle=useRef(null);
  const [createOpen,setCreateOpen]=useState(false),[name,setName]=useState(''),[persona,setPersona]=useState(''),[modelId,setModelId]=useState(''),[voiceId,setVoiceId]=useState(''),[promptKind,setPromptKind]=useState('unknown'),[work,setWork]=useState(''),[notes,setNotes]=useState(''),[error,setError]=useState(''),[creating,setCreating]=useState(false),[copyState,setCopyState]=useState('idle');
  const [draftConfig,setDraftConfig]=useState(''),[draftText,setDraftText]=useState(''),[draftState,setDraftState]=useState('idle'),[draftError,setDraftError]=useState('');
@@ -80,14 +88,16 @@ export default function CharacterSettings({characters,current,models,wardrobeMod
   try{
    if(voiceId===VOICE_CLONE)throw Error('录音创建音色尚未接入，请先选择其他音色或跟随全局。');
    const voice=voiceId&&voiceId!==VOICE_CLONE?voiceId:'';
-   await onCreate({name,persona,modelId,voiceLanguage,...(voice?{voiceId:voice}:{}),...(defaultSceneId?{defaultSceneId}:{})});
-   resetDraft();setError('');
+   const result=await onCreate({name,persona,modelId,voiceLanguage,...(voice?{voiceId:voice}:{}),...(defaultSceneId?{defaultSceneId}:{})});
+   resetDraft();setError(result?.warning||'');
   }catch(error){setError(error.message)}
   finally{creatingRef.current=false;setCreating(false)}
  }
  return <>
   <div className="character-list-head"><h3>我的角色</h3><p>选择角色后会同步对应的人设、音色与形象。</p></div>
   <div className="character-summary-list" aria-label="角色列表">{characters.map(item=><CharacterCard key={`${item.id}:${item.modelId||''}`} character={item} model={models.find(model=>model.id===item.modelId)} current={item.id===current.id} busy={busy} onSelect={onSelect}/>)}</div>
+  <p className="hint">登录后，新建角色的名字和文字设定会备份到账号。GLB 模型文件和 API Key 仅保存在本机。</p>
+  {cloudProfile&&<div className="button-row">{!current.builtin&&<button type="button" className="secondary" disabled={cloudBusy||busy} onClick={()=>cloudAction(false)}>备份当前角色文字</button>}<button type="button" className="secondary" disabled={cloudBusy||busy} onClick={()=>cloudAction(true)}>恢复本机缺少的角色</button><span role="status">{cloudStatus}</span></div>}
   <section className="character-create" aria-labelledby="character-create-title">
    <button ref={createToggle} type="button" className="character-create-toggle" aria-labelledby="character-create-title" aria-expanded={createOpen} aria-controls="character-create-body" disabled={busy||creating} onClick={()=>setCreateOpen(open=>!open)}><UserRound size={17}/><span className="character-create-copy"><strong id="character-create-title">新建角色</strong><small>填写姓名和角色设定即可创建，音色、模型和场景可选。</small></span>{createOpen?<X size={15}/>:<Plus size={15}/>}</button>
    <div className="character-create-body" id="character-create-body" hidden={!createOpen}>

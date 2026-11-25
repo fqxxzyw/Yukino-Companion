@@ -1,3 +1,4 @@
+import {nicknameInitial} from './account-status.mjs';
 import React,{useEffect,useState} from 'react';
 import {
   CalendarDays,Check,CheckCircle2,ChevronDown,Cloud,Eye,EyeOff,Heart,KeyRound,
@@ -90,6 +91,7 @@ export default function AccountCenter({api,account,onAccount,onOpenGate}){
   const [sessions,setSessions]=useState([]);
   const [sessionsLoading,setSessionsLoading]=useState(false);
   const [sessionsError,setSessionsError]=useState('');
+  const [editingName,setEditingName]=useState(false),[name,setName]=useState('');
   const [busy,setBusy]=useState('');
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
@@ -231,16 +233,23 @@ export default function AccountCenter({api,account,onAccount,onOpenGate}){
       <section className="account-card account-identity-card">
         <header className="account-section-heading"><div><span className="account-eyebrow">ACCOUNT</span><h4>账号信息</h4><p>登录身份与本机档案分开保存。</p></div><UserRound size={18}/></header>
         <div className="account-identity-main">
-          <div className="account-avatar">{(account.profile?.nickname||account.profile?.email||'Y').slice(0,1).toUpperCase()}</div>
+          <div className="account-avatar">{nicknameInitial(account.profile?.nickname)}</div>
           <div><strong>{account.profile?.nickname||'未设置昵称'}</strong><span>{account.profile?.email||'账号邮箱不可用'}</span></div>
         </div>
+        {editingName?<form className="account-forms" onSubmit={async event=>{
+          event.preventDefault();
+          const result=await run('nickname',()=>api.accountNickname({profileId:account.profileId,nickname:name}), '昵称已保存。');
+          if(result?.ok)setEditingName(false);
+        }}><label className="field">昵称<input autoFocus value={name} onChange={event=>setName(event.target.value)} required/></label>
+          <button className="primary" disabled={Boolean(busy)}>保存昵称</button> <button className="secondary" type="button" onClick={()=>setEditingName(false)}>取消</button></form>
+          :<button type="button" className="text-link" onClick={()=>{setName(account.profile?.nickname||'');setEditingName(true)}}>修改昵称</button>}
         <dl className="account-info-list">
           <div><dt><Mail size={13}/>邮箱</dt><dd>{account.profile?.emailHint||account.profile?.email||'未知'}</dd></div>
           <div><dt><CalendarDays size={13}/>注册时间</dt><dd>{formatDate(account.profile?.createdAt)}</dd></div>
           <div><dt><RefreshCw size={13}/>最近确认</dt><dd>{formatTime(account.lastSyncAt)}</dd></div>
           <div><dt><Cloud size={13}/>待同步互动</dt><dd>{pending?`${pending} 条`:'已全部同步'}</dd></div>
         </dl>
-        <p className="account-footnote">账号云端只保存进度和设备会话；聊天、记忆、语音、模型文件仍保存在本机。</p>
+        <p className="account-footnote">账号可同步进度、设备会话和自建角色的文字设定。聊天与记忆按你的同步设置处理，语音和模型文件保存在本机。</p>
       </section>
 
       <section className="account-card account-growth-card">

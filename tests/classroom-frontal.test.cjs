@@ -1,6 +1,45 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 
+test('paired classroom daylight tubes illuminate the writing plane and desks with bounded night output',async()=>{
+ const T=await import('three'),{finishClassroomInterior}=await import('../src/scenes/classroom-interior.mjs');
+ const room=new T.Group(),interior=finishClassroomInterior(room),fixtures=room.getObjectByName('classroom:ceiling-and-fixtures');
+ const tubes=fixtures.getObjectByName('classroom:ceiling-lamps'),sources=fixtures.children.filter(node=>node.isSpotLight);
+ assert.equal(tubes.count,12);assert.equal(tubes.geometry.type,'CylinderGeometry');
+ assert.equal(fixtures.getObjectByName('classroom:fluorescent-sockets').count,12);
+ assert.equal(sources.length,3);
+ const sun=new T.Vector3(-.8,.6,.3),board=fixtures.getObjectByName('classroom:fluorescent-board');
+ interior.setSunlight(sun,1,0);
+ assert.ok(board.isRectAreaLight&&board.width>3.6&&board.height<.15,'continuous horizontal emitting area');
+ const boardAim=new T.Vector3(0,0,-1).applyQuaternion(board.quaternion);
+ assert.ok(boardAim.dot(new T.Vector3(-2.65,1.47,-4.445).sub(board.position).normalize())>.999);
+ for(const light of sources){
+  assert.equal(light.decay,2);assert.ok(light.penumbra>.7);
+  assert.ok(light.color.b>=light.color.r&&light.color.r/light.color.b>.88);
+  const toLight=light.position.clone().sub(light.target.position),r=toLight.length();
+  const normal=new T.Vector3(0,1,0);
+  // At the cone centre Three combines inverse-square falloff with this
+  // cutoff across the horizontal desks.
+  const illuminance=light.intensity/r**2*(1-(r/light.distance)**4)**2*normal.dot(toLight.normalize());
+  assert.ok(illuminance>.48&&illuminance<3.1,light.name+' receiver illuminance '+illuminance);
+ }
+ const shader={...T.ShaderLib.standard,uniforms:{}};
+ fixtures.getObjectByName('classroom:ceiling-underside').material.onBeforeCompile(shader,null);
+ const bounce=shader.uniforms.uClassroomBounce;
+ assert.ok(bounce.value>1);assert.ok(shader.fragmentShader.indexOf('irradiance+=bounced')<shader.fragmentShader.indexOf('#include <aomap_fragment>'));
+ const noon=sources.map(l=>l.intensity);
+ interior.setSunlight(sun,0,1);sources.forEach((l,i)=>assert.ok(l.intensity<noon[i]&&l.intensity>noon[i]*.8));
+ assert.ok(bounce.value>.9&&bounce.value<1,'the lit room stays bright without lighting the outside');
+ assert.ok(tubes.material.emissiveIntensity<.7);
+ interior.setSunlight(sun,1,0);assert.deepEqual(sources.map(l=>l.intensity),noon);
+ const resources=new Set();for(const g of [room,interior.overhang,interior.exteriorRain])g.traverse(o=>{
+  if(o.geometry)resources.add(o.geometry);if(o.material)resources.add(o.material);if(o.isInstancedMesh)resources.add(o);
+ });
+ let releases=0;T.UniformsLib.LTC_FLOAT_1.addEventListener('dispose',()=>releases++);
+ interior.dispose();interior.dispose();assert.equal(releases,1);
+ for(const r of resources)r.dispose();
+});
+
 test('classroom companion view faces the actual board squarely and frames it between sidebar and character',async t=>{
  const T=await import('three'),{createScene}=await import('../src/scenes/classroom.mjs'),{setCameraFrameShift}=await import('../src/ui/scene-camera.mjs');
  const saved=global.document;global.document={createElement(){const canvas={width:0,height:0};canvas.getContext=()=>new Proxy({canvas},{get:(target,key)=>key in target?target[key]:()=>{}});return canvas;}};

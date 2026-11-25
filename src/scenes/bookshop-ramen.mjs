@@ -3,6 +3,7 @@ import {createScene as createBookshop} from './bookshop.mjs';
 import {Diorama} from './diorama-kit.mjs';
 import {sakuraTree} from './sakura-tree.mjs';
 import {addStreetContext} from './street-context.mjs';
+import {entranceLight,oppositeSidewalk} from './storefront-street.mjs';
 
 // Authored finishes retain a physical construction scale in the inspected
 // storefront, rather than using glossy, uniformly coloured building boxes.
@@ -39,7 +40,7 @@ export function createScene({scene,renderer}){
  const textures=shopTextures(b);
  const wall=b.mat('wall:ramen-tile','#ffffff',{map:textures.tile,bumpMap:textures.tile,bumpScale:.006,roughness:.78}),wood=b.mat('wood:ramen-lattice','#92734e',{map:textures.grain,roughness:.83}),trim=b.mat('wood:ramen-joinery','#a88b63',{map:textures.grain,roughness:.8});
  const dark=b.mat('paint:ramen-awning','#303a36',{metalness:.04,roughness:.82}),paper=b.mat('interior:shoji-paper','#c9c2ac',{roughness:.97}),floor=b.mat('interior:ramen-floor','#aaa18a'),steel=b.mat('metal:stool-frame','#8d9592',{metalness:.85,roughness:.3}),red=b.mat('interior:vinyl-stool-seat','#97392f',{roughness:.64}),counter=b.mat('interior:wood-counter','#c3a16d',{map:textures.grain,roughness:.7});
- const glass=b.mat('glass:ramen-upper','#607775',{transparent:true,opacity:.45,roughness:.2,depthWrite:false});
+ const glass=b.mat('glass:ramen-upper','#91a9ad',{transparent:true,opacity:.18,roughness:.16,depthWrite:false});
  const interior=b.mat('interior:plaster','#c5b99e',{map:textures.plaster,roughness:.96}),shadow=b.mat('interior:ramen-upper-room','#383d35',{roughness:.95}),curtain=b.mat('interior:ramen-linen-curtain','#a89e83',{map:textures.plaster,roughness:1});
  for(const [material,roughness,metalness,environment]of [[wall,.84,0,.3],[wood,.83,0,.28],[trim,.8,0,.3],[dark,.84,.02,.3],[paper,.97,0,.2],[steel,.36,.82,.65],[red,.76,0,.3],[counter,.77,0,.35],[glass,.22,0,.45],[interior,.96,0,.2],[shadow,.96,0,.2],[curtain,1,0,.18]])material.userData.surfaceFinish={roughness,metalness,envMapIntensity:environment};
  b.box([x,.18,z],[w+.2,.25,d+.4],floor);
@@ -100,12 +101,40 @@ export function createScene({scene,renderer}){
  b.box([x-3.85,4.3,front-.12],[.4,1.05,.4],dark);
  for(const xx of [x-2.1,x-.9]){b.box([xx,6.98,z],[1.02,.6,.55],wall);for(let k=0;k<10;k++)b.box([xx-.42+k*.09,6.98,z+.29],[.025,.45,.025],dark);}
  const profile=[];for(let i=0;i<=44;i++){const t=i/44;profile.push(new T.Vector2(.11+.18*Math.sin(Math.PI*t)+.008*Math.cos(i*Math.PI),t*.68-.34));}
- const lanternGeo=b.own(new T.LatheGeometry(profile,24)),lanternMat=b.mat('paper:lantern','#cdb17c',{emissive:'#e4b776',emissiveIntensity:.12});b.lamps.push({material:lanternMat,day:.12,night:.62});
+ const lanternGeo=b.own(new T.LatheGeometry(profile,24)),lanternMat=b.mat('paper:lantern','#e7c899',{roughness:.97,emissive:'#ffbe78',emissiveIntensity:.12});b.lamps.push({material:lanternMat,day:.08,night:.81});
  const captions=[...'中華そば天下一品'];
  for(let i=0;i<8;i++){const xx=x-3.12+i*.87;b.mesh(lanternGeo,lanternMat,[xx,2.52,front+.85]);b.cylinderAt([xx,2.89,front+.85],.06,.08,dark);b.cylinderAt([xx,2.17,front+.85],.09,.05,dark);const label=b.sign(captions[i],.28,.31,[xx,2.52,front+1.15],{draw(c,W,H){c.clearRect(0,0,W,H);c.fillStyle='#42372b';c.font='bold 760px serif';c.textAlign='center';c.textBaseline='middle';c.fillText(captions[i],W/2,H/2);}});label.material.transparent=true;label.material.alphaTest=.1;}
- for(const xx of [x-2.4,x,x+2.5])b.lamp([xx,2.86,front+.55],{intensity:9,range:4,color:'#ffd4a0',radius:.14});
+ b.lamp([x+.4,2.84,front+.45],{intensity:13,range:4,color:'#ffdbad',radius:.09});
+ entranceLight(b,[x+2.34,2.87,front+.36],[x+2.28,.17,front+2.04],{color:'#ffd6a0',intensity:39,range:5.8});
+ const awningGroup=original.root.getObjectByName('Bookshop_Awning');
+ if(awningGroup){
+  const under=awningGroup.localToWorld(new T.Vector3(.28,-.32,.56));
+  b.box(under.toArray(),[.68,.045,.085],tube);
+  entranceLight(b,under.toArray(),[under.x,.17,under.z+1.45],{color:'#ffe4b8',intensity:26,range:5.3});
+ }
+ const bookRoom=original.root.getObjectByName('Bookshop_Interior');
+ if(bookRoom){
+  const housing=b.mat('interior:shelf-light-housing','#c9c8bc',{roughness:.73});
+  const opal=b.mat('lamp:bookshop-opal-tube','#eff1eb',{emissive:'#f7f6ee',emissiveIntensity:.65,roughness:.58});
+  b.lamps.push({material:opal,day:.65,night:.53});
+  // The long shop window looks onto two real displays: the book table
+  // directly behind it and the five tiers of spines on the back wall.
+  for(const [name,x,z,target,candela] of [
+   ['window-display',-.47,2.44,[-.42,1,1.89],7.6],
+   ['back-shelves',.15,-.87,[.15,1.40,-2.04],9.3],
+  ]){
+   b.box([x,2.77,z],[1.32,.052,.16],housing,bookRoom);
+   b.tube([x-.61,2.731,z],[x+.61,2.731,z],.021,opal,bookRoom).castShadow=false;
+   const light=new T.SpotLight('#f7f6ee',candela,3.65,.99,.78,2);
+   light.name='bookshop:fluorescent-'+name;light.position.set(x,2.695,z);light.target.position.fromArray(target);
+   bookRoom.add(light,light.target);b.lamps.push({light,intensity:candela,day:1,night:.82});
+  }
+ }
  b.box([x,.97,z-.1],[w-.7,.16,.8],counter);b.box([x,.59,z-.1],[w-.8,.65,.6],interior);
  const bowl=b.own(new T.LatheGeometry([new T.Vector2(.07,0),new T.Vector2(.12,.04),new T.Vector2(.23,.13),new T.Vector2(.25,.2),new T.Vector2(.23,.21),new T.Vector2(.08,.04)],20)),ceramic=b.mat('interior:bowl-ceramic','#ded4ba',{roughness:.4});
+ ceramic.userData.surfaceFinish={roughness:.31,metalness:0,envMapIntensity:.54};
+ const nosing=b.mat('wood:counter-nosing','#a57547',{roughness:.56});
+ b.box([x,.96,z+.305],[w-.67,.092,.058],nosing);
  for(let i=0;i<6;i++){const xx=x-2.6+i*1.02;
   b.cylinderAt([xx,.45,z+.87],.04,.66,steel);b.cylinderAt([xx,.16,z+.87],.26,.06,steel);b.cylinderAt([xx,.81,z+.87],.27,.1,red);b.cylinderAt([xx,.75,z+.87],.29,.04,steel);
   b.mesh(bowl,ceramic,[xx,1.08,z-.1]);b.cylinderAt([xx,1.23,z-.5],.045,.28,dark);for(const dz of [0,.04])b.tube([xx-.24,1.3,z-.1+dz],[xx+.24,1.3,z-.1+dz],.008,wood);
@@ -113,7 +142,7 @@ export function createScene({scene,renderer}){
  b.sign('営業中',.42,.65,[x+3.46,1.6,front+.22],{bg:'#963a30',fg:'#eee3c9',size:140});
  // Remove both old blob crowns; the right one was inside the new restaurant.
  for(const name of ['Left_Front_Cherry','Right_Garden_Cherry']){const old=original.root.getObjectByName(name);if(old)old.visible=false;}
- sakuraTree(b,-12.6,4.1,{height:4.4,spread:1.8});sakuraTree(b,12.4,4.6,{height:4.1,spread:1.3});
+ sakuraTree(b,-12.6,4.1,{height:4.4,spread:1.9,heading:2.78});sakuraTree(b,12.4,4.6,{height:4.1,spread:1.32,heading:.29});
  // Clear the bookshop frontage while retaining its original side house as a
  // neighbouring building behind the shop, rather than blocking its windows.
  const sideHouse=original.root.getObjectByName('Building_Left_Pale_House');if(sideHouse)sideHouse.position.set(-11.6,.22,-3.2);
@@ -159,23 +188,28 @@ export function createScene({scene,renderer}){
   o.geometry=geometry;
  });
  addStreetContext(b,{kind:'bookshop'});
- const extra=b.finish({w:56,d:48,rain:false,overview:[0,.28,1],photo:{position:[.5,3.8,28],target:[.5,3.8,1.5],fov:47},companion:{position:[.5,4.3,31],target:[.5,3.8,1.5],fov:47},background:'#b2bfbd'});
- const remove=[];original.root.traverse(o=>{if(o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)remove.push(o);});remove.forEach(o=>o.removeFromParent());
- extra.framingRoot.add(original.root);extra.root.updateMatrixWorld(true);extra.bounds.setFromObject(extra.framingRoot);
- // Ground is intentionally outside the finite architecture framing bounds.
- // It continues through the foreground and out of frame in both frontal
- // cameras, concealing the old plinth's cut edges without zooming the shops out.
- const ground=b.mat('soil:continuous-street-ground','#938b79'),asphalt=b.mat('asphalt:continuous-foreground-road','#5a6265'),paving=b.mat('paving:continuous-shop-sidewalk','#b3afa2'),curb=b.mat('concrete:continuous-curb','#a3a397'),line=b.mat('paint:foreground-road-line','#d6d4bd');
+ const curb=b.mat('concrete:continuous-curb','#a3a397'),line=b.mat('paint:foreground-road-line','#d6d4bd');
+ oppositeSidewalk(b,{edgeY:.08,edgeZ:19.05,paving:b.mat('paving:residential-footway','#a19785'),curb,iron:dark,halfWidth:33.9});
+ for(let xx=-30;xx<30;xx+=4.8)b.box([xx,.089,13.25],[2.45,.012,.085],line);
+ // Refined square street diorama plinth enclosing both the vintage bookshop
+ // block, Tenkaippin flagship, neighbourhood houses, and the cross street.
+ const blockW=68,blockD=62,blockZ=-2.5;
+ const ground=b.mat('soil:diorama-street-ground','#938b79'),asphalt=b.mat('asphalt:diorama-foreground-road','#5a6265'),paving=b.mat('paving:diorama-shop-sidewalk','#b3afa2');
  const keep=(mesh,name)=>{mesh.name='bookshop:'+name;mesh.userData.keep=true;return mesh;};
- const groundPlane=b.own(new T.PlaneGeometry(600,600));groundPlane.rotateX(-Math.PI/2);
- keep(b.mesh(groundPlane,ground,[0,.008,0]),'continuous-ground');
- keep(b.box([0,.075,6.08],[120,.18,2.52],paving),'continuous-sidewalk');
+ b.plinth(blockW,blockD,'#5a564e',{depth:2.15,topY:.004,z:blockZ});
+ const groundPlane=b.own(new T.PlaneGeometry(blockW,blockD));groundPlane.rotateX(-Math.PI/2);
+ keep(b.mesh(groundPlane,ground,[0,.008,blockZ]),'diorama-ground');
+ for(const [left,right,suffix] of [[-33.9,-1,''],[3,33.9,'-east']]){
+  keep(b.box([(left+right)/2,.075,6.08],[right-left,.18,2.52],paving),'diorama-sidewalk'+suffix);
+  keep(b.box([(left+right)/2,.125,7.38],[right-left,.25,.13],curb),'diorama-curb'+suffix);
+ }
  keep(b.box([-5.7,.075,4.12],[6.5,.18,1.4],paving),'bookshop-entry-apron');
  keep(b.box([x,.075,4.69],[w+.2,.18,.34],paving),'ramen-entry-apron');
- keep(b.box([0,.125,7.38],[120,.25,.13],curb),'continuous-curb');
- keep(b.box([0,.045,51],[150,.07,87],asphalt),'foreground-road');
- for(let xx=-70;xx<=70;xx+=4.6)b.box([xx,.087,11.2],[2.4,.012,.075],line);
- extra.root.userData.bookshopStreet={frontAxis:'+z',roadStartZ:7.5,groundY:.008,sidewalkY:.165};
+ keep(b.box([0,.045,17.95],[blockW-.1,.07,21.0],asphalt),'foreground-road');
+ const extra=b.finish({w:blockW,d:blockD,rain:false,overview:[-.5,.58,1.05],photo:{position:[.5,2.95,21.4],target:[.5,3.15,1.5],fov:45},companion:{position:[.5,3.15,23.2],target:[.5,3.15,1.5],fov:45},background:'#b2bfbd'});
+ const remove=[];original.root.traverse(o=>{if(o.isDirectionalLight||o.isHemisphereLight||o.isAmbientLight)remove.push(o);});remove.forEach(o=>o.removeFromParent());
+ extra.framingRoot.add(original.root);extra.root.updateMatrixWorld(true);extra.bounds.setFromObject(extra.framingRoot);
+ extra.root.userData.bookshopStreet={frontAxis:'+z',roadStartZ:7.5,groundY:.008,sidewalkY:.165,diorama:{width:blockW,depth:blockD,centerZ:blockZ}};
  const lighting=extra.setLighting,update=extra.update,dispose=extra.dispose;
  extra.setLighting=id=>{original.setLighting(id==='day'?'noon':id==='night'||id==='evening'?'dusk':'morning');return lighting(id);};
  extra.update=(dt,t)=>{original.update(dt,t);update(dt,t);};extra.dispose=()=>{dispose();original.dispose();};

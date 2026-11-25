@@ -1,5 +1,9 @@
 # Cloudflare 部署说明
 
+## 2026-11-20 账号和角色同步
+
+线上 D1 已应用 `0005_character_profiles.sql`。注册可留空昵称，系统为无昵称用户分配唯一昵称。已登录用户可修改昵称；数据库的唯一索引处理并发重名。账号服务只备份自定义角色名字和文字设定，GLB 和 API Key 保存在设备本地。客户端下载地址由 `/api/v1/public/downloads` 选取 GitHub 最新正式版。
+
 ## 2026-11-19 部署状态快照
 
 以下是当日检查结果，之后可能发生变化；继续操作前应重新检查远端状态：
@@ -41,7 +45,7 @@ npx wrangler deploy --config .local-dev/api-site-deploy/wrangler.jsonc --keep-va
 ## 0. 先确认目标和版本
 
 - 现有 Worker：`yukino-api`
-- 现有地址：<https://yukino-api.fqxxzyw.workers.dev>
+- 生产自定义域名：<https://yukino.fqxxzyw.cn>（Worker 默认地址：<https://yukino-api.fqxxzyw.workers.dev>）
 - 发件邮箱：`fqxxzyw@gmail.com`（只作为发件人；注册用户可用自己的任意邮箱）
 - 仓库：<https://github.com/fqxxzyw/Yukino-Companion>
 - 本地配置：`E:\JAVA\yukino-companion\server\wrangler.toml`
@@ -224,12 +228,12 @@ npx wrangler deploy
 ## 4. 部署后验证
 
 ```powershell
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/api/v1/health
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/login
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/register
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/account
-curl.exe -i https://yukino-api.fqxxzyw.workers.dev/api/v1/does-not-exist
+curl.exe -i https://yukino.fqxxzyw.cn/api/v1/health
+curl.exe -i https://yukino.fqxxzyw.cn/
+curl.exe -i https://yukino.fqxxzyw.cn/login
+curl.exe -i https://yukino.fqxxzyw.cn/register
+curl.exe -i https://yukino.fqxxzyw.cn/account
+curl.exe -i https://yukino.fqxxzyw.cn/api/v1/does-not-exist
 ```
 
 逐项确认：
@@ -242,7 +246,7 @@ curl.exe -i https://yukino-api.fqxxzyw.workers.dev/api/v1/does-not-exist
 
 ### 真实注册/登录
 
-1. 打开 <https://yukino-api.fqxxzyw.workers.dev/register>。
+1. 打开 <https://yukino.fqxxzyw.cn/register>。
 2. 输入你自己的收件邮箱（可以是任意邮箱，不要求 Gmail）。
 3. 点击“发送验证码”，检查收件箱与垃圾邮件。
 4. 输入昵称、验证码和符合“至少 6 位并包含大小写、数字、符号”规则的密码，注册后应自动进入账号中心。
@@ -259,7 +263,7 @@ curl.exe -i https://yukino-api.fqxxzyw.workers.dev/api/v1/does-not-exist
 
 ### 桌面端连接生产 API
 
-默认地址已经是 `https://yukino-api.fqxxzyw.workers.dev`。如果使用自定义域名或其他地址，可在**正式安装**的 userData 目录创建：
+默认地址已经是 `https://yukino.fqxxzyw.cn`。如果使用其他地址，可在**正式安装**的 userData 目录创建：
 
 `%APPDATA%\Yukino Companion\account\config.json`
 

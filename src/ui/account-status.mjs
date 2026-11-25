@@ -10,6 +10,11 @@ const LEGACY_NAMES = {
   'yukino-07-v1': '原校服黄背心',
 };
 
+export function nicknameInitial(nickname) {
+  const text = (nickname || '旅人').trim();
+  return new Intl.Segmenter('zh', {granularity:'grapheme'}).segment(text)[Symbol.iterator]().next().value?.segment || '旅';
+}
+
 export function skinName(id) {
   return outfitRuleById(id)?.label || LEGACY_NAMES[id] || String(id || '').replace(/-v1$/, '');
 }
