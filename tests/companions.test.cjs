@@ -348,6 +348,33 @@ test('a model loading failure restores the main window instead of hiding it', as
   const desktop=f.manager.windows.get('model');await f.manager.viewCall({sender:desktop.webContents,senderFrame:desktop.webContents.mainFrame},'model-frame-error','model-a');await closing;
   assert.equal(f.main.isVisible(),true);assert.equal(f.main.opacity,1);assert.equal(desktop.isVisible(),false);assert.match(errors[0],/尚未准备好/);
 });
+test('a failed desktop model window in persistent model/both mode is retired and rebuilt on next close', async t => {
+  const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
+  class OpacityWindow extends FakeWindow {setOpacity(value){this.opacity=value;}getOpacity(){return this.opacity??1;}}
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  f.manager.setCharacter({id:'yukino',modelId:'model-a'});
+  await f.manager.setMode('both');
+  const first=f.manager.windows.get('model');
+  await f.manager.viewCall({sender:first.webContents,senderFrame:first.webContents.mainFrame},'model-frame-error','model-a');
+  const closing=f.manager.closeChoice('both');await new Promise(resolve=>setTimeout(resolve,60));
+  const rebuilt=f.manager.windows.get('model');
+  assert.notEqual(rebuilt,first,'a previously failed model window must be replaced instead of sticking forever');
+  assert.equal(first.isDestroyed(),true);
+  await f.manager.viewCall({sender:rebuilt.webContents,senderFrame:rebuilt.webContents.mainFrame},'model-frame','model-a');
+  await closing;
+  assert.equal(f.main.isVisible(),false);assert.equal(rebuilt.opacity,1);assert.deepEqual(errors,[]);
+});
+test('live2d close handoff works even without a 3D modelId', async t => {
+  const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
+  class OpacityWindow extends FakeWindow {setOpacity(value){this.opacity=value;}getOpacity(){return this.opacity??1;}}
+  f.manager.e.BrowserWindow=OpacityWindow;f.main.setOpacity=value=>{f.main.opacity=value;};
+  f.manager.setCharacter({id:'yukino',modelId:'',presentation:{avatarRenderer:'live2d'}});
+  const closing=f.manager.closeChoice('model');await new Promise(resolve=>setTimeout(resolve,60));
+  const desktop=f.manager.windows.get('model');
+  await f.manager.viewCall({sender:desktop.webContents,senderFrame:desktop.webContents.mainFrame},'model-frame','live2d');
+  await closing;
+  assert.equal(f.main.isVisible(),false);assert.equal(desktop.opacity,1);assert.deepEqual(errors,[]);
+});
 test('closing with no selected model leaves the main window available and reports the error', async t => {
   const f=await fixture(t),errors=[];f.manager.onError=error=>errors.push(error.message);
   await f.manager.closeChoice('model');

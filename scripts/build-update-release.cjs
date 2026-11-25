@@ -7,7 +7,12 @@ const {gunzipSync} = require('node:zlib');
 const {execFileSync} = require('node:child_process');
 const {setTimeout:delay} = require('node:timers/promises');
 const yaml = require('js-yaml');
+const asar = require('@electron/asar');
 const {build, Platform, Arch} = require('electron-builder');
+
+const MAX_SLIM_ASAR_BYTES = 30 * 1024 * 1024;
+const FORBIDDEN_ASAR_MODULES = ['lucide-react', 'three', 'react', 'react-dom'];
+const FORBIDDEN_RETIRED_GLB_RE = /^(?:05-qipao-v2\.glb|Yukino\d+_GarmentNormal_.*\.glb|Yukino01_UVDomainRepair\.glb|Yukino07_(?:MicroActions13|DialogueMicro19)_REVIEW\.glb)$/i;
 
 async function digest(file, algorithm, encoding) {
   const hash = createHash(algorithm);
@@ -48,6 +53,9 @@ async function verifyPackagedResources(resources) {
     'translation/worker.py',
     'local-chat/desktop_worker.py',
     'live2d/index.html',
+    'app.asar.unpacked/dist/wallpapers/yukino-sky-01.png',
+    'app.asar.unpacked/dist/wallpapers/yukino-sky-02.png',
+    'app.asar.unpacked/electron/companion-view/assets/spritesheet.png',
   ];
   for (const file of required) {
     await fs.access(path.join(resources, file));
@@ -55,6 +63,33 @@ async function verifyPackagedResources(resources) {
   const catalog = JSON.parse(await fs.readFile(path.join(resources, 'runtime-catalog.json'), 'utf8'));
   if (catalog.schemaVersion !== 1 || !Array.isArray(catalog.variants?.cpu?.parts) || !catalog.variants.cpu.parts.length) {
     throw Error('Packaged runtime-catalog.json is missing CPU runtime download entries');
+  }
+  const asarPath = path.join(resources, 'app.asar');
+  const asarStat = await fs.stat(asarPath);
+  if (asarStat.size > MAX_SLIM_ASAR_BYTES) {
+    throw Error(`Packaged app.asar is too large (${asarStat.size} bytes > ${MAX_SLIM_ASAR_BYTES} bytes); keep heavy static assets in asarUnpack and renderer packages in devDependencies`);
+  }
+  const entries = asar.listPackage(asarPath).map(item => item.replaceAll('\\', '/').replace(/^\//, ''));
+  for (const mod of FORBIDDEN_ASAR_MODULES) {
+    if (entries.some(item => item === 'node_modules/' + mod || item.startsWith('node_modules/' + mod + '/'))) {
+      throw Error(`Renderer-only module leaked into app.asar: ${mod}`);
+    }
+  }
+  const unpackedChars = path.join(resources, 'app.asar.unpacked', 'dist', 'characters');
+  const unpackedGlbs = (await fs.readdir(unpackedChars)).filter(name => name.toLowerCase().endsWith('.glb'));
+  for (const name of unpackedGlbs) {
+    if (FORBIDDEN_RETIRED_GLB_RE.test(name)) {
+      throw Error(`Retired or orphan GLB leaked into packaged installer: ${name}`);
+    }
+  }
+  const modelsCatalog = require('../resources/character-models.json');
+  for (const model of modelsCatalog.models.filter(item => item.approvedV2 && item.bundled)) {
+    const filename = path.basename(model.url);
+    const full = path.join(unpackedChars, filename);
+    const st = await fs.stat(full);
+    if (st.size !== model.bytes || await digest(full, 'sha256', 'hex') !== model.sha256) {
+      throw Error(`Unpacked V2 character model integrity mismatch: ${model.id} (${filename})`);
+    }
   }
 }
 
@@ -115,4 +150,8 @@ async function main() {
   console.log(output);
 }
 
-main().catch(error=>{console.error(error);process.exitCode=1});
+if (require.main === module) {
+  main().catch(error=>{console.error(error);process.exitCode=1});
+}
+
+module.exports = {verifyPackagedResources, MAX_SLIM_ASAR_BYTES, FORBIDDEN_ASAR_MODULES, FORBIDDEN_RETIRED_GLB_RE};

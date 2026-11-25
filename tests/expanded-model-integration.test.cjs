@@ -392,3 +392,25 @@ test('native model QA uses the production player and demands clock, pause, gestu
 });
 
 test('independent model preserves lighting/toon settings and available-language visual bubble',async t=>{let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[]}:true},h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();const runtime=h.runtime.instances[0],environments=[],styles=[];runtime.setEnvironment=value=>environments.push(value);runtime.setRenderStyle=value=>styles.push(value);receive({character:{id:'a',modelId:'',presentation:{scene:'beach',timeOfDay:'evening',renderStyle:'toon',daylightLocation:{latitude:35,longitude:139}}},preferences:{bubbleLanguage:'ja'},reply:{zh:'当前视觉回复',ja:''}});h.render();await h.settle();assert.deepEqual(environments.at(-1),{id:'beach',timeOfDay:12},'independent window follows the system clock, not retired manual coordinates');assert.equal(styles.at(-1),'toon');const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];assert.equal(walk(h.tree).find(n=>n.props?.className==='model-reply').props.children,'中文：当前视觉回复')});
+
+test('ModelWindow disables turntable, loads directly, and recreates the 3D renderer on WebGL context-loss retry',async t=>{
+ let receive;const api={onState:fn=>(receive=fn,()=>{}),onMouth:()=>()=>{},call:async action=>action==='model-catalog'?{models:[{id:'school'}]}:true};
+ const h=await hookHarness(t,'src/model-window.jsx',api);h.render();await h.settle();
+ receive({character:{id:'a',modelId:'school'},preferences:{}});h.render();await h.settle();
+ const first=h.runtime.instances[0];
+ assert.equal(first.options.allowTurntable,false,'desktop window must not attempt multi-outfit turntable loads');
+ first.isContextLost=()=>true;
+ first.options.onStatus({phase:'error',message:'图形设备暂不可用'});h.render();
+ const walk=node=>!node?[]:Array.isArray(node)?node.flatMap(walk):typeof node==='object'?[node,...walk(node.props?.children)]:[];
+ const retry=walk(h.tree).find(node=>node.type==='button'&&node.props?.children==='重新加载模型');
+ assert.ok(retry);retry.props.onClick();h.render();await h.settle();
+ assert.equal(h.runtime.instances.length,2,'context-loss retry must construct a fresh renderer');
+ assert.equal(first.disposed,true);assert.equal(h.runtime.instances[1].entry?.id,'school');
+});
+
+test('GlbAvatarRenderer ignores AbortError during load without emitting false error status',async()=>{
+ const {renderer}=await cpuRenderer();const statuses=[];renderer.onStatus=s=>statuses.push(s);
+ renderer.prepareOutfit=async()=>{throw new DOMException('换装已取消','AbortError');};
+ await renderer.load('school');
+ assert.equal(statuses.some(s=>s.phase==='error'),false);
+});

@@ -224,7 +224,7 @@ class CompanionManager {
       }
     }
     this.closeMode=mode;this.alignNext=!!this.appAvatarRect;this.preparingHandoff=true;this.prepareHandoffView(sequence);
-    try {this.applyMode();this.prepareDesktopAlignment();const model=this.windows.get('model');if(model)this.sendState(model,'model');await this.persist();}
+    try {if(kindsForMode(mode).includes('model'))this.retireFailedModelWindow();this.applyMode();this.prepareDesktopAlignment();const model=this.windows.get('model');if(model)this.sendState(model,'model');await this.persist();}
     catch(error){if(sequence===this.handoffSequence)this.recoverHandoff(error);throw error;}
     finally{this.alignNext=false;this.preparingHandoff=false;}
     if(sequence===this.handoffSequence)await this.handoffToDesktop(sequence);
@@ -458,7 +458,8 @@ class CompanionManager {
     if(action==='model-data'){if(isMenu||kind!=='model')throw Error('仅人物窗口可读取模型资源');const id=payload===undefined?this.character.modelId:payload;if(typeof id!=='string'||!id||id!==this.character.modelId)throw Error('请选择当前人物的模型资源');this.modelFrame=null;return this.onModelData(id);}
     if(action==='model-action-data'){if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('仅人物窗口可读取当前模型的动作');return this.onModelActionData(payload);}
     if(action==='model-frame'||action==='model-frame-error'){
-      if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==this.character.modelId)throw Error('无效的人物渲染状态');
+      const expected=this.expectedModelFrameId();
+      if(isMenu||kind!=='model'||typeof payload!=='string'||!payload||payload!==expected)throw Error('无效的人物渲染状态');
       this.modelFrame={win,id:payload,ready:action==='model-frame'};return true;
     }
     if(action==='menu-open'){return this.openMenu(kind);}
@@ -615,11 +616,26 @@ class CompanionManager {
   }
   opacity(win,value) { if(win && !win.isDestroyed() && typeof win.setOpacity==='function'){win.setOpacity(value);this.windowOpacity.set(win,value);} }
   currentOpacity(win) { return this.windowOpacity.get(win) ?? win?.getOpacity?.() ?? 1; }
+  expectedModelFrameId() {
+    return this.character.presentation?.avatarRenderer==='live2d'?(this.character.modelId||'live2d'):this.character.modelId;
+  }
+  retireFailedModelWindow({forceUnready=false}={}) {
+    const model=this.windows.get('model');
+    if(!model)return false;
+    const failed=model.isDestroyed()||(this.modelFrame?.win===model&&this.modelFrame.ready===false)||(forceUnready&&!(this.modelFrame?.win===model&&this.modelFrame.ready===true));
+    if(!failed)return false;
+    if(this.drag?.kind==='model')this.drag=null;
+    this.windows.delete('model');this.closeMenu('model');
+    if(this.modelFrame?.win===model)this.modelFrame=null;
+    if(!model.isDestroyed()){model.handoffSuppressed=true;try{model.hide();}catch{}try{model.destroy();}catch{}}
+    return true;
+  }
   recoverHandoff(error) {
     this.handoffSequence++;
     this.closeFeedback('end');
     const main=this.mainWindow,target=this.windows.get('model')||this.windows.get('pet');
     if(target&&!target.isDestroyed()){target.handoffSuppressed=true;try{target.hide();}catch{}try{this.opacity(target,1);}catch{}}
+    this.retireFailedModelWindow({forceUnready:true});
     if(main&&!main.isDestroyed()){try{this.opacity(main,1);}catch{}try{main.show();main.restore();main.focus();}catch{}}
     this.closeMode=null;this.restoringAfterHandoff=true;try{this.applyMode();}finally{this.restoringAfterHandoff=false;}
     this.refreshActivity();this.emit();this.onError(error);
@@ -629,7 +645,7 @@ class CompanionManager {
       const started=Date.now();
       const check=()=>{
         const frame=this.modelFrame;
-        if(sequence!==this.handoffSequence||!win||win.isDestroyed()||this.character.modelId!==id)return resolve(false);
+        if(sequence!==this.handoffSequence||!win||win.isDestroyed()||this.expectedModelFrameId()!==id)return resolve(false);
         if(frame?.win===win&&frame.id===id)return resolve(frame.ready);
         if(Date.now()-started>=timeout)return resolve(false);
         setTimeout(check,30);
@@ -658,7 +674,8 @@ class CompanionManager {
     this.handoffActive=sequence;
     try {
     const target = this.windows.get('model') || this.windows.get('pet');
-    if(target&&target===this.windows.get('model')&&!this.character.modelId){
+    const expectedFrameId = this.expectedModelFrameId();
+    if(target&&target===this.windows.get('model')&&!expectedFrameId){
       this.recoverHandoff(new Error('当前角色没有可用的 3D 模型，请先选择模型；已保留主窗口。'));
       return;
     }
@@ -675,7 +692,7 @@ class CompanionManager {
     }
     if(target){
       const visible=await this.waitForVisible(target,1200,sequence);
-      const ready=visible&&(target!==this.windows.get('model')||await this.waitForModelFrame(target,this.character.modelId,sequence));
+      const ready=visible&&(target!==this.windows.get('model')||await this.waitForModelFrame(target,expectedFrameId,sequence));
       if(sequence!==this.handoffSequence)return;
       if(!ready){this.recoverHandoff(new Error('桌面人物尚未准备好，已保留主窗口。'));return;}
     }
