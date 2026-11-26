@@ -1,34 +1,67 @@
-# 官方 CUDA 依赖安装路径
+# 官方 CUDA 依赖与多镜像安装路径
 
-应用的 GGUF 本地对话与中日翻译使用 llama-cpp-python。Qwen 官方也记录了 llama.cpp/GGUF 的本地部署方式；因此这里不另装 Transformers 版 Qwen 或同时下载第二份模型。
+> 更新日期：2026-11-26（对应实现：[electron/official-runtime.cjs](../electron/official-runtime.cjs)、[electron/runtime-manager.cjs](../electron/runtime-manager.cjs)、[src/ui/SetupWizard.jsx](../src/ui/SetupWizard.jsx)）。
 
-首次安装先把已校验的基础 Python/GPT-SoVITS 运行包解到所选资源目录下一个新的暂存子目录。检测到 NVIDIA 时，自动执行以下对应当前固定后端版本的官方二进制安装命令，不再等待本项目的 CUDA 分卷包：
+应用的 GGUF 本地对话与中日翻译使用 `llama-cpp-python`（Qwen 官方也记录了 `llama.cpp` / GGUF 本地部署方式，因此不另装 Transformers 版 Qwen 或重复下载模型）。
+
+## 一、两阶段安装流程
+
+1. **基础 Python / GPT-SoVITS 运行包（`649.8 MiB`）**
+   - 优先从自有 Cloudflare R2 节点 `https://dl.yukino.fqxxzyw.cn/resources/v0.4.0-resources.1/runtime__Yukino-Runtime-0.4.0-windows-x64-cpu.zip.part001` 通过 `aria2` 8 连接断点续传下载；
+   - 若 R2 不可达，自动回退至 GitHub 64 MiB 并行分卷（`v0.4.0-resource-parts.1`）→ GitHub 单文件镜像（`v0.4.0-resources.1`）→ 原始发行包（`v0.4.0-local.13`）。
+   - 完整校验 SHA-256 后，解压到所选资源目录下一个独立的随机暂存目录 `<资源目录>\runtime\runtime-<UUID>`。
+2. **CUDA 12.4 二进制依赖安装（仅 `cu124` / 自动检测到 NVIDIA 显卡时）**
+   - 使用暂存目录内隔离的 Python 3.12（`pip --isolated --only-binary=:all:`），不修改系统全局 Python，不需要安装 CUDA Toolkit 或本地编译。
+   - **支持多路线自动回退**：任一路线超时或连接失败时自动记录日志并切换下一路线；只有当前步骤全部路线均失败时才中止，且绝不会覆盖已有可用运行环境。
+
+---
+
+## 二、内置下载路线清单（官方源 + 国内镜像）
+
+### 步骤 1：PyTorch CUDA 12.4（`torch==2.5.1`、`torchaudio==2.5.1`）
+
+| 路线 ID | 类型 | 源地址 |
+| --- | --- | --- |
+| `pytorch-official` | 官方源 | `--index-url https://download.pytorch.org/whl/cu124` |
+| `nju-mirror` | 国内镜像 | `--index-url https://mirror.nju.edu.cn/pytorch/whl/cu124 --extra-index-url https://mirror.nju.edu.cn/pypi/web/simple` |
+| `aliyun-mirror` | 国内镜像 | `-f https://mirrors.aliyun.com/pytorch-wheels/cu124/ --index-url https://mirrors.aliyun.com/pypi/simple` |
+| `tencent-aliyun-mirror` | 国内镜像 | `-f https://mirrors.aliyun.com/pytorch-wheels/cu124/ --index-url https://mirrors.cloud.tencent.com/pypi/simple` |
+| `ustc-aliyun-mirror` | 国内镜像 | `-f https://mirrors.aliyun.com/pytorch-wheels/cu124/ --index-url https://pypi.mirrors.ustc.edu.cn/simple` |
+
+### 步骤 2：llama.cpp CUDA 12.4（`llama-cpp-python==0.3.36`，对话与翻译）
+
+| 路线 ID | 类型 | 源地址 |
+| --- | --- | --- |
+| `yukino-r2-mirror` | 国内加速镜像（R2） | `--no-index -f https://dl.yukino.fqxxzyw.cn/wheels/cu124/llama-cpp-python/index.html`（直连 `511.4 MB` 固定 SHA-256 轮子） |
+| `abetlen-official` | 官方源 | `--index-url https://abetlen.github.io/llama-cpp-python/whl/cu124` |
+
+### 路线策略（`sourceMode`）
+
+首次配置向导与 `RuntimeManager.install(flavor, { sourceMode })` 支持三种策略：
+
+- **`auto`（默认，智能优选）**：PyTorch 优先走官方源（其本身托管于全球 Cloudflare R2）→ 失败依次切 4 条国内镜像；`llama-cpp-python` 优先走自有 R2 镜像（避开 GitHub Releases 在国内断流）→ 失败切 `abetlen.github.io` 官方源。
+- **`official`（官方源优先）**：两步均先尝试官方源，失败后自动回退至全部镜像路线。
+- **`mirror`（国内镜像优先）**：两步均先尝试国内镜像 / 自有 R2，全部失败后再回退官方源。
+
+---
+
+## 三、日志、校验与验证边界
+
+- 安装日志位于 `<资源目录>\runtime\official-install.log`，完整记录每步尝试的路线、命令、切源提示与输出；下载缓存与临时目录固定在 `<资源目录>\runtime\pip-cache` 与 `pip-temp`。
+- 实际命中的路线 ID 与类型会写入 `python-runtime/yukino-runtime-build.json`。
+- 安装完成后会实际启动暂存 Python，导入 `torch`、`torchaudio`、`llama_cpp` 并执行 CPU 张量测试；CUDA 模式额外校验 `torch.version.cuda` 与 `llama_cpp` 的 CUDA 动态库，并在有物理 NVIDIA 设备时执行 GPU 张量同步（`gpuTensor` 独立记录）。
+- 若系统缺少 NVIDIA 显卡驱动（`nvcuda.dll`），会给出明确报错提示；应用不会下载未知 DLL 冒充驱动，用户仍可独立切换为 CPU 运行环境。
+
+真实 Windows 安装验证入口：
 
 ```powershell
-& '<资源目录>\runtime\runtime-<新ID>\python-runtime\python.exe' -X utf8 -m pip --isolated --disable-pip-version-check install --no-input --retries 3 --timeout 60 --cache-dir '<资源目录>\runtime\pip-cache' --upgrade --force-reinstall --only-binary=:all: torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
-& '<资源目录>\runtime\runtime-<新ID>\python-runtime\python.exe' -X utf8 -m pip --isolated --disable-pip-version-check install --no-input --retries 3 --timeout 60 --cache-dir '<资源目录>\runtime\pip-cache' --upgrade --force-reinstall --no-deps --only-binary=:all: llama-cpp-python==0.3.36 --index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+node scripts/verify-official-runtime.cjs --directory D:\Yukino-Runtime-QA --catalog resources/runtime-catalog.json --flavor cu124
 ```
 
-安装日志为 `<资源目录>\runtime\official-install.log`，下载缓存和临时目录也位于该资源目录。失败或取消不更改已选运行环境；已下载的官方 wheel 保存在 pip 缓存中供重试。应用不修改全局 Python，也不安装 CUDA Toolkit 或编译 llama.cpp。NVIDIA 显卡仍需要系统驱动。
+### 上游官方参考
 
-安装检查实际启动暂存 Python，导入 torch、torchaudio、llama_cpp 并执行 CPU 张量。CUDA 环境还要求 PyTorch 报告 CUDA 构建且存在 llama.cpp 的 CUDA 动态库。有物理 NVIDIA 设备时再执行 CUDA 张量并同步；`gpuTensor` 的真假独立记录。无显卡的 CI 可以证明下载、安装、导入与 CPU 张量成功，不能据此声称模型的 GPU 推理成功。
-
-状态页面会重新验证依赖，不再仅因 Python 可执行文件和旧 metadata 存在就显示可用。旧资源目录中的运行包不会被当成新选择目录已经安装。
-
-真实 Windows 安装验证入口（执行生产安装逻辑）：
-
-```powershell
-node scripts/verify-official-runtime.cjs --directory D:\Yukino-Runtime-QA --catalog build/runtime-distribution/runtime-catalog.json --flavor cu124
-```
-
-官方依据（2026-10-30 核对）：
-
-- PyTorch 2.5.1 Windows/Linux 官方安装表：https://pytorch.org/get-started/previous-versions/#v251
-- llama-cpp-python 官方安装说明：https://github.com/abetlen/llama-cpp-python#installation
-- 对应版本官方 CUDA 12.4 wheel 目录：https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/
-- Qwen 官方 llama.cpp/GGUF 部署文档：https://qwen.readthedocs.io/en/v2.5/run_locally/llama.cpp.html
-- GPT-SoVITS 官方安装文档：https://github.com/RVC-Boss/GPT-SoVITS/blob/main/README.md
-
-基础包仍固定在本项目已适配的 GPT-SoVITS 版本；上述官方 PyTorch/llama.cpp 升级不等于把 GPT-SoVITS 源码切到未验证的最新版本。
-
-Windows 实测（2026-10-30）：运行 41021263600 和诊断 41022054253 中，官方 torch/torchaudio 及 511.4 MB llama-cpp-python CUDA wheel 下载、pip 安装成功。后续导入失败；PE 导入表确认 ggml-cuda.dll 直接依赖 nvcuda.dll，而托管 runner 未安装 NVIDIA 显示驱动。至少这一必需依赖缺失，不能据此判定完整环境或实体 GPU 推理通过。应用会为缺失驱动给出明确错误；CPU 选项仍独立可用。驱动须来自 NVIDIA/设备厂商官方安装渠道，应用不会下载未知 DLL 冒充驱动。
+- PyTorch 2.5.1 官方安装表：<https://pytorch.org/get-started/previous-versions/#v251>
+- llama-cpp-python 官方说明：<https://github.com/abetlen/llama-cpp-python#installation>
+- llama-cpp-python CUDA 12.4 官方轮子目录：<https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/>
+- Qwen 官方 llama.cpp / GGUF 部署文档：<https://qwen.readthedocs.io/en/v2.5/run_locally/llama.cpp.html>
+- GPT-SoVITS 官方说明：<https://github.com/RVC-Boss/GPT-SoVITS/blob/main/README.md>

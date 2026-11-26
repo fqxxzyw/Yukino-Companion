@@ -26,7 +26,7 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 
 ## 下载与安装
 
-1. 在[官网下载页](https://yukino.fqxxzyw.cn/#download)选择 Windows 安装版或便携版。安装包和校验清单也可以从[最新正式版发行页](https://github.com/fqxxzyw/Yukino-Companion/releases/latest)下载。
+1. 在[官网下载页](https://yukino.fqxxzyw.cn/#download)选择 Windows 安装版或便携版（默认优先通过国内加速节点 `dl.yukino.fqxxzyw.cn` 下载，同时完整保留 [GitHub 最新正式版](https://github.com/fqxxzyw/Yukino-Companion/releases/latest) 备用下载）。各版本更新记录见 [版本发布记录](docs/releases/README.md)。
 2. 运行安装器，按提示选择安装位置。安装文件和数据建议放在有足够空闲空间的磁盘；请勿选择包含其他重要文件的非空目录。安装程序及其附件的大小、校验值以对应发行页为准。
 3. 启动 Yukino Companion。首次配置可按需选择本地对话、日语翻译、语音合成和桌宠语音，也可以先跳过，使用 API 文字聊天。
 4. 选择本地功能时，确认资源目录、预计下载量和运行环境，再开始准备。资源文件会按清单下载并校验；下载量、所需空间及耗时取决于所选功能、已有文件与网络条件。
@@ -37,11 +37,11 @@ Yukino Companion 是一款面向 Windows 的桌面对话与陪伴应用。你可
 Get-FileHash -LiteralPath (Read-Host '安装包路径') -Algorithm SHA256
 ```
 
-基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.4/Yukino-Companion-0.4.4-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
+基础安装器包含应用、九个 V2 服装、完整的 Live2D 雪乃随包资源（可从 [Live2D 模型包](https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Live2D-Model.zip) / [GitHub 备用](https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.5/Yukino-Companion-0.4.5-Live2D-Model.zip) 单独下载）、默认壁纸和参考音频；**安装过程中不下载资源，也不内置本地模型权重或推理运行环境**。应用提供资源配置与安装入口；Python、PyTorch、llama.cpp 和 GPT-SoVITS 等依赖及所选模型权重由资源向导按需准备。安装程序成功不代表模型、音色或推理环境均已准备好；请以应用内资源检查、真实请求和试听结果为准。
 
-0.4.3 起，安装版更新会优先通过 `.blockmap` 只下载变化的安装器区块，下载完成后可在应用内“重启并安装”；便携版仍需完整安装包。由于 0.4.1 和 0.4.2 的旧更新器不支持差分，**0.4.1 / 0.4.2 → 0.4.3 仍会完整下载一次**，之后才能使用增量更新。
+0.4.5 起，安装包采用 `store-asar` 与静态素材拆包（`app.asar.unpacked`）结构，安装版应用内更新优先通过 `.blockmap` 仅下载变化区块（后续纯代码更新仅约 **0.5–1 MB**），下载完成后可直接“重启并安装”；便携版仍需手动保存并运行完整安装包。详情见 [更新说明](docs/app-updates.md)。
 
-程序面向 **Windows 10 或更新版本的 x64 系统**。本地推理可选择 CPU；若有受支持的 NVIDIA 显卡，可在资源向导选择可用的 CUDA 环境。CUDA 配置会准备基础环境并从官方 PyTorch 与 llama.cpp 来源安装相应依赖，需要网络、足够磁盘空间和 NVIDIA 驱动。自动模式会检查实际环境；显卡型号、驱动、可用显存和依赖都影响能否使用 GPU。没有 NVIDIA CUDA 时不要把检测到显卡等同于 CUDA 已就绪。
+程序面向 **Windows 10 或更新版本的 x64 系统**。本地推理可选择 CPU；若有受支持的 NVIDIA 显卡，可在资源向导选择 CUDA 12.4 环境。CUDA 配置内置官方源与多条国内镜像路线（PyTorch 官方 / 南京大学 / 阿里云 / 腾讯云 / 中科大，以及 `llama-cpp-python` 自有 R2 加速源与官方源），失败时自动回退切换，需要网络、足够磁盘空间和 NVIDIA 驱动（详见 [CUDA 与多镜像安装文档](docs/OFFICIAL_RUNTIME_INSTALL.md)）。自动模式会检查实际环境；没有 NVIDIA CUDA 时不要把检测到显卡等同于 CUDA 已就绪。
 
 > 请从本仓库的发行页下载应用。发行页中用于模型、语音或运行环境下载的资源附件是独立依赖，可能被不同版本引用；不要把它们当作另一个应用安装器。
 
@@ -477,6 +477,8 @@ npm run qa:account
 npm run qa:site        # 需要 api:dev 正在运行
 ```
 
+- [docs/README.md](docs/README.md)：项目全部接口、人设、部署、推理与架构文档总目录。
+- [docs/releases/README.md](docs/releases/README.md)：各正式版本更新记录汇总（`v0.3.0` ~ `v0.4.5`）与升级路径说明。
 - `docs/DEPLOYMENT_HANDOFF.md`：部署交接、路径、命令、Secrets 名称与当前完成情况。
-- `docs/DEPLOY_CLOUDFLARE.md`：手动部署、Gmail OAuth、D1 迁移、验证与回滚。
-- `docs/OFFLINE_AND_PROGRESS.md`、`docs/SECURITY.md`、`docs/API.md`、`docs/TEST_RESULTS.md`。
+- `docs/DEPLOY_CLOUDFLARE.md`：手动部署、Cloudflare R2（`dl.yukino.fqxxzyw.cn`）、Gmail OAuth、D1 迁移、验证与回滚。
+- `docs/OFFLINE_AND_PROGRESS.md`、`docs/SECURITY.md`、`docs/API.md`、`docs/OFFICIAL_RUNTIME_INSTALL.md`、`docs/TEST_RESULTS.md`。

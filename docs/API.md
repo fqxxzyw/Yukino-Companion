@@ -67,39 +67,58 @@ Base URL（生产）：`https://yukino.fqxxzyw.cn`
 
 ### `GET /api/v1/public/downloads`
 
-从 GitHub Releases 读取并筛选 Windows 安装器；缓存 15 分钟。
+从 GitHub Releases 读取并筛选正式版 Windows 安装器，并在 Cloudflare D1 中缓存 15 分钟；同时构造 Cloudflare R2 国内加速直链（`https://dl.yukino.fqxxzyw.cn/releases/...`）作为主下载地址，并完整保留 GitHub Release 备用下载地址。若 GitHub API 短时触发匿名限流（如 `403`）或不可达，接口会先尝试读取 R2 上的 `https://dl.yukino.fqxxzyw.cn/releases/latest.json`，再回退至最近有效 D1 缓存。
 
 ```json
 {
   "ok": true,
   "source": "github-api",
-  "updatedAt": 1794902660539,
+  "updatedAt": 1795614655980,
   "releaseUrl": "https://github.com/fqxxzyw/Yukino-Companion/releases",
   "repositoryUrl": "https://github.com/fqxxzyw/Yukino-Companion",
   "authorUrl": "https://github.com/fqxxzyw",
   "latest": {
-    "version": "0.4.0-test.20261110.2",
-    "tag": "v0.4.0-test.20261110.2",
-    "channel": "prerelease",
-    "name": "Yukino Companion",
-    "publishedAt": "2026-11-10T...",
-    "releaseUrl": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/...",
+    "version": "0.4.5",
+    "tag": "v0.4.5",
+    "channel": "stable",
+    "name": "Yukino Companion 0.4.5",
+    "publishedAt": "2026-11-25T10:47:00Z",
+    "releaseUrl": "https://github.com/fqxxzyw/Yukino-Companion/releases/tag/v0.4.5",
     "asset": {
-      "name": "Yukino-Companion-0.4.0-Base-Setup.exe",
-      "size": 362000000,
-      "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/...",
-      "contentType": "application/octet-stream",
+      "name": "Yukino-Companion-0.4.5-Base-Setup.exe",
+      "size": 322356092,
+      "url": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Base-Setup.exe",
+      "cnUrl": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Base-Setup.exe",
+      "githubUrl": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.5/Yukino-Companion-0.4.5-Base-Setup.exe",
+      "mirrors": [
+        {"id": "cn", "label": "国内加速节点 (dl.yukino.fqxxzyw.cn)", "url": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Base-Setup.exe"},
+        {"id": "github", "label": "GitHub 备用源", "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.5/Yukino-Companion-0.4.5-Base-Setup.exe"}
+      ],
+      "contentType": "application/x-msdownload",
       "platform": "windows-x64"
     },
-    "systemRequirements": ["Windows 10/11 x64", "..."]
+    "portable": {
+      "name": "Yukino-Companion-0.4.5-Portable.exe",
+      "size": 284845690,
+      "url": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Portable.exe",
+      "cnUrl": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Portable.exe",
+      "githubUrl": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.5/Yukino-Companion-0.4.5-Portable.exe",
+      "mirrors": [
+        {"id": "cn", "label": "国内加速节点 (dl.yukino.fqxxzyw.cn)", "url": "https://dl.yukino.fqxxzyw.cn/releases/v0.4.5/Yukino-Companion-0.4.5-Portable.exe"},
+        {"id": "github", "label": "GitHub 备用源", "url": "https://github.com/fqxxzyw/Yukino-Companion/releases/download/v0.4.5/Yukino-Companion-0.4.5-Portable.exe"}
+      ],
+      "contentType": "application/x-msdownload",
+      "platform": "windows-x64"
+    },
+    "systemRequirements": ["Windows 10/11 x64", "约 1 GB 可用磁盘空间（不含可选语音、本地模型与运行时）", "首次使用完整本地功能可能需要额外下载资源"]
   }
 }
 ```
 
-- `source`：`github-api` / `cache` / `fallback`。
-- GitHub 失败时使用最近有效缓存；没有缓存则 `latest:null`，只给 Releases 页面，不构造 EXE 地址。
-- 只接受 `https://github.com/fqxxzyw/Yukino-Companion/releases/download/<tag>/<name>`。
-- `channel=prerelease` 包括 GitHub prerelease 或 tag 含 test/beta/preview/rc 的版本。
+- `source`：`github-api` / `r2-manifest` / `cache` / `fallback`。
+- 仅接受正式语义化版本标签（`^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$`），自动忽略 `draft`、`prerelease` 与预览标签。
+- 严格校验资产来源只允许 `https://github.com/fqxxzyw/Yukino-Companion/releases/download/<tag>/<name>` 或 `https://dl.yukino.fqxxzyw.cn/releases/<tag>/<name>`，拒绝任意第三方或伪造 URL。
+- 上游与缓存均不可用时返回 `source:"fallback"` 与 `latest:null`，官网引导前往 GitHub Releases 页面，不凭空构造 EXE 地址。
 
 ### `GET /api/v1/public/entitlement-key`
 

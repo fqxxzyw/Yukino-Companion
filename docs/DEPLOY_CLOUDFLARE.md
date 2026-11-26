@@ -1,5 +1,15 @@
 # Cloudflare 部署说明
 
+## 2026-11-25 Cloudflare R2 下载加速与官网双源上线
+
+- **新增 R2 存储桶**：`yukino-downloads`（`APAC` 区域，`Standard` 存储类），当前已同步 **32 个文件，共 `5.286 GiB`**（在每月 10 GB 免费存储 + 永久免流量费额度内），包含：
+  - `releases/v0.4.5/*`、`releases/latest.json` 及 `v0.4.2 / v0.4.3 / v0.4.4` 历史 `.blockmap`；
+  - `resources/v0.4.0-resources.1/*`（全部 18 个共享依赖资源，共 `4.24 GiB`：本地雪乃对话模型、Hy-MT2 翻译模型、共享 Python 运行环境、GPT-SoVITS 基础模型与雪乃音色权重、桌宠语音）；
+  - `wheels/cu124/llama-cpp-python/*`（`487.69 MiB` CUDA 12.4 轮子及 `index.html`，供 `pip --no-index -f` 直连安装）。
+- **自定义下载域名**：`https://dl.yukino.fqxxzyw.cn` 已绑定至 `yukino-downloads`（TLS 1.2+，支持 HTTP `Range` 206 与 `yukino.fqxxzyw.cn` CORS）。注意：`yukino.fqxxzyw.cn` 的 Workers Domain 已关闭 `previews_enabled: false`，避免 `*.yukino.fqxxzyw.cn` 泛预览路由拦截 `dl.yukino.fqxxzyw.cn`。
+- **线上 `yukino-api` 更新**：已通过 `wrangler deploy --keep-vars` 原地部署合并官网与后端（版本 `19747ca5-1fb3-40a8-bc70-c389e5f37276`），保留全部 D1、Secrets、`/community/` 与 `/live2d/`。`/api/v1/public/downloads` 与官网首页下载区已切换为 **`dl.yukino.fqxxzyw.cn` 国内高速优先 + GitHub Releases 备用链接并存**，并在 GitHub API 触发 `403` 时自动回退读取 R2 `releases/latest.json`。
+- **后续发版 R2 同步脚本**：见 `scripts/sync-r2-assets.cjs`（仅从环境变量读取 R2 S3 凭据，绝不入库）。
+
 ## 2026-11-20 账号和角色同步
 
 线上 D1 已应用 `0005_character_profiles.sql`。注册可留空昵称，系统为无昵称用户分配唯一昵称。已登录用户可修改昵称；数据库的唯一索引处理并发重名。账号服务只备份自定义角色名字和文字设定，GLB 和 API Key 保存在设备本地。客户端下载地址由 `/api/v1/public/downloads` 选取 GitHub 最新正式版。
