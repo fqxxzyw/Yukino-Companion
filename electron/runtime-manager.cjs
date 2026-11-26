@@ -166,7 +166,7 @@ class RuntimeManager{
       }
       const cpuFallback=Boolean(cpuVariant)&&flavor!=='cpu';
       const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),flavor,{cpuFallback});controller.signal.throwIfAborted();
-      if(official)await fs.writeFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),JSON.stringify({...marker,flavor,installSource:'official-pip',commands:official.commands}));
+      if(official)await fs.writeFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),JSON.stringify({...marker,flavor,installSource:'official-pip',commands:official.commands,...(cpuVariant?{cpuVariant,cpuFallback}:{})}));
       else if(cpuVariant)await fs.writeFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),JSON.stringify({...marker,flavor,cpuVariant,cpuFallback}));
       const directory=path.basename(stage);
       controller.signal.throwIfAborted();

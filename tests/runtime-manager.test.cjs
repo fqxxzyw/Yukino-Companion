@@ -38,13 +38,13 @@ async function temporary(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'yukino-runtime-test-'));
   t.after(() => fs.rm(root,{recursive:true,force:true})); return root;
 }
-async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify, cpuWheelRoot} = {}) {
+async function fixture(t, {flavor='cu124', officialPip=false, run=async()=>({stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify, cpuWheelRoot} = {}) {
   const temp = await temporary(t), resourceRoot = path.join(temp,'resources'), dataRoot = path.join(temp,'data');
   await fs.mkdir(resourceRoot,{recursive:true});
-  const entries = [{name:'python-runtime/python.exe',data:'synthetic Python fixture'}, {name:'python-runtime/ffmpeg.exe',data:'synthetic ffmpeg'}, {name:'python-runtime/yukino-runtime-build.json',data:JSON.stringify({flavor})}];
+  const entries = [{name:'python-runtime/python.exe',data:'synthetic Python fixture'}, {name:'python-runtime/ffmpeg.exe',data:'synthetic ffmpeg'}, {name:'python-runtime/yukino-runtime-build.json',data:JSON.stringify({flavor:officialPip?'cpu':flavor})}];
   const archive = zipBuffer(entries), half = Math.floor(archive.length/2), chunks = [archive.subarray(0,half),archive.subarray(half)];
   const pack = {id:`runtime-${flavor}`,archiveSha256:digest(archive),unpackedBytes:entries.reduce((sum,e)=>sum+Buffer.byteLength(e.data),0),parts:chunks.map((chunk,index)=>({path:`runtime.zip.part${index+1}`,url:`https://github.com/fqxxzyw/Yukino-Companion/releases/download/test/runtime.zip.part${index+1}`,algorithm:'sha256',digest:digest(chunk),bytes:chunk.length}))};
-  const catalog = {schemaVersion:1,version:'test-1',variants:{[flavor]:pack}}, catalogPath = path.join(temp,'runtime.json'), calls = [];
+  const catalog = {schemaVersion:1,version:'test-1',variants:{[flavor]:officialPip?{...pack,officialPip:true}:pack}}, catalogPath = path.join(temp,'runtime.json'), calls = [];
   await fs.writeFile(catalogPath,JSON.stringify(catalog));
   const manager = new RuntimeManager({dataRoot,resourceRoot,catalogPath,cpuWheelRoot,platform:'win32',run,hardwareRun,notify,fetcher:async(url,options)=>{
     calls.push(url); if(fetcher)return fetcher(url,options);
@@ -420,4 +420,21 @@ test('CUDA runtime that hits an illegal instruction falls back to a CPU wheel an
  const status=await env.manager.install('cu124');
  assert.equal(status.ready,true);assert.equal(status.cpuFallback,true);assert.equal(status.cpuVariant,'avx2');
  assert.equal(probes,2);assert.equal(pips,1);
+});
+
+test('official CUDA install that falls back to a CPU wheel records the fallback for the next launch',async t=>{
+ let probes=0,pipCalls=0;
+ const wheelRoot=await temporary(t);
+ const ok=JSON.stringify({torch:'t',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:false,gpuAvailable:true,gpuTensor:false,translationGpuBuild:false});
+ const env=await fixture(t,{flavor:'cu124',officialPip:true,cpuWheelRoot:wheelRoot,run:async(_exe,args)=>{
+  if(args.includes('pip')){pipCalls++;return {stdout:'Successfully installed'};}
+  probes++;if(probes===1)throw Error('OSError: [WinError -1073741795] Windows Error 0xc000001d');
+  return {stdout:ok};
+ }});
+ const status=await env.manager.install('cu124');
+ assert.equal(status.ready,true);assert.equal(status.cpuFallback,true);assert.equal(status.cpuVariant,'avx2');
+ const pointer=JSON.parse(await fs.readFile(path.join(env.manager.root,'current.json'),'utf8'));
+ const marker=JSON.parse(await fs.readFile(path.join(env.manager.root,pointer.directory,'python-runtime/yukino-runtime-build.json'),'utf8'));
+ assert.equal(marker.flavor,'cu124');assert.equal(marker.cpuVariant,'avx2');assert.equal(marker.cpuFallback,true);
+ assert.ok(pipCalls>=2,'official PyTorch and llama packages run before the fallback');
 });
