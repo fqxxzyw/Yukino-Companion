@@ -65,3 +65,13 @@ node scripts/verify-official-runtime.cjs --directory D:\Yukino-Runtime-QA --cata
 - llama-cpp-python CUDA 12.4 官方轮子目录：<https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/>
 - Qwen 官方 llama.cpp / GGUF 部署文档：<https://qwen.readthedocs.io/en/v2.5/run_locally/llama.cpp.html>
 - GPT-SoVITS 官方说明：<https://github.com/RVC-Boss/GPT-SoVITS/blob/main/README.md>
+
+## 四、CPU 环境与指令集兼容回退
+
+「CPU 通用环境」自检若报 `0xc000001d`（`STATUS_ILLEGAL_INSTRUCTION`），说明内置 `llama.cpp` 使用了当前 CPU 不支持的指令集。客户端按以下顺序自动修复并重新自检：
+
+1. **安装包内置 wheel（离线）**：`resources/cpu-wheels/avx2` 与 `resources/cpu-wheels/compat`，分别对应 AVX2 版和通用兼容版（无 AVX/AVX2/AVX-512）。未知电脑无需联网即可完成第一次修复。
+2. **R2 镜像**：`https://dl.yukino.fqxxzyw.cn/wheels/cpu/avx2/llama-cpp-python/index.html` 与 `.../compat/...`。
+3. **官方源**（仅 AVX2 路线）：`https://abetlen.github.io/llama-cpp-python/whl/cpu`。
+
+CUDA 环境若因同一错误无法 `import llama_cpp`，也会回退到 CPU 兼容 wheel，应用仍可运行（该次会话不再启用 GPU 卸载）；`validateProbe` 通过 `cpuFallback` 标记允许这种降级。每次安装后重新自检；全部失败才提示 CPU 过旧。实现见 `electron/official-runtime.cjs`（`cpuLlamaCommands` / `installCpuLlamaCompat`）与 `electron/runtime-manager.cjs`。

@@ -9,7 +9,7 @@ const yauzl = require('yauzl');
 const {VoiceResources} = require('./voice-resources.cjs');
 const {ResourceJobs} = require('./resource-jobs.cjs');
 const execute = promisify(execFile);
-const {OFFICIAL_CUDA_VERSION,RUNTIME_PROBE,validateProbe,installOfficialCuda}=require('./official-runtime.cjs');
+const {OFFICIAL_CUDA_VERSION,RUNTIME_PROBE,validateProbe,installOfficialCuda,installCpuLlamaCompat,isIllegalInstructionError,formatRuntimeProbeError}=require('./official-runtime.cjs');
 async function hashFile(file){const hash=crypto.createHash('sha256');for await(const chunk of createReadStream(file))hash.update(chunk);return hash.digest('hex');}
 function safeEntry(root,name){
   if(typeof name!=='string'||!name||name.includes('\\')||name.startsWith('/')||/[<>:"|?*\x00-\x1f\x7f]/.test(name)||name.split('/').some((v,index,parts)=>v==='..'||v==='.'||(!v&&index!==parts.length-1)||/[. ]$/.test(v)||/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(v)))throw Error('运行环境压缩包路径不安全');
@@ -56,8 +56,8 @@ async function detectNvidiaDetails(platform=process.platform,run=execute,signal)
 }
 async function detectNvidia(platform=process.platform,run=execute,signal){return (await detectNvidiaDetails(platform,run,signal)).nvidia;}
 class RuntimeManager{
-  constructor({dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
-    Object.assign(this,{dataRoot,legacyDataRoot,resourceRoot,catalogPath,fetcher,notify,platform,run,hardwareRun});
+  constructor({dataRoot,legacyDataRoot,resourceRoot,catalogPath,cpuWheelRoot,fetcher=fetch,notify=()=>{},platform=process.platform,run=execute,hardwareRun=execute}){
+    Object.assign(this,{dataRoot,legacyDataRoot,resourceRoot,catalogPath,cpuWheelRoot,fetcher,notify,platform,run,hardwareRun});
     this.jobs=new ResourceJobs();this.root=path.join(dataRoot,'runtime');this.phase='idle';this.error=null;this.progress=null;this.controller=null;this.downloader=null;
   }
   emit(phase,extra={}){this.phase=phase;this.error=extra.error||null;this.progress=extra.progress||null;this.notify({phase,...extra});}
@@ -77,15 +77,15 @@ class RuntimeManager{
         const marker=JSON.parse(await fs.readFile(path.join(root,'python-runtime/yukino-runtime-build.json'),'utf8'));
         if(!['cpu','cu124'].includes(marker.flavor))continue;
         const selected=root!==this.resourceRoot;
-        return {ready:true,root,python,ffmpeg:path.join(root,'python-runtime',this.platform==='win32'?'ffmpeg.exe':'ffmpeg'),flavor:marker.flavor,bundled:!selected,metadata:selected?saved?.metadata||null:null,version:selected?saved?.version||null:null,archiveSha256:selected?saved?.archiveSha256||null:null};
+        return {ready:true,root,python,ffmpeg:path.join(root,'python-runtime',this.platform==='win32'?'ffmpeg.exe':'ffmpeg'),flavor:marker.flavor,bundled:!selected,metadata:selected?saved?.metadata||null:null,version:selected?saved?.version||null:null,archiveSha256:selected?saved?.archiveSha256||null:null,cpuVariant:marker.cpuVariant||null,cpuFallback:marker.cpuFallback===true};
       }catch{}
     }
     return {ready:false,root:null,python:'',ffmpeg:'',flavor:null};
   }
   async verify(current,signal){
     if(!current.ready)return {valid:false,metadata:null,error:null};
-    try{const result=await this.run(current.python,['-X','utf8','-c',RUNTIME_PROBE],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal,env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1'}});const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),current.flavor);return {valid:true,metadata,error:null};}
-    catch(error){if(signal?.aborted)throw error;return {valid:false,metadata:null,error:error.message};}
+    try{const result=await this.run(current.python,['-X','utf8','-c',RUNTIME_PROBE],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal,env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1'}});const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),current.flavor,{cpuFallback:current.cpuFallback===true});return {valid:true,metadata,error:null};}
+    catch(error){if(signal?.aborted)throw error;return {valid:false,metadata:null,error:formatRuntimeProbeError(error),illegalInstruction:isIllegalInstructionError(error)};}
   }
   async status(){
     const [current,catalog,hardware]=await Promise.all([this.current(),this.catalog(),this.hardwarePromise||=detectNvidiaDetails(this.platform,this.hardwareRun)]);
@@ -95,7 +95,7 @@ class RuntimeManager{
       if(!this.validationCache||this.validationCache.key!==key||Date.now()-this.validationCache.at>30000)this.validationCache={key,at:Date.now(),promise:this.verify(current)};
       validation=await this.validationCache.promise;
     }
-    return {...current,ready:current.ready&&validation.valid,filesPresent:current.ready,verified:validation.valid,validationError:validation.error,metadata:validation.metadata||current.metadata,hardware,phase:this.phase,error:this.error,progress:this.progress,variants:Object.keys(catalog.variants||{}),officialInstall:Boolean(catalog.variants?.cu124?.officialPip),version:catalog.version};
+    return {...current,ready:current.ready&&validation.valid,filesPresent:current.ready,verified:validation.valid,validationError:validation.error,illegalInstruction:Boolean(validation.illegalInstruction),metadata:validation.metadata||current.metadata,hardware,phase:this.phase,error:this.error,progress:this.progress,variants:Object.keys(catalog.variants||{}),officialInstall:Boolean(catalog.variants?.cu124?.officialPip),version:catalog.version};
   }
   async choose(requested,catalog,signal){
     signal?.throwIfAborted();
@@ -146,9 +146,28 @@ class RuntimeManager{
       let official=null;
       if(pack.officialPip)official=await installOfficialCuda({python,root:this.root,run:this.run,signal:controller.signal,sourceMode,notify:value=>this.emit(value.phase,{progress:value.progress})});
       this.emit('checking');
-      const result=await this.run(python,['-X','utf8','-c',RUNTIME_PROBE],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal:controller.signal,env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1'}});
-      const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),flavor);controller.signal.throwIfAborted();
+      const probe=()=>this.run(python,['-X','utf8','-c',RUNTIME_PROBE],{windowsHide:true,timeout:180000,maxBuffer:1024**2,signal:controller.signal,env:{...process.env,PYTHONNOUSERSITE:'1',PYTHONUTF8:'1'}});
+      let result,cpuVariant=null;
+      try{result=await probe();}
+      catch(error){
+        if(!isIllegalInstructionError(error))throw error;
+        // The bundled pack may target a newer SIMD level than this CPU. Repair
+        // from the wheel shipped inside the installer first, then R2/official.
+        // On a cu124 environment this drops GPU offload but keeps the app usable.
+        for(const variant of ['avx2','compat']){
+          controller.signal.throwIfAborted();
+          const wheelDir=this.cpuWheelRoot?path.join(this.cpuWheelRoot,variant):null;
+          try{
+            await installCpuLlamaCompat({python,root:this.root,run:this.run,signal:controller.signal,variant,wheelDir,notify:value=>this.emit(value.phase,{progress:value.progress})});
+          }catch(installError){if(controller.signal.aborted)throw installError;continue;}
+          try{result=await probe();cpuVariant=variant;break;}catch(inner){if(!isIllegalInstructionError(inner))throw inner;}
+        }
+        if(!result)throw Error('当前 CPU 过旧，无法运行本地推理（已尝试内置、镜像与官方源的 AVX2 / 通用兼容版）。');
+      }
+      const cpuFallback=Boolean(cpuVariant)&&flavor!=='cpu';
+      const metadata=validateProbe(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)),flavor,{cpuFallback});controller.signal.throwIfAborted();
       if(official)await fs.writeFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),JSON.stringify({...marker,flavor,installSource:'official-pip',commands:official.commands}));
+      else if(cpuVariant)await fs.writeFile(path.join(stage,'python-runtime/yukino-runtime-build.json'),JSON.stringify({...marker,flavor,cpuVariant,cpuFallback}));
       const directory=path.basename(stage);
       controller.signal.throwIfAborted();
       await fs.writeFile(path.join(this.root,'current.json.tmp'),JSON.stringify({directory,flavor,version,archiveSha256:pack.archiveSha256,metadata}));
@@ -157,7 +176,7 @@ class RuntimeManager{
       this.validationCache={key:python+'|'+version+'|'+pack.archiveSha256,at:Date.now(),promise:Promise.resolve({valid:true,metadata,error:null})};
       stage=null; // The new pointer owns the validated directory from this point.
       await fs.rm(cache,{recursive:true,force:true});this.emit('ready',{metadata});return this.status();
-    }catch(error){this.emit(controller.signal.aborted?'cancelled':'error',{error:controller.signal.aborted?'安装已取消；已下载的部分可在下次继续。':error.message});throw error;}
+    }catch(error){this.emit(controller.signal.aborted?'cancelled':'error',{error:controller.signal.aborted?'安装已取消；已下载的部分可在下次继续。':formatRuntimeProbeError(error)});throw error;}
     finally{
       try{if(stage)await fs.rm(stage,{recursive:true,force:true,maxRetries:6,retryDelay:100});}
       catch{this.notify({phase:this.phase,error:this.error,cleanupWarning:'临时文件暂时被占用；已保留原运行环境，可以重试安装。'});}

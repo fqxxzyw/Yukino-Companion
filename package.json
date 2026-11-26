@@ -1,6 +1,6 @@
 {
   "name": "yukino-companion",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Yukino Companion · 双语数字角色与桌面陪伴",
   "author": "fqxxzyw",
   "private": true,
@@ -189,6 +189,13 @@
       {
         "from": "resources/runtime-catalog.json",
         "to": "runtime-catalog.json"
+      },
+      {
+        "from": "resources/cpu-wheels",
+        "to": "cpu-wheels",
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "resources/voice-presets",

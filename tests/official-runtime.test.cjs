@@ -94,5 +94,24 @@ test('CUDA package installation is separate from physical device validation and 
  assert.equal(validateProbe(metadata,'cu124'),metadata,'a GPU-less Windows build can prove dependencies installed without pretending device inference passed');
  assert.throws(()=>validateProbe({...metadata,cudaBuild:null},'cu124'),/CUDA/);
  assert.throws(()=>validateProbe({...metadata,translationCudaBinary:false},'cu124'),/CUDA/);
+ assert.equal(validateProbe({...metadata,translationCudaBinary:false},'cu124',{cpuFallback:true}).cpuTensor,true,'a CPU-safe llama wheel may replace the CUDA backend');
  assert.throws(()=>validateProbe({...metadata,cpuTensor:false},'cpu'),/CPU/);
+});
+
+test('illegal-instruction errors are recognised and CPU llama routes prefer bundled, then R2, then official',()=>{
+ const {isIllegalInstructionError,cpuLlamaCommands,formatRuntimeProbeError,R2_CPU_AVX2_WHEELS_INDEX,R2_CPU_COMPAT_WHEELS_INDEX}=require('../electron/official-runtime.cjs');
+ assert.ok(isIllegalInstructionError(Error('OSError: [WinError -1073741795] Windows Error 0xc000001d')));
+ assert.ok(!isIllegalInstructionError(Error('network timeout')));
+ assert.match(formatRuntimeProbeError(Error('0xc000001d')),/CPU/);
+ const avx2=cpuLlamaCommands('c',{variant:'avx2'})[0],compat=cpuLlamaCommands('c',{variant:'compat'})[0];
+ assert.ok(avx2.routes[0].args.includes(R2_CPU_AVX2_WHEELS_INDEX));assert.equal(avx2.routes.length,2);
+ assert.ok(compat.routes[0].args.includes(R2_CPU_COMPAT_WHEELS_INDEX));assert.equal(compat.routes.length,1);
+ const bundledAvx2=cpuLlamaCommands('c',{variant:'avx2',wheelDir:'C:\\Program Files\\Yukino\\resources\\cpu-wheels\\avx2'})[0];
+ assert.equal(bundledAvx2.routes[0].kind,'bundled');
+ assert.ok(bundledAvx2.routes[0].args.includes('--find-links'));
+ assert.ok(bundledAvx2.routes[0].args.includes('C:\\Program Files\\Yukino\\resources\\cpu-wheels\\avx2'));
+ assert.equal(bundledAvx2.routes.length,3);
+ assert.equal(cpuLlamaCommands('c',{variant:'compat',wheelDir:'compat'})[0].routes[0].kind,'bundled');
+ for(const r of [...avx2.routes,...compat.routes]){assert.ok(r.args.includes('--only-binary=:all:'));assert.ok(r.args.includes('--isolated'));}
+ assert.ok(officialCudaCommands('c')[0].routes.some(r=>r.args.includes('https://mirror.sjtu.edu.cn/pytorch-wheels/cu124/')));
 });

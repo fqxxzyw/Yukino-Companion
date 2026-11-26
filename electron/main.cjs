@@ -211,7 +211,8 @@ else {
     aquaEnvironment=new (require('./aqua-environment.cjs').AquaEnvironmentManager)({dataRoot:resourceDataRoot,fetcher:(url,options)=>net.fetch(url,options),notify:progress=>send('aqua-environment-progress',progress)});
     resourcePacks=new ResourcePacks({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),fetcher:(url,options)=>net.fetch(url,options),notify:(id,progress)=>setup?.report(id,progress)});
     const runtimeCatalogPath=app.isPackaged?path.join(resourceRoot(),'runtime-catalog.json'):path.join(__dirname,'../resources/runtime-catalog.json');
-    runtime=new RuntimeManager({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),catalogPath:runtimeCatalogPath,fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
+    const cpuWheelRoot=app.isPackaged?path.join(resourceRoot(),'cpu-wheels'):path.join(__dirname,'../resources/cpu-wheels');
+    runtime=new RuntimeManager({dataRoot:resourceDataRoot,legacyDataRoot,resourceRoot:resourceRoot(),catalogPath:runtimeCatalogPath,cpuWheelRoot,fetcher:(url,options)=>net.fetch(url,options),notify:progress=>setup?.report('runtime',progress)});
     const modelDir=app.isPackaged?path.join(process.resourcesPath,'translation-models',translationManifest.directory):path.join(__dirname,'../translation/models',translationManifest.directory);
     const localModelDir=app.isPackaged?path.join(resourceRoot(),'local-model/yukino-1.5b-persona-q4'):path.join(__dirname,'../resources/local-model/yukino-1.5b-persona-q4');
     const localScript=app.isPackaged?path.join(process.resourcesPath,'local-chat/desktop_worker.py'):path.join(__dirname,'../model-service/desktop_worker.py');

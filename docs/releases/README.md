@@ -12,7 +12,7 @@
 
 | 版本 | 发布日期 (UTC) | 核心变化 | 安装版体积 | 详细记录 |
 | --- | --- | --- | --- | --- |
-| **未发布（分支 `codex/local-yukino-models-20261113`，待发 `v0.4.6`）** | 进行中 | 客户端全面接入 Cloudflare R2（`dl.yukino.fqxxzyw.cn`）优先 + GitHub 回退（含 4.24 GiB 共享资源与软件内增量更新）；CUDA 12.4 推理环境升级为官方源 + 南京大学 / 阿里云 / 腾讯云 / 中科大 / 自有 R2 多路线自动切换，配置向导支持路线选择。官网端与 R2 5.29 GiB 资产已先行上线。 | 预计 ~307 MiB（`0.4.5` 增量约 0.5–1 MB） | 见下方「待发布变更」 |
+| **未发布（分支 `codex/local-yukino-models-20261113`，待发 `v0.4.6`）** | 进行中 | CPU 推理环境兼容 AMD/老 CPU（`0xc000001d` 非法指令），安装包内置 AVX2 + 通用兼容 wheel 并支持 R2/官方源回退；CUDA 环境命中同一错误时可降级 CPU wheel 继续运行；客户端全面接入 Cloudflare R2 优先 + GitHub 回退，CUDA 12.4 推理环境支持官方源与国内镜像多路线自动切换。 | `321.9 MiB` (`337,496,271` B)，`0.4.5` 实测增量 `17.44 MiB` | [v0.4.6.md](v0.4.6.md) |
 | **`v0.4.5`**（当前最新正式版） | 2026-11-25 | 修复关闭主窗口切桌面人物永久报错、切装误触转盘 IPC 报错及 WebGL 丢失后「重新加载模型」卡死；拆分静态素材至 `app.asar.unpacked` 并启用 NSIS `store-asar` 细粒度 `.blockmap`，`app.asar` 由 456 MB 瘦身至 9.47 MB，后续纯代码增量降至约 0.5–1 MB。 | `307.4 MiB` (`322,356,092` B) | [v0.4.5.md](v0.4.5.md) |
 | **`v0.4.4`** | 2026-11-25 | 安装包补齐 `runtime-catalog.json`、默认语音参考音频与 `aria2`，修复 0.4.3 推理环境未准备；域名切换至正式站 `https://yukino.fqxxzyw.cn`；新增分类更新说明展示、自定义角色云备份与赛璐璐材质分层。 | `376.4 MiB` (`394,717,262` B) | [v0.4.4.md](v0.4.4.md) |
 | **`v0.4.3`** | 2026-11-19 | 引入 NSIS + `.blockmap` 应用内差分更新与「重启并安装」流程，支持断点/区间校验与失败回退整包。 | `372.5 MiB` (`390,578,978` B) | [v0.4.3.md](v0.4.3.md) |
@@ -38,3 +38,10 @@
 - **下载加速**：上线 Cloudflare R2 存储桶 `yukino-downloads` 及自定义域名 `https://dl.yukino.fqxxzyw.cn`，全量同步 `v0.4.5` 安装包、`v0.4.0-resources.1` 全部 `4.24 GiB` 共享依赖模型资源及 `488 MiB` `llama-cpp-python` CUDA 12.4 轮子；官网与桌面端均设为 R2 优先、GitHub 自动回退，两者并存。
 - **CUDA 推理环境**：内置多路线官方源与国内镜像（PyTorch 官方、南京大学、阿里云、腾讯云 + 阿里云、中科大 + 阿里云；`llama-cpp-python` 自有 R2 镜像 + `abetlen.github.io` 官方源），支持失败自动切换路线并在首次配置向导提供路线策略选择。
 - **应用内更新器**：允许信任 `dl.yukino.fqxxzyw.cn`，支持 GitHub API 受限时回退 R2 `releases/latest.json`，并优先从 R2 拉取 `.blockmap` 与 Range 差分区块。
+
+### CPU 指令集兼容修复（AMD / 老 CPU，0xc000001d）
+
+- **现象**：部分 AMD（如锐龙 1000–5000，无 AVX-512）或老 CPU 选择「CPU 通用环境」时，自检 import llama_cpp 报 OSError: [WinError -1073741795] Windows Error 0xc000001d（非法指令）。
+- **修复**：自检命中该错误时自动依次安装 AVX2 版、通用兼容版（无 AVX）llama-cpp-python==0.3.36；安装包内置 `resources/cpu-wheels/{avx2,compat}` 优先离线修复，其次回退 `dl.yukino.fqxxzyw.cn/wheels/cpu/{avx2,compat}/`，AVX2 另有 abetlen 官方源；CUDA 环境命中同一错误时也降级为 CPU wheel 保证可运行。界面显示中文提示而非 Python 堆栈。
+- **构建**：`translation/prepare_runtime.py` 以后默认 GGML_NATIVE=OFF、GGML_AVX512=OFF、GGML_AVX2=ON，并支持 GitHub / PyPI 两个固定哈希源码包。
+- **镜像**：CUDA PyTorch 新增 上海交大 + 清华 PyPI 路线。

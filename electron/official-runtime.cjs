@@ -6,6 +6,20 @@ const fs=require('node:fs/promises');
 const OFFICIAL_CUDA_VERSION='official-cu124-1';
 const CUDA_SOURCE_MODES=Object.freeze(['auto','official','mirror']);
 const R2_CUDA_WHEELS_INDEX='https://dl.yukino.fqxxzyw.cn/wheels/cu124/llama-cpp-python/index.html';
+const R2_CPU_AVX2_WHEELS_INDEX='https://dl.yukino.fqxxzyw.cn/wheels/cpu/avx2/llama-cpp-python/index.html';
+const R2_CPU_COMPAT_WHEELS_INDEX='https://dl.yukino.fqxxzyw.cn/wheels/cpu/compat/llama-cpp-python/index.html';
+
+function isIllegalInstructionError(error){
+ const text=String(error?.stderr||error?.stdout||error?.message||error||'');
+ return /0xc000001d|-1073741795|STATUS_ILLEGAL_INSTRUCTION/i.test(text);
+}
+
+function formatRuntimeProbeError(error){
+ if(isIllegalInstructionError(error)){
+  return '当前 CPU 不支持内置推理库的指令集（Windows 错误 0xc000001d / 非法指令）。已尝试安装包内置及镜像中的兼容版推理库。';
+ }
+ return String(error?.message||error||'运行环境自检失败');
+}
 
 function normalizeSourceMode(sourceMode='official'){
  return CUDA_SOURCE_MODES.includes(sourceMode)?sourceMode:'official';
@@ -44,6 +58,12 @@ function officialCudaCommands(cache,{sourceMode='official'}={}){
    kind:'mirror',
    label:'中科大 PyPI + 阿里云 PyTorch 镜像',
    args:[...common,'--upgrade','--force-reinstall','--only-binary=:all:','torch==2.5.1','torchaudio==2.5.1','-f','https://mirrors.aliyun.com/pytorch-wheels/cu124/','--index-url','https://pypi.mirrors.ustc.edu.cn/simple'],
+  },
+  {
+   id:'sjtu-tuna-mirror',
+   kind:'mirror',
+   label:'上海交大 PyTorch + 清华 PyPI 镜像',
+   args:[...common,'--upgrade','--force-reinstall','--only-binary=:all:','torch==2.5.1','torchaudio==2.5.1','-f','https://mirror.sjtu.edu.cn/pytorch-wheels/cu124/','--index-url','https://pypi.tuna.tsinghua.edu.cn/simple'],
   },
  ];
  const llamaOfficial={
@@ -92,17 +112,41 @@ if available:
   gpu_error=str(error)
 print(json.dumps({'torch':torch.__version__,'cudaBuild':torch.version.cuda,'translationCudaBinary':cuda_binary,'gpuError':gpu_error,'torchaudio':torchaudio.__version__,'llamaCpp':llama_cpp.__version__,'cpuTensor':cpu,'gpuAvailable':available,'gpuTensor':gpu,'gpuName':torch.cuda.get_device_name(0) if available else None,'translationGpuBuild':bool(llama_cpp.llama_supports_gpu_offload()),'validation':'imports-and-tensor'}))`;
 
-function validateProbe(metadata,flavor){
+function validateProbe(metadata,flavor,{cpuFallback=false}={}){
  if(!metadata||metadata.cpuTensor!==true)throw Error('Python 推理依赖检查失败：CPU 张量测试未通过。');
- if(flavor==='cu124'&&(!metadata.cudaBuild||!metadata.translationCudaBinary))throw Error('官方 CUDA 包安装结果不完整：缺少 PyTorch CUDA 构建或 llama.cpp CUDA 库。请查看安装日志后重试。');
+ if(flavor==='cu124'&&!metadata.cudaBuild)throw Error('官方 CUDA 包安装结果不完整：缺少 PyTorch CUDA 构建。请查看安装日志后重试。');
+ if(flavor==='cu124'&&!cpuFallback&&!metadata.translationCudaBinary)throw Error('官方 CUDA 包安装结果不完整：缺少 llama.cpp CUDA 库。请查看安装日志后重试。');
  return metadata;
 }
 
+function cpuLlamaCommands(cache,{variant='avx2',wheelDir=null}={}){
+ const common=['-m','pip','--isolated','--disable-pip-version-check','install','--no-input','--retries','3','--timeout','60','--cache-dir',cache,'--upgrade','--force-reinstall','--no-deps','--only-binary=:all:','llama-cpp-python==0.3.36'];
+ const routes=[];
+ // The installer ships both CPU-safe wheels, so an unknown machine can be
+ // repaired without any network access. R2 and the official index remain as
+ // fallbacks for old installers or a damaged bundled file.
+ if(wheelDir)routes.push({id:'bundled-cpu-'+variant,kind:'bundled',label:'安装包内置兼容库',args:[...common,'--no-index','--find-links',wheelDir]});
+ routes.push({id:'yukino-r2-cpu-'+variant,kind:'mirror',label:'国内加速镜像 (dl.yukino.fqxxzyw.cn)',args:[...common,'--no-index','-f',variant==='compat'?R2_CPU_COMPAT_WHEELS_INDEX:R2_CPU_AVX2_WHEELS_INDEX]});
+ if(variant!=='compat')routes.push({id:'abetlen-official-cpu',kind:'official',label:'官方源 (abetlen.github.io)',args:[...common,'--index-url','https://abetlen.github.io/llama-cpp-python/whl/cpu']});
+ return [{id:'llama-cpp-cpu-'+variant,label:variant==='compat'?'llama.cpp CPU 通用兼容版':'llama.cpp CPU (AVX2) 版',args:routes[0].args,routes}];
+}
+
+async function installCpuLlamaCompat({python,root,run,signal,variant='avx2',wheelDir=null,notify=()=>{}}){
+ const cache=path.join(root,'pip-cache');
+ await fs.mkdir(cache,{recursive:true});
+ return runInstallCommands({python,root,run,signal,notify,commands:cpuLlamaCommands(cache,{variant,wheelDir}),mode:variant});
+}
+
 async function installOfficialCuda({python,root,run,signal,sourceMode='auto',notify=()=>{}}){
- const cache=path.join(root,'pip-cache'),temporary=path.join(root,'pip-temp'),logPath=path.join(root,'official-install.log');
- await fs.mkdir(cache,{recursive:true});await fs.mkdir(temporary,{recursive:true});
+ const cache=path.join(root,'pip-cache');
+ await fs.mkdir(cache,{recursive:true});
  const mode=normalizeSourceMode(sourceMode);
- const commands=officialCudaCommands(cache,{sourceMode:mode});
+ return runInstallCommands({python,root,run,signal,notify,commands:officialCudaCommands(cache,{sourceMode:mode}),mode});
+}
+
+async function runInstallCommands({python,root,run,signal,notify=()=>{},commands,mode}){
+ const temporary=path.join(root,'pip-temp'),logPath=path.join(root,'official-install.log');
+ await fs.mkdir(temporary,{recursive:true});
  const installed=[];
  let log='';
  for(let index=0;index<commands.length;index++){
@@ -166,4 +210,4 @@ async function installOfficialCuda({python,root,run,signal,sourceMode='auto',not
  return {sourceMode:mode,commands:installed,logPath};
 }
 
-module.exports={OFFICIAL_CUDA_VERSION,CUDA_SOURCE_MODES,R2_CUDA_WHEELS_INDEX,normalizeSourceMode,officialCudaCommands,RUNTIME_PROBE,validateProbe,installOfficialCuda};
+module.exports={OFFICIAL_CUDA_VERSION,CUDA_SOURCE_MODES,R2_CUDA_WHEELS_INDEX,R2_CPU_AVX2_WHEELS_INDEX,R2_CPU_COMPAT_WHEELS_INDEX,normalizeSourceMode,officialCudaCommands,cpuLlamaCommands,installCpuLlamaCompat,isIllegalInstructionError,formatRuntimeProbeError,RUNTIME_PROBE,validateProbe,installOfficialCuda};

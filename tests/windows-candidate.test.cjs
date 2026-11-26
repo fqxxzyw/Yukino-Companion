@@ -26,7 +26,7 @@ test('requested build then prerelease then native validation order preserves exa
   assert.ok(validation.some(s=>s.run?.includes('-VerifyCurrentFeatures')));
   assert.ok(validation.some(s=>s.run?.includes('node scripts/smoke-aria2-parts.cjs')));
   assert.equal(validation.find(s=>s.name==='Preserve native screenshots and failure evidence').if,'always()');
-  const source=fs.readFileSync(path.join(root,'scripts/smoke-base-installer.ps1'),'utf8');
+  const source=fs.readFileSync(path.join(root,'scripts/smoke-base-installer.ps1'),'utf8').replace(/\r\n/g,'\n');
   assert.equal((source.match(/base-payload\.cjs/g)||[]).length,2);
   assert.ok(source.indexOf('Installed payload does not match this build')<source.indexOf('$report.passed=$true'));
   assert.ok(source.indexOf('scripts/verify-installed-window.cjs')<source.indexOf(' Stop-InstalledApp\n $stderrFile'));

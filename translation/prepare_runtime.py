@@ -1,6 +1,7 @@
 """Prepare the fixed translation runtime inside the selected build Python.
 
-CPU uses SHA-256-verified wheels from abetlen/llama-cpp-python's official release.
+CPU compiles the SHA-256-verified source release with GGML_NATIVE/AVX-512 off and
+AVX2 on, so AMD Zen1-3 CPUs do not hit STATUS_ILLEGAL_INSTRUCTION (0xc000001d).
 CUDA builds the same verified source release with GGML_CUDA; a CUDA toolkit and
 C++ build tools are required on the build machine, not on the user's computer.
 The application never compiles or installs packages during conversation.
@@ -19,24 +20,41 @@ from urllib.request import urlopen
 
 VERSION = '0.3.36'
 BASE = f'https://github.com/abetlen/llama-cpp-python/releases/download/v{VERSION}'
+# GitHub's release tarball and PyPI's sdist are packed independently by the
+# upstream maintainer, so their bytes and SHA-256 differ. Verify each candidate
+# against its own pinned digest; the PyPI fallback keeps builds working when
+# GitHub release downloads are slow or blocked. PyPI digest checked from
+# https://pypi.org/pypi/llama-cpp-python/0.3.36/json.
 ARTIFACTS = {
-    'win32': ('llama_cpp_python-0.3.36-py3-none-win_amd64.whl', 'ae5e88a2cf464e5a2dde7c8898c2d5c71cc24d03cac6396bf7509456bde0b9fb'),
-    'linux': ('llama_cpp_python-0.3.36-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl', 'c8a3e98093e950d7a770f794842e36f2db82b2933e8762ed7b5ffd435011e8e4'),
-    'source': ('llama_cpp_python-0.3.36.tar.gz', '6eed0d1931e1b6ee6ea43bd320ea438c6494bddac4e46e5133afc3b10594964f'),
+    'win32': [(f'{BASE}/llama_cpp_python-0.3.36-py3-none-win_amd64.whl', 'ae5e88a2cf464e5a2dde7c8898c2d5c71cc24d03cac6396bf7509456bde0b9fb')],
+    'linux': [(f'{BASE}/llama_cpp_python-0.3.36-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl', 'c8a3e98093e950d7a770f794842e36f2db82b2933e8762ed7b5ffd435011e8e4')],
+    'source': [
+        (f'{BASE}/llama_cpp_python-0.3.36.tar.gz', '6eed0d1931e1b6ee6ea43bd320ea438c6494bddac4e46e5133afc3b10594964f'),
+        ('https://files.pythonhosted.org/packages/ec/e9/e7de2b0463ea3ffbf0ede6cb21b58c1258a8f6521aae45ca773a59fe7cf3/llama_cpp_python-0.3.36.tar.gz', '832db0699007f1be95a7e41ef12e88926b02ba836461e36a36372db2760c1a2e'),
+    ],
 }
 
 
 def download(directory, kind):
-    name, expected = ARTIFACTS[kind]
+    candidates = ARTIFACTS[kind]
+    name = candidates[0][0].rsplit('/', 1)[-1]
     target = directory / name
-    digest = hashlib.sha256()
-    with urlopen(BASE + '/' + name, timeout=90) as response, target.open('wb') as out:
-        while chunk := response.read(1024 * 1024):
-            digest.update(chunk); out.write(chunk)
-    if digest.hexdigest() != expected:
-        target.unlink()
-        raise RuntimeError('Translation runtime SHA-256 mismatch')
-    return target
+    failures = []
+    for url, expected in candidates:
+        digest = hashlib.sha256()
+        try:
+            with urlopen(url, timeout=90) as response, target.open('wb') as out:
+                while chunk := response.read(1024 * 1024):
+                    digest.update(chunk); out.write(chunk)
+        except OSError as error:
+            failures.append(f'{url}: {error}')
+            target.unlink(missing_ok=True)
+            continue
+        if digest.hexdigest() == expected:
+            return target
+        failures.append(f'{url}: SHA-256 mismatch ({digest.hexdigest()})')
+        target.unlink(missing_ok=True)
+    raise RuntimeError('Translation runtime download failed: ' + '; '.join(failures))
 
 
 def diagnose_windows_cuda(python):
@@ -72,10 +90,13 @@ def main():
     subprocess.run([args.python, '-m', 'pip', 'install', '-r', str(Path(__file__).with_name('requirements.txt'))], check=True)
     with tempfile.TemporaryDirectory(prefix='yukino-translation-runtime-') as temp:
         cuda = args.flavor != 'cpu'
-        archive = download(Path(temp), 'source' if cuda else sys.platform)
+        archive = download(Path(temp), 'source')
         env = os.environ.copy()
+        # Portable x64 baseline: never -march=native / AVX-512 (crashes with 0xc000001d on AMD Zen1-3).
+        env['CMAKE_ARGS'] = '-DGGML_NATIVE=OFF -DGGML_AVX512=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_RPC=OFF'
+        env['FORCE_CMAKE'] = '1'
         if cuda:
-            env['CMAKE_ARGS'] = '-DGGML_CUDA=ON -DGGML_RPC=OFF'
+            env['CMAKE_ARGS'] += ' -DGGML_CUDA=ON'
             if sys.platform == 'win32':
                 # The fixed upstream CUDA target otherwise imports nvcuda.dll
                 # directly for VMM. A GPU-less Windows machine must still be

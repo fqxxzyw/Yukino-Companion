@@ -43,6 +43,8 @@ async function finalizeDirectory(ready, output) {
 async function verifyPackagedResources(resources) {
   const required = [
     'runtime-catalog.json',
+    'cpu-wheels/avx2/llama_cpp_python-0.3.36-py3-none-win_amd64.whl',
+    'cpu-wheels/compat/llama_cpp_python-0.3.36-py3-none-win_amd64.whl',
     'voice-presets/yukino-default.json',
     'voice-presets/yukino-reference.wav',
     'aria2/aria2c.exe',

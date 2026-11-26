@@ -38,7 +38,7 @@ async function temporary(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'yukino-runtime-test-'));
   t.after(() => fs.rm(root,{recursive:true,force:true})); return root;
 }
-async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify} = {}) {
+async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify({torch:'test',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:true,gpuAvailable:true,gpuTensor:true,translationGpuBuild:true})}), hardwareRun=async()=>({stdout:'Intel UHD'}), fetcher, notify, cpuWheelRoot} = {}) {
   const temp = await temporary(t), resourceRoot = path.join(temp,'resources'), dataRoot = path.join(temp,'data');
   await fs.mkdir(resourceRoot,{recursive:true});
   const entries = [{name:'python-runtime/python.exe',data:'synthetic Python fixture'}, {name:'python-runtime/ffmpeg.exe',data:'synthetic ffmpeg'}, {name:'python-runtime/yukino-runtime-build.json',data:JSON.stringify({flavor})}];
@@ -46,7 +46,7 @@ async function fixture(t, {flavor='cu124', run=async()=>({stdout:JSON.stringify(
   const pack = {id:`runtime-${flavor}`,archiveSha256:digest(archive),unpackedBytes:entries.reduce((sum,e)=>sum+Buffer.byteLength(e.data),0),parts:chunks.map((chunk,index)=>({path:`runtime.zip.part${index+1}`,url:`https://github.com/fqxxzyw/Yukino-Companion/releases/download/test/runtime.zip.part${index+1}`,algorithm:'sha256',digest:digest(chunk),bytes:chunk.length}))};
   const catalog = {schemaVersion:1,version:'test-1',variants:{[flavor]:pack}}, catalogPath = path.join(temp,'runtime.json'), calls = [];
   await fs.writeFile(catalogPath,JSON.stringify(catalog));
-  const manager = new RuntimeManager({dataRoot,resourceRoot,catalogPath,platform:'win32',run,hardwareRun,notify,fetcher:async(url,options)=>{
+  const manager = new RuntimeManager({dataRoot,resourceRoot,catalogPath,cpuWheelRoot,platform:'win32',run,hardwareRun,notify,fetcher:async(url,options)=>{
     calls.push(url); if(fetcher)return fetcher(url,options);
     const index=pack.parts.findIndex(part=>part.url===url); assert.ok(index>=0,'only declared runtime files may be downloaded');
     return new Response(chunks[index]);
@@ -351,6 +351,15 @@ test('packaged extraResources include the pinned runtime catalog, voice presets,
  assert.ok(extra.some(entry => entry.from === 'resources/runtime-catalog.json' && entry.to === 'runtime-catalog.json'));
  assert.ok(extra.some(entry => entry.from === 'resources/voice-presets' && entry.to === 'voice-presets'));
  assert.ok(extra.some(entry => entry.from === 'build/aria2' && entry.to === 'aria2'));
+ assert.ok(extra.some(entry => entry.from === 'resources/cpu-wheels' && entry.to === 'cpu-wheels'));
+ const wheelHashes = {
+  'avx2/llama_cpp_python-0.3.36-py3-none-win_amd64.whl': 'ec86a9d69f79e357271e1b41aa8fba780178885bf440ea76fde87569d9ce94c3',
+  'compat/llama_cpp_python-0.3.36-py3-none-win_amd64.whl': '67e0ee326d47e2785fe31eb3b50af966d45c266c045aecdc1037eb76c2cfff25',
+ };
+ for (const [name, expected] of Object.entries(wheelHashes)) {
+  const wheel = await fs.readFile(path.join(__dirname, '../resources/cpu-wheels', name));
+  assert.equal(digest(wheel), expected, `${name} must match the verified CPU wheel`);
+ }
 
  const catalogPath = path.join(__dirname, '../resources/runtime-catalog.json');
  const bytes = await fs.readFile(catalogPath);
@@ -369,4 +378,46 @@ test('packaged extraResources include the pinned runtime catalog, voice presets,
  assert.deepEqual(status.variants, ['cpu', 'cu124']);
  assert.equal(status.officialInstall, true);
  assert.equal(status.version, '0.4.0');
+});
+
+test('CPU runtime that crashes with 0xc000001d is repaired with a compatible llama wheel',async t=>{
+ let probes=0,pips=[];
+ const ok=JSON.stringify({torch:'t',cpuTensor:true,gpuAvailable:false,gpuTensor:false});
+ const env=await fixture(t,{flavor:'cpu',run:async(_exe,args)=>{
+  if(args.includes('pip')){pips.push(args.includes('-f')?args[args.indexOf('-f')+1]:'official');return {stdout:'Successfully installed'};}
+  probes++;if(probes===1)throw Error('OSError: [WinError -1073741795] Windows Error 0xc000001d');
+  return {stdout:ok};
+ }});
+ const status=await env.manager.install('cpu');
+ assert.equal(status.ready,true);assert.equal(probes,2);assert.equal(pips.length,1);assert.match(pips[0],/cpu\/avx2/);
+});
+
+test('bundled CPU wheel repairs an unknown machine without any network route',async t=>{
+ let probes=0,pips=[];
+ const wheelRoot=await temporary(t);
+ const ok=JSON.stringify({torch:'t',cpuTensor:true,gpuAvailable:false,gpuTensor:false});
+ const env=await fixture(t,{flavor:'cpu',cpuWheelRoot:wheelRoot,run:async(_exe,args)=>{
+  if(args.includes('pip')){pips.push(args);return {stdout:'Successfully installed'};}
+  probes++;if(probes===1)throw Error('OSError: [WinError -1073741795] Windows Error 0xc000001d');
+  return {stdout:ok};
+ }});
+ const status=await env.manager.install('cpu');
+ assert.equal(status.ready,true);assert.equal(status.cpuVariant,'avx2');assert.equal(probes,2);
+ assert.equal(pips.length,1);assert.ok(pips[0].includes('--find-links'));
+ assert.ok(pips[0].includes(path.join(wheelRoot,'avx2')));
+ assert.ok(!pips[0].some(value=>/^https?:/i.test(value)),'the bundled route must not require a URL');
+});
+
+test('CUDA runtime that hits an illegal instruction falls back to a CPU wheel and remains ready',async t=>{
+ let probes=0,pips=0;
+ const wheelRoot=await temporary(t);
+ const ok=JSON.stringify({torch:'t',cpuTensor:true,cudaBuild:'12.4',translationCudaBinary:false,gpuAvailable:true,gpuTensor:false,translationGpuBuild:false});
+ const env=await fixture(t,{flavor:'cu124',cpuWheelRoot:wheelRoot,run:async(_exe,args)=>{
+  if(args.includes('pip')){pips++;return {stdout:'Successfully installed'};}
+  probes++;if(probes===1)throw Error('OSError: [WinError -1073741795] Windows Error 0xc000001d');
+  return {stdout:ok};
+ }});
+ const status=await env.manager.install('cu124');
+ assert.equal(status.ready,true);assert.equal(status.cpuFallback,true);assert.equal(status.cpuVariant,'avx2');
+ assert.equal(probes,2);assert.equal(pips,1);
 });
