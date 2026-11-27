@@ -2,12 +2,14 @@ import {
   changePassword,
   health,
   login,
+  loginWithCode,
   logout,
   logoutAll,
   me,
   refresh,
   register,
   requestCode,
+  requestLoginCode,
   requestReset,
   resetPassword,
   revokeOwnSession,
@@ -125,6 +127,12 @@ export function createApi({env, db, fetchImpl = globalThis.fetch, mailer, now = 
     }
     if (path === '/api/v1/auth/login' && method === 'POST') {
       return login({...context, body: await readJson(request, MAX_BODY)});
+    }
+    if (path === '/api/v1/auth/login/request-code' && method === 'POST') {
+      return requestLoginCode({...context, body: await readJson(request, MAX_BODY)});
+    }
+    if (path === '/api/v1/auth/login/code' && method === 'POST') {
+      return loginWithCode({...context, body: await readJson(request, MAX_BODY)});
     }
     if (path === '/api/v1/auth/refresh' && method === 'POST') {
       return refresh({...context, body: await readJson(request, MAX_BODY)});

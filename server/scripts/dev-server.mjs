@@ -91,6 +91,10 @@ const MIME = {
   '.woff2': 'font/woff2',
   '.wav': 'audio/wav',
   '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.wasm': 'application/wasm',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8',
 };
 
@@ -100,7 +104,8 @@ function safePath(root, pathname) {
   return target === root || target.startsWith(root + path.sep) ? target : null;
 }
 
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'self'";
+const COMMUNITY_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com; media-src 'self'; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'none'; form-action 'self' https://github.com; frame-src 'none'; frame-ancestors 'none'";
 
 function htmlEscape(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
@@ -130,6 +135,10 @@ async function serveWebsite(pathname, request) {
   if (!target) return new Response('Bad path', {status: 400});
   let info;
   try { info = await stat(target); } catch { info = null; }
+  if (info?.isDirectory()) {
+    target = path.join(target, 'index.html');
+    try { info = await stat(target); } catch { info = null; }
+  }
   if (!info?.isFile()) {
     // SPA deep links (/login, /register, /account) and extensionless routes.
     if (!path.extname(pathname) && (!request.headers.accept || String(request.headers.accept).includes('text/html') || String(request.headers.accept).includes('*/*'))) {
@@ -139,14 +148,23 @@ async function serveWebsite(pathname, request) {
   }
   if (!info?.isFile()) return new Response('Not Found', {status: 404});
   const body = await readFile(target);
+  const isLive2d = pathname === '/live2d' || pathname.startsWith('/live2d/');
+  const isCommunity = pathname === '/community' || pathname.startsWith('/community/');
   const headers = new Headers({
     'content-type': MIME[path.extname(target).toLowerCase()] || 'application/octet-stream',
     'x-content-type-options': 'nosniff',
-    'x-frame-options': 'DENY',
+    'x-frame-options': isLive2d ? 'SAMEORIGIN' : 'DENY',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'cache-control': pathname.startsWith('/assets/') ? 'public, max-age=60' : 'no-cache',
   });
-  if (target.endsWith('.html')) headers.set('content-security-policy', CSP);
+  if (target.endsWith('.html')) {
+    if (isLive2d) {
+      const scope = new URL('/live2d/', `http://${request.headers.host || '127.0.0.1:8787'}`).href;
+      headers.set('content-security-policy', `default-src 'none'; script-src ${scope} 'wasm-unsafe-eval'; style-src ${scope}; connect-src ${scope}; img-src ${scope}; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`);
+    } else {
+      headers.set('content-security-policy', isCommunity ? COMMUNITY_CSP : CSP);
+    }
+  }
   return new Response(body, {headers});
 }
 

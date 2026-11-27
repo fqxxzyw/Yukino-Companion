@@ -109,21 +109,25 @@ async function queueSecurityNotice({db, mailer, user, kind, now}) {
 }
 
 async function loadChallenge(db, {id, email, purpose, now = Date.now()}) {
+  const dbPurpose = purpose === 'login' ? 'reset' : purpose;
   const challenge = await first(
     db,
     'SELECT * FROM email_challenges WHERE id = ? AND email = ? AND purpose = ?',
-    id, email, purpose,
+    id, email, dbPurpose,
   );
   if (!challenge) fail(400, 'invalid_challenge', '验证码不正确或已过期。');
+  const isLoginChallenge = String(challenge.send_status || '').endsWith(':login');
+  if ((purpose === 'login') !== isLoginChallenge) fail(400, 'invalid_challenge', '验证码不正确或已过期。');
   if (challenge.consumed_at) fail(400, 'invalid_challenge', '验证码不正确或已过期。');
   if (Number(challenge.expires_at) <= now) fail(400, 'challenge_expired', '验证码已过期，请重新获取。');
   if (Number(challenge.attempts) >= OTP_MAX_ATTEMPTS) fail(429, 'challenge_locked', '尝试次数过多，请重新获取验证码。');
-  return challenge;
+  return {...challenge, logicalPurpose: purpose};
 }
 
 async function verifyChallengeCode({db, env, challenge, code, now}) {
+  const effectivePurpose = challenge.logicalPurpose || challenge.purpose;
   const expected = await codeHmac(config(env).otpSecret, {
-    challengeId: challenge.id, email: challenge.email, purpose: challenge.purpose, code,
+    challengeId: challenge.id, email: challenge.email, purpose: effectivePurpose, code,
   });
   if (!timingSafeEqual(expected, challenge.code_hmac)) {
     await run(
@@ -131,7 +135,7 @@ async function verifyChallengeCode({db, env, challenge, code, now}) {
       'UPDATE email_challenges SET attempts = attempts + 1 WHERE id = ? AND consumed_at IS NULL AND attempts < ?',
       challenge.id, OTP_MAX_ATTEMPTS,
     );
-    await audit(db, null, 'otp-failed', `${challenge.purpose}:${challenge.id.slice(0, 8)}`, now);
+    await audit(db, null, 'otp-failed', `${effectivePurpose}:${challenge.id.slice(0, 8)}`, now);
     fail(400, 'invalid_code', '验证码不正确或已过期。');
   }
   const consumed = await run(
@@ -155,26 +159,51 @@ function newChallenge({email, purpose, now}) {
 export async function requestCode({request, env, db, mailer, body, purpose, now = Date.now()}) {
   const email = normalizeEmail(body.email);
   const ipKey = await sha256Hex(`ip:${request.ip}`);
-  await rate(db, `otp:ip:${ipKey}`, purpose === 'register' ? 10 : 6, HOUR, now);
-  await rate(db, `otp:email:${await sha256Hex(email)}:${purpose}`, 4, HOUR, now);
+  await rate(db, `otp:ip:${ipKey}`, purpose === 'register' ? 10 : 8, HOUR, now);
+  await rate(db, `otp:email:${await sha256Hex(email)}:${purpose}`, 5, HOUR, now);
+
+  const user = await first(db, 'SELECT * FROM users WHERE email = ?', email);
+  if ((purpose === 'login' || (purpose === 'reset' && body?.checkAccount === true)) && !user) {
+    fail(404, 'account_not_found', '该邮箱尚未注册账号，请前往注册。');
+  }
+  if (purpose === 'login' && user?.status !== 'active') {
+    fail(403, 'account_unavailable', '账号当前不可用，请联系支持。');
+  }
+
   await rate(db, `otp:resend:${await sha256Hex(`${email}:${purpose}`)}`, 1, OTP_RESEND_MS, now);
 
   const challenge = newChallenge({email, purpose, now});
   challenge.hmac = await codeHmac(config(env).otpSecret, {challengeId: challenge.id, email, purpose, code: challenge.code});
-  const user = await first(db, 'SELECT * FROM users WHERE email = ?', email);
+  const dbPurpose = purpose === 'login' ? 'reset' : purpose;
+  const pendingStatus = purpose === 'login' ? 'pending:login' : 'pending';
+  const sentStatus = purpose === 'login' ? 'sent:login' : 'sent';
 
   // Invalidate previous unconsumed challenges for this mailbox/purpose. The UI
   // tells the user to use the newest code, never an older one.
-  await run(
-    db,
-    'UPDATE email_challenges SET consumed_at = ? WHERE email = ? AND purpose = ? AND consumed_at IS NULL',
-    now, email, purpose,
-  );
+  if (purpose === 'login') {
+    await run(
+      db,
+      "UPDATE email_challenges SET consumed_at = ? WHERE email = ? AND purpose = 'reset' AND send_status LIKE '%:login' AND consumed_at IS NULL",
+      now, email,
+    );
+  } else if (purpose === 'reset') {
+    await run(
+      db,
+      "UPDATE email_challenges SET consumed_at = ? WHERE email = ? AND purpose = 'reset' AND send_status NOT LIKE '%:login' AND consumed_at IS NULL",
+      now, email,
+    );
+  } else {
+    await run(
+      db,
+      'UPDATE email_challenges SET consumed_at = ? WHERE email = ? AND purpose = ? AND consumed_at IS NULL',
+      now, email, dbPurpose,
+    );
+  }
   await run(
     db,
     `INSERT INTO email_challenges(id, email, purpose, code_hmac, created_at, expires_at, resend_after, last_sent_at, send_status)
      VALUES(?,?,?,?,?,?,?,?,?)`,
-    challenge.id, email, purpose, challenge.hmac, now, now + OTP_TTL_MS, now + OTP_RESEND_MS, now, 'pending',
+    challenge.id, email, dbPurpose, challenge.hmac, now, now + OTP_TTL_MS, now + OTP_RESEND_MS, now, pendingStatus,
   );
 
   if (!mailConfigured(env) || mailer.kind === 'none' || mailer.kind === 'gmail-unconfigured') {
@@ -190,7 +219,7 @@ export async function requestCode({request, env, db, mailer, body, purpose, now 
     } else {
       await sendChallengeMail({db, mailer, to: email, purpose, code: challenge.code, now, userId: user?.id || null});
     }
-    await run(db, 'UPDATE email_challenges SET send_status = ? WHERE id = ?', 'sent', challenge.id);
+    await run(db, 'UPDATE email_challenges SET send_status = ? WHERE id = ?', sentStatus, challenge.id);
   } catch (error) {
     await run(db, 'UPDATE email_challenges SET consumed_at = ? WHERE id = ?', now, challenge.id);
     if (error instanceof ApiError) throw error;
@@ -324,6 +353,7 @@ export async function login({request, env, db, body, now = Date.now()}) {
   const user = await first(db, 'SELECT * FROM users WHERE email = ?', email);
   if (!user) {
     await burnPasswordCheck(body.password);
+    if (body.checkAccount === true) fail(404, 'account_not_found', '该邮箱尚未注册账号，请前往注册。');
     fail(401, 'invalid_credentials', '邮箱或密码不正确。');
   }
   const verified = await verifyPassword(body.password, user.password_hash);
@@ -345,6 +375,35 @@ export async function login({request, env, db, body, now = Date.now()}) {
   const session = await createSession(db, {userId: user.id, client, request, now, persistent,
     expectedPasswordHash: user.password_hash, expectedSecurityVersion: user.security_version});
   await audit(db, user.id, 'login', `${client}:${persistent ? 'persistent' : 'session'}`, now);
+  const response = await sessionResponse({user, session, env, request, now, client});
+  const result = json(response);
+  return client === 'web' ? setCookieHeaders(result, session.refreshToken, request, env, {persistent}) : result;
+}
+
+export async function requestLoginCode({request, env, db, mailer, body, now = Date.now()}) {
+  return requestCode({request, env, db, mailer, body, purpose: 'login', now});
+}
+
+export async function loginWithCode({request, env, db, body, now = Date.now()}) {
+  const email = normalizeEmail(body.email);
+  const code = typeof body.code === 'string' ? body.code.trim() : '';
+  const challengeId = typeof body.challengeId === 'string' ? body.challengeId : '';
+  if (!/^\d{6}$/.test(code) || !/^[0-9a-f-]{36}$/i.test(challengeId)) fail(400, 'invalid_code', '验证码不正确或已过期。');
+  const emailKey = await sha256Hex(email);
+  await rate(db, `login:ip:${await sha256Hex(`ip:${request.ip}`)}`, 20, 15 * 60 * 1000, now);
+  await rate(db, `login:email:${emailKey}`, 10, 15 * 60 * 1000, now);
+  const challenge = await loadChallenge(db, {id: challengeId, email, purpose: 'login', now});
+  await verifyChallengeCode({db, env, challenge, code, now});
+  const user = await first(db, 'SELECT * FROM users WHERE email = ?', email);
+  if (!user) fail(404, 'account_not_found', '该邮箱尚未注册账号，请前往注册。');
+  if (user.status !== 'active') fail(403, 'account_unavailable', '账号当前不可用，请联系支持。');
+  const client = clientKind(request, body);
+  const persistent = body.remember !== false;
+  const session = await createSession(db, {
+    userId: user.id, client, request, now, persistent,
+    expectedPasswordHash: user.password_hash, expectedSecurityVersion: user.security_version,
+  });
+  await audit(db, user.id, 'login-code', `${client}:${persistent ? 'persistent' : 'session'}`, now);
   const response = await sessionResponse({user, session, env, request, now, client});
   const result = json(response);
   return client === 'web' ? setCookieHeaders(result, session.refreshToken, request, env, {persistent}) : result;
@@ -539,6 +598,21 @@ export async function resetPassword({request, env, db, mailer, body, now = Date.
   }
   await audit(db, user.id, 'password-reset', '', now);
   await queueSecurityNotice({db, mailer, user, kind: 'password-reset', now});
+  if (body.autoLogin === true) {
+    const freshUser = await first(db, 'SELECT * FROM users WHERE id = ?', user.id);
+    if (freshUser && freshUser.status === 'active') {
+      const client = clientKind(request, body);
+      const persistent = body.remember !== false;
+      const session = await createSession(db, {
+        userId: freshUser.id, client, request, now, persistent,
+        expectedPasswordHash: freshUser.password_hash, expectedSecurityVersion: freshUser.security_version,
+      });
+      await audit(db, freshUser.id, 'password-reset-login', `${client}:${persistent ? 'persistent' : 'session'}`, now);
+      const response = await sessionResponse({user: freshUser, session, env, request, now, client});
+      const result = json({...response, autoLogin: true});
+      return client === 'web' ? setCookieHeaders(result, session.refreshToken, request, env, {persistent}) : result;
+    }
+  }
   return clearCookie(json({ok: true, loginRequired: true}), request, env);
 }
 

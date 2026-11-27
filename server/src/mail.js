@@ -181,9 +181,14 @@ function mailLayout({title, content}) {
 }
 
 export function verificationEmail({purpose, code, minutes = 10, email}) {
-  const register = purpose === 'register';
-  const title = register ? '注册验证码' : '密码重置验证码';
-  const instruction = `请在应用或官网的${register ? '注册' : '密码重置'}页面输入下方验证码。`;
+  const labels = {
+    register: {title: '注册验证码', page: '注册'},
+    login: {title: '登录验证码', page: '登录'},
+    reset: {title: '密码重置验证码', page: '密码重置'},
+  };
+  const meta = labels[purpose] || labels.reset;
+  const title = meta.title;
+  const instruction = `请在应用或官网的${meta.page}页面输入下方验证码。`;
   const security = '请勿向任何人透露验证码。如果这不是你的操作，请忽略这封邮件。';
   const account = maskEmail(email);
   const text = [

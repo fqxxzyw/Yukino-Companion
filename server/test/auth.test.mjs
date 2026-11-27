@@ -367,3 +367,64 @@ test('remember-me off creates a browser-session cookie and keeps the flag across
   assert.equal(refreshed.data.persistent, false);
   assert.doesNotMatch(refreshed.headers.get('set-cookie') || '', /Max-Age/);
 });
+
+test('verification-code login signs in existing accounts and prompts unregistered emails to register', async () => {
+  const app = await createTestApp();
+  const missingCode = await app.call('/api/v1/auth/login/request-code', {
+    method: 'POST', body: {email: 'new-user@example.com', client: 'web'},
+  });
+  assert.equal(missingCode.status, 404);
+  assert.equal(missingCode.data.error.code, 'account_not_found');
+
+  const missingPassword = await app.call('/api/v1/auth/login', {
+    method: 'POST', body: {email: 'new-user@example.com', password: PASSWORD, checkAccount: true, client: 'web'},
+  });
+  assert.equal(missingPassword.status, 404);
+  assert.equal(missingPassword.data.error.code, 'account_not_found');
+
+  await app.register(EMAIL, PASSWORD);
+  app.advance(61000);
+  const requested = await app.call('/api/v1/auth/login/request-code', {
+    method: 'POST', body: {email: EMAIL, client: 'web'}, headers: {origin: 'http://127.0.0.1:8787'},
+  });
+  assert.equal(requested.status, 200);
+  const code = app.lastCode();
+  const signedIn = await app.call('/api/v1/auth/login/code', {
+    method: 'POST',
+    headers: {origin: 'http://127.0.0.1:8787'},
+    body: {email: EMAIL, code, challengeId: requested.data.challengeId, remember: true, client: 'web'},
+  });
+  assert.equal(signedIn.status, 200);
+  assert.ok(signedIn.data.accessToken);
+  assert.match(signedIn.headers.get('set-cookie') || '', /HttpOnly/);
+});
+
+test('forgot-password with autoLogin resets password, revokes old sessions, and logs in directly', async () => {
+  const app = await createTestApp();
+  const oldSession = await app.register(EMAIL, PASSWORD);
+  const missing = await app.call('/api/v1/auth/password/forgot', {
+    method: 'POST', body: {email: 'unregistered@example.com', checkAccount: true},
+  });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.data.error.code, 'account_not_found');
+
+  const requested = await app.call('/api/v1/auth/password/forgot', {
+    method: 'POST', body: {email: EMAIL, checkAccount: true},
+  });
+  assert.equal(requested.status, 200);
+  const verified = await app.call('/api/v1/auth/password/verify-reset', {
+    method: 'POST', body: {email: EMAIL, code: app.lastCode(), challengeId: requested.data.challengeId},
+  });
+  assert.equal(verified.status, 200);
+  const reset = await app.call('/api/v1/auth/password/reset', {
+    method: 'POST',
+    headers: {origin: 'http://127.0.0.1:8787'},
+    body: {resetToken: verified.data.resetToken, newPassword: 'Direct-AutoLogin-789!', autoLogin: true, remember: true, client: 'web'},
+  });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.data.autoLogin, true);
+  assert.ok(reset.data.accessToken);
+  assert.match(reset.headers.get('set-cookie') || '', /HttpOnly/);
+  assert.equal((await app.call('/api/v1/me', {token: oldSession.accessToken})).status, 401);
+  assert.equal((await app.call('/api/v1/me', {token: reset.data.accessToken})).status, 200);
+});
